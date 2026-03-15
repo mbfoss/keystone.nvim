@@ -1,8 +1,8 @@
-local Spinner    = require("keystone.tools.Spinner")
-local class      = require("keystone.tools.class")
-local fntools    = require("keystone.tools.fntools")
+local Spinner    = require("loop.tools.Spinner")
+local class      = require("loop.tools.class")
+local fntools    = require("loop.tools.fntools")
 
----@mod keystone.picker
+---@mod loop.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
 local M          = {}
@@ -11,48 +11,48 @@ local M          = {}
 -- Namespaces
 --------------------------------------------------------------------------------
 
-local NS_CURSOR  = vim.api.nvim_create_namespace("LoopPlugin_PickerCursor")
-local NS_VIRT    = vim.api.nvim_create_namespace("LoopPlugin_PickerVirtText")
-local NS_SPINNER = vim.api.nvim_create_namespace("LoopPlugin_PickerSpinner")
-local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
+local NS_CURSOR  = vim.api.nvim_create_namespace("KeystonePlugin_PickerCursor")
+local NS_VIRT    = vim.api.nvim_create_namespace("KeystonePlugin_PickerVirtText")
+local NS_SPINNER = vim.api.nvim_create_namespace("KeystonePlugin_PickerSpinner")
+local NS_PREVIEW = vim.api.nvim_create_namespace("KeystonePlugin_PickerPreview")
 
 --------------------------------------------------------------------------------
 -- Types
 --------------------------------------------------------------------------------
 
----@class keystone.Picker.Item
+---@class loop.Picker.Item
 ---@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field data any
 
----@alias keystone.Picker.Callback fun(data:any|nil)
+---@alias loop.Picker.Callback fun(data:any|nil)
 
----@class keystone.Picker.FetcherOpts
+---@class loop.Picker.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
----@class keystone.Picker.AsyncPreviewOpts
+---@class loop.Picker.AsyncPreviewOpts
 ---@field preview_width number
 ---@field preview_height number
 ---@field antiflicker_delay number
 
----@class keystone.Picker.QueryHistoryProvider
+---@class loop.Picker.QueryHistoryProvider
 ---@field load fun():string[]
 ---@field store fun(hist:string[])?
 
----@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
+---@alias loop.Picker.Fetcher fun(query:string,opts:loop.Picker.FetcherOpts):loop.Picker.Item[]?,number?
+---@alias loop.Picker.AsyncFetcher fun(query:string,opts:loop.Picker.FetcherOpts,callback:fun(new_items:loop.Picker.Item[]?)):fun()?
 
----@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?}
----@alias keystone.Picker.AsyncPreviewLoader fun(data:any,opts:keystone.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
+---@alias loop.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?}
+---@alias loop.Picker.AsyncPreviewLoader fun(data:any,opts:loop.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:loop.Picker.AsyncPreviewInfo?)):fun()?
 
----@class keystone.Picker.opts
+---@class loop.Picker.opts
 ---@field prompt string
----@field fetch keystone.Picker.Fetcher?
----@field async_fetch keystone.Picker.AsyncFetcher?
----@field async_preview keystone.Picker.AsyncPreviewLoader?
----@field history_provider keystone.Picker.QueryHistoryProvider?
+---@field fetch loop.Picker.Fetcher?
+---@field async_fetch loop.Picker.AsyncFetcher?
+---@field async_preview loop.Picker.AsyncPreviewLoader?
+---@field history_provider loop.Picker.QueryHistoryProvider?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
@@ -62,7 +62,7 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 -- Layout
 --------------------------------------------------------------------------------
 
----@class keystone.Picker.Layout
+---@class loop.Picker.Layout
 ---@field prompt_row number
 ---@field prompt_col number
 ---@field prompt_width number
@@ -93,7 +93,7 @@ end
 --------------------------------------------------------------------------------
 
 ---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
----@return keystone.Picker.Layout
+---@return loop.Picker.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
@@ -152,19 +152,19 @@ end
 -- Picker Class
 --------------------------------------------------------------------------------
 
----@class keystone.tools.Picker
----@field new fun(self: keystone.tools.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.tools.Picker
----@field opts keystone.Picker.opts
----@field callback keystone.Picker.Callback
+---@class loop.tools.Picker
+---@field new fun(self: loop.tools.Picker,opts:loop.Picker.opts,callback:loop.Picker.Callback) : loop.tools.Picker
+---@field opts loop.Picker.opts
+---@field callback loop.Picker.Callback
 ---@field has_preview boolean
----@field layout keystone.Picker.Layout
+---@field layout loop.Picker.Layout
 ---@field pbuf integer
 ---@field lbuf integer
 ---@field vbuf integer|nil
 ---@field pwin integer
 ---@field lwin integer
 ---@field vwin integer|nil
----@field spinner keystone.tools.Spinner|nil
+---@field spinner loop.tools.Spinner|nil
 ---@field closed boolean
 ---@field items_data any[]
 ---@field async_fetch_context number
@@ -182,8 +182,8 @@ local Picker = class()
 -- Initialization
 --------------------------------------------------------------------------------
 
----@param opts keystone.Picker.opts
----@param callback keystone.Picker.Callback
+---@param opts loop.Picker.opts
+---@param callback loop.Picker.Callback
 function Picker:init(opts, callback)
     self.opts = opts
     self.callback = callback
@@ -242,6 +242,7 @@ function Picker:setup_ui()
             vim.bo[b].bufhidden = "wipe"
             vim.bo[b].swapfile = false
             vim.bo[b].undolevels = -1
+            vim.bo[b].modeline = false
             vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
                 buffer = b,
                 once = true,
@@ -287,7 +288,7 @@ function Picker:setup_ui()
         vim.wo[self.vwin].wrap = true
     end
 
-    local winhl = "NormalFloat:Normal,FloatBorder:LoopTransparentBorder"
+    local winhl = "NormalFloat:Normal,FloatBorder:KeystoneTransparentBorder"
     for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
         if w then
             vim.wo[w].winhighlight = winhl
@@ -298,7 +299,7 @@ function Picker:setup_ui()
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
     ---@type number?
-    local focus_augroup = vim.api.nvim_create_augroup("LoopPlugin_PickerFocus_" .. self.pbuf, { clear = true })
+    local focus_augroup = vim.api.nvim_create_augroup("KeystonePlugin_PickerFocus_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("WinEnter", {
         group = focus_augroup,
         callback = function(args)
@@ -316,7 +317,7 @@ function Picker:setup_ui()
     })
 
     assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("LoopPlugin_PickerResize_" .. self.pbuf, { clear = true })
+    self.resize_augroup = vim.api.nvim_create_augroup("KeystonePlugin_PickerResize_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = self.resize_augroup,
         callback = function()
@@ -588,8 +589,6 @@ function Picker:clear_list()
     self:render_ui()
 end
 
----@param items keystone.Picker.Item[]
----@param query string
 function Picker:add_new_lines(items, query)
     local prefix = "  "
     local lines = {}
@@ -604,7 +603,6 @@ function Picker:add_new_lines(items, query)
     local start_row = is_empty and 0 or current_buf_count
 
     for _, item in ipairs(items) do
-        assert(item.data, "item.data is required")
         local label = item.label
         local label_chunks = item.label_chunks
         if label then
@@ -685,6 +683,8 @@ end
 
 ---@param query string
 function Picker:run_fetch(query)
+    -- Record if the query actually changed (to reset cursor) vs. just appending results
+    local is_new_query = (query ~= self.current_query)
     self.current_query = query
 
     if self.async_fetch_cancel then
@@ -694,7 +694,6 @@ function Picker:run_fetch(query)
 
     self:stop_spinner()
 
-    ---@type keystone.Picker.FetcherOpts
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2),
         list_height = self.layout.list_height,
@@ -704,11 +703,7 @@ function Picker:run_fetch(query)
         self:clear_list()
         local items, initial = self.opts.fetch(query, fetch_opts)
         self:add_new_lines(items, query)
-        if #self.items_data > 0 then
-            self:move_cursor(initial or 1, true, true)
-        else
-            self:render_ui()
-        end
+        self:move_cursor(initial or 1, true, true)
         return
     end
 
@@ -724,6 +719,12 @@ function Picker:run_fetch(query)
         function(new_items)
             if self.closed or context ~= self.async_fetch_context then return end
 
+            -- Capture current cursor before we modify the list
+            local saved_cursor = 1
+            if not is_new_query and not waiting_first then
+                saved_cursor = self:get_cursor()
+            end
+
             if waiting_first then
                 waiting_first = false
                 self:clear_list()
@@ -737,10 +738,13 @@ function Picker:run_fetch(query)
 
             self:add_new_lines(new_items, query)
 
-            if #self.items_data == #new_items and #self.items_data > 0 then
-                self:move_cursor(1, true)
+            -- If it's the very first render of a brand new query, go to top.
+            -- Otherwise, keep the user's cursor where it was (clamped to list size).
+            if is_new_query and #self.items_data > 0 then
+                self:move_cursor(1, true, true)
+                is_new_query = false -- Reset so subsequent async chunks don't snap to top
             else
-                self:render_ui()
+                self:move_cursor(saved_cursor, true, true)
             end
         end
     )
@@ -905,8 +909,8 @@ end
 -- Public API
 --------------------------------------------------------------------------------
 
----@param opts keystone.Picker.opts
----@param callback keystone.Picker.Callback
+---@param opts loop.Picker.opts
+---@param callback loop.Picker.Callback
 function M.select(opts, callback)
     assert(opts.fetch or opts.async_fetch)
 

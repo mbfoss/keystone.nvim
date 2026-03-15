@@ -67,79 +67,106 @@ function M.async_load_text_file(path, opts, callback)
 
     local max_size = (opts.max_size or 1024) * 1024 -- MB → bytes
     local timeout_ms = opts.timeout or 3000
-    local uv = vim.uv
-    ---@diagnostic disable-next-line: undefined-field
+    local uv = vim.uv or vim.loop
+
     local timer = uv.new_timer()
-    local fd
+    local fd = nil
     local chunks = {}
     local total_read = 0
     local offset = 0
 
     local finished = false
     local aborted = false
-    ------------------------------------------------------------------------
+
+    ---@param err string|nil
+    ---@param data string|nil
     local function finish(err, data)
-        if finished then
-            return
-        end
+        if finished then return end
         finished = true
+
+        -- 1. Stop and cleanup timer
+        if timer then
+            if not timer:is_closing() then
+                timer:stop()
+                timer:close()
+            end
+            timer = nil
+        end
+
+        -- 2. Close the file handle safely
+        if fd then
+            pcall(uv.fs_close, fd)
+            fd = nil
+        end
+
+        -- 3. Clear chunks to free memory immediately if error occurred
+        if err then chunks = {} end
+
+        -- 4. Notify caller on the main loop
         vim.schedule(function()
             if not aborted then
-                timer = fntools.stop_and_close_timer(timer)
-                if fd then
-                    ---@diagnostic disable-next-line: undefined-field
-                    uv.fs_close(fd)
-                    fd = nil
-                end
                 callback(err, data)
             end
         end)
     end
-    ------------------------------------------------------------------------
-    timer:start(timeout_ms, 0, function() finish("Timeout", nil) end)
-    ------------------------------------------------------------------------
-    ---@diagnostic disable-next-line: undefined-field
+
+    -- Start timeout watchdog
+    timer:start(timeout_ms, 0, function()
+        finish("Timeout", nil)
+    end)
+
+    -- Open file
     uv.fs_open(path, "r", 438, function(open_err, opened_fd)
-        if open_err then
-            return finish("Could not open file: " .. open_err, nil)
-        end
-        fd = opened_fd
-        ------------------------------------------------------------------------
-        ---@diagnostic disable-next-line: undefined-field
-        uv.fs_fstat(fd, function(stat_err, stat)
-            if stat_err then
-                return finish("Stat error: " .. stat_err, nil)
+        -- Immediate Guard: If an error occurred or we already timed out/aborted
+        if open_err or finished or aborted then
+            if opened_fd then pcall(uv.fs_close, opened_fd) end
+            if open_err and not (finished or aborted) then
+                return finish("Could not open file: " .. open_err, nil)
             end
+            return
+        end
+
+        fd = opened_fd
+
+        -- Check file stats
+        uv.fs_fstat(fd, function(stat_err, stat)
+            if finished or aborted then return end
+            if stat_err then return finish("Stat error: " .. stat_err, nil) end
 
             if stat.size > max_size then
-                return finish("File exceeds max size limit", nil)
+                return finish("File exceeds max size limit (" .. opts.max_size .. "MB)", nil)
             end
-            ------------------------------------------------------------------------
+
             local function read_next()
-                ---@diagnostic disable-next-line: undefined-field
+                -- Double check fd is still valid before every read call
+                if not fd or finished or aborted then return end
+
                 uv.fs_read(fd, 8192, offset, function(read_err, data)
+                    if finished or aborted then return end
+
                     if read_err then
                         return finish("Read error: " .. read_err, nil)
                     end
 
+                    -- EOF (End of File)
                     if not data or #data == 0 then
-                        -- EOF
-                        return finish(nil, table.concat(chunks))
+                        local final_data = table.concat(chunks)
+                        chunks = {} -- Clear reference
+                        return finish(nil, final_data)
                     end
 
-                    -- Binary detection
+                    -- Binary check (Null byte detection)
                     if data:find("\0", 1, true) then
-                        return finish("Binary file", nil)
+                        return finish("Binary file detected", nil)
                     end
 
                     total_read = total_read + #data
                     if total_read > max_size then
-                        return finish("File exceeds max size limit", nil)
+                        return finish("File exceeds max size limit during read", nil)
                     end
 
-                    chunks[#chunks + 1] = data
+                    table.insert(chunks, data)
                     offset = offset + #data
-
                     read_next()
                 end)
             end
@@ -147,8 +174,10 @@ function M.async_load_text_file(path, opts, callback)
             read_next()
         end)
     end)
-    ------------------------------------------------------------------------
+
+    -- Return abort function
     return function()
+        if finished or aborted then return end
         aborted = true
         finish("Aborted", nil)
     end

@@ -35,11 +35,13 @@ end
 ---@param prefix string[]   -- e.g. { "task" }
 ---@param out string[]
 local function _collect_commands(prefix, out)
-    local cmds = manager.get_subcommands(prefix[1], { unpack(prefix, 2) }, true)
+    local first = prefix[1]
+    table.remove(prefix, 1)
+    local cmds = manager.get_subcommands(first, prefix, true)
 
     for _, cmd in ipairs(cmds or {}) do
         local parts = vim.list_extend(vim.deepcopy(prefix), { cmd })
-        table.insert(out, "Loop " .. table.concat(parts, " "))
+        table.insert(out, ("Keystone %s %s"):format(first, table.concat(parts, " ")))
         -- recurse to catch deeper subcommands
         _collect_commands(parts, out)
     end
@@ -51,7 +53,7 @@ function M.select_command()
 
     -- Top-level commands
     for _, cmd in ipairs(manager.get_commands()) do
-        table.insert(all_cmds, "Loop " .. cmd)
+        table.insert(all_cmds, "Keystone " .. cmd)
         -- Subcommands (recursive)
         _collect_commands({ cmd }, all_cmds)
     end
@@ -94,7 +96,7 @@ function M.dispatch(opts)
     local ok, err = pcall(manager.run_command, subcmd, rest, opts)
     if not ok then
         vim.notify(
-            "Loop " .. subcmd .. " failed: " .. tostring(err),
+            "Keystone " .. subcmd .. " failed: " .. tostring(err),
             vim.log.levels.ERROR
         )
     end

@@ -3,7 +3,7 @@
 ---@field _complete_buf? integer
 local M = {}
 
-local debug_win_augroup = vim.api.nvim_create_augroup("LoopPlugin_ModalWin", { clear = true })
+local debug_win_augroup = vim.api.nvim_create_augroup("KeystonePlugin_ModalWin", { clear = true })
 local _current_win = nil
 
 
@@ -86,7 +86,7 @@ function M.show_tooltip(text)
     vim.wo[winnr].wrap       = true
 
     -- Auto-close on cursor move (very common pattern)
-    local aug = vim.api.nvim_create_augroup("LoopPlugin_ToolHoverClose", { clear = true })
+    local aug = vim.api.nvim_create_augroup("KeystonePlugin_ToolHoverClose", { clear = true })
     vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
         group    = aug,
         once     = true,
