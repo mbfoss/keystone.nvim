@@ -11,7 +11,7 @@ function M.fuzzy_chunk_builder(display_string, positions, hl_group)
         return { { display_string } }
     end
 
-    local hl = hl_group or "Label"
+    local hl = hl_group or "Special"
     local chunks = {}
     local pos_map = {}
     for _, p in ipairs(positions) do pos_map[p] = true end

@@ -4,7 +4,7 @@ local uitools = require("keystone.tools.uitools")
 local picker = require('keystone.tools.picker')
 local pickertools = require("keystone.pickers.tools")
 
----@param severity integer LSP DiagnosticSeverity
+---@param severity vim.diagnostic.Severity LSP DiagnosticSeverity
 ---@return string, string (Text, HighlightGroup)
 local function get_severity_info(severity)
     local map = {
