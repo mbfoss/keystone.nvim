@@ -1,8 +1,8 @@
-local Spinner    = require("loop.tools.Spinner")
-local class      = require("loop.tools.class")
-local fntools    = require("loop.tools.fntools")
+local Spinner    = require("keystone.tools.Spinner")
+local class      = require("keystone.tools.class")
+local fntools    = require("keystone.tools.fntools")
 
----@mod loop.picker
+---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
 local M          = {}
@@ -20,39 +20,39 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("KeystonePlugin_PickerPreview")
 -- Types
 --------------------------------------------------------------------------------
 
----@class loop.Picker.Item
+---@class keystone.Picker.Item
 ---@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field data any
 
----@alias loop.Picker.Callback fun(data:any|nil)
+---@alias keystone.Picker.Callback fun(data:any|nil)
 
----@class loop.Picker.FetcherOpts
+---@class keystone.Picker.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
----@class loop.Picker.AsyncPreviewOpts
+---@class keystone.Picker.AsyncPreviewOpts
 ---@field preview_width number
 ---@field preview_height number
 ---@field antiflicker_delay number
 
----@class loop.Picker.QueryHistoryProvider
+---@class keystone.Picker.QueryHistoryProvider
 ---@field load fun():string[]
 ---@field store fun(hist:string[])?
 
----@alias loop.Picker.Fetcher fun(query:string,opts:loop.Picker.FetcherOpts):loop.Picker.Item[]?,number?
----@alias loop.Picker.AsyncFetcher fun(query:string,opts:loop.Picker.FetcherOpts,callback:fun(new_items:loop.Picker.Item[]?)):fun()?
+---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
+---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
 
----@alias loop.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?}
----@alias loop.Picker.AsyncPreviewLoader fun(data:any,opts:loop.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:loop.Picker.AsyncPreviewInfo?)):fun()?
+---@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?}
+---@alias keystone.Picker.AsyncPreviewLoader fun(data:any,opts:keystone.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
 
----@class loop.Picker.opts
+---@class keystone.Picker.opts
 ---@field prompt string
----@field fetch loop.Picker.Fetcher?
----@field async_fetch loop.Picker.AsyncFetcher?
----@field async_preview loop.Picker.AsyncPreviewLoader?
----@field history_provider loop.Picker.QueryHistoryProvider?
+---@field fetch keystone.Picker.Fetcher?
+---@field async_fetch keystone.Picker.AsyncFetcher?
+---@field async_preview keystone.Picker.AsyncPreviewLoader?
+---@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
@@ -62,7 +62,7 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("KeystonePlugin_PickerPreview")
 -- Layout
 --------------------------------------------------------------------------------
 
----@class loop.Picker.Layout
+---@class keystone.Picker.Layout
 ---@field prompt_row number
 ---@field prompt_col number
 ---@field prompt_width number
@@ -93,7 +93,7 @@ end
 --------------------------------------------------------------------------------
 
 ---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
----@return loop.Picker.Layout
+---@return keystone.Picker.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
@@ -152,19 +152,19 @@ end
 -- Picker Class
 --------------------------------------------------------------------------------
 
----@class loop.tools.Picker
----@field new fun(self: loop.tools.Picker,opts:loop.Picker.opts,callback:loop.Picker.Callback) : loop.tools.Picker
----@field opts loop.Picker.opts
----@field callback loop.Picker.Callback
+---@class keystone.tools.Picker
+---@field new fun(self: keystone.tools.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.tools.Picker
+---@field opts keystone.Picker.opts
+---@field callback keystone.Picker.Callback
 ---@field has_preview boolean
----@field layout loop.Picker.Layout
+---@field layout keystone.Picker.Layout
 ---@field pbuf integer
 ---@field lbuf integer
 ---@field vbuf integer|nil
 ---@field pwin integer
 ---@field lwin integer
 ---@field vwin integer|nil
----@field spinner loop.tools.Spinner|nil
+---@field spinner keystone.tools.Spinner|nil
 ---@field closed boolean
 ---@field items_data any[]
 ---@field async_fetch_context number
@@ -182,8 +182,8 @@ local Picker = class()
 -- Initialization
 --------------------------------------------------------------------------------
 
----@param opts loop.Picker.opts
----@param callback loop.Picker.Callback
+---@param opts keystone.Picker.opts
+---@param callback keystone.Picker.Callback
 function Picker:init(opts, callback)
     self.opts = opts
     self.callback = callback
@@ -909,8 +909,8 @@ end
 -- Public API
 --------------------------------------------------------------------------------
 
----@param opts loop.Picker.opts
----@param callback loop.Picker.Callback
+---@param opts keystone.Picker.opts
+---@param callback keystone.Picker.Callback
 function M.select(opts, callback)
     assert(opts.fetch or opts.async_fetch)
 
