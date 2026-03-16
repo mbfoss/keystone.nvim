@@ -1,8 +1,8 @@
 local M = {}
 
-local uitools = require("keystone.tools.uitools")
-local picker = require('keystone.tools.picker')
-local pickertools = require("keystone.pickers.tools")
+local uitools = require("loop.tools.uitools")
+local picker = require('loop.tools.picker')
+local pickertools = require("loop.tools.pickertools")
 
 ---@param severity vim.diagnostic.Severity LSP DiagnosticSeverity
 ---@return string, string (Text, HighlightGroup)

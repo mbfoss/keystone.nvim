@@ -1,9 +1,8 @@
 local M = {}
 
-local uitools = require("keystone.tools.uitools")
-local filetools = require("keystone.tools.file")
-local picker = require('keystone.tools.picker')
-local pickertools = require("keystone.pickers.tools")
+local uitools = require("loop.tools.uitools")
+local picker = require('loop.tools.picker')
+local pickertools = require("loop.tools.pickertools")
 
 function M.open()
     local cwd = vim.fn.getcwd()
@@ -60,11 +59,7 @@ function M.open()
             end
             return items
         end,
-        async_preview = function(item_data, _, callback)
-            return filetools.async_load_text_file(item_data, nil, function(_, content)
-                callback(content, { filepath = item_data })
-            end)
-        end,
+        async_preview = pickertools.default_file_preview,
     }, function(selected_path)
         if selected_path then
             uitools.smart_open_file(selected_path)

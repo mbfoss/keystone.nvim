@@ -2,8 +2,8 @@ local M = {}
 
 -- Dependencies
 local manager = require("keystone.manager")
-local strtools = require('keystone.tools.strtools')
-local selector = require('keystone.tools.selector')
+local strtools = require('loop.tools.strtools')
+local selector = require('loop.tools.selector')
 
 function M.complete(arg_lead, cmd_line)
     local function filter(strs)
@@ -60,7 +60,7 @@ function M.select_command()
 
     local choices = {}
     for _, cmd in ipairs(all_cmds) do
-        ---@type keystone.SelectorItem
+        ---@type loop.SelectorItem
         local item = {
             label = cmd,
             data = cmd,
