@@ -4,6 +4,7 @@ local M = {}
 -- The key is the subcommand name, and the value is a function that executes the picker.
 local pickers = {
     recent_files         = function() require("keystone.pickers.oldfiles").open() end,
+    quickfix             = function() require("keystone.pickers.quickfix").open() end,
     lsp_references       = function() require("keystone.pickers.lsp").references() end,
     document_symbols     = function() require("keystone.pickers.lsp").document_symbols() end,
     document_functions   = function() require("keystone.pickers.lsp").document_functions() end,
