@@ -1,9 +1,9 @@
 local M = {}
 
-local uitools = require("loop.tools.uitools")
-local strtools = require("loop.tools.strtools")
-local picker = require('loop.tools.picker')
-local pickertools = require("loop.tools.pickertools")
+local uitools = require("keystone.tools.uitools")
+local strtools = require("keystone.tools.strtools")
+local picker = require('keystone.tools.picker')
+local pickertools = require("keystone.tools.pickertools")
 
 -- Create a cache for the inverted table
 local _kind_to_str_cache = {}
@@ -26,7 +26,7 @@ end
 
 ---@param result table LSP Reference result
 ---@param list_width number
----@return loop.SelectorItem
+---@return keystone.SelectorItem
 local function lsp_item_to_picker_item(result, list_width)
     local uri = result.uri or result.targetUri
     local range = result.range or result.targetSelectionRange

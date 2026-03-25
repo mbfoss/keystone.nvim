@@ -3,6 +3,8 @@ local M = {}
 -- Define your pickers here.
 -- The key is the subcommand name, and the value is a function that executes the picker.
 local pickers = {
+    files                = function() require("keystone.pickers.files").open() end,
+    live_grep            = function() require("keystone.pickers.livegrep").open() end,
     recent_files         = function() require("keystone.pickers.oldfiles").open() end,
     quickfix             = function() require("keystone.pickers.quickfix").open() end,
     lsp_references       = function() require("keystone.pickers.lsp").references() end,

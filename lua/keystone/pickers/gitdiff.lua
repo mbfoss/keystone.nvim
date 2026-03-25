@@ -1,8 +1,8 @@
 local M = {}
 
-local Process = require("loop.tools.Process")
-local uitools = require("loop.tools.uitools")
-local picker = require('loop.tools.picker')
+local Process = require("keystone.tools.Process")
+local uitools = require("keystone.tools.uitools")
+local picker = require('keystone.tools.picker')
 local pickertools = require("keystone.pickers.tools")
 
 function M.open()
