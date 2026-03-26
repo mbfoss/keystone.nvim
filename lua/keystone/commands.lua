@@ -2,8 +2,8 @@ local M = {}
 
 -- Dependencies
 local manager = require("keystone.manager")
-local strtools = require('keystone.tools.strtools')
-local selector = require('keystone.tools.selector')
+local strtools = require('keystone.utils.strtools')
+local selector = require('keystone.utils.selector')
 
 function M.complete(arg_lead, cmd_line)
     local function filter(strs)

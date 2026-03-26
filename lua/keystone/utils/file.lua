@@ -266,8 +266,8 @@ end
 local uv = vim.uv or vim.loop
 
 ---@param dir string
----@param include_regex_list vim.regex[]
----@param exclude_regex_list vim.regex[]
+---@param include_regex_list vim.regex[]?
+---@param exclude_regex_list vim.regex[]?
 ---@param on_file fun(path:string,name:string,rel_path:string)
 ---@param on_done fun()
 ---@return function # cancel function

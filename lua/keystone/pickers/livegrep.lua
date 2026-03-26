@@ -92,7 +92,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             ---@type keystone.SelectorItem
             local item = {
                 label_chunks = chunks,
-                virt_lines = { { { location, "Comment" } } },
+                virt_lines = { { { location, "@markup" } } },
                 file = abs_path,
                 data = {
                     filepath = abs_path,
@@ -168,11 +168,12 @@ function M.open(opts)
             end
             return async_grep_search(query, {
                 cwd = cwd,
+                include_globs = opts.include_globs or {},
                 exclude_globs = opts.exclude_globs or {},
-                max_results = opts.max_results,
+                max_results = opts.max_results or 10000,
             }, fetch_opts, callback)
         end,
-            async_preview = function(data, opts, callback)
+            async_preview = function(data, _, callback)
                 return pickertools.default_file_preview(data.filepath, {
                     lnum = data.lnum,
                     col = data.col

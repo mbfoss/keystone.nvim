@@ -10,8 +10,8 @@ local pickertools = require("keystone.utils.pickertools")
 
 ---@class keystone.filepicker.SearchOpts
 ---@field cwd string The root directory for the search
----@field include_globs string[] List of glob patterns to include (filtered in Lua)
----@field exclude_globs string[] List of glob patterns for fd to ignore
+---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
+---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
 ---@
 ---@param query string User input
@@ -24,8 +24,8 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results = opts.max_results or 10000
     local items = {}
 
-    local include_regex_list = strtools.compile_globs(opts.include_globs)
-    local exclude_regex_list = strtools.compile_globs(opts.exclude_globs)
+    local include_regex_list = opts.include_globs and strtools.compile_globs(opts.include_globs) or nil
+    local exclude_regex_list = opts.exclude_globs and strtools.compile_globs(opts.exclude_globs) or nil
 
     local cancel_fn
     cancel_fn = filetools.async_walk_dir(
@@ -94,7 +94,7 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
     local count = 0
     local max_results = fd_opts.max_results or 10000
 
-    local include_regex_list = strtools.compile_globs(fd_opts.include_globs)
+    local include_regex_list = fd_opts.include_globs and strtools.compile_globs(fd_opts.include_globs) or nil
 
     local buffered_feed = strtools.create_line_buffered_feed(function(lines)
         local items = {}
@@ -160,9 +160,9 @@ function M.open(opts)
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
                 cwd = opts.cwd or vim.fn.getcwd(),
-                include_globs = opts.include_globs or {},
+                include_globs = opts.include_globs,
                 exclude_globs = opts.exclude_globs,
-                max_results = opts.max_results,
+                max_results = opts.max_results or 10000,
             }
             if ksconfig.use_fd_find then
                 return async_fd_search(query, search_opts, fetch_opts, callback)
