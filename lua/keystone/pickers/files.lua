@@ -8,12 +8,19 @@ local filetools = require("keystone.utils.file")
 local picker = require('keystone.utils.picker')
 local pickertools = require("keystone.utils.pickertools")
 
+---@class keystone.filepicker.Opts
+---@field cwd string The root directory for the search
+---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
+---@field exclude_globs string[]? List of glob patterns for fd to ignore
+---@field max_results number?
+---@field history_provider keystone.Picker.QueryHistoryProvider?
+
 ---@class keystone.filepicker.SearchOpts
 ---@field cwd string The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
----@
+
 ---@param query string User input
 ---@param opts keystone.filepicker.SearchOpts
 ---@param fetch_opts keystone.Picker.FetcherOpts
@@ -146,6 +153,7 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
     return function() if process then process:kill({ stop_read = true }) end end
 end
 
+---@param opts keystone.filepicker.Opts?
 function M.open(opts)
     opts = opts or {}
     return picker.select({
