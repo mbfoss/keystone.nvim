@@ -1,6 +1,6 @@
 local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
-local utils    = require("keystone.utils.utils")
+local utils      = require("keystone.utils.utils")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -516,20 +516,25 @@ end
 
 ---@return nil
 function Picker:update_preview()
+    self.async_preview_context = self.async_preview_context + 1
+    local preview_context = self.async_preview_context
+    local fetch_context = self.async_fetch_context
+
+
     if self.closed then return end
     if not self.vbuf then return end
+
+    self:request_clear_preview()
 
     if self.async_preview_cancel then
         self.async_preview_cancel()
         self.async_preview_cancel = nil
     end
 
-    self:request_clear_preview()
     local item = self.items_data[self:get_cursor()]
     local data = item and item.data
 
-    self.async_preview_context = self.async_preview_context + 1
-    local context = self.async_preview_context
+    if not data then return end
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.prev_height - 2) -- -2 for borders
@@ -542,17 +547,16 @@ function Picker:update_preview()
             antiflicker_delay = self.antiflicker_delay,
         },
         function(preview, info)
-            if self.closed or context ~= self.async_preview_context then return end
-            self:cancel_clear_preview_req()
+            if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then return end
             local lines
             if preview then
                 lines = vim.split(preview, "\n")
             elseif info and info.error_msg then
                 lines = _center_for_previwer(info.error_msg, preview_width, preview_height)
-            else
-                lines = {}
             end
+            lines = lines or {}
             if vim.api.nvim_buf_is_valid(self.vbuf) then
+                self:cancel_clear_preview_req()
                 vim.bo[self.vbuf].modifiable = true
                 vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
                 vim.bo[self.vbuf].modifiable = false
@@ -630,17 +634,17 @@ end
 --------------------------------------------------------------------------------
 
 function Picker:request_clear_preview()
-    if self.vbuf and self.vbuf > 0. and not self.preview_timer then
+    if self.vbuf and self.vbuf > 0 and not self.preview_timer then
         -- Defer clearing the preview window to avoid flicker during fast scrolls
         ---@diagnostic disable-next-line: undefined-field
-        self.preview_timer = vim.defer_fn(vim.schedule_wrap(function()
+        self.preview_timer = vim.defer_fn(function()
+            self.preview_timer = nil
             if self.closed then return end
             vim.bo[self.vbuf].modifiable = true
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
-            self.preview_timer = nil
-        end), self.antiflicker_delay)
-        return
+            vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
+        end, self.antiflicker_delay)
     end
 end
 
@@ -662,7 +666,6 @@ function Picker:clear_list()
 end
 
 function Picker:add_new_lines(items, query)
-    --vim.notify("add new lines, count=" .. #items)
     local prefix = "  "
 
     -- Track if the buffer was totally empty (one blank line)
@@ -751,6 +754,7 @@ function Picker:run_fetch(query)
     end
 
     self:stop_spinner()
+    self:request_clear_preview()
 
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2), -- -2 for borders

@@ -6,14 +6,14 @@ local strtools = require("keystone.utils.strtools")
 ---@param path string
 function M.file_exists(path)
     ---@diagnostic disable-next-line: undefined-field
-    local stat = vim.keystone.fs_stat(path)
+    local stat = vim.loop.fs_stat(path)
     return stat and stat.type == "file"
 end
 
 ---@param path string
 function M.dir_exists(path)
     ---@diagnostic disable-next-line: undefined-field
-    local stat = vim.keystone.fs_stat(path)
+    local stat = vim.loop.fs_stat(path)
     return stat and stat.type == "directory"
 end
 

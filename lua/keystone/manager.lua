@@ -1,17 +1,18 @@
 local M = {}
 
--- Define your pickers here.
 -- The key is the subcommand name, and the value is a function that executes the picker.
 local pickers = {
     files                = function() require("keystone.pickers.files").open() end,
     live_grep            = function() require("keystone.pickers.livegrep").open() end,
     recent_files         = function() require("keystone.pickers.oldfiles").open() end,
+    config_files         = function() require("keystone.pickers.files").open({ cwd = vim.fn.stdpath("config") }) end,
     quickfix             = function() require("keystone.pickers.quickfix").open() end,
     lsp_references       = function() require("keystone.pickers.lsp").references() end,
     document_symbols     = function() require("keystone.pickers.lsp").document_symbols() end,
     document_functions   = function() require("keystone.pickers.lsp").document_functions() end,
     document_diagnostics = function() require("keystone.pickers.diagnosics").document_diagnostics() end,
     git_diff             = function() require("keystone.pickers.gitdiff").open() end,
+    buffers             = function() require("keystone.pickers.buffers").open() end,
 }
 
 local function _ensure_init()

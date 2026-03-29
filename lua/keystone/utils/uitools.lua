@@ -151,21 +151,40 @@ function M.read_file_or_buffer(filepath)
 end
 
 ---@param bufnr number
+---@param lnum number? 1-indexed line number
+---@param col number? 0-indexed column number
 ---@return number winid
-function M.smart_open_buffer(bufnr)
+function M.smart_open_buffer(bufnr, lnum, col)
+    local target_win = nil
+
     -- Check if the buffer is already displayed in any visible window
     for _, winid in ipairs(vim.api.nvim_list_wins()) do
         if vim.api.nvim_win_get_buf(winid) == bufnr then
-            -- Buffer is already visible, just return this window
             vim.api.nvim_set_current_win(winid)
-            return winid
+            target_win = winid
+            break
         end
     end
+
     -- Buffer not visible in any window, find or create an empty window
-    local winid = M.get_regular_window()
-    vim.api.nvim_set_current_win(winid)
-    vim.api.nvim_win_set_buf(winid, bufnr)
-    return winid
+    if not target_win then
+        target_win = M.get_regular_window()
+        vim.api.nvim_set_current_win(target_win)
+        vim.api.nvim_win_set_buf(target_win, bufnr)
+    end
+
+    -- Move cursor if position is provided
+    if lnum then
+        -- Ensure line number is valid for the buffer to prevent errors
+        local line_count = vim.api.nvim_buf_line_count(bufnr)
+        local safe_lnum = math.max(1, math.min(lnum, line_count))
+        local ok = pcall(vim.api.nvim_win_set_cursor, target_win, { safe_lnum, col or 0 })
+        if not ok then
+            vim.api.nvim_win_set_cursor(target_win, { safe_lnum or 0 })
+        end
+    end
+
+    return target_win
 end
 
 ---@param winid number
