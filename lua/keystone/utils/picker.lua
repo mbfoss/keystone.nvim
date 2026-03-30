@@ -848,6 +848,40 @@ function Picker:set_prompt_text(text)
     -- The TextChanged autocmd will trigger run_fetch automatically
 end
 
+function Picker:send_to_qf()
+    if #self.items_data == 0 then return end
+    local qf_entries = {}
+    for _, item in ipairs(self.items_data) do
+        local d = item.data
+        if d then
+            local label = item.label
+            if not label and item.label_chunks then
+                local parts = {}
+                for _, chunk in ipairs(item.label_chunks) do
+                    table.insert(parts, chunk[1] or "")
+                end
+                label = table.concat(parts)
+            end
+            label = (label or ""):gsub("\n", "")
+            table.insert(qf_entries, {
+                -- Adjust these keys based on what your fetcher provides in 'data'
+                filename = d.filepath or d.filename or d.path,
+                lnum     = d.lnum or 1,
+                col      = d.col or 1,
+                text     = label,
+            })
+        end
+    end
+    if #qf_entries > 0 then
+        -- Close the picker first
+        self:close(nil)
+        -- Set the quickfix list and open the window
+        vim.fn.setqflist(qf_entries, "r")
+        vim.cmd("copen")
+        print(string.format("Sent %d items to Quickfix", #qf_entries))
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Close
 --------------------------------------------------------------------------------
@@ -942,6 +976,10 @@ function Picker:setup_input()
 
     vim.keymap.set("i", "<C-k>", function()
         self:history_prev()
+    end, key_opts)
+
+    vim.keymap.set("i", "<C-q>", function()
+        self:send_to_qf()
     end, key_opts)
 
     vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {

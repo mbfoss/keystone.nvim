@@ -5,6 +5,24 @@ local strtools = require("keystone.utils.strtools")
 
 local M = {}
 
+local function matches_filter(qf, filter)
+    if filter == "all" or not filter then
+        return true
+    end
+
+    local t = (qf.type or ""):upper()
+
+    if filter == "errors" then
+        return t == "E" or t == ""
+    elseif filter == "warnings" then
+        return t == "W"
+    elseif filter == "info" then
+        return t == "I"
+    end
+
+    return true
+end
+
 ---@param item table Quickfix item from getqflist()
 ---@param list_width number
 ---@return table
@@ -12,17 +30,23 @@ local function qf_item_to_picker_item(item, list_width)
     local bufnr = item.bufnr
     local filepath = vim.api.nvim_buf_get_name(bufnr)
     local display_path = strtools.smart_crop_path(vim.fn.fnamemodify(filepath, ":."), list_width)
-    
+
     -- The text shown in the picker is the error message/description
-    local label = vim.trim(item.text ~= "" and item.text or "[No description]")
+    local prefix = ({
+        E = " ",
+        W = " ",
+        I = " ",
+    })[item.type] or ""
+
+    local label = prefix .. vim.trim(item.text ~= "" and item.text or "[No description]")
 
     return {
         label = label,
         -- Use virt_lines to show the location like your LSP pattern
-        virt_lines = { 
-            { 
-                { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Comment" } 
-            } 
+        virt_lines = {
+            {
+                { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Comment" }
+            }
         },
         data = {
             filepath = filepath,
@@ -33,11 +57,23 @@ local function qf_item_to_picker_item(item, list_width)
     }
 end
 
-function M.open()
+function M.open(opts)
+    opts = opts or {}
+    local filter = opts.filter or "all"
     local qflist = vim.fn.getqflist()
-    
-    if vim.tbl_isempty(qflist) then
-        vim.notify("Quickfix list is empty", vim.log.levels.WARN)
+
+    local have_items = false
+    for _, qf in ipairs(qflist) do
+        if qf.valid == 1 and matches_filter(qf, filter) then
+            have_items = true
+        end
+    end
+    if not have_items then
+        if filter == "all" then
+            vim.notify("Quickfix list is empty", vim.log.levels.WARN)
+        else
+            vim.notify(("No %s in quickfix list"):format(filter), vim.log.levels.WARN)
+        end
         return
     end
 
@@ -47,7 +83,7 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, qf in ipairs(qflist) do
-                if qf.valid == 1 then
+                if qf.valid == 1 and matches_filter(qf, filter) then
                     local base_item = qf_item_to_picker_item(qf, fetch_opts.list_width)
 
                     -- Use make_picker_item to fuzzy search the 'text' of the quickfix
@@ -63,7 +99,6 @@ function M.open()
                     end
                 end
             end
-            
             table.sort(items, function(a, b) return a.score > b.score end)
             return items
         end,
@@ -73,9 +108,9 @@ function M.open()
                 col = data.col
             }, callback)
         end,
-    }, function(selected)
-        if selected then
-            uitools.smart_open_file(selected.data.filepath, selected.data.lnum, selected.data.col)
+    }, function(data)
+        if data then
+            uitools.smart_open_file(data.filepath, data.lnum, data.col)
         end
     end)
 end
