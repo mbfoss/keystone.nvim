@@ -67,8 +67,13 @@ function M.references()
     params.context = { includeDeclaration = true }
 
     vim.lsp.buf_request(0, "textDocument/references", params, function(err, result, ctx, _)
-        if err or not result or vim.tbl_isempty(result) then
-            if err then vim.notify("LSP Error: " .. err.message, vim.log.levels.ERROR) end
+        if err then
+            vim.notify("LSP Error: " .. err.message, vim.log.levels.ERROR)
+            return
+        end
+
+        if not result or vim.tbl_isempty(result) then
+            vim.notify("No LSP rererences found")
             return
         end
 
@@ -147,6 +152,11 @@ function M.document_symbols(kinds)
             end
         end
         flatten(result)
+
+        if #items == 0 then
+            vim.notify("No symbols found")
+            return
+        end
 
         picker.select({
             prompt = "Document Symbols",
