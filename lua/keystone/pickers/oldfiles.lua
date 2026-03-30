@@ -35,16 +35,10 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, file in ipairs(recent_files) do
-                -- Calculate how far the filename is from the start of the match_path
-                local offset = #file.match_path - #file.filename
-
-                -- Use generic tool for matching filename vs match_path
-                local res = pickertools.make_picker_item(file.filename, query, file.match_path, {
+                local res = pickertools.make_picker_item(file.filename, query, {
                     list_width = fetch_opts.list_width,
                     is_path = true,
-                    offset = offset
                 })
-
                 if res then
                     table.insert(items, {
                         label_chunks = res.chunks,

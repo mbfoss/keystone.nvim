@@ -91,7 +91,7 @@ function M.references()
                         local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
 
                         -- Match query against the label (line text)
-                        local match = pickertools.make_picker_item(item.label, query, item.label, {
+                        local match = pickertools.make_picker_item(item.label, query, {
                             list_width = fetch_opts.list_width,
                             is_path = false
                         })
@@ -112,9 +112,9 @@ function M.references()
                     col = data.col
                 }, callback)
             end,
-        }, function(selected)
-            if selected then
-                uitools.smart_open_file(selected.data.filepath, selected.data.lnum, selected.data.col)
+        }, function(data)
+            if data then
+                uitools.smart_open_file(data.filepath, data.lnum, data.col)
             end
         end)
     end)
@@ -164,7 +164,7 @@ function M.document_symbols(kinds)
                 local filtered = {}
                 for _, item in ipairs(items) do
                     -- Match against the symbol name
-                    local match = pickertools.make_picker_item(item.data.name, query, item.data.name, {
+                    local match = pickertools.make_picker_item(item.data.name, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false
                     })
@@ -185,9 +185,9 @@ function M.document_symbols(kinds)
                     col = data.col
                 }, callback)
             end,
-        }, function(selected)
-            if selected then
-                vim.api.nvim_win_set_cursor(0, { selected.data.lnum, selected.data.col })
+        }, function(data)
+            if data then
+                vim.api.nvim_win_set_cursor(0, { data.lnum, data.col })
             end
         end)
     end)

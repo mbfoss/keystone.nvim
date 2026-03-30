@@ -85,9 +85,7 @@ function M.open(opts)
             for _, qf in ipairs(qflist) do
                 if qf.valid == 1 and matches_filter(qf, filter) then
                     local base_item = qf_item_to_picker_item(qf, fetch_opts.list_width)
-
-                    -- Use make_picker_item to fuzzy search the 'text' of the quickfix
-                    local match = pickertools.make_picker_item(base_item.label, query, base_item.label, {
+                    local match = pickertools.make_picker_item(base_item.label, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false
                     })

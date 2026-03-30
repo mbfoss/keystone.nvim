@@ -3,7 +3,7 @@ local M = {}
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local picker = require('keystone.utils.picker')
-local pickertools = require("keystone.pickers.tools")
+local pickertools = require("keystone.utils.pickertools")
 
 function M.open()
     local cwd = vim.fn.getcwd()
@@ -22,9 +22,9 @@ function M.open()
                     if not data or is_stderr then return end
                     for line in data:gmatch("[^\r\n]+") do
                         local filename = vim.fn.fnamemodify(line, ":t")
-                        
+
                         -- Use the generic tool to match filename while displaying the path
-                        local res = pickertools.make_picker_item(filename, query, line, {
+                        local res = pickertools.make_picker_item(line, query, {
                             list_width = fetch_opts.list_width,
                             is_path = true,
                             offset = #line - #filename

@@ -55,7 +55,7 @@ function M.document_diagnostics()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, item in ipairs(raw_data) do
-                local res = pickertools.make_picker_item(item.message, query, item.message, {
+                local res = pickertools.make_picker_item(item.message, query, {
                     list_width = fetch_opts.list_width,
                     is_path = false
                 })

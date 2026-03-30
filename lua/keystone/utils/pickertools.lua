@@ -39,34 +39,33 @@ end
 
 ---@param match_target string What we match against
 ---@param query string User input
----@param display_string string What the user sees
----@param opts { list_width: number, is_path: boolean, offset: number? }
+---@param opts { list_width: number, is_path: boolean }
 ---@return {score:number,chunks:string[][]}?
-function M.make_picker_item(match_target, query, display_string, opts)
+function M.make_picker_item(match_target, query, opts)
     local is_match, score, positions = strtools.fuzzy_match(match_target, query, {
         short_bias = not opts.is_path,
     })
     if not is_match and query ~= "" then return nil end
 
-    local final_display = display_string
     local crop_offset = 0
 
+    local final_display
     -- Only use path cropping if explicitly requested
     if opts.is_path then
-        final_display = strtools.smart_crop_path(display_string, opts.list_width)
-        crop_offset = #final_display - #display_string
-    elseif #display_string > opts.list_width then
+        final_display = strtools.smart_crop_path(match_target, opts.list_width)
+        crop_offset = #final_display - #match_target
+    elseif #match_target > opts.list_width then
         -- Simple tail-truncation for non-path strings (like messages)
-        final_display = display_string:sub(1, opts.list_width - 3) .. "..."
+        final_display = match_target:sub(1, opts.list_width - 3) .. "..."
+    else
+        final_display = match_target
     end
 
     -- Adjust positions: total = (where match starts in display) + (how much we cropped)
     local adjusted = {}
-    local total_offset = (opts.offset or 0) + crop_offset
-
     if positions then
         for _, p in ipairs(positions) do
-            local adj = p + total_offset
+            local adj = p + crop_offset
             -- Only keep positions that are visible in the cropped string
             if adj >= 1 and adj <= #final_display then
                 table.insert(adjusted, adj)

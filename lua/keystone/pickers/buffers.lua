@@ -53,7 +53,7 @@ function M.open()
                 local base_item = buffer_to_picker_item(bufnr, fetch_opts.list_width)
                 if base_item then
                     -- Fuzzy match against the buffer name/label
-                    local match = pickertools.make_picker_item(base_item.label, query, base_item.label, {
+                    local match = pickertools.make_picker_item(base_item.label, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false
                     })

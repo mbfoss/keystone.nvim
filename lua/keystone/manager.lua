@@ -12,7 +12,8 @@ local pickers = {
     document_functions   = function() require("keystone.pickers.lsp").document_functions() end,
     document_diagnostics = function() require("keystone.pickers.diagnosics").document_diagnostics() end,
     git_diff             = function() require("keystone.pickers.gitdiff").open() end,
-    buffers             = function() require("keystone.pickers.buffers").open() end,
+    buffers              = function() require("keystone.pickers.buffers").open() end,
+    spell_suggest        = function() require("keystone.pickers.spell").open() end,
 }
 
 local function _ensure_init()
