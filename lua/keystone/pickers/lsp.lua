@@ -24,33 +24,21 @@ local function kind_to_string(kind)
 end
 
 
----@param result table LSP Reference result
+---@param ref table LSP Reference result
 ---@param list_width number
 ---@return keystone.SelectorItem
-local function lsp_item_to_picker_item(result, list_width)
-    local uri = result.uri or result.targetUri
-    local range = result.range or result.targetSelectionRange
-    local filepath = vim.uri_to_fname(uri)
-    local lnum = range.start.line + 1
-    local col = range.start.character
-
-    -- Get the text of the line to show in the picker
-    -- Note: This is synchronous for the current buffer, but we might
-    -- need to read from disk for other files.
-    local line_text = ""
-    if vim.uri_from_bufnr(0) == uri then
-        line_text = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1] or ""
-    else
-        -- Fallback: read line from file (or leave empty if too slow)
-        line_text = vim.fn.getbufline(vim.fn.bufnr(filepath), lnum)[1] or "[External File]"
-    end
-
-    line_text = vim.trim(line_text)
-    local display_path = strtools.smart_crop_path(vim.fn.fnamemodify(filepath, ":."), list_width)
-
+local function lsp_item_to_picker_item(ref, list_width)
+    local filepath = ref.filename
+    local lnum = ref.lnum
+    local col = ref.col
+    local line_text = ref.text
+    ---@type string?
+    local loc = (lnum and string.format("%s:%d", filepath, lnum) or filepath) or ""
+    loc = strtools.smart_crop_path(loc, list_width)
+    if loc == "" then loc = nil end
     return {
-        label = line_text,
-        virt_lines = { { { string.format("%s:%d", display_path, lnum), "Comment" } } },
+        label = vim.trim(line_text or ""),
+        virt_lines = { { { loc, "Directory" } } },
         data = {
             filepath = filepath,
             lnum = lnum,
@@ -61,18 +49,45 @@ end
 
 function M.references()
     local params = vim.lsp.util.make_position_params(0, 'utf-8')
-    local cursor_lnum = params.position.line
-    local current_buf_uri = vim.uri_from_bufnr(0)
     ---@diagnostic disable-next-line: inject-field
     params.context = { includeDeclaration = true }
 
-    vim.lsp.buf_request(0, "textDocument/references", params, function(err, result, ctx, _)
-        if err then
-            vim.notify("LSP Error: " .. err.message, vim.log.levels.ERROR)
-            return
+    local action = "textDocument/references"
+    vim.lsp.buf_request_all(0, action, params, function(results_per_client)
+        local lsp_items = {}
+        local first_encoding
+        local errors = {}
+
+        for client_id, result_or_error in pairs(results_per_client) do
+            local error, result = result_or_error.err, result_or_error.result
+            if error then
+                errors[client_id] = error
+            else
+                if result ~= nil then
+                    local locations = {}
+
+                    if not vim.islist(result) then
+                        vim.list_extend(locations, { result })
+                    else
+                        vim.list_extend(locations, result)
+                    end
+
+                    local offset_encoding = vim.lsp.get_client_by_id(client_id).offset_encoding
+
+                    if not vim.tbl_isempty(result) then
+                        first_encoding = offset_encoding
+                    end
+
+                    vim.list_extend(lsp_items, vim.lsp.util.locations_to_items(locations, offset_encoding))
+                end
+            end
         end
 
-        if not result or vim.tbl_isempty(result) then
+        for _, error in pairs(errors) do
+            vim.notify(action .. " : " .. error.message, vim.log.levels.ERROR)
+        end
+
+        if vim.tbl_isempty(lsp_items) then
             vim.notify("No LSP rererences found")
             return
         end
@@ -81,30 +96,22 @@ function M.references()
             prompt = "LSP References",
             file_preview = true,
             fetch = function(query, fetch_opts)
-                local items = {}
-                for _, ref in ipairs(result) do
-                    local range = ref.range or ref.targetSelectionRange
-                    local uri = ref.uri or ref.targetUri
-
-                    if not (uri == current_buf_uri and range.start.line == cursor_lnum) then
-                        -- Get original item data
-                        local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
-
-                        -- Match query against the label (line text)
-                        local match = pickertools.make_picker_item(item.label, query, {
-                            list_width = fetch_opts.list_width,
-                            is_path = false
-                        })
-
-                        if match then
-                            item.label_chunks = match.chunks
-                            item.score = match.score
-                            table.insert(items, item)
-                        end
+                local picker_items = {}
+                for _, ref in ipairs(lsp_items) do
+                    ---@type keystone.SelectorItem
+                    local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
+                    -- Match query against the label (line text)
+                    local match = pickertools.make_picker_item(item.label, query, {
+                        list_width = fetch_opts.list_width,
+                        is_path = false
+                    })
+                    if match then
+                        item.label_chunks = match.chunks
+                        item.score = match.score
+                        table.insert(picker_items, item)
                     end
                 end
-                table.sort(items, function(a, b) return a.score > b.score end)
-                return items
+                return picker_items
             end,
             async_preview = function(data, _, callback)
                 return pickertools.default_file_preview(data.filepath, {
