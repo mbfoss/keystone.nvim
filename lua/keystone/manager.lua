@@ -1,5 +1,7 @@
 local M = {}
 
+local sidebarcommands = require("keystone.sidebar.commands")
+
 -- The key is the subcommand name, and the value is a function that executes the picker.
 local pickers = {
     files                = function() require("keystone.pickers.files").open() end,
@@ -36,7 +38,7 @@ end
 ---@return string[]
 function M.get_commands()
     _ensure_init()
-    return { "pick" }
+    return { "pick", "sidebar" }
 end
 
 ---@param cmd string
@@ -61,6 +63,8 @@ function M.run_command(cmd, rest, opts)
     _ensure_init()
     if cmd == "pick" then
         _pick(rest[1])
+    elseif cmd == "sidebar" then
+        sidebarcommands.sidebar_command(rest[1], rest[2])
     end
 end
 

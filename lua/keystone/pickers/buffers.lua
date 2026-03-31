@@ -7,7 +7,7 @@ local M = {}
 
 ---@param bufnr number
 ---@param list_width number
----@return loop.Picker.Item?
+---@return keystone.Picker.Item?
 local function buffer_to_picker_item(bufnr, list_width)
     -- Ignore unlisted buffers (like the picker itself or NvimTree)
     if not vim.api.nvim_buf_is_loaded(bufnr) or not vim.bo[bufnr].buflisted then
@@ -33,7 +33,7 @@ local function buffer_to_picker_item(bufnr, list_width)
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = mark[1], nil ---@type number?,number?
     if lnum > 1 then col = mark[2] else lnum = nil end
-    ---@type loop.Picker.Item
+    ---@type keystone.Picker.Item
     return {
         label = label,
         virt_lines = virt_lines,
