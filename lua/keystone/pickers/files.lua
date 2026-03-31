@@ -159,7 +159,7 @@ function M.open(opts)
     return picker.select({
         prompt = "Files",
         file_preview = true,
-        history_provider = opts.history_provider,
+        history_provider = opts.history_provider or pickertools.make_history_provider("files"),
         async_fetch = function(query, fetch_opts, callback)
             if not query or query == "" then
                 callback()

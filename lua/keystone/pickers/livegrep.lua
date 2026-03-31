@@ -160,7 +160,7 @@ function M.open(opts)
     return picker.select({
         prompt = "Live Grep",
         file_preview = true,
-        history_provider = opts.history_provider,
+        history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
             if not query or #query < 1 then -- Optimization: don't grep for 1 char
                 callback()

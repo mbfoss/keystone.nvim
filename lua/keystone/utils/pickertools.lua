@@ -109,4 +109,37 @@ function M.default_file_preview(filepath, opts, callback)
     return cancel_fn
 end
 
+---@param name string
+---@return keystone.Picker.QueryHistoryProvider
+function M.make_history_provider(name)
+    local vim_path = vim.fn.stdpath("data")
+    local file_path = vim_path .. "/history_" .. name .. ".txt"
+    local max_entries = 50
+    ---@type keystone.Picker.QueryHistoryProvider
+    local provider = {
+        -- Load history from file
+        load = function()
+            local hist = {}
+            ---@type boolean,string
+            local ok, lines = filetools.read_content(file_path)
+            if ok then
+                hist = vim.split(lines, '\n')
+            end
+            return hist
+        end,
+        -- Store history to file (keep most recent first, up to max_entries)
+        ---@param hist string[]
+        store = function(hist)
+            local start_idx = math.max(#hist - max_entries + 1, 1)
+            local final_hist = {}
+            for i = start_idx, #hist do
+                table.insert(final_hist, hist[i])
+            end
+            filetools.write_content(file_path, table.concat(final_hist, '\n'))
+        end
+    }
+
+    return provider
+end
+
 return M
