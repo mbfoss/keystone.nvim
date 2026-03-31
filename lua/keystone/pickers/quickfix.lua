@@ -9,9 +9,7 @@ local function matches_filter(qf, filter)
     if filter == "all" or not filter then
         return true
     end
-
     local t = (qf.type or ""):upper()
-
     if filter == "errors" then
         return t == "E" or t == ""
     elseif filter == "warnings" then
@@ -19,7 +17,6 @@ local function matches_filter(qf, filter)
     elseif filter == "info" then
         return t == "I"
     end
-
     return true
 end
 
@@ -39,15 +36,14 @@ local function qf_item_to_picker_item(item, list_width)
     })[item.type] or ""
 
     local label = prefix .. vim.trim(item.text ~= "" and item.text or "[No description]")
-
+    local virt_lines = nil
+    if display_path and #display_path > 0 then
+        virt_lines = { { { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Directory" } } }
+    end
     return {
         label = label,
         -- Use virt_lines to show the location like your LSP pattern
-        virt_lines = {
-            {
-                { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Comment" }
-            }
-        },
+        virt_lines = virt_lines,
         data = {
             filepath = filepath,
             lnum = item.lnum,
@@ -64,7 +60,7 @@ function M.open(opts)
 
     local have_items = false
     for _, qf in ipairs(qflist) do
-        if qf.valid == 1 and matches_filter(qf, filter) then
+        if matches_filter(qf, filter) then
             have_items = true
         end
     end
@@ -83,7 +79,7 @@ function M.open(opts)
         fetch = function(query, fetch_opts)
             local items = {}
             for _, qf in ipairs(qflist) do
-                if qf.valid == 1 and matches_filter(qf, filter) then
+                if matches_filter(qf, filter) then
                     local base_item = qf_item_to_picker_item(qf, fetch_opts.list_width)
                     local match = pickertools.make_picker_item(base_item.label, query, {
                         list_width = fetch_opts.list_width,
