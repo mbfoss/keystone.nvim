@@ -112,8 +112,7 @@ end
 ---@param name string
 ---@return keystone.Picker.QueryHistoryProvider
 function M.make_history_provider(name)
-    local vim_path = vim.fn.stdpath("data")
-    local file_path = vim_path .. "/history_" .. name .. ".txt"
+    local file_path = vim.fs.joinpath(vim.fn.stdpath("data"), "keystonehist." .. name .. ".txt")
     local max_entries = 50
     ---@type keystone.Picker.QueryHistoryProvider
     local provider = {
