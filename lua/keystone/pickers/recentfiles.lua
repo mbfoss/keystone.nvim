@@ -2,6 +2,7 @@ local M = {}
 
 local uitools = require("keystone.utils.uitools")
 local picker = require('keystone.utils.picker')
+local strtools = require('keystone.utils.strtools')
 local pickertools = require("keystone.utils.pickertools")
 
 function M.open()

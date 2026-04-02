@@ -14,6 +14,7 @@ end
 function M.special_marker3()
 	return "\240\159\188\130"
 end
+
 local function _to_lower(byte)
 	if byte >= 65 and byte <= 90 then
 		return byte + 32
@@ -78,6 +79,7 @@ function M.smart_crop_path(path, max_len)
 	end
 	return "…" .. tail, true
 end
+
 ---@param path string
 ---@param patterns string[]
 ---@return boolean
@@ -102,6 +104,7 @@ function M.human_case(str)
 
 	return str
 end
+
 local function _escape_shell_arg(arg)
 	arg = arg or ""
 	if arg:match('[%s;&|$`"\'<>]') then
@@ -294,6 +297,7 @@ function M.format_grid(items, width)
 	end
 	return table.concat(lines, "\r\n")
 end
+
 ---@param callback fun(lines: string[]) The function to call for complete lines.
 ---@return fun(chunk: string) feed The function to call whenever new data arrives.
 function M.create_line_buffered_feed(callback)
@@ -420,6 +424,26 @@ function M.fuzzy_match(text, query, opts)
 		score = score + (coverage * 5)
 	end
 	return true, score, positions
+end
+
+---@param path string
+---@param base string?
+function M.get_relative_path(path, base)
+	base = base or vim.fn.getcwd()
+
+	local full_path = vim.fn.fnamemodify(path, ":p")
+	base = vim.fn.fnamemodify(base, ":p")
+
+	-- ensure trailing slash for proper prefix match
+	if base:sub(-1) ~= "/" then
+		base = base .. "/"
+	end
+
+	if full_path:find(base, 1, true) == 1 then
+		return full_path:sub(#base + 1)
+	end
+
+	return nil -- not relative to base
 end
 
 return M

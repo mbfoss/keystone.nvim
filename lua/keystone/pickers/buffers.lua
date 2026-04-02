@@ -15,7 +15,7 @@ local function buffer_to_picker_item(bufnr, list_width)
 
     local filepath = vim.api.nvim_buf_get_name(bufnr)
     local name = filepath ~= "" and vim.fn.fnamemodify(filepath, ":t") or "[No Name]"
-    local relative_path = filepath ~= "" and vim.fn.fnamemodify(filepath, ":.") or ""
+    local relative_path = strtools.get_relative_path(filepath) or filepath
     local modified = vim.bo[bufnr].modified and " [+]" or ""
     local label = string.format("%d: %s%s", bufnr, name, modified)
 

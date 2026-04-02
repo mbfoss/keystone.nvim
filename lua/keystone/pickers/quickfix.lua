@@ -26,7 +26,7 @@ end
 local function qf_item_to_picker_item(item, list_width)
     local bufnr = item.bufnr
     local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local display_path = strtools.smart_crop_path(vim.fn.fnamemodify(filepath, ":."), list_width)
+    local display_path = strtools.get_relative_path(filepath) or filepath
     local prefix = ({
         E = " ",
         W = " ",

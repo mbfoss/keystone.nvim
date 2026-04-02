@@ -3,6 +3,7 @@ local M = {}
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local picker = require('keystone.utils.picker')
+local strtools = require('keystone.utils.strtools')
 local pickertools = require("keystone.utils.pickertools")
 
 function M.open()
@@ -21,17 +22,16 @@ function M.open()
                 on_output = function(data, is_stderr)
                     if not data or is_stderr then return end
                     for line in data:gmatch("[^\r\n]+") do
-                        local filename = vim.fn.fnamemodify(line, ":t")
-                        local res = pickertools.make_picker_item(line, query, {
+                        local path = strtools.get_relative_path(line) or line
+                        local res = pickertools.make_picker_item(path, query, {
                             list_width = fetch_opts.list_width,
                             is_path = true,
-                            offset = #line - #filename
                         })
 
                         if res then
                             table.insert(items, {
                                 label_chunks = res.chunks,
-                                data = line, -- Relative path for git commands
+                                data = path,
                                 score = res.score
                             })
                         end

@@ -28,8 +28,9 @@ local function lsp_item_to_picker_item(ref, list_width)
     local lnum = ref.lnum
     local col = ref.col
     local line_text = ref.text
+    local display_path = strtools.get_relative_path(filepath) or filepath
     ---@type string?
-    local loc = (lnum and string.format("%s:%d", filepath, lnum) or filepath) or ""
+    local loc = (lnum and string.format("%s:%d", display_path, lnum) or display_path) or ""
     loc = strtools.smart_crop_path(loc, list_width)
     if loc == "" then loc = nil end
     return {
