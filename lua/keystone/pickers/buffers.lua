@@ -22,7 +22,7 @@ local function buffer_to_picker_item(bufnr, list_width)
     local display_path = strtools.smart_crop_path(relative_path, list_width)
     local virt_lines
     if display_path ~= "" and display_path ~= name then
-        virt_lines = { { { display_path, "MoreMsg" } } }
+        virt_lines = { { { display_path, "Special" } } }
     end
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = mark[1], nil ---@type number?,number?

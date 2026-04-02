@@ -45,10 +45,6 @@ function M.open()
                     })
                 end
             end
-
-            if query ~= "" then
-                table.sort(items, function(a, b) return a.score > b.score end)
-            end
             return items
         end,
         async_preview = pickertools.default_file_preview,

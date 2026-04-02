@@ -392,34 +392,37 @@ function Picker:on_resize()
     end
 end
 
+---@return nil
 function Picker:render_ui()
     if not vim.api.nvim_buf_is_valid(self.lbuf) then
         return
     end
 
     vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
-    
+    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
+
     local total = #self.items_data
-    if total == 0 then return end
+    if total == 0 then
+        return
+    end
 
-    local cur_idx = self:get_cursor()
-    
-    vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur_idx - 1, 0, {
-        end_row = cur_idx,
-        hl_group = "Visual", 
-        hl_eol = true,
-        hl_mode = "combine",
-        priority = 100,
-        virt_text = { { "> ", "Special" } },
-        virt_text_pos = "overlay",
-    })
+    local cur = self:get_cursor()
 
-    if vim.api.nvim_buf_is_valid(self.pbuf) then
-        local text = string.format(" %d/%d ", cur_idx, total)
-        vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
+    if total > 0 then
+        vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
+            virt_text = { { "> ", "Special" } },
+            virt_text_pos = "overlay",
+            priority = 200,
+        })
+    end
+
+    if total > 0 and vim.api.nvim_buf_is_valid(self.pbuf) then
+        local text = string.format("%d/%d", cur, total)
+
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
             virt_text = { { text, "Comment" } },
             virt_text_pos = "right_align",
+            hl_mode = "blend",
             priority = 1,
         })
     end
@@ -601,7 +604,6 @@ function Picker:add_new_lines(items, query)
         vim.api.nvim_buf_get_lines(self.lbuf, 0, 1, false)[1] == ""
 
     for _, item in ipairs(items) do
-        item.score = item.score or 0
         local idx = _find_insert_index(self.items_data, item.score)
         table.insert(self.items_data, idx, item)
         local label = item.label
