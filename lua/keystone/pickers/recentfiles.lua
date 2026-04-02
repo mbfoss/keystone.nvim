@@ -6,25 +6,42 @@ local pickertools = require("keystone.utils.pickertools")
 
 function M.open()
     local cwd = vim.fn.getcwd()
+
     local recent_files = {}
-    for _, path in ipairs(vim.v.oldfiles) do
-        local full_path = vim.fn.fnamemodify(path, ":p")
-
-        if vim.fn.filereadable(full_path) == 1 then
-            local match_path
-            if full_path:find(cwd, 1, true) == 1 then
-                match_path = vim.fn.fnamemodify(full_path, ":.")
-            else
-                match_path = vim.fn.fnamemodify(full_path, ":~")
+    local seen = {}
+    local curbuf = vim.api.nvim_get_current_buf()
+    local bufs = vim.fn.getbufinfo({ buflisted = 1 })
+    table.sort(bufs, function(a, b) return a.lastused > b.lastused end)
+    for _, info in ipairs(bufs) do
+        if info.bufnr ~= curbuf then
+            local full_path = vim.fn.fnamemodify(info.name, ":p")
+            if full_path ~= "" and vim.fn.filereadable(full_path) == 1 then
+                seen[full_path] = true
+                local match_path = (full_path:find(cwd, 1, true) == 1)
+                    and vim.fn.fnamemodify(full_path, ":.")
+                    or vim.fn.fnamemodify(full_path, ":~")
+                table.insert(recent_files, {
+                    full_path = full_path,
+                    match_path = match_path,
+                    filename = vim.fn.fnamemodify(full_path, ":t")
+                })
             end
-
+        end
+    end
+    for _, path in ipairs(vim.v.oldfiles) do
+        if #recent_files >= 500 then break end
+        local full_path = vim.fn.fnamemodify(path, ":p")
+        if not seen[full_path] and vim.fn.filereadable(full_path) == 1 then
+            seen[full_path] = true
+            local match_path = (full_path:find(cwd, 1, true) == 1)
+                and vim.fn.fnamemodify(full_path, ":.")
+                or vim.fn.fnamemodify(full_path, ":~")
             table.insert(recent_files, {
                 full_path = full_path,
                 match_path = match_path,
                 filename = vim.fn.fnamemodify(full_path, ":t")
             })
         end
-        if #recent_files >= 500 then break end
     end
 
     picker.select({
@@ -41,7 +58,6 @@ function M.open()
                     table.insert(items, {
                         label_chunks = res.chunks,
                         data = file.full_path,
-                        score = res.score
                     })
                 end
             end

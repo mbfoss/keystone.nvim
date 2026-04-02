@@ -4,7 +4,7 @@ local sidebarcommands = require("keystone.sidebar.commands")
 local pickers = {
     files                = function() require("keystone.pickers.files").open() end,
     live_grep            = function() require("keystone.pickers.livegrep").open() end,
-    recent_files         = function() require("keystone.pickers.oldfiles").open() end,
+    recent_files         = function() require("keystone.pickers.recentfiles").open() end,
     config_files         = function() require("keystone.pickers.files").open({ cwd = vim.fn.stdpath("config") }) end,
     quickfix             = function() require("keystone.pickers.quickfix").open() end,
     lsp_references       = function() require("keystone.pickers.lsp").references() end,
