@@ -64,7 +64,8 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             if not file or not lnum or not text then goto continue end
 
             local abs_path = vim.fs.joinpath(grep_opts.cwd, file)
-            local location = string.format("%s:%s", file, lnum)
+            local rel_path = strtools.get_relative_path(abs_path)
+            local location = string.format("%s:%s", rel_path, lnum)
             location = strtools.smart_crop_path(location, fetch_opts.list_width)
             local chunks = {}
             local start_idx = 1
