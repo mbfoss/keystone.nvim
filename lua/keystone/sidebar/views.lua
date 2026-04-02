@@ -14,8 +14,6 @@ local _registry = {}
 function M.clear_views()
     _registry = {}
 end
-
----Registers a new view provider.
 ---@param view_id string Unique identifier for the view.
 ---@param name string
 ---@param provider keystone.ViewProvider The provider definition.
@@ -27,14 +25,10 @@ function M.register_view(view_id, name, provider)
         provider = provider,
     }
 end
-
----Returns a single view provider by ID.
 ---@return string[]
 function M.get_view_ids()
     return vim.tbl_keys(_registry)
 end
-
----Returns a single view provider by ID.
 ---@return keystone.ViewInfo[]
 function M.get_views()
     local views = vim.tbl_values(_registry)

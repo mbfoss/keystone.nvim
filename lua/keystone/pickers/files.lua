@@ -40,7 +40,6 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         include_regex_list,
         exclude_regex_list,
         function(full_path, filename, relative_path)
-            -- Use generic tool: Match against filename, but display relative_path
             local res = pickertools.make_picker_item(relative_path, query, {
                 list_width = fetch_opts.list_width,
                 is_path = true,
@@ -52,8 +51,6 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 cancel_fn()
                 return
             end
-
-            --table.insert(res.chunks, 1, {tostring(res.score) .. " - "})
             table.insert(items, {
                 label_chunks = res.chunks,
                 data = full_path,
@@ -108,10 +105,8 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
         for _, line in ipairs(lines) do
             if read_stop then return end
             local relpath = line:gsub("^%.[/]", "")
-            -- line is path relative to fd_opts.cwd
             if strtools.check_path_pattern(line, false, include_regex_list, nil) then
                 if count < max_results then
-                    -- Match against line (the relative path from fd)
                     local res = pickertools.make_picker_item(relpath, query, {
                         list_width = fetch_opts.list_width,
                         is_path = true

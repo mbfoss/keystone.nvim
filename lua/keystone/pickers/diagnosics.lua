@@ -25,18 +25,13 @@ function M.document_diagnostics()
         vim.notify("No diagnostics found in current buffer", vim.log.levels.INFO)
         return
     end
-
-    -- Sort by line number initially
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
-
-    -- Prepare the base data
     local raw_data = {}
     for _, d in ipairs(diagnostics) do
         local sev_text, sev_hl = get_severity_info(d.severity)
 
         table.insert(raw_data, {
             message = d.message:gsub("\n", " "),
-            -- Fix: Define prefix_chunks here so it's available in fetch
             prefix_chunks = {
                 { sev_text,                            sev_hl },
                 { string.format(" %3d: ", d.lnum + 1), "Comment" }
@@ -61,7 +56,6 @@ function M.document_diagnostics()
                 })
 
                 if res then
-                    -- Construct final chunk list
                     local final_chunks = vim.deepcopy(item.prefix_chunks)
                     vim.list_extend(final_chunks, res.chunks)
 

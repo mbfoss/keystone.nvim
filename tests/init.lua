@@ -12,5 +12,3 @@ local keystone = require('keystone')
 keystone.setup()
 
 vim.cmd("runtime plugin/plenary.vim")
-
---require("tests.something")

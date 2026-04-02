@@ -49,18 +49,13 @@ function LRU:_insert_front(node)
 end
 
 ---@private
---- Internal handler for removal logic and callbacks.
 function LRU:_delete_node(node, is_eviction)
     self:_remove_links(node)
     self._map[node.key] = nil
     self._count = self._count - 1
-
-    -- 1. Trigger eviction-specific callback
     if is_eviction and self._on_evict then
         self._on_evict(node.key, node.value)
     end
-
-    -- 2. Trigger universal removal callback
     if self._on_removed then
         self._on_removed(node.key, node.value)
     end
@@ -102,9 +97,6 @@ function LRU:put(key, value)
     self:_insert_front(node)
     self._count = self._count + 1
 end
-
--- Promote a node to the front (most recently used) without changing its value
--- Does nothing if key is not present
 function LRU:promote(key)
     local node = self._map[key]
     if not node then return end
@@ -139,8 +131,6 @@ end
 function LRU:size()
     return self._count
 end
-
----Returns a list of all keys in the cache, ordered from MRU to LRU.
 ---@return any[]
 function LRU:keys()
     local keys = {}

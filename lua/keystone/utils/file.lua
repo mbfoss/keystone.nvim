@@ -33,8 +33,6 @@ end
 ---@return boolean
 ---@return string? -- error msg
 function M.create_file(path)
-    -- "wx" : Open for Writing, fail if file eXists (Atomic)
-    -- 420  : Octal 0644 (Read/Write for owner, Read for others)
     ---@diagnostic disable-next-line: undefined-field
     local fd, err, err_name = vim.uv.fs_open(path, "wx", 420)
     if not fd then
@@ -43,7 +41,6 @@ function M.create_file(path)
         end
         return false, "Failed to create file: " .. tostring(err)
     end
-    -- Always close the file descriptor if it was opened successfully
     ---@diagnostic disable-next-line: undefined-field
     vim.uv.fs_close(fd)
     return true
@@ -105,8 +102,6 @@ function M.async_load_text_file(path, opts, callback)
     local function finish(err, data)
         if finished then return end
         finished = true
-
-        -- 1. Stop and cleanup timer
         if timer then
             if not timer:is_closing() then
                 timer:stop()
@@ -114,34 +109,23 @@ function M.async_load_text_file(path, opts, callback)
             end
             timer = nil
         end
-
-        -- 2. Close the file handle safely
         if fd then
             ---@diagnostic disable-next-line: undefined-field
             uv.fs_close(fd)
             fd = nil
         end
-
-        -- 3. Clear chunks to free memory immediately if error occurred
         if err then chunks = {} end
-
-        -- 4. Notify caller on the main loop
         vim.schedule(function()
             if not aborted then
                 callback(err, data)
             end
         end)
     end
-
-    -- Start timeout watchdog
     local timeout_timer = vim.defer_fn(function()
         finish("Timeout", nil)
     end, timeout_ms)
-
-    -- Open file
     ---@diagnostic disable-next-line: undefined-field
     uv.fs_open(path, "r", 438, function(open_err, opened_fd)
-        -- Immediate Guard: If an error occurred or we already timed out/aborted
         if open_err or finished or aborted then
             ---@diagnostic disable-next-line: undefined-field
             if opened_fd then uv.fs_close(opened_fd) end
@@ -152,8 +136,6 @@ function M.async_load_text_file(path, opts, callback)
         end
 
         fd = opened_fd
-
-        -- Check file stats
         ---@diagnostic disable-next-line: undefined-field
         uv.fs_fstat(fd, function(stat_err, stat)
             if finished or aborted then return end
@@ -164,7 +146,6 @@ function M.async_load_text_file(path, opts, callback)
             end
 
             local function read_next()
-                -- Double check fd is still valid before every read call
                 if not fd or finished or aborted then return end
 
                 ---@diagnostic disable-next-line: undefined-field
@@ -174,15 +155,11 @@ function M.async_load_text_file(path, opts, callback)
                     if read_err then
                         return finish("Read error: " .. read_err, nil)
                     end
-
-                    -- EOF (End of File)
                     if not data or #data == 0 then
                         local final_data = table.concat(chunks)
                         chunks = {} -- Clear reference
                         return finish(nil, final_data)
                     end
-
-                    -- Binary check (Null byte detection)
                     if data:find("\0", 1, true) then
                         return finish("Binary file", nil)
                     end
@@ -201,8 +178,6 @@ function M.async_load_text_file(path, opts, callback)
             read_next()
         end)
     end)
-
-    -- Return abort function
     return function()
         if finished or aborted then return end
         aborted = true
@@ -285,7 +260,6 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
     end
     local function process_next_dir()
-        -- 1. Check cancellation or completion immediately
         if is_cancelled then
             call_on_done()
             return
@@ -297,17 +271,12 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
 
         local path = table.remove(pending_dirs, 1)
-
-        -- 2. Validate path before opening
         ---@diagnostic disable-next-line: undefined-field
         local fd = uv.fs_scandir(path)
         if not fd then
-            -- Skip inaccessible directories and move to next
             vim.schedule(process_next_dir)
             return
         end
-
-        -- 3. Iterate through entries
         while true do
             ---@diagnostic disable-next-line: undefined-field
             local name, type_ = uv.fs_scandir_next(fd)
@@ -316,12 +285,10 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
             local full_path = vim.fs.joinpath(path, name)
             local rel_path = vim.fs.relpath(dir, full_path)
             if rel_path then
-                -- Directory logic
                 if type_ == "directory" then
                     if strtools.check_path_pattern(rel_path, true, nil, exclude_regex_list) then
                         table.insert(pending_dirs, full_path)
                     end
-                    -- File logic
                 elseif type_ == "file" then
                     if strtools.check_path_pattern(rel_path, false, include_regex_list, exclude_regex_list) then
                         on_file(full_path, name, rel_path)
@@ -329,17 +296,11 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
                 end
             end
         end
-
-        -- 4. Explicitly signal completion of this directory to GC
         fd = nil
 
         vim.schedule(process_next_dir)
     end
-
-    -- Start the engine
     process_next_dir()
-
-    -- 6. Robust Return cancellation function
     return function()
         is_cancelled = true
         pending_dirs = {} -- Clear references to free memory

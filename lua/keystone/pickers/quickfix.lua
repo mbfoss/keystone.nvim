@@ -27,8 +27,6 @@ local function qf_item_to_picker_item(item, list_width)
     local bufnr = item.bufnr
     local filepath = vim.api.nvim_buf_get_name(bufnr)
     local display_path = strtools.smart_crop_path(vim.fn.fnamemodify(filepath, ":."), list_width)
-
-    -- The text shown in the picker is the error message/description
     local prefix = ({
         E = " ",
         W = " ",
@@ -42,7 +40,6 @@ local function qf_item_to_picker_item(item, list_width)
     end
     return {
         label = label,
-        -- Use virt_lines to show the location like your LSP pattern
         virt_lines = virt_lines,
         data = {
             filepath = filepath,

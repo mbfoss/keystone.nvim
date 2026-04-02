@@ -25,8 +25,6 @@ end
 
 local M = {}
 local _LOCKS = {} -- Registry of ACTIVE locks only
-
--- Constants
 local LOCK_EX = 2
 local LOCK_NB = 4
 local LOCK_UN = 8
@@ -63,13 +61,11 @@ function M.lock(path)
     end
 
     if success then
-        -- Only store in the registry if the lock was actually acquired
         _LOCKS[abs_path] = file
         file:write(tostring(vim.fn.getpid()))
         file:flush()
         return true
     else
-        -- If lock fails, close the handle immediately and do NOT add to _LOCKS
         file:close()
         return false, nil
     end
@@ -78,11 +74,7 @@ end
 function M.unlock(path)
     local abs_path = _normalize(path)
     local file = _LOCKS[abs_path]
-
-    -- If it's not in our registry, there's nothing for us to unlock/close
     if not file then return false end
-
-    -- Verify handle is still alive before FFI calls
     if io.type(file) == "file" then
         local fd = get_fd(file)
         if ffi.os == "Windows" then

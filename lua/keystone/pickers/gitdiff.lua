@@ -22,8 +22,6 @@ function M.open()
                     if not data or is_stderr then return end
                     for line in data:gmatch("[^\r\n]+") do
                         local filename = vim.fn.fnamemodify(line, ":t")
-
-                        -- Use the generic tool to match filename while displaying the path
                         local res = pickertools.make_picker_item(line, query, {
                             list_width = fetch_opts.list_width,
                             is_path = true,

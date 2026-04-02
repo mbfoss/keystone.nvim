@@ -1,8 +1,6 @@
 local M = {}
 
 local sidebarcommands = require("keystone.sidebar.commands")
-
--- The key is the subcommand name, and the value is a function that executes the picker.
 local pickers = {
     files                = function() require("keystone.pickers.files").open() end,
     live_grep            = function() require("keystone.pickers.livegrep").open() end,
@@ -19,7 +17,6 @@ local pickers = {
 }
 
 local function _ensure_init()
-    -- Logic for initialization if needed
 end
 
 local function _pick(picker_type)
@@ -48,7 +45,6 @@ end
 function M.get_subcommands(cmd, rest, for_cmd_menu)
     _ensure_init()
     if cmd == "pick" then
-        -- Automatically return all keys defined in the pickers table
         local keys = vim.tbl_keys(pickers)
         table.sort(keys)
         return keys

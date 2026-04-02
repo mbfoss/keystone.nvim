@@ -10,8 +10,6 @@ function M.get_window_text_width(winid)
         return vim.o.columns - 3 -- fallback assumption
     end
     local info = infos[1]
-    -- info.width is total width, info.textoff is the combined width of
-    -- line numbers, sign columns, and fold columns.
     return info.width - info.textoff
 end
 
@@ -21,8 +19,6 @@ function M.is_regular_buffer(bufnr)
     end
     local buftype = vim.bo[bufnr].buftype
     local buflisted = vim.bo[bufnr].buflisted
-
-    -- Exclude special buffer types
     if buftype ~= '' or not buflisted then
         return false
     end
@@ -32,7 +28,6 @@ end
 ---@param override (fun(winid:number):boolean?)?
 ---@return number window number
 function M.get_regular_window(override)
-    -- Helper function to check if a window is "regular"
     local function is_regular_win(winid)
         if override then
             local result = override(winid)
@@ -47,8 +42,6 @@ function M.get_regular_window(override)
         local bufnr = vim.api.nvim_win_get_buf(winid)
         return M.is_regular_buffer(bufnr)
     end
-
-    -- Try current window first
     local cur_win = vim.api.nvim_get_current_win()
     if is_regular_win(cur_win) then
         return cur_win
@@ -56,13 +49,11 @@ function M.get_regular_window(override)
 
     local tabpage = vim.api.nvim_get_current_tabpage()
     local wins = vim.api.nvim_tabpage_list_wins(tabpage)
-    -- Then loop over all other windows
     for _, winid in ipairs(wins) do
         if winid ~= cur_win and is_regular_win(winid) then
             return winid
         end
     end
-    -- No regular window found; create a vertial split
     vim.cmd('vsplit')
     local new_win = vim.api.nvim_get_current_win()
     return new_win
@@ -91,11 +82,8 @@ function M.set_cursor_pos(winid, line, col)
         if not vim.api.nvim_buf_is_valid(bufnr) then
             return
         end
-        -- Clamp line to valid range
         local maxline = vim.api.nvim_buf_line_count(bufnr)
         line = math.min(line, maxline)
-
-        -- Clamp col to valid range
         local line_length = #vim.api.nvim_buf_get_lines(bufnr, line - 1, line, true)[1]
         if col and type(col) == 'number' and col >= 0 then
             col = math.min(col, line_length)
@@ -113,14 +101,11 @@ end
 ---@return number bufnr or -1
 function M.smart_open_file(filepath, line, col)
     if not filepath or filepath == "" then return -1, -1 end
-    -- Normalize filepath to handle relative paths
     local full_path = vim.fn.fnamemodify(filepath, ':p')
-    -- Check all windows for the file
     for _, winid in ipairs(vim.api.nvim_list_wins()) do
         local bufnr = vim.api.nvim_win_get_buf(winid)
         local buf_path = vim.api.nvim_buf_get_name(bufnr)
         if buf_path == full_path and vim.api.nvim_win_is_valid(winid) then
-            -- Activate the window with the file
             vim.api.nvim_set_current_win(winid)
             M.set_cursor_pos(winid, line, col)
             return winid, bufnr
@@ -156,8 +141,6 @@ end
 ---@return number winid
 function M.smart_open_buffer(bufnr, lnum, col)
     local target_win = nil
-
-    -- Check if the buffer is already displayed in any visible window
     for _, winid in ipairs(vim.api.nvim_list_wins()) do
         if vim.api.nvim_win_get_buf(winid) == bufnr then
             vim.api.nvim_set_current_win(winid)
@@ -165,17 +148,12 @@ function M.smart_open_buffer(bufnr, lnum, col)
             break
         end
     end
-
-    -- Buffer not visible in any window, find or create an empty window
     if not target_win then
         target_win = M.get_regular_window()
         vim.api.nvim_set_current_win(target_win)
         vim.api.nvim_win_set_buf(target_win, bufnr)
     end
-
-    -- Move cursor if position is provided
     if lnum then
-        -- Ensure line number is valid for the buffer to prevent errors
         local line_count = vim.api.nvim_buf_line_count(bufnr)
         local safe_lnum = math.max(1, math.min(lnum, line_count))
         local ok = pcall(vim.api.nvim_win_set_cursor, target_win, { safe_lnum, col or 0 })
@@ -194,7 +172,6 @@ function M.move_to_first_occurence(winid, text)
     vim.api.nvim_win_set_cursor(winid, { 1, 0 })
     local line = vim.fn.search(text)
     if line > 0 then
-        -- Move cursor to the **end of the word** (0-indexed)
         local line_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1]
         local s, e = line_text:find(text, 1, true) -- get start and end column
         if s and e then
@@ -210,7 +187,6 @@ function M.move_to_last_occurence(winid, text)
     vim.api.nvim_win_set_cursor(winid, { vim.api.nvim_buf_line_count(bufnr), 0 })
     local line = vim.fn.search(text, 'bW') -- 'b' = backwards, 'W' = whole word
     if line > 0 then
-        -- Move cursor to the **end of the word** (0-indexed)
         local line_text = vim.api.nvim_buf_get_lines(bufnr, line - 1, line, false)[1]
         local s, e = line_text:find(text, 1, true) -- get start and end column
         if s and e then
@@ -220,7 +196,6 @@ function M.move_to_last_occurence(winid, text)
 end
 
 function M.disable_insert_mappings(buf)
-    -- === 1. Disable direct insert-mode entry keys ===
     local insert_keys = {
         'i', 'a', 'o', 'I', 'A', 'O',
         'c', 'cc', 'C', 's', 'S', 'R', 'gi', 'gI', '.'
@@ -229,8 +204,6 @@ function M.disable_insert_mappings(buf)
     for _, key in ipairs(insert_keys) do
         vim.api.nvim_buf_set_keymap(buf, 'n', key, '<Nop>', { noremap = true, silent = true })
     end
-
-    -- Visual mode: disable change/delete that enter insert
     local visual_keys = { 'c', 's', 'C', 'S', 'R' }
     for _, key in ipairs(visual_keys) do
         vim.api.nvim_buf_set_keymap(buf, 'v', key, '<Nop>', { noremap = true, silent = true })

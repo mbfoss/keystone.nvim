@@ -4,17 +4,13 @@ local uitools = require("keystone.utils.uitools")
 local strtools = require("keystone.utils.strtools")
 local picker = require('keystone.utils.picker')
 local pickertools = require("keystone.utils.pickertools")
-
--- Create a cache for the inverted table
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
 ---@return string
 local function kind_to_string(kind)
-    -- Lazy-load the cache if empty
     if vim.tbl_isempty(_kind_to_str_cache) then
         local symbol_kinds = vim.lsp.protocol.SymbolKind
         for name, id in pairs(symbol_kinds) do
-            -- Only map numbers to avoid metadata fields like __index
             if type(id) == "number" then
                 _kind_to_str_cache[id] = name
             end
@@ -100,7 +96,6 @@ function M.references()
                 for _, ref in ipairs(lsp_items) do
                     ---@type keystone.SelectorItem
                     local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
-                    -- Match query against the label (line text)
                     local match = pickertools.make_picker_item(item.label, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false
@@ -170,7 +165,6 @@ function M.document_symbols(kinds)
             fetch = function(query, fetch_opts)
                 local filtered = {}
                 for _, item in ipairs(items) do
-                    -- Match against the symbol name
                     local match = pickertools.make_picker_item(item.data.name, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false

@@ -56,8 +56,6 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
         local items = {}
         for _, line in ipairs(lines) do
             if read_stop then return end
-
-            -- Parse rg output: file:line:col:text
             local file, lnum, col, text = line:match("^(.-):(%d+):(%d+):(.*)$")
             if not file then
                 file, lnum, text = line:match("^(.-):(%d+):(.*)$")
@@ -68,8 +66,6 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             local abs_path = vim.fs.joinpath(grep_opts.cwd, file)
             local location = string.format("%s:%s", file, lnum)
             location = strtools.smart_crop_path(location, fetch_opts.list_width)
-
-            -- Build label_chunks by highlighting all occurrences of the query
             local chunks = {}
             local start_idx = 1
             text = vim.fn.trim(text, "", 0)
@@ -150,8 +146,6 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
         end
     end
 end
-
----Opens a file picker using fd for discovery and LPeg for glob filtering.
 ---@param opts keystone.livegrep.opts?
 function M.open(opts)
     opts = opts or {}
@@ -181,7 +175,6 @@ function M.open(opts)
             end,
     }, function(selected)
         if selected then
-            -- Open file and jump to line/column
             uitools.smart_open_file(selected.filepath, selected.lnum, selected.col - 1)
         end
     end)

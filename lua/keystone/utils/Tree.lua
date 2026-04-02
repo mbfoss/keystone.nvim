@@ -29,8 +29,6 @@ local class = require("keystone.utils.class")
 ---@field _root_first any|nil
 ---@field _root_last any|nil
 local Tree = class()
-
----Initialize internal state
 function Tree:init()
 	---@type table<any, keystone.utils.Tree.Node>
 	self._nodes = {}
@@ -41,19 +39,12 @@ function Tree:init()
 	---@type any|nil
 	self._root_last = nil
 end
-
---==============================================================
--- Internal Helpers
---===============================================================
-
----Link a node as the last child of a parent.
 ---@private
 ---@param parent_id any|nil
 ---@param id any
 function Tree:_link_child(parent_id, id)
 	local parent = parent_id and self._nodes[parent_id]
 	if not parent then
-		-- link under root list
 		if not self._root_first then
 			self._root_first = id
 			self._root_last = id
@@ -65,8 +56,6 @@ function Tree:_link_child(parent_id, id)
 		end
 		return
 	end
-
-	-- Normal case: parent exists
 	if not parent.first_child then
 		parent.first_child = id
 		parent.last_child = id
@@ -77,8 +66,6 @@ function Tree:_link_child(parent_id, id)
 		parent.last_child = id
 	end
 end
-
----Link a node immediately before or after a reference sibling.
 ---@private
 ---@param reference_id any
 ---@param id any
@@ -93,17 +80,13 @@ function Tree:_link_sibling(reference_id, id, before)
 	assert(node, "node must exist before linking")
 
 	if before then
-		-- Inserting before reference
 		if parent_id == nil then
-			-- Root level
 			if reference_id == self._root_first then
-				-- Inserting before first root node
 				node.prev_sibling = nil
 				node.next_sibling = reference_id
 				ref_node.prev_sibling = id
 				self._root_first = id
 			else
-				-- Inserting in the middle
 				local prev_ref = ref_node.prev_sibling
 				node.prev_sibling = prev_ref
 				node.next_sibling = reference_id
@@ -113,16 +96,13 @@ function Tree:_link_sibling(reference_id, id, before)
 				end
 			end
 		else
-			-- Child level
 			local parent = self._nodes[parent_id]
 			if reference_id == parent.first_child then
-				-- Inserting before first child
 				node.prev_sibling = nil
 				node.next_sibling = reference_id
 				ref_node.prev_sibling = id
 				parent.first_child = id
 			else
-				-- Inserting in the middle
 				local prev_ref = ref_node.prev_sibling
 				node.prev_sibling = prev_ref
 				node.next_sibling = reference_id
@@ -133,17 +113,13 @@ function Tree:_link_sibling(reference_id, id, before)
 			end
 		end
 	else
-		-- Inserting after reference
 		if parent_id == nil then
-			-- Root level
 			if reference_id == self._root_last then
-				-- Inserting after last root node
 				node.prev_sibling = reference_id
 				node.next_sibling = nil
 				ref_node.next_sibling = id
 				self._root_last = id
 			else
-				-- Inserting in the middle
 				local next_ref = ref_node.next_sibling
 				node.prev_sibling = reference_id
 				node.next_sibling = next_ref
@@ -153,16 +129,13 @@ function Tree:_link_sibling(reference_id, id, before)
 				end
 			end
 		else
-			-- Child level
 			local parent = self._nodes[parent_id]
 			if reference_id == parent.last_child then
-				-- Inserting after last child
 				node.prev_sibling = reference_id
 				node.next_sibling = nil
 				ref_node.next_sibling = id
 				parent.last_child = id
 			else
-				-- Inserting in the middle
 				local next_ref = ref_node.next_sibling
 				node.prev_sibling = reference_id
 				node.next_sibling = next_ref
@@ -182,10 +155,7 @@ function Tree:_unlink(id)
 	local parent_id = node.parent_id
 	local prev = node.prev_sibling
 	local next = node.next_sibling
-
-	-- 1. Fix parent's first/last child pointers
 	if parent_id == nil then
-		-- Root level
 		if id == self._root_first then self._root_first = next end
 		if id == self._root_last then self._root_last = prev end
 	else
@@ -195,7 +165,6 @@ function Tree:_unlink(id)
 			if id == parent.last_child then parent.last_child = prev end
 		end
 	end
-	-- 2. Fix sibling chain
 	if prev then
 		local prev_node = self._nodes[prev]
 		if prev_node then
@@ -208,12 +177,9 @@ function Tree:_unlink(id)
 			next_node.prev_sibling = prev
 		end
 	end
-	-- 3. Clear this node's sibling pointers
 	node.prev_sibling = nil
 	node.next_sibling = nil
 end
-
----Recursively remove a node and all of its descendants.
 ---@private
 ---@param id any
 function Tree:_remove_subtree(id)
@@ -230,12 +196,6 @@ function Tree:_remove_subtree(id)
 	self:_unlink(id)
 	self._nodes[id] = nil
 end
-
---==============================================================
--- Public API
---==============================================================
-
---- Replace the children of parent_id with exactly these items, in order.
 ---@generic T
 ---@param parent_id any|nil
 ---@param items keystone.utils.Tree.Item[]
@@ -243,8 +203,6 @@ function Tree:set_children(parent_id, items)
 	assert(type(items) == "table")
 	local parent_node = parent_id and self._nodes[parent_id]
 	assert(not parent_id or parent_node, "parent does not exist")
-
-	-- 1. Remove ALL old children
 	do
 		local child
 		if parent_node then
@@ -266,8 +224,6 @@ function Tree:set_children(parent_id, items)
 			self._root_last  = nil
 		end
 	end
-
-	-- 2. Add new children
 	local first_new = nil
 	local last_new  = nil
 
@@ -292,8 +248,6 @@ function Tree:set_children(parent_id, items)
 		if not first_new then first_new = id end
 		last_new = id
 	end
-
-	-- 3. Link to parent (or root)
 	if parent_node then
 		parent_node.first_child = first_new
 		parent_node.last_child  = last_new
@@ -302,28 +256,17 @@ function Tree:set_children(parent_id, items)
 		self._root_last  = last_new
 	end
 end
-
---- Update the children of parent_id to match the provided items.
---- Existing children NOT in the items list are removed.
---- Grandchildren from existing children are preserved.
---- If an item's ID already exists elsewhere in the tree (under a different parent), it asserts.
 ---@param parent_id any|nil
 ---@param items keystone.utils.Tree.ItemUpdate[]
 function Tree:update_children(parent_id, items)
 	assert(type(items) == "table", "items must be a table")
 	local parent_node = parent_id and self._nodes[parent_id]
 	assert(not parent_id or parent_node, "parent does not exist")
-
-	-- 1. Identify which IDs we are keeping for this specific parent
 	local keep_ids = {}
 	for _, item in ipairs(items) do
 		assert(not keep_ids[item.id], "duplicate item id in provided items: " .. tostring(item.id))
 		keep_ids[item.id] = true
 	end
-
-	-- 2. Clean up: Remove old children of this parent that are no longer in the list
-	-- We must use a while loop because _remove_subtree calls _unlink,
-	-- which modifies sibling pointers.
 	local current_id
 	if parent_id then
 		current_id = parent_node and parent_node.first_child or nil
@@ -331,17 +274,12 @@ function Tree:update_children(parent_id, items)
 		current_id = self._root_first
 	end
 	while current_id do
-		-- Grab the next sibling BEFORE we potentially destroy the current node's pointers
 		local next_id = self._nodes[current_id].next_sibling
 		if not keep_ids[current_id] then
-			-- This will recursively remove grandchildren and call _unlink(current_id)
-			-- _unlink correctly updates the parent's first/last pointers if needed.
 			self:_remove_subtree(current_id)
 		end
 		current_id = next_id
 	end
-
-	-- 3. Re-link the children based on the new provided order
 	local first_new = nil
 	local last_new  = nil
 
@@ -350,7 +288,6 @@ function Tree:update_children(parent_id, items)
 		local node = self._nodes[id]
 
 		if node then
-			-- ASSERTION: ID must not belong to another parent
 			assert(node.parent_id == parent_id,
 				string.format("ID conflict: node '%s' already exists under parent '%s'",
 					tostring(id), tostring(node.parent_id)))
@@ -358,14 +295,10 @@ function Tree:update_children(parent_id, items)
 			if item.keep_children == false then
 				self:_remove_children(node)
 			end
-
-			-- Update metadata
 			node.data = item.data
-			-- Reset sibling pointers for the new order
 			node.prev_sibling = last_new
 			node.next_sibling = nil
 		else
-			-- Create brand new node
 			node = {
 				parent_id    = parent_id,
 				data         = item.data,
@@ -376,8 +309,6 @@ function Tree:update_children(parent_id, items)
 			}
 			self._nodes[id] = node
 		end
-
-		-- Link the sibling chain forward
 		if last_new then
 			self._nodes[last_new].next_sibling = id
 		end
@@ -385,8 +316,6 @@ function Tree:update_children(parent_id, items)
 		if not first_new then first_new = id end
 		last_new = id
 	end
-
-	-- 4. Finalize pointers for the parent or root list
 	if parent_id then
 		parent_node.first_child = first_new
 		parent_node.last_child  = last_new
@@ -406,8 +335,6 @@ function Tree:add_item(parent_id, id, data)
 
 	local node = self._nodes[id]
 	assert(not node, "id already exists " .. tostring(id))
-
-	-- Create new node
 	node = {
 		parent_id    = parent_id,
 		data         = data,
@@ -417,8 +344,6 @@ function Tree:add_item(parent_id, id, data)
 		prev_sibling = nil,
 	}
 	self._nodes[id] = node
-
-	-- Link under parent or root
 	self:_link_child(parent_id, id)
 end
 
@@ -433,8 +358,6 @@ function Tree:set_item_data(id, data)
 	node.data = data
 	return true
 end
-
----Insert or update a node before or after a reference sibling.
 ---@generic T
 ---@param reference_id any
 ---@param id any
@@ -451,8 +374,6 @@ function Tree:add_sibling(reference_id, id, data, before)
 
 	local node = self._nodes[id]
 	assert(not node, "id already exists " .. tostring(id))
-
-	-- Create new node
 	node = {
 		parent_id    = parent_id,
 		data         = data,
@@ -462,8 +383,6 @@ function Tree:add_sibling(reference_id, id, data, before)
 		prev_sibling = nil,
 	}
 	self._nodes[id] = node
-
-	-- Link under parent or root at correct position
 	self:_link_sibling(reference_id, id, before)
 end
 
@@ -473,20 +392,14 @@ function Tree:have_item(id)
 	assert(id, "id required")
 	return self._nodes[id] ~= nil
 end
-
---- Is this node a root node? (has no parent)
 ---@return boolean
 function Tree:is_root(id)
 	local node = self._nodes[id]
 	return node ~= nil and node.parent_id == nil
 end
-
---- Get root nodes (same as get_children(nil) but maybe clearer name in some contexts)
 function Tree:get_roots()
 	return self:get_children(nil)
 end
-
---- Get the parent ID of a node (or nil if it's a root node)
 ---@param id any
 ---@return any|nil parent_id
 function Tree:get_parent_id(id)
@@ -505,8 +418,6 @@ function Tree:get_data(id)
 	local node = self._nodes[id]
 	return node and node.data or nil
 end
-
---- Get the depth of a node (0 for root nodes)
 ---@param id any
 ---@return integer
 function Tree:get_depth(id)
@@ -523,7 +434,6 @@ function Tree:get_depth(id)
 	while current_parent ~= nil do
 		depth = depth + 1
 		local parent_node = self._nodes[current_parent]
-		-- Safety check for broken tree links
 		if not parent_node then break end
 		current_parent = parent_node.parent_id
 	end
@@ -547,8 +457,6 @@ function Tree:have_children(id)
 	local node = self._nodes[id]
 	return node ~= nil and node.first_child ~= nil
 end
-
----Get all immediate children of a node in order.
 ---@param parent_id any|nil If nil, returns root nodes.
 ---@return any[]
 function Tree:get_children_ids(parent_id)
@@ -564,8 +472,6 @@ function Tree:get_children_ids(parent_id)
 	end
 	return ids
 end
-
----Get all immediate children of a node in order.
 ---@param parent_id any|nil If nil, returns root nodes.
 ---@return keystone.utils.Tree.Item[]
 function Tree:get_children(parent_id)
@@ -586,42 +492,30 @@ function Tree:get_children(parent_id)
 
 	return items
 end
-
----Remove a node and all its descendants.
 ---@param id any
 function Tree:remove_item(id)
 	assert(id, "id required")
 	self:_remove_subtree(id)
 end
-
----Remove all children of a node but keep the node itself.
 ---@private
 ---@param node keystone.utils.Tree.Node
 function Tree:_remove_children(node)
 	local child = node.first_child
 	while child do
-		-- Grab the next sibling before removing the current child subtree
 		local next_child = self._nodes[child].next_sibling
 		self:_remove_subtree(child)
 		child = next_child
 	end
-	-- Clear the pointers on the parent so it no longer thinks it has children
 	node.first_child = nil
 	node.last_child = nil
 end
-
----Remove all children of a node but keep the node itself.
 ---@param id any
 function Tree:remove_children(id)
 	assert(id ~= nil, "id is required")
 	local node = self._nodes[id]
-
-	-- If node doesn't exist, there's nothing to clear
 	if not node then return end
 	self:_remove_children(node)
 end
-
----Walk a node and its descendants (depth-first).
 ---@private
 ---@param id any
 ---@param depth integer
@@ -640,8 +534,6 @@ function Tree:_walk_node(id, depth, handler)
 		child = self._nodes[child].next_sibling
 	end
 end
-
----Walk a single node subtree.
 ---@param id any
 ---@param handler fun(id:any, data:any, depth:number):boolean?
 function Tree:walk_node(id, handler)
@@ -650,8 +542,6 @@ function Tree:walk_node(id, handler)
 
 	self:_walk_node(id, 0, handler)
 end
-
----Count descendants of a node (depth-first).
 ---@param starting_id any
 ---@param filter (fun(id:any, data:any):boolean?)?
 ---@return integer
@@ -675,12 +565,6 @@ function Tree:tree_size(starting_id, filter)
 	end)
 	return count
 end
-
---==============================================================
--- Flattening (for UI)
---==============================================================
-
----Flatten the tree (or a subtree) in depth-first order.
 ---@param starting_id any|nil  -- nil = whole tree
 ---@param filter (fun(id:any, data:any):boolean?)?
 ---@return keystone.utils.Tree.FlatNode[]
@@ -714,13 +598,6 @@ function Tree:flatten(starting_id, filter)
 
 	return out
 end
-
-----------------------------------------------------------------
--- Validation (for debugging)
-----------------------------------------------------------------
-
----Validate internal tree invariants.
----Throws error if any inconsistency is found.
 function Tree:validate()
 	local visited = {}
 	local function assertf(cond, fmt, ...)
@@ -760,8 +637,6 @@ function Tree:validate()
 			"_root_last mismatch: expected %s, got %s",
 			tostring(prev), tostring(self._root_last))
 	end
-
-	-- Validate subtree recursively
 	local function walk(id)
 		assertf(not visited[id],
 			"Cycle or multiple-parent detected at node %s",
@@ -771,8 +646,6 @@ function Tree:validate()
 
 		local node = self._nodes[id]
 		assertf(node, "Node %s missing from _nodes", tostring(id))
-
-		-- Validate children chain
 		local child = node.first_child
 		local prev = nil
 
@@ -805,8 +678,6 @@ function Tree:validate()
 			end
 
 			prev = child
-
-			-- Recurse
 			walk(child)
 
 			child = child_node.next_sibling
@@ -818,18 +689,12 @@ function Tree:validate()
 			tostring(prev),
 			tostring(node.last_child))
 	end
-
-	-- Run validations
 	validate_root_chain()
-
-	-- Walk all roots
 	local id = self._root_first
 	while id do
 		walk(id)
 		id = self._nodes[id].next_sibling
 	end
-
-	-- Ensure no unreachable nodes exist
 	for id, _ in pairs(self._nodes) do
 		assertf(visited[id],
 			"Node %s exists in _nodes but is not reachable from any root",

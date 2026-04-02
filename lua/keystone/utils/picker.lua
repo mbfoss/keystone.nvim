@@ -7,18 +7,10 @@ local utils      = require("keystone.utils.utils")
 
 local M          = {}
 
---------------------------------------------------------------------------------
--- Namespaces
---------------------------------------------------------------------------------
-
 local NS_CURSOR  = vim.api.nvim_create_namespace("LoopPlugin_PickerCursor")
 local NS_VIRT    = vim.api.nvim_create_namespace("LoopPlugin_PickerVirtText")
 local NS_SPINNER = vim.api.nvim_create_namespace("LoopPlugin_PickerSpinner")
 local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
-
---------------------------------------------------------------------------------
--- Types
---------------------------------------------------------------------------------
 
 ---@class keystone.Picker.Item
 ---@field label string?
@@ -59,10 +51,6 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 ---@field list_width number?
 ---@field list_wrap boolean?
 
---------------------------------------------------------------------------------
--- Layout
---------------------------------------------------------------------------------
-
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
 ---@field prompt_col number
@@ -77,10 +65,6 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 ---@field prev_width number
 ---@field prev_height number
 
---------------------------------------------------------------------------------
--- Utility
-------------------------------------------------layout_height--------------------------------
-
 ---@param v number
 ---@param min number
 ---@param max number
@@ -88,10 +72,6 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
 end
-
---------------------------------------------------------------------------------
--- Layout computation
---------------------------------------------------------------------------------
 
 ---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
 ---@return keystone.Picker.Layout
@@ -155,11 +135,8 @@ end
 ---@param height number
 ---@return string[]
 local function _center_for_previwer(msg, width, height)
-    -- horizontal centering
     local pad_left = math.max(0, math.floor((width - #msg) / 2) + 1)
     local centered = string.rep(" ", pad_left) .. msg
-
-    -- vertical centering
     local pad_top = math.max(0, math.floor((height + 1) / 2))
 
     local lines = {}
@@ -169,9 +146,10 @@ local function _center_for_previwer(msg, width, height)
     table.insert(lines, centered)
     return lines
 end
-
---- Finds the index where the item should be inserted to maintain descending order
 local function _find_insert_index(items, new_score)
+    if not new_score then
+        return #items + 1
+    end
     local low, high = 1, #items
     while low <= high do
         local mid = math.floor((low + high) / 2)
@@ -183,10 +161,6 @@ local function _find_insert_index(items, new_score)
     end
     return low
 end
-
---------------------------------------------------------------------------------
--- Picker Class
---------------------------------------------------------------------------------
 
 ---@class keystone.utils.Picker
 ---@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
@@ -214,10 +188,6 @@ end
 ---@field history_idx number
 local Picker = class()
 
---------------------------------------------------------------------------------
--- Initialization
---------------------------------------------------------------------------------
-
 ---@param opts keystone.Picker.opts
 ---@param callback keystone.Picker.Callback
 function Picker:init(opts, callback)
@@ -244,7 +214,6 @@ function Picker:init(opts, callback)
 
     if self.opts.history_provider then
         self.history = self.opts.history_provider.load() or {}
-        -- Start index at length + 1 (the "empty/new" entry)
         self.history_idx = #self.history + 1
     end
 
@@ -253,10 +222,6 @@ function Picker:init(opts, callback)
 
     self:setup_ui()
 end
-
---------------------------------------------------------------------------------
--- UI
---------------------------------------------------------------------------------
 
 ---@return nil
 function Picker:setup_ui()
@@ -376,8 +341,6 @@ function Picker:setup_ui()
             end)
         end
     })
-
-    -- keymap to paste original <cword>
     assert(self.pbuf > 0)
     vim.keymap.set("i", "<C-r><C-w>", function()
         vim.api.nvim_feedkeys(
@@ -429,10 +392,6 @@ function Picker:on_resize()
     end
 end
 
---------------------------------------------------------------------------------
--- UI Rendering
---------------------------------------------------------------------------------
-
 ---@return nil
 function Picker:render_ui()
     if not vim.api.nvim_buf_is_valid(self.lbuf) then
@@ -449,10 +408,6 @@ function Picker:render_ui()
 
     local cur = self:get_cursor()
 
-    ------------------------------------------------
-    -- Cursor marker
-    ------------------------------------------------
-
     if total > 0 then
         vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
             virt_text = { { "> ", "Special" } },
@@ -460,10 +415,6 @@ function Picker:render_ui()
             priority = 200,
         })
     end
-
-    ------------------------------------------------
-    -- Position hint
-    ------------------------------------------------
 
     if total > 0 and vim.api.nvim_buf_is_valid(self.pbuf) then
         local text = string.format("%d/%d", cur, total)
@@ -476,10 +427,6 @@ function Picker:render_ui()
         })
     end
 end
-
---------------------------------------------------------------------------------
--- Cursor
---------------------------------------------------------------------------------
 
 ---@return integer
 function Picker:get_cursor()
@@ -509,10 +456,6 @@ function Picker:move_cursor(row, force, clamp)
     self:render_ui()
     self:update_preview()
 end
-
---------------------------------------------------------------------------------
--- Preview
---------------------------------------------------------------------------------
 
 ---@return nil
 function Picker:update_preview()
@@ -561,7 +504,6 @@ function Picker:update_preview()
                 vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
                 vim.bo[self.vbuf].modifiable = false
                 if preview and info then
-                    -- Set the filetype for syntax highlighting
                     local filetype = info.filetype
                     if not filetype and info.filepath then
                         filetype = vim.filetype.match({ filename = info.filepath })
@@ -573,7 +515,6 @@ function Picker:update_preview()
                         vim.api.nvim_win_call(self.vwin, function()
                             vim.cmd("normal! zz") -- center the target line
                         end)
-                        -- Highlight the target line fully (works for single-line too)
                         vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
                         vim.api.nvim_buf_set_extmark(self.vbuf, NS_PREVIEW, lnum - 1, 0, {
                             end_row = lnum, -- makes it "multiline" → enables hl_eol
@@ -593,10 +534,6 @@ function Picker:update_preview()
     )
     assert(type(self.async_preview_cancel) == "function")
 end
-
---------------------------------------------------------------------------------
--- Spinner
---------------------------------------------------------------------------------
 
 function Picker:start_spinner()
     if self.spinner then return end
@@ -629,13 +566,8 @@ function Picker:stop_spinner()
     end
 end
 
---------------------------------------------------------------------------------
--- List manipulation
---------------------------------------------------------------------------------
-
 function Picker:request_clear_preview()
     if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-        -- Defer clearing the preview window to avoid flicker during fast scrolls
         ---@diagnostic disable-next-line: undefined-field
         self.preview_timer = vim.defer_fn(function()
             self.preview_timer = nil
@@ -667,20 +599,14 @@ end
 
 function Picker:add_new_lines(items, query)
     local prefix = "  "
-
-    -- Track if the buffer was totally empty (one blank line)
     local is_fresh = #self.items_data == 0 and
         vim.api.nvim_buf_line_count(self.lbuf) == 1 and
         vim.api.nvim_buf_get_lines(self.lbuf, 0, 1, false)[1] == ""
 
     for _, item in ipairs(items) do
         item.score = item.score or 0
-
-        -- 1. Find where this item belongs
         local idx = _find_insert_index(self.items_data, item.score)
         table.insert(self.items_data, idx, item)
-
-        -- 2. Prepare the line string
         local label = item.label
         if not label and item.label_chunks then
             local parts = {}
@@ -691,8 +617,6 @@ function Picker:add_new_lines(items, query)
         end
         label = (label or ""):gsub("\n", "")
         local line_text = prefix .. label
-
-        -- 3. Update the Buffer
         local row = idx - 1
         vim.bo[self.lbuf].modifiable = true
         if is_fresh and idx == 1 then
@@ -702,8 +626,6 @@ function Picker:add_new_lines(items, query)
             vim.api.nvim_buf_set_lines(self.lbuf, row, row, false, { line_text })
         end
         vim.bo[self.lbuf].modifiable = false
-
-        -- 4. Apply Highlights (Extmarks)
         if item.label_chunks then
             local col = #prefix
             for _, chunk in ipairs(item.label_chunks) do
@@ -719,8 +641,6 @@ function Picker:add_new_lines(items, query)
                 end
             end
         end
-
-        -- 5. Apply Virtual Lines
         if item.virt_lines and #item.virt_lines > 0 then
             local vlines = {}
             for _, line in ipairs(item.virt_lines) do
@@ -738,13 +658,8 @@ function Picker:add_new_lines(items, query)
     vim.wo[self.lwin].cursorline = #self.items_data > 0
 end
 
---------------------------------------------------------------------------------
--- Fetch
---------------------------------------------------------------------------------
-
 ---@param query string
 function Picker:run_fetch(query)
-    -- Record if the query actually changed (to reset cursor) vs. just appending results
     local is_new_query = (query ~= self.current_query)
     self.current_query = query
 
@@ -780,8 +695,6 @@ function Picker:run_fetch(query)
         fetch_opts,
         function(new_items)
             if self.closed or context ~= self.async_fetch_context then return end
-
-            -- Capture current cursor before we modify the list
             local saved_cursor = 1
             if not is_new_query and not waiting_first then
                 saved_cursor = self:get_cursor()
@@ -799,9 +712,6 @@ function Picker:run_fetch(query)
             end
 
             self:add_new_lines(new_items, query)
-
-            -- If it's the very first render of a brand new query, go to top.
-            -- Otherwise, keep the user's cursor where it was (clamped to list size).
             if is_new_query and #self.items_data > 0 then
                 self:move_cursor(1, true, true)
                 is_new_query = false -- Reset so subsequent async chunks don't snap to top
@@ -835,17 +745,13 @@ function Picker:history_next()
         self.history_idx = new_idx
         self:set_prompt_text(self.history[self.history_idx])
     elseif new_idx == #self.history + 1 then
-        -- Return to a blank prompt if moving past the end
         self.history_idx = new_idx
         self:set_prompt_text("")
     end
 end
-
----Helper to update the prompt and move cursor to end
 function Picker:set_prompt_text(text)
     vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
     vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
-    -- The TextChanged autocmd will trigger run_fetch automatically
 end
 
 function Picker:send_to_qf()
@@ -864,7 +770,6 @@ function Picker:send_to_qf()
             end
             label = (label or ""):gsub("\n", "")
             table.insert(qf_entries, {
-                -- Adjust these keys based on what your fetcher provides in 'data'
                 filename = d.filepath or d.filename or d.path,
                 lnum     = d.lnum or 1,
                 col      = d.col or 1,
@@ -873,18 +778,12 @@ function Picker:send_to_qf()
         end
     end
     if #qf_entries > 0 then
-        -- Close the picker first
         self:close(nil)
-        -- Set the quickfix list and open the window
         vim.fn.setqflist(qf_entries, "r")
         vim.cmd("copen")
         print(string.format("Sent %d items to Quickfix", #qf_entries))
     end
 end
-
---------------------------------------------------------------------------------
--- Close
---------------------------------------------------------------------------------
 
 ---@param result any|nil
 function Picker:close(result)
@@ -908,8 +807,6 @@ function Picker:close(result)
             vim.api.nvim_win_close(w, true)
         end
     end
-
-    -- Save to history if provider exists and result was selected
     if self.opts.history_provider then
         if self.current_query and self.current_query ~= "" and self.current_query ~= self.history[#self.history] then
             table.insert(self.history, self.current_query)
@@ -926,10 +823,6 @@ function Picker:close(result)
         end)
     end
 end
-
---------------------------------------------------------------------------------
--- Input
---------------------------------------------------------------------------------
 
 function Picker:setup_input()
     local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
@@ -991,10 +884,6 @@ function Picker:setup_input()
     })
 end
 
---------------------------------------------------------------------------------
--- Start
---------------------------------------------------------------------------------
-
 function Picker:start()
     self:setup_input()
     self:run_fetch("")
@@ -1005,10 +894,6 @@ function Picker:start()
         vim.cmd("startinsert!")
     end)
 end
-
---------------------------------------------------------------------------------
--- Public API
---------------------------------------------------------------------------------
 
 ---@param opts keystone.Picker.opts
 ---@param callback keystone.Picker.Callback

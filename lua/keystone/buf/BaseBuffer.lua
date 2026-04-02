@@ -207,7 +207,6 @@ end
 function BaseBuffer:_apply_keymap(key, item)
     if self._buf ~= -1 then
         local modes = { "n" }
-        --local ok =
         pcall(function() vim.keymap.del(modes, key, { buffer = self._buf }) end)
         vim.keymap.set(modes, key, function() item.callback() end, { buffer = self._buf, desc = item.desc })
     end

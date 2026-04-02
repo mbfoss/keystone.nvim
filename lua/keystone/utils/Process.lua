@@ -1,4 +1,3 @@
--- Process.lua
 local uv = require('luv')
 local class = require('keystone.utils.class')
 local utils = require('keystone.utils.utils')
@@ -76,14 +75,11 @@ function Process:_spawn()
     if exec_path == nil or exec_path == "" then
         return false, "Program is not executable: " .. tostring(self.cmd)
     end
-
-    -- Entire callback is scheduled to Neovim's main thread
     local handle, pid_or_err = uv.spawn(exec_path, opts, vim.schedule_wrap(function(code, signal)
         if self.exited then return end
         self.exited = true
 
         self._kill_timer = utils.stop_and_close_timer(self._kill_timer)
-        -- Clean shutdown of readers
         self:_close_all()
         if self.on_exit then
             self.on_exit(code, signal)
@@ -96,8 +92,6 @@ function Process:_spawn()
     end
 
     self.handle, self.pid = handle, pid_or_err
-
-    -- Helper to keep stdout/stderr logic clean
     local function create_reader(is_stderr)
         local pipe = is_stderr and self.stderr or self.stdout
         pipe:read_start(function(err, data)
@@ -117,8 +111,6 @@ function Process:_spawn()
     create_reader(true)  -- stderr
     return true
 end
-
--- Convert env dict → {"KEY=value", ...}
 function Process:_env_list()
     assert(self.env)
     local out = {}
@@ -127,9 +119,6 @@ function Process:_env_list()
     end
     return out
 end
-
--- Writing to stdin
--------------------------------------------------
 function Process:write(data)
     if self.exited then
         return false, "process exited"
@@ -169,10 +158,6 @@ function Process:kill(opts)
         end
     end
 end
-
--------------------------------------------------
--- Cleanup handles
--------------------------------------------------
 function Process:_close_all()
     _safe_close(self.stdin)
     _safe_close(self.stdout)

@@ -10,13 +10,9 @@ local class = require("keystone.utils.class")
 local Trackers = class()
 
 local function _pcall_async_report(fn, ...)
-    -- Call synchronously
     local ok, err = pcall(fn, ...)
-
-    -- If it fails, schedule error reporting
     if not ok then
         vim.schedule(function()
-            -- Print the error message in red
             vim.api.nvim_echo({ { "[Error] " .. tostring(err), "ErrorMsg" } }, true, {})
         end)
     end

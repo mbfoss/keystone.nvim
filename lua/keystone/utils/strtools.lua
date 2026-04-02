@@ -2,23 +2,18 @@ local M = {}
 
 ---@return string
 function M.special_marker1()
-	-- this is a special UTF sequence that never appear in any text
 	return "\240\159\188\128" -- U+EFF00
 end
 
 ---@return string
 function M.special_marker2()
-	-- this is a special UTF sequence that never appear in any text
 	return "\240\159\188\129"
 end
 
 ---@return string
 function M.special_marker3()
-	-- this is a special UTF sequence that never appear in any text
 	return "\240\159\188\130"
 end
-
--- Helpers
 local function _to_lower(byte)
 	if byte >= 65 and byte <= 90 then
 		return byte + 32
@@ -74,29 +69,20 @@ function M.smart_crop_path(path, max_len)
 	max_len = math.max(max_len, 0)
 	local len = #path
 	if len <= max_len then return path, false end
-	-- Pre-calculate limit to avoid repeated math
-	-- We need space for the ellipsis (1 byte)
 	local limit = max_len - 1
 	local sep = package.config:sub(1, 1)
-	-- Find the last separator within the allowed limit from the end
-	-- We look for the separator in the substring that fits
 	local tail = path:sub(-limit)
 	local sep_pos = tail:find(sep)
 	if sep_pos then
-		-- Return from the first separator found in the tail to the end
 		return "…" .. tail:sub(sep_pos), true
 	end
-	-- Fallback: If no separator in the tail, just do a hard crop
 	return "…" .. tail, true
 end
-
----Helper to check if a path matches a list of glob patterns
 ---@param path string
 ---@param patterns string[]
 ---@return boolean
 function M.matches_any(path, patterns)
 	for _, pattern in ipairs(patterns) do
-		-- Convert glob to Lua regex: **/*.lua -> .*/.*%.lua
 		local regex = vim.fn.glob2regpat(pattern)
 		if vim.fn.match(path, regex) ~= -1 then
 			return true
@@ -108,26 +94,17 @@ end
 ---@param str string
 ---@return string
 function M.human_case(str)
-	-- Replace underscores with spaces
 	str = str:gsub("_", " ")
-
-	-- Insert space before uppercase letters (camelCase -> camel Case)
 	str = str:gsub("(%l)(%u)", "%1 %2")
-
-	-- Capitalize first letter of each word
 	str = str:gsub("(%a)([%w']*)", function(first, rest)
 		return first:upper() .. rest:lower()
 	end)
 
 	return str
 end
-
--- Escape a single argument only if necessary
 local function _escape_shell_arg(arg)
 	arg = arg or ""
-	-- Only escape if it contains shell-special characters or spaces
 	if arg:match('[%s;&|$`"\'<>]') then
-		-- Wrap in single quotes and escape existing single quotes
 		arg = "'" .. (arg:gsub("'", "'\\''")) .. "'"
 	end
 	return arg
@@ -137,7 +114,6 @@ end
 ---@return string
 function M.get_shell_command(cmd_and_args)
 	local parts = {}
-	-- Replace nils and escape each part as needed
 	for i, str in ipairs(cmd_and_args) do
 		table.insert(parts, _escape_shell_arg(str))
 	end
@@ -186,28 +162,19 @@ function M.split_shell_args(str)
 		while i <= len do
 			local c = str:sub(i, i)
 			local nxt = str:sub(i + 1, i + 1)
-
-			-- whitespace ends token (unless inside quotes)
 			if not in_quote and c:match("%s") then break end
-
-			-- start quoted section
 			if not in_quote and (c == '"' or c == "'") then
 				in_quote = c
 				i = i + 1
 				goto continue
 			end
-
-			-- end quote
 			if in_quote and c == in_quote then
 				in_quote = nil
 				i = i + 1
 				goto continue
 			end
-
-			-- handle backslash escapes
 			if c == "\\" and i + 1 <= len then
 				local esc = nxt
-				-- include escaped char literally
 				if esc == "\n" then
 					i = i + 2 -- line continuation
 				else
@@ -221,8 +188,6 @@ function M.split_shell_args(str)
 			i = i + 1
 			::continue::
 		end
-
-		-- unterminated quote → keep literal opening quote
 		if in_quote then
 			table.insert(part, 1, in_quote)
 		end
@@ -249,9 +214,7 @@ end
 function M.clean_and_split_lines(lines)
 	local result = {}
 	for _, line in ipairs(lines) do
-		-- remove all \r
 		line = line:gsub("\r", "")
-		-- split on \n
 		for part in line:gmatch("([^\n]*)\n?") do
 			if part ~= "" then
 				table.insert(result, part)
@@ -324,7 +287,6 @@ function M.format_grid(items, width)
 		for c = 1, num_cols do
 			local idx = (c - 1) * num_rows + r
 			if items[idx] then
-				-- Pad the string to the column width
 				table.insert(row_items, items[idx] .. string.rep(" ", col_width - #items[idx]))
 			end
 		end
@@ -332,8 +294,6 @@ function M.format_grid(items, width)
 	end
 	return table.concat(lines, "\r\n")
 end
-
---- Creates a line-buffered processor.
 ---@param callback fun(lines: string[]) The function to call for complete lines.
 ---@return fun(chunk: string) feed The function to call whenever new data arrives.
 function M.create_line_buffered_feed(callback)
@@ -371,7 +331,6 @@ end
 function M.compile_globs(globs)
 	local compiled = {}
 	for _, g in ipairs(globs) do
-		-- Compile into a vim.regex object
 		table.insert(compiled, vim.regex(vim.fn.glob2regpat(g)))
 	end
 	return compiled
@@ -382,7 +341,6 @@ end
 ---@return boolean
 function M.any_match(str, regex_list)
 	for _, pat in ipairs(regex_list) do
-		-- .match_str is significantly faster than vim.fn.match
 		if pat:match_str(str) then
 			return true
 		end
@@ -428,7 +386,6 @@ function M.fuzzy_match(text, query, opts)
 	local score = 0
 	local last = 0
 	local positions = {}
-	-- Matching loop
 	while ti <= tlen and qi <= qlen do
 		local raw_tc = text:byte(ti)
 		local tc = _to_lower(raw_tc)
@@ -442,10 +399,8 @@ function M.fuzzy_match(text, query, opts)
 				score = score + 3
 			end
 			if _is_boundary(text, ti) then
-				-- Word boundary bonus
 				score = score + 6
 			elseif ti > 1 then
-				-- CamelCase bonus
 				local prev = text:byte(ti - 1)
 				if _is_upper(raw_tc) and not _is_upper(prev) then
 					score = score + 5
@@ -457,11 +412,9 @@ function M.fuzzy_match(text, query, opts)
 		end
 		ti = ti + 1
 	end
-	--  Not a full match
 	if qi <= qlen then
 		return false, 0, {}
 	end
-	-- Short string bias (additive, safe)
 	if not opts or opts.short_bias then
 		local coverage = qlen / tlen
 		score = score + (coverage * 5)

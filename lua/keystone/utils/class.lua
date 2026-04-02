@@ -5,8 +5,6 @@ local function class(base)
     local c = {}
     c.__index = c
     if base then setmetatable(c, { __index = base }) end
-
-    ---Creates a new instance
     ---@param ... any
     ---@return table
     function c:new(...)

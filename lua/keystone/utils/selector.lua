@@ -20,7 +20,6 @@ local M           = {}
 ---@alias keystone.SelectorCallback fun(data:any|nil)
 
 ---@alias keystone.PreviewFormatter fun(data:any):(string, string|nil)
---- Returns preview text and optional filetype
 
 ---@class keystone.selector.opts
 ---@field prompt string
@@ -29,10 +28,6 @@ local M           = {}
 ---@field formatter keystone.PreviewFormatter|nil
 ---@field initial integer? -- 1-based index into items
 ---@field list_wrap boolean?
-
---------------------------------------------------------------------------------
--- Implementation Details
---------------------------------------------------------------------------------
 
 local function _no_op()
 end
@@ -85,10 +80,8 @@ local function _create_fetcher(opts)
                 end
                 label = table.concat(parts)
             end
-            -- fuzzy match returns success, score, positions
             local ok, _, positions = strtools.fuzzy_match(label, q)
             if ok then
-                -- build label_chunks for highlighting
                 local chunks = item.label_chunks
                 if item.label then
                     chunks = {}
@@ -111,8 +104,6 @@ local function _create_fetcher(opts)
                 })
             end
         end
-
-        -- return filtered items + initial selection index
         return filtered, initial_index
     end
 end
@@ -136,10 +127,6 @@ local function _create_previewer(opts)
     end
 end
 
---------------------------------------------------------------------------------
--- Public API
---------------------------------------------------------------------------------
-
 ---@param opts keystone.selector.opts
 ---@param callback keystone.SelectorCallback
 function M.select(opts, callback)
@@ -148,7 +135,6 @@ function M.select(opts, callback)
     if not opts.formatter and not opts.file_preview then
         height_ratio = (list_height + 3) / vim.o.lines
     end
-    -- Validate and prepare options for the underlying picker
     ---@type keystone.Picker.opts
     local picker_opts = {
         prompt        = opts.prompt,
@@ -162,9 +148,6 @@ function M.select(opts, callback)
     picker.select(picker_opts, function(item)
         callback(item and item.data)
     end)
-
-    -- Note: 'initial' index support would require modifying keystone.picker
-    -- to accept an initial query or selection state.
 end
 
 return M

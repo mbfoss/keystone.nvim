@@ -1,6 +1,4 @@
 local M = {}
-
--- Dependencies
 local manager = require("keystone.manager")
 local strtools = require('keystone.utils.strtools')
 local selector = require('keystone.utils.selector')
@@ -42,7 +40,6 @@ local function _collect_commands(prefix, out)
     for _, cmd in ipairs(cmds or {}) do
         local parts = vim.list_extend(vim.deepcopy(prefix), { cmd })
         table.insert(out, ("Keystone %s %s"):format(first, table.concat(parts, " ")))
-        -- recurse to catch deeper subcommands
         _collect_commands(parts, out)
     end
 end
@@ -50,11 +47,8 @@ end
 function M.select_command()
     ---@type string[]
     local all_cmds = {}
-
-    -- Top-level commands
     for _, cmd in ipairs(manager.get_commands()) do
         table.insert(all_cmds, "Keystone " .. cmd)
-        -- Subcommands (recursive)
         _collect_commands({ cmd }, all_cmds)
     end
 
@@ -78,10 +72,6 @@ function M.select_command()
         end
     )
 end
-
------------------------------------------------------------
--- Dispatcher
------------------------------------------------------------
 
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.dispatch(opts)

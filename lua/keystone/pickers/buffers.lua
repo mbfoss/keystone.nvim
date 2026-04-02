@@ -9,7 +9,6 @@ local M = {}
 ---@param list_width number
 ---@return keystone.Picker.Item?
 local function buffer_to_picker_item(bufnr, list_width)
-    -- Ignore unlisted buffers (like the picker itself or NvimTree)
     if not vim.api.nvim_buf_is_loaded(bufnr) or not vim.bo[bufnr].buflisted then
         return nil
     end
@@ -17,8 +16,6 @@ local function buffer_to_picker_item(bufnr, list_width)
     local filepath = vim.api.nvim_buf_get_name(bufnr)
     local name = filepath ~= "" and vim.fn.fnamemodify(filepath, ":t") or "[No Name]"
     local relative_path = filepath ~= "" and vim.fn.fnamemodify(filepath, ":.") or ""
-
-    -- Indicators: [+] for modified, [ID] for buffer number
     local modified = vim.bo[bufnr].modified and " [+]" or ""
     local label = string.format("%d: %s%s", bufnr, name, modified)
 
@@ -27,9 +24,6 @@ local function buffer_to_picker_item(bufnr, list_width)
     if display_path ~= "" and display_path ~= name then
         virt_lines = { { { display_path, "Comment" } } }
     end
-
-    -- Retrieve the last cursor position mark [line, column]
-    -- nvim_buf_get_mark returns 1-indexed line and 0-indexed column
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = mark[1], nil ---@type number?,number?
     if lnum > 1 then col = mark[2] else lnum = nil end
@@ -52,7 +46,6 @@ function M.open()
             for _, bufnr in ipairs(buffers) do
                 local base_item = buffer_to_picker_item(bufnr, fetch_opts.list_width)
                 if base_item then
-                    -- Fuzzy match against the buffer name/label
                     local match = pickertools.make_picker_item(base_item.label, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false

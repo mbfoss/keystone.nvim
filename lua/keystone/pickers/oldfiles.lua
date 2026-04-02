@@ -7,8 +7,6 @@ local pickertools = require("keystone.utils.pickertools")
 function M.open()
     local cwd = vim.fn.getcwd()
     local recent_files = {}
-
-    -- 1. Gather files regardless of CWD
     for _, path in ipairs(vim.v.oldfiles) do
         local full_path = vim.fn.fnamemodify(path, ":p")
 

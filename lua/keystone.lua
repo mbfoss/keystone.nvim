@@ -1,4 +1,3 @@
--- IMPORTANT: keep this module light for lazy loading
 
 local M = {}
 
