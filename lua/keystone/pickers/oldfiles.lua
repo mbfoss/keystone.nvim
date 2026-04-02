@@ -28,7 +28,7 @@ function M.open()
     end
 
     picker.select({
-        prompt = "Global Recent Files",
+        prompt = "Recent Files",
         file_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}

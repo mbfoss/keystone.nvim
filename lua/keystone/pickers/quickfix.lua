@@ -36,7 +36,7 @@ local function qf_item_to_picker_item(item, list_width)
     local label = prefix .. vim.trim(item.text ~= "" and item.text or "[No description]")
     local virt_lines = nil
     if display_path and #display_path > 0 then
-        virt_lines = { { { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Directory" } } }
+        virt_lines = { { { string.format("%s:%d:%d", display_path, item.lnum, item.col), "MoreMsg" } } }
     end
     return {
         label = label,

@@ -34,7 +34,7 @@ local function lsp_item_to_picker_item(ref, list_width)
     if loc == "" then loc = nil end
     return {
         label = vim.trim(line_text or ""),
-        virt_lines = { { { loc, "Directory" } } },
+        virt_lines = { { { loc, "MoreMsg" } } },
         data = {
             filepath = filepath,
             lnum = lnum,

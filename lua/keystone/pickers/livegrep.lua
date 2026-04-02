@@ -88,7 +88,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             ---@type keystone.SelectorItem
             local item = {
                 label_chunks = chunks,
-                virt_lines = { { { location, "Title" } } },
+                virt_lines = { { { location, "MoreMsg" } } },
                 file = abs_path,
                 data = {
                     filepath = abs_path,
