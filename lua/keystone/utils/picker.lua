@@ -236,6 +236,8 @@ function Picker:setup_ui()
 
     local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
 
+    self.list_sep_line = string.rep("─", self.layout.list_width)
+
     self.pbuf = vim.api.nvim_create_buf(false, true)
     self.lbuf = vim.api.nvim_create_buf(false, true)
     self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
@@ -359,6 +361,8 @@ function Picker:on_resize()
         width_ratio = self.opts.width_ratio,
         list_width = self.opts.list_width
     }
+
+    self.list_sep_line = string.rep("─", self.layout.list_width)
 
     local base = {
         relative = "editor",
@@ -647,6 +651,7 @@ function Picker:add_new_lines(items, query)
                 vim.list_extend(vl, line)
                 table.insert(vlines, vl)
             end
+            table.insert(vlines, { { self.list_sep_line, "Nontext" } })
             vim.api.nvim_buf_set_extmark(self.lbuf, NS_VIRT, row, 0, {
                 virt_lines = vlines,
                 hl_mode = "blend"
@@ -748,6 +753,7 @@ function Picker:history_next()
         self:set_prompt_text("")
     end
 end
+
 function Picker:set_prompt_text(text)
     vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
     vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
