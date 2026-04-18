@@ -3,14 +3,14 @@ local class          = require("keystone.utils.class")
 local strtools       = require("keystone.utils.strtools")
 local uitools        = require("keystone.utils.uitools")
 local filetools      = require("keystone.utils.file")
-local TreeBuffer     = require("keystone.buf.TreeBuffer")
+local TreeBuffer     = require("keystone.sidebar.TreeBuffer")
 local LRU            = require("keystone.utils.LRU")
 local floatwin       = require("keystone.utils.floatwin")
 local utils          = require("keystone.utils.utils")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
----@field name string
+---@field name string 
 ---@field loname string
 ---@field is_dir boolean
 ---@field is_link boolean?
@@ -40,7 +40,10 @@ local utils          = require("keystone.utils.utils")
 ---@field loname string
 ---@field is_dir boolean
 ---@field is_link boolean?
+
+---@type boolean,table?
 local _dev_icons_attempt, devicons
+
 local _file_icons    = {
     txt      = "",
     md       = "",

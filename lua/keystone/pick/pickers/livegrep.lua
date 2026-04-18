@@ -3,8 +3,8 @@ local M = {}
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local strtools = require("keystone.utils.strtools")
-local picker = require('keystone.utils.picker')
-local pickertools = require("keystone.utils.pickertools")
+local picker = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@class keystone.livegrep.opts
 ---@field cwd string? Optional directory to start search (defaults to getcwd)
@@ -86,7 +86,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
                 start_idx = e + 1
             end
 
-            ---@type keystone.SelectorItem
+            ---@type keystone.Picker.Item
             local item = {
                 label_chunks = chunks,
                 virt_lines = { { { location, "Special" } } },

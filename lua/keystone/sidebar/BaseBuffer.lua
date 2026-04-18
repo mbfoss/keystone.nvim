@@ -80,11 +80,6 @@ function BaseBuffer:disable_change_events()
     self._no_change_events = true
 end
 
----@private
-function BaseBuffer:_on_buf_enter()
-    self:_apply_keymaps()
-end
-
 ---@return string
 function BaseBuffer:get_name()
     return self._name
@@ -130,14 +125,14 @@ function BaseBuffer:_setup_buf()
 
     local buf = self._buf
 
-    local bufname = "loop://" .. self._name
+    local bufname = "keystone://tree/" .. self._name
     if vim.fn.bufexists(bufname) == 1 then
-        bufname = "loop://" .. tostring(buf) .. '/' .. self._name
+        bufname = "keystone://" .. tostring(buf) .. '/' .. self._name
     end
     if vim.fn.bufexists(bufname) == 1 then
         ---@diagnostic disable-next-line: undefined-field
         local timestamp = ("%d"):format(vim.uv.hrtime())
-        bufname = "loop://" .. tostring(buf) .. timestamp .. '/' .. self._name
+        bufname = "keystone://" .. tostring(buf) .. timestamp .. '/' .. self._name
     end
 
     vim.api.nvim_buf_set_name(buf, bufname)
@@ -167,13 +162,7 @@ function BaseBuffer:_setup_buf()
         end,
     })
 
-    vim.api.nvim_create_autocmd("BufEnter", {
-        buffer = buf,
-        callback = function(ev)
-            assert(ev.buf == buf)
-            self:_on_buf_enter()
-        end
-    })
+    self:_apply_keymaps()
 end
 
 ---@param key string

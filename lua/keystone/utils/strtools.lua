@@ -1,20 +1,5 @@
 local M = {}
 
----@return string
-function M.special_marker1()
-	return "\240\159\188\128" -- U+EFF00
-end
-
----@return string
-function M.special_marker2()
-	return "\240\159\188\129"
-end
-
----@return string
-function M.special_marker3()
-	return "\240\159\188\130"
-end
-
 local function _to_lower(byte)
 	if byte >= 65 and byte <= 90 then
 		return byte + 32

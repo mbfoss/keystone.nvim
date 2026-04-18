@@ -1,19 +1,19 @@
 local M = {}
 
+local picker = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
 local uitools = require("keystone.utils.uitools")
-local picker = require('keystone.utils.picker')
-local pickertools = require("keystone.utils.pickertools")
 
 ---@param severity vim.diagnostic.Severity LSP DiagnosticSeverity
 ---@return string, string (Text, HighlightGroup)
 local function get_severity_info(severity)
     local map = {
-        [vim.diagnostic.severity.ERROR] = { "󰅚 ERROR", "DiagnosticError" },
-        [vim.diagnostic.severity.WARN]  = { "󰀪 WARN ", "DiagnosticWarn" },
-        [vim.diagnostic.severity.INFO]  = { "󰋽 INFO ", "DiagnosticInfo" },
-        [vim.diagnostic.severity.HINT]  = { "󰌶 HINT ", "DiagnosticHint" },
+        [vim.diagnostic.severity.ERROR] = { "󰅚", "DiagnosticError" },
+        [vim.diagnostic.severity.WARN]  = { "󰀪", "DiagnosticWarn" },
+        [vim.diagnostic.severity.INFO]  = { "󰋽", "DiagnosticInfo" },
+        [vim.diagnostic.severity.HINT]  = { "󰌶", "DiagnosticHint" },
     }
-    local res = map[severity] or { "󰠠 ???? ", "Comment" }
+    local res = map[severity] or { "󰠠", "Comment" }
     return res[1], res[2]
 end
 

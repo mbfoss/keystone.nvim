@@ -1,14 +1,15 @@
 local M = {}
 
-local ksconfig = require('keystone').config
+local ksconfig = require('keystone.pick').config
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local strtools = require("keystone.utils.strtools")
 local filetools = require("keystone.utils.file")
-local picker = require('keystone.utils.picker')
-local pickertools = require("keystone.utils.pickertools")
+local picker = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@class keystone.filepicker.Opts
+---@field prompt string?
 ---@field cwd string The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
@@ -24,7 +25,7 @@ local pickertools = require("keystone.utils.pickertools")
 ---@param query string User input
 ---@param opts keystone.filepicker.SearchOpts
 ---@param fetch_opts keystone.Picker.FetcherOpts
----@param callback fun(items:keystone.SelectorItem[]?)
+---@param callback fun(items:keystone.Picker.Item[]?)
 local function async_lua_search(query, opts, fetch_opts, callback)
     assert(query ~= "")
     local count = 0
@@ -152,7 +153,7 @@ end
 function M.open(opts)
     opts = opts or {}
     return picker.select({
-        prompt = "Files",
+        prompt = opts.prompt or "Files",
         file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
         async_fetch = function(query, fetch_opts, callback)

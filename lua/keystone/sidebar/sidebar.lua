@@ -254,7 +254,7 @@ local function _ensure_init()
     local provider = {
         create_buffer = function(state)
             if not tree then
-                local FileTree = require("keystone.FileTree")
+                local FileTree = require("keystone.sidebar.FileTree")
                 tree = FileTree:new()
             end
             tree:set_persistent_state(state)

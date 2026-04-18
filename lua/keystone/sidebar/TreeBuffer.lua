@@ -1,5 +1,5 @@
 local class = require('keystone.utils.class')
-local BaseBuffer = require('keystone.buf.BaseBuffer')
+local BaseBuffer = require('keystone.sidebar.BaseBuffer')
 local Tree = require("keystone.utils.Tree")
 
 ---@class keystone.TreeBuffer.Item

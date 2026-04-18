@@ -2,8 +2,9 @@ local M = {}
 
 local uitools = require("keystone.utils.uitools")
 local strtools = require("keystone.utils.strtools")
-local picker = require('keystone.utils.picker')
-local pickertools = require("keystone.utils.pickertools")
+local picker = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
+
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
 ---@return string
@@ -22,7 +23,7 @@ end
 
 ---@param ref table LSP Reference result
 ---@param list_width number
----@return keystone.SelectorItem
+---@return keystone.Picker.Item
 local function lsp_item_to_picker_item(ref, list_width)
     local filepath = ref.filename
     local lnum = ref.lnum
@@ -95,7 +96,7 @@ function M.references()
             fetch = function(query, fetch_opts)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
-                    ---@type keystone.SelectorItem
+                    ---@type keystone.Picker.Item
                     local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
                     local match = pickertools.make_picker_item(item.label, query, {
                         list_width = fetch_opts.list_width,
