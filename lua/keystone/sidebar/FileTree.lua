@@ -10,7 +10,7 @@ local utils          = require("keystone.utils.utils")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
----@field name string 
+---@field name string
 ---@field loname string
 ---@field is_dir boolean
 ---@field is_link boolean?
@@ -156,7 +156,7 @@ function FileTree:_setup_tree()
         formatter = function(id, data)
             return _file_formatter(id, data)
         end,
-        header = { { "Workspace files", "Title" } },
+        header = { { "Files", "Title" } },
         base_opts = {
             name = "Workspace Files",
             filetype = "loop-filetree",
@@ -219,7 +219,6 @@ function FileTree:_on_buffer_create()
 end
 
 function FileTree:_on_buffer_delete()
-
     if self.bufenter_autocmd_id then
         vim.api.nvim_del_autocmd(self.bufenter_autocmd_id)
         self.bufenter_autocmd_id = nil
@@ -326,7 +325,7 @@ function FileTree:_setup_keymaps()
     })
 end
 
----@return keystone.BaseBuffer
+---@return keystone.Buffer
 function FileTree:get_compbuffer()
     return self._tree
 end
@@ -340,6 +339,7 @@ function FileTree:_should_include(rel, is_dir)
     end
     return strtools.check_path_pattern(rel, false, self._include_patterns, self._exclude_patterns)
 end
+
 ---@private
 ---@param path string
 ---@return boolean
@@ -375,8 +375,8 @@ end
 ---@param follow_symlinks boolean?
 function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
     self._root = root and vim.fs.normalize(root) or nil -- normalize is important because we may use / to split path
-    self._include_patterns = include_globs and strtools.compile_globs(include_globs) or {}
-    self._exclude_patterns = exclude_globs and strtools.compile_globs(exclude_globs) or {}
+    self._include_patterns = include_globs and strtools.compile_globs(include_globs) or nil
+    self._exclude_patterns = exclude_globs and strtools.compile_globs(exclude_globs) or nil
     self._follow_symlinks = follow_symlinks or true
     self:_reload()
 end
@@ -386,7 +386,7 @@ function FileTree:_reload()
     self._pending_reveal = nil
 
     local path = self._root
-    if not path or not self._include_patterns or not self._exclude_patterns or self._follow_symlinks == nil then
+    if not path then
         local error_msg = "Error"
         local root_item = {
             id = _error_node_id,
@@ -625,6 +625,7 @@ function FileTree:_read_dir(path, reload_counter, recursive)
         end)
     end)
 end
+
 ---@param entries keystone.FileTree.ProcessDirEntry[]
 ---@param error_flag boolean
 function FileTree:_process_dir(path, entries, error_flag)
@@ -695,6 +696,7 @@ function FileTree:_process_dir(path, entries, error_flag)
         self._tree:set_children(path, children)
     end
 end
+
 ---@param path string
 ---@param collapse_others boolean?
 ---@param set_current boolean?
@@ -789,6 +791,7 @@ function FileTree:reveal_current_file(collapse_others)
         end
     end
 end
+
 ---@param item table The parent or sibling item
 ---@param as_dir boolean
 ---@param force_parent boolean?
@@ -852,6 +855,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
             end
         end)
 end
+
 ---@param item table
 function FileTree:_rename_node(item)
     local is_dir = item.data.is_dir
@@ -893,6 +897,7 @@ function FileTree:_rename_node(item)
             end
         end)
 end
+
 ---@param item table The TreeBuffer item
 function FileTree:_delete_node(item)
     local is_folder = item.data.is_dir
@@ -915,6 +920,7 @@ function FileTree:_delete_node(item)
         end
     end)
 end
+
 ---@param item table The TreeBuffer item
 function FileTree:_delete_dir_recursive(item)
     if not item.data.is_dir or item.data.is_link then

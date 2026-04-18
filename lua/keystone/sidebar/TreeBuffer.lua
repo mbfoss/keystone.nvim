@@ -1,5 +1,5 @@
 local class = require('keystone.utils.class')
-local BaseBuffer = require('keystone.sidebar.BaseBuffer')
+local Buffer = require('keystone.utils.Buffer')
 local Tree = require("keystone.utils.Tree")
 
 ---@class keystone.TreeBuffer.Item
@@ -33,7 +33,7 @@ local Tree = require("keystone.utils.Tree")
 ---@alias keystone.TreeBuffer.FormatterFn fun(id:any, data:any,expanded:boolean):string[][],string[][]
 ---@
 ---@class keystone.TreeBufferOpts
----@field base_opts keystone.BaseBufferOpts
+---@field filetype string?
 ---@field formatter keystone.TreeBuffer.FormatterFn
 ---@field expand_char string?
 ---@field collapse_char string?
@@ -56,9 +56,9 @@ vim.api.nvim_set_hl(0, _header_hl_group, {
     end)()
 })
 
----@class keystone.TreeBuffer:keystone.BaseBuffer
+---@class keystone.TreeBuffer:keystone.Buffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBufferOpts): keystone.TreeBuffer
-local TreeBuffer = class(BaseBuffer)
+local TreeBuffer = class(Buffer)
 
 ---@param item keystone.TreeBuffer.ItemDef
 ---@return keystone.TreeBuffer.ItemData
@@ -74,7 +74,19 @@ local _filter = function(_, data) return data.expanded ~= false end
 
 ---@param opts keystone.TreeBufferOpts
 function TreeBuffer:init(opts)
-    BaseBuffer.init(self, opts.base_opts)
+    Buffer.init(self, {
+        bo = {
+            buftype = "nofile",
+            bufhidden = "wipe",
+            filetype = opts.filetype or "keystone-tree",
+            modifiable = false,
+            swapfile = false,
+            undolevels = -1,
+            buflisted = false,
+            modeline = false,
+            spelloptions = "noplainbuffer",
+        }
+    })
     ---@type keystone.TreeBuffer.FormatterFn
     self._formatter = opts.formatter
     self._header_enabled = opts.header_enabled == true or opts.header ~= nil
@@ -100,12 +112,12 @@ function TreeBuffer:init(opts)
 end
 
 function TreeBuffer:destroy()
-    BaseBuffer.destroy(self)
+    Buffer.destroy(self)
 end
 
 ---@private
 function TreeBuffer:_setup_buf()
-    BaseBuffer._setup_buf(self)
+    Buffer._setup_buf(self)
     self:_full_render()
     local buf = self:get_buf()
     assert(buf > 0)
@@ -181,6 +193,7 @@ function TreeBuffer:_setup_keymaps()
         self:add_keymap(key, { callback = map[1], desc = map[2] })
     end
 end
+
 ---@private
 ---@param flatnode keystone.utils.Tree.FlatNode
 ---@param row number The buffer row this node will occupy
@@ -261,6 +274,7 @@ function TreeBuffer:_full_render()
 
     self:_apply_metadata(buf, hl_calls, extmarks_data)
 end
+
 ---@private
 ---@return string line, table hl_calls, table extmark_data
 function TreeBuffer:_render_header()
@@ -292,6 +306,7 @@ function TreeBuffer:_render_header()
 
     return left_text, hl_calls, extmarks_data
 end
+
 ---@private
 ---@param start_idx number
 ---@param old_size number
@@ -379,6 +394,7 @@ function TreeBuffer:_render_line(id, data)
         self:_render_range(idx, 1, { { id = id, data = data, depth = depth } })
     end
 end
+
 ---@private
 function TreeBuffer:_apply_metadata(buf, hl_calls, extmarks)
     for _, h in ipairs(hl_calls) do
@@ -391,6 +407,7 @@ function TreeBuffer:_apply_metadata(buf, hl_calls, extmarks)
         vim.api.nvim_buf_set_extmark(buf, _ns_id, d[1], d[2], d[3])
     end
 end
+
 ---@param winid number The window handle to check.
 ---@return keystone.TreeBuffer.Item[]
 function TreeBuffer:get_visible_items(winid)
@@ -417,6 +434,7 @@ function TreeBuffer:get_visible_items(winid)
 
     return visible_items
 end
+
 ---@param header {[1]:string,[2]:string,[3]:boolean?}[]?
 function TreeBuffer:set_header(header)
     if not self._header_enabled then
@@ -436,6 +454,7 @@ function TreeBuffer:set_header(header)
         vim.bo[buf].modifiable = false
     end
 end
+
 function TreeBuffer:clear_items()
     self._tree = Tree:new()
     self._flat_ids = {}
@@ -479,6 +498,7 @@ function TreeBuffer:get_items()
     end
     return items
 end
+
 ---@param id any
 ---@return any|nil parent_id
 function TreeBuffer:get_parent_id(id)
@@ -614,6 +634,7 @@ function TreeBuffer:_compute_diff(current_ids, updates)
     end
     return change_start, suffix_start_old, suffix_start_new
 end
+
 ---@param id any The ID of the parent node whose children should be removed.
 function TreeBuffer:remove_children(id)
     self:set_children(id, {})
@@ -726,6 +747,7 @@ function TreeBuffer:add_item(parent_id, item)
     end
     return true
 end
+
 ---@param reference_id any The ID of the existing node to position relative to.
 ---@param item keystone.TreeBuffer.ItemDef The new item to add.
 ---@param before boolean true to insert before sibling, false to insert after.
@@ -814,6 +836,7 @@ end
 function TreeBuffer:have_children(id)
     return self._tree:have_children(id)
 end
+
 ---@param id any The ID of the item to remove.
 ---@return boolean success
 function TreeBuffer:remove_item(id)

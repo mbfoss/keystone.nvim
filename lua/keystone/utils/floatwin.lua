@@ -3,7 +3,7 @@
 ---@field _complete_buf? integer
 local M = {}
 
-local debug_win_augroup = vim.api.nvim_create_augroup("LoopPlugin_ModalWin", { clear = true })
+local debug_win_augroup = vim.api.nvim_create_augroup("KeystoneModalWin", { clear = true })
 local _current_win = nil
 
 
@@ -17,6 +17,7 @@ local _current_win = nil
 ---@field title? string
 ---@field at_cursor? boolean
 ---@field move_to_bot? boolean
+---@field is_markdown boolean?
 
 ---@class keystone.floatwin.InputOpts
 ---@field prompt? string
@@ -59,7 +60,7 @@ function M.open_centered_window(buf, opts)
 end
 
 ---@param text string
-function M.show_tooltip(text)
+function M.show_hoverwindow(text)
     local lines              = vim.split(text, "\n", { plain = true, trimempty = true })
     local bufnr, winnr       = vim.lsp.util.open_floating_preview(
         lines,
@@ -137,6 +138,16 @@ function M.show_floatwin(text, opts)
     _current_win = win
     vim.wo[win].wrap = false
     vim.wo[win].winfixbuf = true
+
+    if opts.is_markdown then
+        vim.bo[buf].filetype = "markdown"
+        local ok, _ = pcall(vim.treesitter.start, buf, "markdown")
+        if not ok then
+            vim.bo[buf].syntax = "on"
+        end
+        vim.wo[win].conceallevel = 3
+        vim.wo[win].concealcursor = "nv"
+    end
     local function close_modal()
         if vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_win_close(win, true)
