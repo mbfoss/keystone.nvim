@@ -5,6 +5,10 @@ local strtools = require("keystone.utils.strtools")
 
 local M = {}
 
+---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
+
+---@param qf any
+---@param filter keystone.pick.quickfix_filter
 local function matches_filter(qf, filter)
     if filter == "all" or not filter then
         return true
@@ -50,6 +54,7 @@ local function qf_item_to_picker_item(item, list_width)
     }
 end
 
+---@param opts {filter:keystone.pick.quickfix_filter?}?
 function M.open(opts)
     opts = opts or {}
     local filter = opts.filter or "all"
