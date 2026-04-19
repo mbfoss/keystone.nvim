@@ -17,12 +17,13 @@ local function get_severity_info(severity)
     return res[1], res[2]
 end
 
-function M.document_diagnostics()
-    local bufnr = vim.api.nvim_get_current_buf()
-    local diagnostics = vim.diagnostic.get(bufnr)
+---@param opts {bufnr:number?}?
+function M.open(opts)
+    opts = opts or {}
+    local diagnostics = vim.diagnostic.get(opts.bufnr)
 
     if vim.tbl_isempty(diagnostics) then
-        vim.notify("No diagnostics found in current buffer", vim.log.levels.INFO)
+        vim.notify("No diagnostics found", vim.log.levels.INFO)
         return
     end
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
@@ -39,13 +40,13 @@ function M.document_diagnostics()
             data = {
                 lnum = d.lnum + 1,
                 col = d.col + 1,
-                filepath = vim.api.nvim_buf_get_name(bufnr)
+                bufnr = d.bufnr
             }
         })
     end
 
     picker.select({
-        prompt = "Document Diagnostics",
+        prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
         file_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
@@ -73,15 +74,17 @@ function M.document_diagnostics()
             return items
         end,
         async_preview = function(data, _, callback)
-            local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-            local content = table.concat(lines, "\n")
-            vim.schedule(function()
+            if data.bufnr then
+                local lines = vim.api.nvim_buf_get_lines(data.bufnr, 0, -1, false)
+                local content = table.concat(lines, "\n")
                 callback(content, {
-                    filepath = data.filepath,
+                    filetype = vim.bo[data.bufnr].filetype,
                     lnum = data.lnum,
                     col = data.col
                 })
-            end)
+            else
+                callback(nil, { error_msg = "Unknown buffer" })
+            end
             return function() end
         end,
     }, function(selected)
