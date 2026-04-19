@@ -339,6 +339,7 @@ function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     vim.bo[buf].modifiable = true
     vim.api.nvim_buf_set_lines(buf, start_row, end_row, false, new_lines)
     vim.bo[buf].modifiable = false
+
     for i = 0, old_size - 1 do
         local old_id = self._flat_ids[start_idx + i]
         if old_id ~= nil then
@@ -351,6 +352,7 @@ function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     for i, id in ipairs(new_ids) do
         table.insert(self._flat_ids, start_idx + i - 1, id)
     end
+    
     for i = start_idx, #self._flat_ids do
         local id = self._flat_ids[i]
         if id ~= nil then
