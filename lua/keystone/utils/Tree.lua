@@ -39,6 +39,7 @@ function Tree:init()
 	---@type any|nil
 	self._root_last = nil
 end
+
 ---@private
 ---@param parent_id any|nil
 ---@param id any
@@ -66,6 +67,7 @@ function Tree:_link_child(parent_id, id)
 		parent.last_child = id
 	end
 end
+
 ---@private
 ---@param reference_id any
 ---@param id any
@@ -180,6 +182,7 @@ function Tree:_unlink(id)
 	node.prev_sibling = nil
 	node.next_sibling = nil
 end
+
 ---@private
 ---@param id any
 function Tree:_remove_subtree(id)
@@ -196,6 +199,7 @@ function Tree:_remove_subtree(id)
 	self:_unlink(id)
 	self._nodes[id] = nil
 end
+
 ---@generic T
 ---@param parent_id any|nil
 ---@param items keystone.utils.Tree.Item[]
@@ -256,6 +260,7 @@ function Tree:set_children(parent_id, items)
 		self._root_last  = last_new
 	end
 end
+
 ---@param parent_id any|nil
 ---@param items keystone.utils.Tree.ItemUpdate[]
 function Tree:update_children(parent_id, items)
@@ -358,6 +363,7 @@ function Tree:set_item_data(id, data)
 	node.data = data
 	return true
 end
+
 ---@generic T
 ---@param reference_id any
 ---@param id any
@@ -392,14 +398,17 @@ function Tree:have_item(id)
 	assert(id, "id required")
 	return self._nodes[id] ~= nil
 end
+
 ---@return boolean
 function Tree:is_root(id)
 	local node = self._nodes[id]
 	return node ~= nil and node.parent_id == nil
 end
+
 function Tree:get_roots()
 	return self:get_children(nil)
 end
+
 ---@param id any
 ---@return any|nil parent_id
 function Tree:get_parent_id(id)
@@ -418,6 +427,7 @@ function Tree:get_data(id)
 	local node = self._nodes[id]
 	return node and node.data or nil
 end
+
 ---@param id any
 ---@return integer
 function Tree:get_depth(id)
@@ -457,6 +467,7 @@ function Tree:have_children(id)
 	local node = self._nodes[id]
 	return node ~= nil and node.first_child ~= nil
 end
+
 ---@param parent_id any|nil If nil, returns root nodes.
 ---@return any[]
 function Tree:get_children_ids(parent_id)
@@ -472,6 +483,7 @@ function Tree:get_children_ids(parent_id)
 	end
 	return ids
 end
+
 ---@param parent_id any|nil If nil, returns root nodes.
 ---@return keystone.utils.Tree.Item[]
 function Tree:get_children(parent_id)
@@ -492,11 +504,13 @@ function Tree:get_children(parent_id)
 
 	return items
 end
+
 ---@param id any
 function Tree:remove_item(id)
 	assert(id, "id required")
 	self:_remove_subtree(id)
 end
+
 ---@private
 ---@param node keystone.utils.Tree.Node
 function Tree:_remove_children(node)
@@ -509,6 +523,7 @@ function Tree:_remove_children(node)
 	node.first_child = nil
 	node.last_child = nil
 end
+
 ---@param id any
 function Tree:remove_children(id)
 	assert(id ~= nil, "id is required")
@@ -516,6 +531,7 @@ function Tree:remove_children(id)
 	if not node then return end
 	self:_remove_children(node)
 end
+
 ---@private
 ---@param id any
 ---@param depth integer
@@ -524,7 +540,7 @@ function Tree:_walk_node(id, depth, handler)
 	local node = self._nodes[id]
 	if not node then return end
 
-	if handler(id, node.data, depth) == false then
+	if not handler(id, node.data, depth) then
 		return
 	end
 
@@ -534,70 +550,24 @@ function Tree:_walk_node(id, depth, handler)
 		child = self._nodes[child].next_sibling
 	end
 end
+
+---@param handler fun(id:any, data:any, depth:number):boolean?
+function Tree:walk_tree(handler)
+	local id = self._root_first
+	while id do
+		self:_walk_node(id, 0, handler)
+		id = self._nodes[id].next_sibling
+	end
+end
+
 ---@param id any
 ---@param handler fun(id:any, data:any, depth:number):boolean?
 function Tree:walk_node(id, handler)
 	assert(id ~= nil, "id is required")
 	assert(self._nodes[id], "node does not exist")
-
 	self:_walk_node(id, 0, handler)
 end
----@param starting_id any
----@param filter (fun(id:any, data:any):boolean?)?
----@return integer
-function Tree:tree_size(starting_id, filter)
-	if not starting_id then
-		local count = 0
-		for _ in pairs(self._nodes) do
-			count = count + 1
-		end
-		return count
-	end
-	local id = starting_id
-	assert(self._nodes[id], "node does not exist")
-	local count = 0
-	self:_walk_node(id, 0, function(nid, data)
-		count = count + 1
-		if filter then
-			return filter(nid, data)
-		end
-		return true
-	end)
-	return count
-end
----@param starting_id any|nil  -- nil = whole tree
----@param filter (fun(id:any, data:any):boolean?)?
----@return keystone.utils.Tree.FlatNode[]
-function Tree:flatten(starting_id, filter)
-	local out = {}
 
-	local function handler(id, data, depth)
-		out[#out + 1] = {
-			id = id,
-			data = data,
-			depth = depth,
-		}
-
-		if filter then
-			return filter(id, data)
-		end
-
-		return true
-	end
-
-	if starting_id == nil then
-		local id = self._root_first
-		while id do
-			self:_walk_node(id, 0, handler)
-			id = self._nodes[id].next_sibling
-		end
-	else
-		assert(self._nodes[starting_id], "node does not exist")
-		self:walk_node(starting_id, handler)
-	end
-
-	return out
-end
 function Tree:validate()
 	local visited = {}
 	local function assertf(cond, fmt, ...)

@@ -1,4 +1,3 @@
-local loopconfig     = require("loop").config
 local class          = require("keystone.utils.class")
 local strtools       = require("keystone.utils.strtools")
 local uitools        = require("keystone.utils.uitools")
@@ -126,13 +125,21 @@ OTHER
     })
 end
 
+---@class keystone.FileTree.Opts
+---@field dir string?
+---@field follow_cwd boolean?
+---@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?}?
+---@field monitor_file_system boolean?
+---@field max_monitored_folders number?
 
 ---@class keystone.FileTree
----@field new fun(self:keystone.FileTree):keystone.FileTree
+---@field new fun(self:keystone.FileTree, opts:keystone.FileTree.Opts?):keystone.FileTree
 local FileTree = class()
 
-function FileTree:init()
-    self._monitor_lru = LRU:new(loopconfig.filetree.max_monitored_folders, {
+---@param opts keystone.FileTree.Opts
+function FileTree:init(opts)
+    self._opts = opts and vim.deepcopy(opts) or {}
+    self._monitor_lru = LRU:new(self._opts.max_monitored_folders or 100, {
         on_removed = function(path, cancel_fn)
             cancel_fn()
         end,
@@ -191,8 +198,12 @@ function FileTree:_setup_tree()
 end
 
 function FileTree:_on_buffer_create()
-    assert(not self.bufenter_autocmd_id)
+    assert(not self._bufenter_autocmd_id)
+    assert(not self._dirchanged_autocmd_id)
     assert(not self._cancel_viewport_timer)
+
+    local track_config = self._opts.track_current_file or {}
+    local track_collapse_others = track_config.auto_collapse_others ~= false
     local on_buffer_enter = function()
         if self._tree:get_buf() == -1 then
             return
@@ -202,28 +213,43 @@ function FileTree:_on_buffer_create()
             local path = vim.api.nvim_buf_get_name(buf)
             if path ~= "" then
                 vim.schedule(function()
-                    self:_reveal(path, loopconfig.filetree.track_current_file.auto_collapse_others, true)
+                    self:_reveal(path, track_collapse_others, true)
                 end)
             end
         end
     end
-    if loopconfig.filetree.track_current_file.enabled then
-        self.bufenter_autocmd_id = vim.api.nvim_create_autocmd("BufEnter", {
+    local on_dir_changed = function()
+        vim.schedule(function()
+            self:_set_root(vim.fn.getcwd())
+        end)
+    end
+
+    if track_config.enabled ~= false then
+        self._bufenter_autocmd_id = vim.api.nvim_create_autocmd("BufEnter", {
             callback = on_buffer_enter,
+        })
+    end
+
+    if self._opts.follow_cwd ~= false then
+        self._dirchanged_autocmd_id = vim.api.nvim_create_autocmd("DirChanged", {
+            callback = on_dir_changed,
         })
     end
 
     self._cancel_viewport_timer = utils.start_timer(1000, self._viewport_monitor_fn)
 
-    self:_set_root(vim.fn.getcwd())
+    self:_set_root(self._opts.dir or vim.fn.getcwd())
 end
 
 function FileTree:_on_buffer_delete()
-    if self.bufenter_autocmd_id then
-        vim.api.nvim_del_autocmd(self.bufenter_autocmd_id)
-        self.bufenter_autocmd_id = nil
+    if self._bufenter_autocmd_id then
+        vim.api.nvim_del_autocmd(self._bufenter_autocmd_id)
+        self._bufenter_autocmd_id = nil
     end
-
+    if self._dirchanged_autocmd_id then
+        vim.api.nvim_del_autocmd(self._dirchanged_autocmd_id)
+        self._dirchanged_autocmd_id = nil
+    end
     if self._cancel_viewport_timer then
         self._cancel_viewport_timer()
         self._cancel_viewport_timer = nil
@@ -344,7 +370,7 @@ end
 ---@param path string
 ---@return boolean
 function FileTree:_start_dir_monitor(path)
-    if not loopconfig.filetree.monitor_file_system then
+    if self._opts.monitor_file_system == false then
         return false
     end
     if self._monitor_lru:has(path) then
@@ -374,11 +400,20 @@ end
 ---@param exclude_globs string[]?
 ---@param follow_symlinks boolean?
 function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
-    self._root = root and vim.fs.normalize(root) or nil -- normalize is important because we may use / to split path
+    local newroot = root and vim.fs.normalize(root) or nil -- normalize is important because we may use / to split path
+    if self._root and self._root ~= newroot then
+        self:_clear()
+    end
+    self._root = newroot
     self._include_patterns = include_globs and strtools.compile_globs(include_globs) or nil
     self._exclude_patterns = exclude_globs and strtools.compile_globs(exclude_globs) or nil
     self._follow_symlinks = follow_symlinks or true
     self:_reload()
+end
+
+function FileTree:_clear()
+    self:_clear_all_monitors()
+    self._tree:clear_items()
 end
 
 function FileTree:_reload()
@@ -387,13 +422,12 @@ function FileTree:_reload()
 
     local path = self._root
     if not path then
+        self:_clear()
         local error_msg = "Error"
         local root_item = {
             id = _error_node_id,
             data = { path = "", name = error_msg, is_dir = false, icon = "⚠", icon_hl = "WarningMsg" }
         }
-        self:_clear_all_monitors()
-        self._tree:clear_items()
         self._tree:add_item(nil, root_item)
         return
     end
@@ -426,7 +460,7 @@ end
 
 function FileTree:_on_refresh_by_user()
     self._reload_counter = self._reload_counter + 1
-    self._tree:clear_items()
+    self:_clear()
     local reload_counter = self._reload_counter
     vim.defer_fn(function()
         if reload_counter == self._reload_counter then
