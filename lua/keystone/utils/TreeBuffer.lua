@@ -1,5 +1,5 @@
 local class = require('keystone.utils.class')
-local Buffer = require('keystone.utils.Buffer')
+local ScratchBuffer = require('keystone.utils.ScratchBuffer')
 local Tree = require("keystone.utils.Tree")
 
 ---@class keystone.TreeBuffer.Item
@@ -56,9 +56,9 @@ vim.api.nvim_set_hl(0, _header_hl_group, {
     end)()
 })
 
----@class keystone.TreeBuffer:keystone.Buffer
+---@class keystone.TreeBuffer:keystone.ScratchBuffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBufferOpts): keystone.TreeBuffer
-local TreeBuffer = class(Buffer)
+local TreeBuffer = class(ScratchBuffer)
 
 ---@param item keystone.TreeBuffer.ItemDef
 ---@return keystone.TreeBuffer.ItemData
@@ -111,7 +111,7 @@ end
 
 ---@param opts keystone.TreeBufferOpts
 function TreeBuffer:init(opts)
-    Buffer.init(self, {
+    ScratchBuffer.init(self, {
         bo = {
             buftype = "nofile",
             bufhidden = "wipe",
@@ -145,35 +145,31 @@ function TreeBuffer:init(opts)
     ---@type table<any, number>
     self._id_to_idx = {}
 
-    self:_setup_keymaps()
+    self:add_tracker({
+        on_setup = function()
+            self:_setup_tree_buf()
+        end
+    })
 end
 
 function TreeBuffer:destroy()
-    Buffer.destroy(self)
+    ScratchBuffer.destroy(self)
 end
 
 ---@private
-function TreeBuffer:_setup_buf()
-    Buffer._setup_buf(self)
-    self:_full_render()
+function TreeBuffer:_setup_tree_buf()
     local buf = self:get_buf()
-    assert(buf > 0)
+    if buf == -1 then return end
+
+    self:_full_render()
+
     vim.api.nvim_create_autocmd('BufReadCmd', {
         buffer = buf,
         callback = function(ev)
             self:_full_render()
         end,
     })
-end
 
----@param callbacks keystone.TreeBuffer.Tracker
----@return keystone.TrackerRef
-function TreeBuffer:add_tracker(callbacks)
-    return self._trackers:add_tracker(callbacks)
-end
-
----@private
-function TreeBuffer:_setup_keymaps()
     ---@return keystone.TreeBuffer.ItemData?
     local callbacks = {
         on_enter = function()
@@ -217,6 +213,7 @@ function TreeBuffer:_setup_keymaps()
             if id then self:collapse_all(id) end
         end,
     }
+
     local keymaps = {
         ["<CR>"] = { callbacks.on_enter, "Expand/collapse" },
         ["<2-LeftMouse>"] = { callbacks.on_enter, "Expand/collapse" },
@@ -227,8 +224,14 @@ function TreeBuffer:_setup_keymaps()
         ["zC"] = { callbacks.collapse_recursive, "Collapse all nodes under cursor" },
     }
     for key, map in pairs(keymaps) do
-        self:add_keymap(key, { callback = map[1], desc = map[2] })
+        self:set_keymap("n", key, map[1], { desc = map[2] })
     end
+end
+
+---@param callbacks keystone.TreeBuffer.Tracker
+---@return keystone.TrackerRef
+function TreeBuffer:add_tracker(callbacks)
+    return self._trackers:add_tracker(callbacks)
 end
 
 ---@private

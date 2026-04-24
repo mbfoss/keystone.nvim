@@ -153,7 +153,6 @@ function FileTree:init(opts)
     self._pending_reveal = nil
 
     self:_setup_tree()
-    self:_setup_keymaps()
 end
 
 function FileTree:_setup_tree()
@@ -193,6 +192,9 @@ function FileTree:_setup_tree()
                     self:_read_dir(data.path, self._reload_counter, true)
                 end
             end
+        end,
+        on_setup = function()
+            self:_setup_keymaps()
         end
     })
 end
@@ -305,53 +307,70 @@ function FileTree:_setup_keymaps()
         local item = self._tree:get_cursor_item()
         if item then fn(item) end
     end
-    self._tree:add_keymap("a", {
-        desc = "Create File",
-        callback = function()
-            with_item(function(i) self:_create_node(i, false, true) end)
-        end
-    })
-    self._tree:add_keymap("A", {
-        desc = "Create Directory",
-        callback = function()
-            with_item(function(i) self:_create_node(i, true, true) end)
-        end
-    })
-    self._tree:add_keymap("i", {
-        desc = "Create File (inside)",
-        callback = function()
-            with_item(function(i) self:_create_node(i, false, false) end)
-        end
-    })
-    self._tree:add_keymap("I", {
-        desc = "Create Directory (inside)",
-        callback = function()
-            with_item(function(i) self:_create_node(i, true, false) end)
-        end
-    })
-    self._tree:add_keymap("r", {
-        desc = "Rename file or directory",
-        callback = function() with_item(function(i) self:_rename_node(i) end) end
-    })
-    self._tree:add_keymap("d!", {
-        desc = "Permanenty delete file or empty directory",
-        callback = function() with_item(function(i) self:_delete_node(i) end) end
-    })
-    self._tree:add_keymap("D!", {
-        desc = "Permanenty delete folder and ALL it's content",
-        callback = function() with_item(function(i) self:_delete_dir_recursive(i) end) end
-    })
-    self._tree:add_keymap("R", {
-        desc = "Refresh tree",
-        callback = function() self:_on_refresh_by_user() end
-    })
-    self._tree:add_keymap("g?", {
-        desc = "Show Help",
-        callback = function() _show_help() end
-    })
+
+    local keymaps = {
+        ["a"] = {
+            function()
+                with_item(function(i) self:_create_node(i, false, true) end)
+            end,
+            "Create File",
+        },
+        ["A"] = {
+            function()
+                with_item(function(i) self:_create_node(i, true, true) end)
+            end,
+            "Create Directory",
+        },
+        ["i"] = {
+            function()
+                with_item(function(i) self:_create_node(i, false, false) end)
+            end,
+            "Create File (inside)",
+        },
+        ["I"] = {
+            function()
+                with_item(function(i) self:_create_node(i, true, false) end)
+            end,
+            "Create Directory (inside)",
+        },
+        ["r"] = {
+            function()
+                with_item(function(i) self:_rename_node(i) end)
+            end,
+            "Rename file or directory",
+        },
+        ["d!"] = {
+            function()
+                with_item(function(i) self:_delete_node(i) end)
+            end,
+            "Permanently delete file or empty directory",
+        },
+        ["D!"] = {
+            function()
+                with_item(function(i) self:_delete_dir_recursive(i) end)
+            end,
+            "Permanently delete folder and ALL its content",
+        },
+        ["R"] = {
+            function()
+                self:_on_refresh_by_user()
+            end,
+            "Refresh tree",
+        },
+        ["g?"] = {
+            function()
+                _show_help()
+            end,
+            "Show Help",
+        },
+    }
+
+    for key, map in pairs(keymaps) do
+        self._tree:set_keymap("n", key, map[1], { desc = map[2] })
+    end
 end
 
----@return keystone.Buffer
+---@return keystone.ScratchBuffer
 function FileTree:get_compbuffer()
     return self._tree
 end

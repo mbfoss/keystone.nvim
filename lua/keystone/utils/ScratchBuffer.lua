@@ -9,27 +9,27 @@ local Trackers = require('keystone.utils.Trackers')
 
 ---@class keystone.Tracker
 ---@field on_create fun()?
+---@field on_setup fun()?
 ---@field on_change fun()?
 ---@field on_delete fun()?
 
 ---@class keystone.BufferOpts
 ---@field bo vim.bo?
 
----@class keystone.Buffer
----@field new fun(self: keystone.Buffer, opts:keystone.BufferOpts): keystone.Buffer
-local Buffer = class()
+---@class keystone.ScratchBuffer
+---@field new fun(self: keystone.ScratchBuffer, opts:keystone.BufferOpts): keystone.ScratchBuffer
+local ScratchBuffer = class()
 
 ---@param opts keystone.BufferOpts
-function Buffer:init(opts)
+function ScratchBuffer:init(opts)
     vim.validate("opts", opts, "table")
     self._bo = vim.deepcopy(opts.bo or {})
-    self._keymaps = {}
     self._buf = -1
 
     self._trackers = Trackers:new()
 end
 
-function Buffer:destroy()
+function ScratchBuffer:destroy()
     if self._destroyed then
         return
     end
@@ -43,24 +43,24 @@ end
 
 ---@param callbacks keystone.Tracker>
 ---@return keystone.TrackerRef
-function Buffer:add_tracker(callbacks)
+function ScratchBuffer:add_tracker(callbacks)
     return self._trackers:add_tracker(callbacks)
 end
 
 ---@return number -- buffer number
-function Buffer:get_buf()
+function ScratchBuffer:get_buf()
     if vim.v.exiting ~= vim.NIL then return -1 end
     if self._destroyed then return -1 end
     return self._buf
 end
 
-function Buffer:is_destroyed()
+function ScratchBuffer:is_destroyed()
     return self._destroyed
 end
 
 ---@return number -- buffer number
 ---@return boolean refresh_needed
-function Buffer:get_or_create_buf()
+function ScratchBuffer:get_or_create_buf()
     assert(not self._destroyed)
     if vim.v.exiting ~= vim.NIL then return -1, false end
 
@@ -74,14 +74,16 @@ function Buffer:get_or_create_buf()
         return self._buf, refresh_needed
     end
 
-    self._buf = vim.api.nvim_create_buf(false, true)
+    local listed = self._bo.buflisted
+    if listed == nil then listed = true end
+    self._buf = vim.api.nvim_create_buf(listed, true)
     self:_setup_buf()
     self._trackers:invoke("on_create")
     return self._buf, true
 end
 
----@protected
-function Buffer:_setup_buf()
+---@private
+function ScratchBuffer:_setup_buf()
     assert(self._buf > 0)
 
     local buf = self._buf
@@ -99,43 +101,20 @@ function Buffer:_setup_buf()
         end,
     })
 
-    self:_apply_keymaps()
+    self._trackers:invoke("on_setup")
 end
 
+---@param mode string|string[]
 ---@param key string
----@param keymap keystone.KeyMap
-function Buffer:add_keymap(key, keymap)
-    assert(not self._keymaps[key])
-    self._keymaps[key] = keymap
-    self:_apply_keymap(key, keymap)
-end
-
----@param keymaps table<string, keystone.KeyMap>
-function Buffer:add_keymaps(keymaps)
-    for key, keymap in pairs(keymaps) do
-        assert(not self._keymaps[key])
-        self._keymaps[key] = keymap
-        self:_apply_keymap(key, keymap)
-    end
-end
-
-function Buffer:_apply_keymaps()
-    if self._keymaps then
-        for key, item in pairs(self._keymaps) do
-            self:_apply_keymap(key, item)
-        end
-    end
-end
-
----@private
----@param key string
----@param item keystone.KeyMap
-function Buffer:_apply_keymap(key, item)
+---@param rhs string|function
+---@param opts vim.keymap.set.Opts?
+function ScratchBuffer:set_keymap(mode, key, rhs, opts)
     if self._buf ~= -1 then
-        local modes = { "n" }
-        pcall(function() vim.keymap.del(modes, key, { buffer = self._buf }) end)
-        vim.keymap.set(modes, key, function() item.callback() end, { buffer = self._buf, desc = item.desc })
+        opts = opts or {}
+        opts.buffer = self._buf
+        pcall(function() vim.keymap.del(mode, key, { buffer = self._buf }) end)
+        vim.keymap.set(mode, key, rhs, opts)
     end
 end
 
-return Buffer
+return ScratchBuffer
