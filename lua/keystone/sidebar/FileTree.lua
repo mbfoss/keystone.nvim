@@ -162,7 +162,7 @@ function FileTree:_setup_tree()
         formatter = function(id, data)
             return _file_formatter(id, data)
         end,
-        header = { { "Files", "Title" } },
+        header_enabled = true,
         base_opts = {
             name = "Workspace Files",
             filetype = "loop-filetree",
@@ -452,6 +452,8 @@ function FileTree:_reload()
     end
 
     self._tree:remove_item(_error_node_id)
+
+    self._tree:set_header({{path, "Winbar"}})
 
     if not self._tree:have_item(path) then
         local icon, iconhl = self:_get_icon_for_node(path, true, false)
