@@ -9,18 +9,18 @@ local Trackers = require('keystone.utils.Trackers')
 
 ---@class keystone.Tracker
 ---@field on_create fun()?
----@field on_setup fun()?
+---@field on_loaded fun()?
 ---@field on_change fun()?
 ---@field on_delete fun()?
 
----@class keystone.BufferOpts
+---@class keystone.StratchBuffer.Opts
 ---@field bo vim.bo?
 
 ---@class keystone.ScratchBuffer
----@field new fun(self: keystone.ScratchBuffer, opts:keystone.BufferOpts): keystone.ScratchBuffer
+---@field new fun(self: keystone.ScratchBuffer, opts:keystone.StratchBuffer.Opts): keystone.ScratchBuffer
 local ScratchBuffer = class()
 
----@param opts keystone.BufferOpts
+---@param opts keystone.StratchBuffer.Opts
 function ScratchBuffer:init(opts)
     vim.validate("opts", opts, "table")
     self._bo = vim.deepcopy(opts.bo or {})
@@ -68,7 +68,7 @@ function ScratchBuffer:get_or_create_buf()
         local refresh_needed = false
         if not vim.api.nvim_buf_is_loaded(self._buf) then
             vim.fn.bufload(self._buf)
-            self:_setup_buf()
+            self:_on_loaded()
             refresh_needed = true
         end
         return self._buf, refresh_needed
@@ -77,13 +77,13 @@ function ScratchBuffer:get_or_create_buf()
     local listed = self._bo.buflisted
     if listed == nil then listed = true end
     self._buf = vim.api.nvim_create_buf(listed, true)
-    self:_setup_buf()
     self._trackers:invoke("on_create")
+    self:_on_loaded()
     return self._buf, true
 end
 
 ---@private
-function ScratchBuffer:_setup_buf()
+function ScratchBuffer:_on_loaded()
     assert(self._buf > 0)
 
     local buf = self._buf
@@ -101,7 +101,7 @@ function ScratchBuffer:_setup_buf()
         end,
     })
 
-    self._trackers:invoke("on_setup")
+    self._trackers:invoke("on_loaded")
 end
 
 ---@param mode string|string[]

@@ -146,7 +146,7 @@ function TreeBuffer:init(opts)
     self._id_to_idx = {}
 
     self:add_tracker({
-        on_setup = function()
+        on_loaded = function()
             self:_setup_tree_buf()
         end
     })

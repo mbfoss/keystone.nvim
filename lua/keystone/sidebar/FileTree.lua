@@ -162,13 +162,7 @@ function FileTree:_setup_tree()
         formatter = function(id, data)
             return _file_formatter(id, data)
         end,
-        header_enabled = true,
-        base_opts = {
-            name = "Workspace Files",
-            filetype = "loop-filetree",
-            listed = false,
-            wipe_when_hidden = true,
-        }
+        --header_enabled = true,
     })
 
     self._tree:add_tracker({
@@ -193,7 +187,7 @@ function FileTree:_setup_tree()
                 end
             end
         end,
-        on_setup = function()
+        on_loaded = function()
             self:_setup_keymaps()
         end
     })
@@ -453,7 +447,7 @@ function FileTree:_reload()
 
     self._tree:remove_item(_error_node_id)
 
-    self._tree:set_header({{path, "Winbar"}})
+    --self._tree:set_header({{path, "Winbar"}})
 
     if not self._tree:have_item(path) then
         local icon, iconhl = self:_get_icon_for_node(path, true, false)
