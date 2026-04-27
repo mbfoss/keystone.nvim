@@ -81,7 +81,6 @@ local config = defaults
 local states = {}
 
 M.enabled = false
-M.meta = { desc = "Smooth scrolling", needs_setup = true }
 
 ---@param buf number
 ---@return boolean
@@ -350,6 +349,16 @@ function M.enable()
                 if win and changes.topline ~= 0 then
                     M.check(win)
                 end
+            end
+        end,
+    })
+
+    api.nvim_create_autocmd("WinClosed", {
+        group = group,
+        callback = function(ev)
+            local win = tonumber(ev.match)
+            if win then
+                State.reset(win)
             end
         end,
     })
