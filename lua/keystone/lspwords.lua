@@ -3,6 +3,8 @@ local M = {}
 ---@class keystone.lspwords.Config
 ---@field enabled boolean
 
+local lsp_protocol = require('vim.lsp.protocol')
+
 local function _get_default_config()
   ---@type keystone.lspwords.Config
   return {
@@ -11,7 +13,7 @@ local function _get_default_config()
 end
 
 ---@type keystone.lspwords.Config
-M.config = _get_default_config()
+local config = _get_default_config()
 
 local enabled = false
 
@@ -25,7 +27,10 @@ function M.enable()
     callback = function()
       if not enabled then return end
       vim.lsp.buf.clear_references()
-      vim.lsp.buf.document_highlight()
+      local clients = vim.lsp.get_clients({ bufnr = 0, method = lsp_protocol.Methods.textDocument_documentHighlight })
+      if next(clients) then
+        vim.lsp.buf.document_highlight()
+      end
     end,
   })
 end
@@ -43,9 +48,9 @@ end
 
 ---@param opts keystone.lspwords.Config?
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-  if M.config.enabled then
+  if config.enabled then
     M.enable()
   else
     M.disable()

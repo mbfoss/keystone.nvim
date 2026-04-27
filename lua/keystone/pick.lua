@@ -13,15 +13,15 @@ local function _get_default_config()
 end
 
 ---@type keystone.pick.Config
-M.config = _get_default_config()
+local config = _get_default_config()
 
 
 ---@param opts keystone.pick.Config?
 function M.setup(opts)
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
     require("keystone.utils.usercmd").register_user_cmd("Pick", "keystone.pick.command",
         { desc = "Picker for files, grep etc..." })
-    if M.config.override_ui_select then
+    if config.override_ui_select then
         vim.ui.select = require("keystone.pick.select").select
     end
 end
