@@ -1,7 +1,7 @@
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
+local fsutils = require("keystone.utils.fsutils")
 
 local M = {}
 
@@ -15,11 +15,11 @@ local function buffer_to_picker_item(bufnr, list_width)
 
     local filepath = vim.api.nvim_buf_get_name(bufnr)
     local name = filepath ~= "" and vim.fn.fnamemodify(filepath, ":t") or "[No Name]"
-    local relative_path = strtools.get_relative_path(filepath) or filepath
+    local relative_path = fsutils.get_relative_path(filepath) or filepath
     local modified = vim.bo[bufnr].modified and " [+]" or ""
     local label = string.format("%d: %s%s", bufnr, name, modified)
 
-    local display_path = strtools.smart_crop_path(relative_path, list_width)
+    local display_path = fsutils.smart_crop_path(relative_path, list_width)
     local virt_lines
     if display_path ~= "" and display_path ~= name then
         virt_lines = { { { display_path, "Special" } } }

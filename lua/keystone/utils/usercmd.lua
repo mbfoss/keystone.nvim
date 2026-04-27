@@ -1,5 +1,5 @@
 local M = {}
-local strtools = require('keystone.utils.strtools')
+local strutils = require('keystone.utils.strutils')
 
 ---@param commands_module string
 local function _complete(commands_module, arg_lead, cmd_line)
@@ -14,7 +14,7 @@ local function _complete(commands_module, arg_lead, cmd_line)
         return out
     end
 
-    local args = strtools.split_shell_args(cmd_line)
+    local args = strutils.split_shell_args(cmd_line)
     if cmd_line:match("%s+$") then
         table.insert(args, ' ')
     end
@@ -35,7 +35,7 @@ end
 ---@param opts vim.api.keyset.create_user_command.command_args
 local function _dispatch(cmd, commands_module, opts)
     local mod = require(commands_module)
-    local args = strtools.split_shell_args(opts.args)
+    local args = strutils.split_shell_args(opts.args)
     local ok, err = pcall(mod.run_command, cmd, args, opts)
     if not ok then
         vim.notify(

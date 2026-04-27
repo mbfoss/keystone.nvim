@@ -111,6 +111,7 @@ function Process:_spawn()
     create_reader(true)  -- stderr
     return true
 end
+
 function Process:_env_list()
     assert(self.env)
     local out = {}
@@ -119,6 +120,7 @@ function Process:_env_list()
     end
     return out
 end
+
 function Process:write(data)
     if self.exited then
         return false, "process exited"
@@ -158,6 +160,7 @@ function Process:kill(opts)
         end
     end
 end
+
 function Process:_close_all()
     _safe_close(self.stdin)
     _safe_close(self.stdout)

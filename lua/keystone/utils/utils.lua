@@ -13,7 +13,6 @@ end
 ---@param fn function The callback function to execute.
 ---@return function stop_timer A function that, when called, stops and cleans up the timer.
 function M.start_timer(interval, fn)
-    ---@diagnostic disable-next-line: undefined-field
     local timer = vim.uv.new_timer()
     assert(timer, "Timer creation failed")
     timer:start(interval, interval, vim.schedule_wrap(fn))

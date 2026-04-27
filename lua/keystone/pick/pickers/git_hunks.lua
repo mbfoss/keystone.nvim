@@ -4,7 +4,7 @@ local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
+local fsutils = require("keystone.utils.fsutils")
 
 ---@class GitHunk
 ---@field file string
@@ -76,7 +76,7 @@ function M.open(opts)
     if opts.current_file then
         local buf_path = vim.api.nvim_buf_get_name(0)
         if buf_path == "" then return end
-        local rel_path = strtools.get_relative_path(buf_path, cwd) or buf_path
+        local rel_path = fsutils.get_relative_path(buf_path, cwd) or buf_path
         vim.list_extend(git_args, { "--", rel_path })
     end
 

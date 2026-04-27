@@ -4,7 +4,7 @@ local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
-local strtools = require('keystone.utils.strtools')
+local fsutils = require("keystone.utils.fsutils")
 
 function M.open()
     local cwd = vim.fn.getcwd()
@@ -22,7 +22,7 @@ function M.open()
                 on_output = function(data, is_stderr)
                     if not data or is_stderr then return end
                     for line in data:gmatch("[^\r\n]+") do
-                        local path = strtools.get_relative_path(line) or line
+                        local path = fsutils.get_relative_path(line) or line
                         local res = pickertools.make_picker_item(path, query, {
                             list_width = fetch_opts.list_width,
                             is_path = true,

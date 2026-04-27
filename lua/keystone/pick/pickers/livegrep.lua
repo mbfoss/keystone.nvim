@@ -2,9 +2,10 @@ local M = {}
 
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
+local strutils = require("keystone.utils.strutils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
+local fsutils = require("keystone.utils.fsutils")
 
 ---@class keystone.livegrep.opts
 ---@field cwd string? Optional directory to start search (defaults to getcwd)
@@ -52,7 +53,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
     local read_stop = false
     local lower_query = query:lower()
 
-    local buffered_feed = strtools.create_line_buffered_feed(function(lines)
+    local buffered_feed = strutils.create_line_buffered_feed(function(lines)
         local items = {}
         for _, line in ipairs(lines) do
             if read_stop then return end
@@ -64,9 +65,9 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             if not file or not lnum or not text then goto continue end
 
             local abs_path = vim.fs.joinpath(grep_opts.cwd, file)
-            local rel_path = strtools.get_relative_path(abs_path)
+            local rel_path = fsutils.get_relative_path(abs_path)
             local location = string.format("%s:%s", rel_path, lnum)
-            location = strtools.smart_crop_path(location, fetch_opts.list_width)
+            location = fsutils.smart_crop_path(location, fetch_opts.list_width)
             local chunks = {}
             local start_idx = 1
             text = vim.fn.trim(text, "", 0)

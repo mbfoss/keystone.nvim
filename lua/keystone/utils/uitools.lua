@@ -1,6 +1,6 @@
 local M = {}
 
-local filetools = require("keystone.utils.file")
+local fsutils = require("keystone.utils.fsutils")
 
 ---@param winid number?
 function M.get_window_text_width(winid)
@@ -132,7 +132,7 @@ function M.read_file_or_buffer(filepath)
     if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
         return true, table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
     end
-    return filetools.read_content(full_path)
+    return fsutils.read_content(full_path)
 end
 
 ---@param bufnr number

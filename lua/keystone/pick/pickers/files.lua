@@ -3,8 +3,8 @@ local M = {}
 local ksconfig = require('keystone.pick').config
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
-local filetools = require("keystone.utils.file")
+local strutils = require("keystone.utils.strutils")
+local fsutils = require("keystone.utils.fsutils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 
@@ -32,11 +32,11 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results = opts.max_results or 10000
     local items = {}
 
-    local include_regex_list = opts.include_globs and strtools.compile_globs(opts.include_globs) or nil
-    local exclude_regex_list = opts.exclude_globs and strtools.compile_globs(opts.exclude_globs) or nil
+    local include_regex_list = opts.include_globs and strutils.compile_globs(opts.include_globs) or nil
+    local exclude_regex_list = opts.exclude_globs and strutils.compile_globs(opts.exclude_globs) or nil
 
     local cancel_fn
-    cancel_fn = filetools.async_walk_dir(
+    cancel_fn = fsutils.async_walk_dir(
         opts.cwd,
         include_regex_list,
         exclude_regex_list,
@@ -99,14 +99,14 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
     local count = 0
     local max_results = fd_opts.max_results or 10000
 
-    local include_regex_list = fd_opts.include_globs and strtools.compile_globs(fd_opts.include_globs) or nil
+    local include_regex_list = fd_opts.include_globs and strutils.compile_globs(fd_opts.include_globs) or nil
 
-    local buffered_feed = strtools.create_line_buffered_feed(function(lines)
+    local buffered_feed = strutils.create_line_buffered_feed(function(lines)
         local items = {}
         for _, line in ipairs(lines) do
             if read_stop then return end
             local relpath = line:gsub("^%.[/]", "")
-            if strtools.check_path_pattern(line, false, include_regex_list, nil) then
+            if strutils.check_path_pattern(line, false, include_regex_list, nil) then
                 if count < max_results then
                     local res = pickertools.make_picker_item(relpath, query, {
                         list_width = fetch_opts.list_width,

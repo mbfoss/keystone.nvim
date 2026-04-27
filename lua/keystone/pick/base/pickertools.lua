@@ -1,7 +1,7 @@
 local M = {}
 
-local strtools = require("keystone.utils.strtools")
-local filetools = require("keystone.utils.file")
+local strutils = require("keystone.utils.strutils")
+local fsutils = require("keystone.utils.fsutils")
 
 ---@param display_string string The final string to be shown
 ---@param positions integer[] Matched indices (already adjusted for any offsets)
@@ -42,7 +42,7 @@ end
 ---@param opts { list_width: number, is_path: boolean }
 ---@return {score:number,chunks:string[][]}?
 function M.make_picker_item(match_target, query, opts)
-    local is_match, score, positions = strtools.fuzzy_match(match_target, query, {
+    local is_match, score, positions = strutils.fuzzy_match(match_target, query, {
         short_bias = not opts.is_path,
     })
     if not is_match and query ~= "" then return nil end
@@ -51,7 +51,7 @@ function M.make_picker_item(match_target, query, opts)
 
     local final_display
     if opts.is_path then
-        final_display = strtools.smart_crop_path(match_target, opts.list_width)
+        final_display = fsutils.smart_crop_path(match_target, opts.list_width)
         crop_offset = #final_display - #match_target
     elseif #match_target > opts.list_width then
         final_display = match_target:sub(1, opts.list_width - 3) .. "..."
@@ -85,14 +85,14 @@ function M.default_file_preview(filepath, opts, callback)
         return function()
         end
     end
-    if not filetools.file_exists(filepath) then
+    if not fsutils.file_exists(filepath) then
         vim.schedule(function()
             callback(nil, { error_msg = "Invalid file path: " .. tostring(filepath) })
         end)
         return function()
         end
     end
-    local cancel_fn = filetools.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
+    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
         function(load_err, content)
             callback(content, {
                 filepath = filepath,
@@ -114,7 +114,7 @@ function M.make_history_provider(name)
         load = function()
             local hist = {}
             ---@type boolean,string
-            local ok, lines = filetools.read_content(file_path)
+            local ok, lines = fsutils.read_content(file_path)
             if ok then
                 hist = vim.split(lines, '\n')
             end
@@ -127,7 +127,7 @@ function M.make_history_provider(name)
             for i = start_idx, #hist do
                 table.insert(final_hist, hist[i])
             end
-            filetools.write_content(file_path, table.concat(final_hist, '\n'))
+            fsutils.write_content(file_path, table.concat(final_hist, '\n'))
         end
     }
 

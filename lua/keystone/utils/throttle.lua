@@ -10,11 +10,9 @@ function M.throttle_wrap(ms, fn)
     local last_exec = 0
 
     return function()
-        ---@diagnostic disable-next-line: undefined-field
         local now = uv.now()
 
         local function run()
-            ---@diagnostic disable-next-line: undefined-field
             last_exec = uv.now()
             if not _is_exiting() then
                 fn()
@@ -28,8 +26,8 @@ function M.throttle_wrap(ms, fn)
             return
         end
         local delay = ms - (now - last_exec)
-        ---@diagnostic disable-next-line: undefined-field
         timer = uv.new_timer()
+        assert(timer)
         timer:start(delay, 0, function()
             vim.schedule(function()
                 if timer:is_active() then timer:stop() end
@@ -40,6 +38,7 @@ function M.throttle_wrap(ms, fn)
         end)
     end
 end
+
 ---@param ms number The wait duration in milliseconds.
 ---@param fn function The function to run.
 function M.trailing_fixed_wrap(ms, fn)
@@ -51,8 +50,8 @@ function M.trailing_fixed_wrap(ms, fn)
         end
 
         is_pending = true
-        ---@diagnostic disable-next-line: undefined-field
         local timer = uv.new_timer()
+        assert(timer)
         timer:start(ms, 0, function()
             vim.schedule(function()
                 if timer then
@@ -66,9 +65,10 @@ function M.trailing_fixed_wrap(ms, fn)
         end)
     end
 end
+
 function M.leading_idle_debounce(ms, fn)
-    ---@diagnostic disable-next-line: undefined-field
     local timer = uv.new_timer()
+    assert(timer)
     local cooling = false
     return function()
         if not cooling then

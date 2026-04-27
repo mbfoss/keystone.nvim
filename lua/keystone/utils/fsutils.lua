@@ -1,18 +1,16 @@
 local M = {}
 
 local utils = require("keystone.utils.utils")
-local strtools = require("keystone.utils.strtools")
+local strutils = require("keystone.utils.strutils")
 
 ---@param path string
 function M.file_exists(path)
-    ---@diagnostic disable-next-line: undefined-field
     local stat = vim.loop.fs_stat(path)
     return stat and stat.type == "file"
 end
 
 ---@param path string
 function M.dir_exists(path)
-    ---@diagnostic disable-next-line: undefined-field
     local stat = vim.loop.fs_stat(path)
     return stat and stat.type == "directory"
 end
@@ -33,7 +31,6 @@ end
 ---@return boolean
 ---@return string? -- error msg
 function M.create_file(path)
-    ---@diagnostic disable-next-line: undefined-field
     local fd, err, err_name = vim.uv.fs_open(path, "wx", 420)
     if not fd then
         if err_name == "EEXIST" then
@@ -41,9 +38,47 @@ function M.create_file(path)
         end
         return false, "Failed to create file: " .. tostring(err)
     end
-    ---@diagnostic disable-next-line: undefined-field
     vim.uv.fs_close(fd)
     return true
+end
+
+
+---@param path string
+---@param max_len number
+---@return string preview
+---@return boolean is_different
+function M.smart_crop_path(path, max_len)
+	max_len = math.max(max_len, 0)
+	local len = #path
+	if len <= max_len then return path, false end
+	local limit = max_len - 1
+	local sep = package.config:sub(1, 1)
+	local tail = path:sub(-limit)
+	local sep_pos = tail:find(sep)
+	if sep_pos then
+		return "…" .. tail:sub(sep_pos), true
+	end
+	return "…" .. tail, true
+end
+
+---@param path string
+---@param base string?
+function M.get_relative_path(path, base)
+	base = base or vim.fn.getcwd()
+
+	local full_path = vim.fn.fnamemodify(path, ":p")
+	base = vim.fn.fnamemodify(base, ":p")
+
+	-- ensure trailing slash for proper prefix match
+	if base:sub(-1) ~= "/" then
+		base = base .. "/"
+	end
+
+	if full_path:find(base, 1, true) == 1 then
+		return full_path:sub(#base + 1)
+	end
+
+	return nil -- not relative to base
 end
 
 ---@param filepath string
@@ -87,7 +122,6 @@ function M.async_load_text_file(path, opts, callback)
     local timeout_ms = opts.timeout or 3000
     local uv = vim.uv or vim.loop
 
-    ---@diagnostic disable-next-line: undefined-field
     local timer = uv.new_timer()
     local fd = nil
     local chunks = {}
@@ -110,8 +144,7 @@ function M.async_load_text_file(path, opts, callback)
             timer = nil
         end
         if fd then
-            ---@diagnostic disable-next-line: undefined-field
-            uv.fs_close(fd)
+                    uv.fs_close(fd)
             fd = nil
         end
         if err then chunks = {} end
@@ -124,11 +157,9 @@ function M.async_load_text_file(path, opts, callback)
     local timeout_timer = vim.defer_fn(function()
         finish("Timeout", nil)
     end, timeout_ms)
-    ---@diagnostic disable-next-line: undefined-field
     uv.fs_open(path, "r", 438, function(open_err, opened_fd)
         if open_err or finished or aborted then
-            ---@diagnostic disable-next-line: undefined-field
-            if opened_fd then uv.fs_close(opened_fd) end
+                    if opened_fd then uv.fs_close(opened_fd) end
             if open_err and not (finished or aborted) then
                 return finish("Could not open file: " .. open_err, nil)
             end
@@ -136,20 +167,18 @@ function M.async_load_text_file(path, opts, callback)
         end
 
         fd = opened_fd
-        ---@diagnostic disable-next-line: undefined-field
-        uv.fs_fstat(fd, function(stat_err, stat)
+            uv.fs_fstat(fd, function(stat_err, stat)
             if finished or aborted then return end
             if stat_err then return finish("Stat error: " .. stat_err, nil) end
 
-            if stat.size > max_size then
+            if stat and stat.size > max_size then
                 return finish("File exceeds max size limit (" .. max_size .. "MB)", nil)
             end
 
             local function read_next()
                 if not fd or finished or aborted then return end
 
-                ---@diagnostic disable-next-line: undefined-field
-                uv.fs_read(fd, 8192, offset, function(read_err, data)
+                            uv.fs_read(fd, 8192, offset, function(read_err, data)
                     if finished or aborted then return end
 
                     if read_err then
@@ -193,7 +222,6 @@ end
 function M.monitor_dir(dir, change_callback)
     local uv = vim.uv or vim.loop
 
-    ---@diagnostic disable-next-line: undefined-field
     local handle, err_msg = uv.new_fs_event()
     if not handle then
         return nil, err_msg
@@ -228,8 +256,7 @@ function M.monitor_dir(dir, change_callback)
         terminated = true
         if handle then
             if handle:is_active() then
-                ---@diagnostic disable-next-line: undefined-field
-                uv.fs_event_stop(handle)
+                            uv.fs_event_stop(handle)
             end
             handle:close()
             handle = nil
@@ -271,26 +298,24 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
 
         local path = table.remove(pending_dirs, 1)
-        ---@diagnostic disable-next-line: undefined-field
-        local fd = uv.fs_scandir(path)
+            local fd = uv.fs_scandir(path)
         if not fd then
             vim.schedule(process_next_dir)
             return
         end
         while true do
-            ---@diagnostic disable-next-line: undefined-field
-            local name, type_ = uv.fs_scandir_next(fd)
+                    local name, type_ = uv.fs_scandir_next(fd)
             if not name then break end
 
             local full_path = vim.fs.joinpath(path, name)
             local rel_path = vim.fs.relpath(dir, full_path)
             if rel_path then
                 if type_ == "directory" then
-                    if strtools.check_path_pattern(rel_path, true, nil, exclude_regex_list) then
+                    if strutils.check_path_pattern(rel_path, true, nil, exclude_regex_list) then
                         table.insert(pending_dirs, full_path)
                     end
                 elseif type_ == "file" then
-                    if strtools.check_path_pattern(rel_path, false, include_regex_list, exclude_regex_list) then
+                    if strutils.check_path_pattern(rel_path, false, include_regex_list, exclude_regex_list) then
                         on_file(full_path, name, rel_path)
                     end
                 end

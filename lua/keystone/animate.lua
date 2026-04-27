@@ -302,7 +302,7 @@ function M.enable()
         State.get(win)
     end
 
-    local group = api.nvim_create_augroup("standalone_scroll", { clear = true })
+    local group = api.nvim_create_augroup("keystone_scroll", { clear = true })
 
     api.nvim_create_autocmd("BufWinEnter", {
         group = group,
@@ -360,7 +360,7 @@ function M.disable()
     for win in pairs(states) do
         State.reset(win)
     end
-    pcall(api.nvim_del_augroup_by_name, "standalone_scroll")
+    pcall(api.nvim_del_augroup_by_name, "keystone_scroll")
 end
 
 ---@class keystone.animate.Config

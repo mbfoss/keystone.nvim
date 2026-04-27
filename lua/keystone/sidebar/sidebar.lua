@@ -5,8 +5,8 @@ local views = require("keystone.sidebar.views")
 local KEY_MARKER = "LoopPlugin_SideWin"
 local INDEX_MARKER = "LoopPlugin_SideWinlIdx"
 
-local _layout_augroup = vim.api.nvim_create_augroup("LoopPlugin_SideBarLayout", { clear = true })
-local _buffers_augroup = vim.api.nvim_create_augroup("LoopPlugin_SideBarBuffers", { clear = true })
+local _layout_augroup = vim.api.nvim_create_augroup("keystone_sidebar_layout", { clear = true })
+local _buffers_augroup = vim.api.nvim_create_augroup("keystone_sidebar_buffer", { clear = true })
 
 
 ---@class keystone.SidebarPresetView

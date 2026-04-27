@@ -48,24 +48,6 @@ function M.crop_string_for_ui(str, max_len)
 end
 
 ---@param path string
----@param max_len number
----@return string preview
----@return boolean is_different
-function M.smart_crop_path(path, max_len)
-	max_len = math.max(max_len, 0)
-	local len = #path
-	if len <= max_len then return path, false end
-	local limit = max_len - 1
-	local sep = package.config:sub(1, 1)
-	local tail = path:sub(-limit)
-	local sep_pos = tail:find(sep)
-	if sep_pos then
-		return "…" .. tail:sub(sep_pos), true
-	end
-	return "…" .. tail, true
-end
-
----@param path string
 ---@param patterns string[]
 ---@return boolean
 function M.matches_any(path, patterns)
@@ -212,77 +194,6 @@ function M.clean_and_split_lines(lines)
 	return result
 end
 
-local function _value_to_string(t, indent, seen)
-	indent = indent or 0
-	seen = seen or {}
-	local lines = {}
-	local function indent_str(level)
-		return string.rep("  ", level)
-	end
-	local function is_seen(tbl)
-		for _, v in ipairs(seen) do
-			if v == tbl then return true end
-		end
-		return false
-	end
-	if type(t) ~= "table" then
-		return indent_str(indent) .. tostring(t)
-	end
-	if is_seen(t) then
-		return indent_str(indent) .. "*recursive table*"
-	end
-	table.insert(seen, t)
-	table.insert(lines, indent_str(indent) .. "{")
-	for k, v in pairs(t) do
-		local keyStr = "[" .. tostring(k) .. "]"
-		local valueStr
-
-		if type(v) == "table" then
-			valueStr = _value_to_string(v, indent + 1, seen)
-		elseif type(v) == "string" then
-			valueStr = '"' .. v .. '"'
-		else
-			valueStr = tostring(v)
-		end
-
-		table.insert(lines, indent_str(indent + 1) .. keyStr .. " = " .. valueStr)
-	end
-	table.insert(lines, indent_str(indent) .. "}")
-	return table.concat(lines, "\n")
-end
-
-
----@param val any
-function M.to_pretty_str(val)
-	return _value_to_string(val)
-end
-
-function M.format_grid(items, width)
-	if #items == 0 then return "" end
-
-	local max_len = 0
-	for _, item in ipairs(items) do
-		max_len = math.max(max_len, #item)
-	end
-
-	local col_width = max_len + 2 -- Add padding
-	local num_cols = math.max(1, math.floor(width / col_width))
-	local num_rows = math.ceil(#items / num_cols)
-
-	local lines = {}
-	for r = 1, num_rows do
-		local row_items = {}
-		for c = 1, num_cols do
-			local idx = (c - 1) * num_rows + r
-			if items[idx] then
-				table.insert(row_items, items[idx] .. string.rep(" ", col_width - #items[idx]))
-			end
-		end
-		table.insert(lines, table.concat(row_items))
-	end
-	return table.concat(lines, "\r\n")
-end
-
 ---@param callback fun(lines: string[]) The function to call for complete lines.
 ---@return fun(chunk: string) feed The function to call whenever new data arrives.
 function M.create_line_buffered_feed(callback)
@@ -411,24 +322,5 @@ function M.fuzzy_match(text, query, opts)
 	return true, score, positions
 end
 
----@param path string
----@param base string?
-function M.get_relative_path(path, base)
-	base = base or vim.fn.getcwd()
-
-	local full_path = vim.fn.fnamemodify(path, ":p")
-	base = vim.fn.fnamemodify(base, ":p")
-
-	-- ensure trailing slash for proper prefix match
-	if base:sub(-1) ~= "/" then
-		base = base .. "/"
-	end
-
-	if full_path:find(base, 1, true) == 1 then
-		return full_path:sub(#base + 1)
-	end
-
-	return nil -- not relative to base
-end
 
 return M

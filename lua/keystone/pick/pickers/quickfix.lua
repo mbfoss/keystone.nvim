@@ -1,7 +1,7 @@
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
+local fsutils = require("keystone.utils.fsutils")
 
 local M = {}
 
@@ -30,7 +30,7 @@ end
 local function qf_item_to_picker_item(item, list_width)
     local bufnr = item.bufnr
     local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local display_path = strtools.get_relative_path(filepath) or filepath
+    local display_path = fsutils.get_relative_path(filepath) or filepath
     local prefix = ({
         E = " ",
         W = " ",

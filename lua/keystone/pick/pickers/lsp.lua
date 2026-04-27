@@ -1,9 +1,10 @@
 local M = {}
 
 local uitools = require("keystone.utils.uitools")
-local strtools = require("keystone.utils.strtools")
+local strutils = require("keystone.utils.strutils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
+local fsutils = require("keystone.utils.fsutils")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
@@ -29,10 +30,10 @@ local function lsp_item_to_picker_item(ref, list_width)
     local lnum = ref.lnum
     local col = ref.col
     local line_text = ref.text
-    local display_path = strtools.get_relative_path(filepath) or filepath
+    local display_path = fsutils.get_relative_path(filepath) or filepath or ""
     ---@type string?
     local loc = (lnum and string.format("%s:%d", display_path, lnum) or display_path) or ""
-    loc = strtools.smart_crop_path(loc, list_width)
+    loc = fsutils.smart_crop_path(loc, list_width)
     if loc == "" then loc = nil end
     return {
         label = vim.trim(line_text or ""),

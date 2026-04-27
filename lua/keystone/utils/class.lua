@@ -9,8 +9,7 @@ local function class(base)
     ---@return table
     function c:new(...)
         local obj = setmetatable({}, self)
-        ---@diagnostic disable-next-line: undefined-field
-        if obj.init then obj:init(...) end
+            if obj.init then obj:init(...) end
         return obj
     end
 

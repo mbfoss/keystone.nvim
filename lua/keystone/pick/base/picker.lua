@@ -308,7 +308,7 @@ function Picker:setup_ui()
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
     ---@type number?
-    local focus_augroup = vim.api.nvim_create_augroup("LoopPlugin_PickerFocus_" .. self.pbuf, { clear = true })
+    local focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("WinEnter", {
         group = focus_augroup,
         callback = function(args)
@@ -329,7 +329,7 @@ function Picker:setup_ui()
     })
 
     assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("LoopPlugin_PickerResize_" .. self.pbuf, { clear = true })
+    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = self.resize_augroup,
         callback = function()
@@ -572,8 +572,7 @@ end
 
 function Picker:request_clear_preview()
     if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-        ---@diagnostic disable-next-line: undefined-field
-        self.preview_timer = vim.defer_fn(function()
+            self.preview_timer = vim.defer_fn(function()
             self.preview_timer = nil
             if self.closed then return end
             vim.bo[self.vbuf].modifiable = true

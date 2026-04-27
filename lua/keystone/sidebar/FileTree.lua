@@ -1,10 +1,11 @@
 local class          = require("keystone.utils.class")
-local strtools       = require("keystone.utils.strtools")
+local strutils       = require("keystone.utils.strutils")
 local uitools        = require("keystone.utils.uitools")
-local filetools      = require("keystone.utils.file")
+local fsutils        = require("keystone.utils.fsutils")
 local TreeBuffer     = require("keystone.utils.TreeBuffer")
 local LRU            = require("keystone.utils.LRU")
 local floatwin       = require("keystone.utils.floatwin")
+local inputwin       = require("keystone.utils.inputwin")
 local utils          = require("keystone.utils.utils")
 
 ---@class keystone.FileTree.ItemData
@@ -119,7 +120,7 @@ OTHER
 `g?`      Show this help]]
     }
 
-    floatwin.show_floatwin(table.concat(help_text, "\n"), {
+    floatwin.create(table.concat(help_text, "\n"), {
         title = " File Tree Help ",
         is_markdown = true,
     })
@@ -173,7 +174,7 @@ function FileTree:_setup_tree()
             self:_on_buffer_delete()
         end,
         on_selection = function(id, data)
-            if not data.is_dir and filetools.file_exists(data.path) then
+            if not data.is_dir and fsutils.file_exists(data.path) then
                 uitools.smart_open_file(data.path)
             end
         end,
@@ -374,9 +375,9 @@ end
 ---@return boolean
 function FileTree:_should_include(rel, is_dir)
     if is_dir then
-        return strtools.check_path_pattern(rel, true, nil, self._exclude_patterns)
+        return strutils.check_path_pattern(rel, true, nil, self._exclude_patterns)
     end
-    return strtools.check_path_pattern(rel, false, self._include_patterns, self._exclude_patterns)
+    return strutils.check_path_pattern(rel, false, self._include_patterns, self._exclude_patterns)
 end
 
 ---@private
@@ -389,7 +390,7 @@ function FileTree:_start_dir_monitor(path)
     if self._monitor_lru:has(path) then
         return false
     end
-    local cancel_fn, error_msg = filetools.monitor_dir(path, function(name, status)
+    local cancel_fn, error_msg = fsutils.monitor_dir(path, function(name, status)
         local reload_counter = self._reload_counter
         ---@type keystone.FileTree.ProcessDirEntry[]
         if reload_counter ~= self._reload_counter then return end
@@ -418,8 +419,8 @@ function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
         self:_clear()
     end
     self._root = newroot
-    self._include_patterns = include_globs and strtools.compile_globs(include_globs) or nil
-    self._exclude_patterns = exclude_globs and strtools.compile_globs(exclude_globs) or nil
+    self._include_patterns = include_globs and strutils.compile_globs(include_globs) or nil
+    self._exclude_patterns = exclude_globs and strutils.compile_globs(exclude_globs) or nil
     self._follow_symlinks = follow_symlinks or true
     self:_reload()
 end
@@ -590,11 +591,10 @@ function FileTree:_prepare_dir_entries(path, prep_entries, callback)
     for _, entry in ipairs(prep_entries) do
         local full_path = vim.fs.joinpath(path, entry.name)
         if entry.type == "link" and self._follow_symlinks then
-            ---@diagnostic disable-next-line: undefined-field
             vim.uv.fs_stat(full_path, function(err, stat)
                 vim.schedule(function() -- processing inside libuv callback -> crash
                     if reload_counter ~= self._reload_counter then return end
-                    local is_dir = not err and stat and stat.type == "directory"
+                    local is_dir = err == nil and stat ~= nil and stat.type == "directory"
                     process_entry(full_path, entry.name, is_dir, true)
                 end)
             end)
@@ -616,7 +616,6 @@ function FileTree:_read_dir(path, reload_counter, recursive)
     ---@type keystone.FileTree.ItemData
     local data = item.data
     do
-        ---@diagnostic disable-next-line: undefined-field
         local realpath = vim.uv.fs_realpath(path)
         if realpath then
             local normalized = vim.fs.normalize(realpath)
@@ -632,7 +631,6 @@ function FileTree:_read_dir(path, reload_counter, recursive)
     local req_id = (data.childrenload_req_id or 0) + 1
     data.childrenload_req_id = req_id
     data.children_loading = true
-    ---@diagnostic disable-next-line: undefined-field
     vim.uv.fs_scandir(path, function(err, handle)
         vim.schedule(function() -- get out of the fast event context
             if reload_counter ~= self._reload_counter then return end
@@ -641,7 +639,6 @@ function FileTree:_read_dir(path, reload_counter, recursive)
             local prep_entries = {} ---@type keystone.FileTree.PrepareDirEntry[]
             if handle then
                 while true do
-                    ---@diagnostic disable-next-line: undefined-field
                     local name, type = vim.uv.fs_scandir_next(handle)
                     if not name then break end
                     local entry = { name = name, type = type } ---@type keystone.FileTree.PrepareDirEntry
@@ -861,7 +858,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
     local type_label = as_dir and "directory" or "file"
 
     local reload_counter = self._reload_counter
-    floatwin.input_at_cursor({
+    inputwin.input_at_cursor({
             prompt = "New " .. type_label .. " name",
             validate = function(name)
                 local root = self._root
@@ -885,16 +882,15 @@ function FileTree:_create_node(item, as_dir, force_parent)
 
             local new_path = vim.fs.joinpath(base_dir, name)
             if as_dir then
-                ---@diagnostic disable-next-line: undefined-field
                 local ok, err = vim.uv.fs_mkdir(new_path, 493) -- 493 is octal 0755
                 if ok then
                     self:_read_dir(base_dir, self._reload_counter, false)
                     self:_reveal(new_path)
                 else
-                    vim.notify(err, vim.log.levels.ERROR)
+                    vim.notify(err or "Failed to create directory", vim.log.levels.ERROR)
                 end
             else
-                local created, err = filetools.create_file(new_path)
+                local created, err = fsutils.create_file(new_path)
                 if created then
                     self:_read_dir(base_dir, self._reload_counter, false)
                     self:_reveal(new_path)
@@ -913,7 +909,7 @@ function FileTree:_rename_node(item)
     local parent_dir = vim.fn.fnamemodify(old_path, ":h")
 
     local reload_counter = self._reload_counter
-    floatwin.input_at_cursor({
+    inputwin.input_at_cursor({
             prompt = ("Rename `%s`"):format(old_name),
             default_text = old_name,
             validate = function(name)
@@ -936,7 +932,6 @@ function FileTree:_rename_node(item)
             if reload_counter ~= self._reload_counter then return end
             if not self._tree:get_item(old_path) then return end
             local new_path = vim.fs.joinpath(parent_dir, new_name)
-            ---@diagnostic disable-next-line: undefined-field
             local ok, err = vim.uv.fs_rename(old_path, new_path)
             if ok then
                 self:_read_dir(parent_dir, self._reload_counter, false)
