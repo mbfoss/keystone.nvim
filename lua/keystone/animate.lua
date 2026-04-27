@@ -280,24 +280,65 @@ function M.enable()
 
     local group = api.nvim_create_augroup("keystone_scroll", { clear = true })
 
-    api.nvim_create_autocmd("WinScrolled", {
+
+    api.nvim_create_autocmd("BufWinEnter", {
         group = group,
-        callback = function()
-            for win, changes in pairs(vim.v.event) do
-                win = tonumber(win)
-                if win and (changes.topline ~= 0 or changes.topfill ~= 0) then
-                    M.check(win)
-                end
+        callback = vim.schedule_wrap(function(ev)
+            for _, win in ipairs(fn.win_findbuf(ev.buf)) do
+                State.get(win)
+            end
+        end),
+    })
+
+    api.nvim_create_autocmd({ "InsertLeave", "TextChanged", "TextChangedI" }, {
+        group = group,
+        callback = function(ev)
+            for _, win in ipairs(fn.win_findbuf(ev.buf)) do
+                State.get(win)
             end
         end,
     })
 
     api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
         group = group,
-        callback = vim.schedule_wrap(function()
-            local win = api.nvim_get_current_win()
-            if states[win] then states[win]:update() end
+        callback = vim.schedule_wrap(function(ev)
+            for _, win in ipairs(fn.win_findbuf(ev.buf)) do
+                if states[win] then states[win]:update() end
+            end
         end),
+    })
+
+    api.nvim_create_autocmd({ "CmdlineLeave" }, {
+        group = group,
+        callback = function(ev)
+            if (ev.file == "/" or ev.file == "?") and vim.o.incsearch then
+                for _, win in ipairs(fn.win_findbuf(ev.buf)) do
+                    State.reset(win)
+                end
+            end
+        end,
+    })
+
+    api.nvim_create_autocmd("WinScrolled", {
+        group = group,
+        callback = function()
+            for win, changes in pairs(vim.v.event) do
+                win = tonumber(win)
+                if win and changes.topline ~= 0 then
+                    M.check(win)
+                end
+            end
+        end,
+    })
+
+    api.nvim_create_autocmd("WinClosed", {
+        group = group,
+        callback = function(ev)
+            local win = tonumber(ev.match)
+            if win then
+                State.reset(win)
+            end
+        end,
     })
 end
 
