@@ -1,7 +1,7 @@
 local M = {}
 
-local function sidebar()
-    return require("keystone.sidebar.sidebar")
+local function tree()
+    return require("keystone.filetree.tree")
 end
 
 ---@param cmd string
@@ -9,9 +9,9 @@ end
 ---@param for_cmd_menu boolean?
 ---@return string[]
 function M.get_subcommands(cmd, rest, for_cmd_menu)
-    if cmd == "Sidebar" then
+    if cmd == "Filetree" then
         if #rest == 0 then
-            return { "show", "hide", "toggle" }
+            return { "open", "close", "toggle" }
         end
     end
     return {}
@@ -21,17 +21,17 @@ end
 ---@param args string[]
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.run_command(cmd, args, opts)
-    if cmd == "Sidebar" then
+    if cmd == "Filetree" then
         local command = args[1]
         local name = args[2]
         if command == nil or command == "" or command == "toggle" then
-            sidebar().toggle()
-        elseif command == "show" then
-            sidebar().show_by_name(name)
-        elseif command == "hide" then
-            sidebar().hide()
+            tree().toggle()
+        elseif command == "open" then
+            tree().open()
+        elseif command == "close" then
+            tree().close()
         else
-            vim.notify("Invalid sidebar command: " .. tostring(command))
+            vim.notify("Invalid Filetree command: " .. tostring(command))
         end
     end
 end
