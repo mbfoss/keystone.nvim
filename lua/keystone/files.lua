@@ -18,7 +18,7 @@ M.config = _get_default_config()
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    require("keystone.utils.usercmd").register_user_cmd("Files", function(cmd, args, opts)
+    require("keystone.utils.usercmd").register_user_cmd("File", function(cmd, args, opts)
             local selector = require("keystone.files.selector")
             selector.open({}, function (data)
                 

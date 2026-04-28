@@ -75,55 +75,25 @@ end
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
-
     local has_preview = opts.has_preview
-    local spacing = has_preview and 2 or 0
-    local half_spacing = math.floor(spacing / 2)
-
-    local list_width
-    local prev_width
-    if has_preview then
-        local width = math.ceil(cols * _clamp(opts.width_ratio or 0.8, 0.1, 0.8))
-        local half_width = math.floor(width / 2)
-        if opts.list_width then
-            list_width = _clamp(opts.list_width + 3, math.ceil(half_width / 2), half_width)
-        else
-            list_width = half_width
-        end
-        list_width = list_width - half_spacing
-        prev_width = _clamp(width - list_width - half_spacing, 1, width)
-    else
-        local max_width = math.ceil(cols * (opts.width_ratio or 0.8))
-        if opts.list_width then
-            local min_width = math.floor(cols * 0.3)
-            list_width = _clamp(opts.list_width + 3, min_width, max_width)
-        else
-            list_width = max_width
-        end
-        prev_width = 0
-    end
-
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or .7, 0.3, 0.8))
-    local list_height = _clamp(total_height - 3, 1, lines)
-
-    local row = math.floor((lines - total_height - 1) / 2)
-    local col = math.floor((cols - (list_width + prev_width + spacing)) / 2)
+    
+    local width = math.ceil(cols * (opts.width_ratio or 0.8))
+    local list_width = has_preview and math.floor(width * 0.4) or width
+    local prev_width = has_preview and (width - list_width - 2) or 0
+    
+    local height = math.ceil(lines * (opts.height_ratio or 0.7))
+    local row = math.floor((lines - height) / 2)
+    local col = math.floor((cols - width) / 2)
 
     return {
-        prompt_row = row,
-        prompt_col = col,
-        prompt_width = list_width + prev_width + spacing,
-        prompt_height = 1,
-
-        list_row = row + 3,
+        list_row = row,
         list_col = col,
         list_width = list_width,
-        list_height = list_height,
-
-        prev_row = row + 3,
-        prev_col = col + list_width + spacing,
+        list_height = height,
+        prev_row = row,
+        prev_col = col + list_width + 2,
         prev_width = prev_width,
-        prev_height = list_height
+        prev_height = height
     }
 end
 
@@ -185,103 +155,34 @@ end
 ---@field history_idx number
 local Files = class()
 
----@param opts keystone.files.opts
----@param callback keystone.files.Callback
 function Files:init(opts, callback)
     self.opts = opts
     self.callback = callback
-
     self.has_preview = type(opts.async_preview) == "function"
-
     self.items_data = {}
-
     self.closed = false
-
-    self.async_fetch_context = 0
-    self.async_fetch_cancel = nil
-
     self.async_preview_context = 0
-    self.async_preview_cancel = nil
-
-    self.antiflicker_delay = 200
-    self.spinner = nil
-
-    self.history = {}
-    self.history_idx = 0
-
-    if self.opts.history_provider then
-        self.history = self.opts.history_provider.load() or {}
-        self.history_idx = #self.history + 1
-    end
-
-    local cword_ok, cword = pcall(vim.fn.expand, "<cword>")
-    self.original_cword = tostring(cword_ok and (type(cword) == "table" and cword[1] or cword) or "")
-
+    self.antiflicker_delay = 50
     self:setup_ui()
 end
 
----@return nil
 function Files:setup_ui()
-    local opts = self.opts
-
-    self.layout = _compute_layout {
-        has_preview = self.has_preview,
-        height_ratio = opts.height_ratio,
-        width_ratio = opts.width_ratio,
-        list_width = opts.list_width
-    }
-
-    local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
-
-    self.list_sep_line = string.rep("─", self.layout.list_width)
-
-    self.pbuf = vim.api.nvim_create_buf(false, true)
+    self.layout = _compute_layout(self.opts)
     self.lbuf = vim.api.nvim_create_buf(false, true)
     self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
 
-    vim.bo[self.lbuf].modifiable = false
-    if self.vbuf then vim.bo[self.vbuf].modifiable = false end
+    vim.bo[self.lbuf].buftype = "nofile"
+    vim.bo[self.lbuf].bufhidden = "wipe"
+    
+    local base_cfg = { relative = "editor", style = "minimal", border = "rounded" }
 
-    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
-        if b then
-            vim.bo[b].buftype = "nofile"
-            vim.bo[b].bufhidden = "wipe"
-            vim.bo[b].swapfile = false
-            vim.bo[b].undolevels = -1
-            vim.bo[b].modeline = false
-            vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-                buffer = b,
-                once = true,
-                callback = function(ev)
-                    if (b == self.pbuf) then self.pbuf = -1 end
-                    if (b == self.lbuf) then self.lbuf = -1 end
-                    if (b == self.vbuf) then self.vbuf = -1 end
-                    vim.schedule(function() self:close() end)
-                end,
-            })
-        end
-    end
-
-    local base_cfg = {
-        relative = "editor",
-        style = "minimal",
-        border = "rounded"
-    }
-
-    self.pwin = vim.api.nvim_open_win(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
-        row = self.layout.prompt_row,
-        col = self.layout.prompt_col,
-        width = self.layout.prompt_width,
-        height = 1,
-        title = title,
-        title_pos = "center"
-    }))
-
-    self.lwin = vim.api.nvim_open_win(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+    -- Open List Window (This is now our main focus)
+    self.lwin = vim.api.nvim_open_win(self.lbuf, true, vim.tbl_extend("force", base_cfg, {
         row = self.layout.list_row,
         col = self.layout.list_col,
         width = self.layout.list_width,
-        height = self.layout.list_height
+        height = self.layout.list_height,
+        title = self.opts.prompt or " Files "
     }))
 
     if self.vbuf then
@@ -289,64 +190,25 @@ function Files:setup_ui()
             row = self.layout.prev_row,
             col = self.layout.prev_col,
             width = self.layout.prev_width,
-            height = self.layout.prev_height
+            height = self.layout.prev_height,
+            title = " Preview "
         }))
-        vim.wo[self.vwin].wrap = true
     end
 
-    local winhl = "NormalFloat:Normal,FloatBorder:LoopTransparentBorder"
-    for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
-        if w then
-            vim.wo[w].winhighlight = winhl
-        end
-    end
-
-    vim.wo[self.pwin].wrap = false
-    vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
-
-    ---@type number?
-    local focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
-    vim.api.nvim_create_autocmd("WinEnter", {
-        group = focus_augroup,
-        callback = function(args)
-            local win = vim.api.nvim_get_current_win()
-            if win ~= self.pwin and win ~= self.lwin and win ~= self.vwin then
-                local cfg = vim.api.nvim_win_get_config(win)
-                if cfg.relative == "" then -- skip popups
-                    vim.schedule(function()
-                        if focus_augroup then
-                            vim.api.nvim_del_augroup_by_id(focus_augroup)
-                            focus_augroup = nil
-                        end
-                        self:close(nil)
-                    end)
-                end
-            end
-        end
+    -- Set window options
+    vim.wo[self.lwin].cursorline = true
+    
+    -- Close on WinLeave
+    vim.api.nvim_create_autocmd("WinLeave", {
+        buffer = self.lbuf,
+        callback = function() self:close() end
     })
 
-    assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.pbuf, { clear = true })
-    vim.api.nvim_create_autocmd("VimResized", {
-        group = self.resize_augroup,
-        callback = function()
-            vim.schedule(function()
-                if not self.closed then
-                    self:on_resize()
-                elseif self.resize_augroup then
-                    vim.api.nvim_del_augroup_by_id(self.resize_augroup)
-                    self.resize_augroup = nil
-                end
-            end)
-        end
+    -- Update preview when cursor moves in list
+    vim.api.nvim_create_autocmd("CursorMoved", {
+        buffer = self.lbuf,
+        callback = function() self:update_preview() end
     })
-    assert(self.pbuf > 0)
-    vim.keymap.set("i", "<C-r><C-w>", function()
-        vim.api.nvim_feedkeys(
-            vim.api.nvim_replace_termcodes(self.original_cword, true, false, true),
-            "i", false
-        )
-    end, { buffer = self.pbuf, desc = "Page original <cword>" })
 end
 
 function Files:on_resize()
@@ -826,84 +688,39 @@ function Files:close(result)
 end
 
 function Files:setup_input()
-    local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
+    local map = function(mode, lhs, rhs)
+        vim.keymap.set(mode, lhs, rhs, { buffer = self.lbuf, nowait = true, silent = true })
+    end
 
-    vim.keymap.set("i", "<CR>", function()
-        local item = self.items_data[self:get_cursor()]
+    -- Selection
+    map("n", "<CR>", function()
+        local item = self.items_data[vim.api.nvim_win_get_cursor(0)[1]]
         self:close(item and item.data)
-    end, key_opts)
+    end)
+    map("n", "l", "<CR>") -- Right/Select
 
-    vim.keymap.set("n", "<Esc>", function() self:close(nil) end, key_opts)
-    vim.keymap.set("i", "<C-c>", function() self:close(nil) end, key_opts)
-
-    vim.keymap.set("i", "<Down>", function()
-        self:move_cursor(self:get_cursor() + 1)
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-n>", function()
-        self:move_cursor(self:get_cursor() + 1)
-    end, key_opts)
-
-    vim.keymap.set("i", "<Up>", function()
-        self:move_cursor(self:get_cursor() - 1)
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-p>", function()
-        self:move_cursor(self:get_cursor() - 1)
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-d>", function()
-        local cur = self:get_cursor()
-        local step = math.floor(self.layout.list_height / 2)
-        self:move_cursor(cur + step, false, true)
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-u>", function()
-        local cur = self:get_cursor()
-        local step = math.floor(self.layout.list_height / 2)
-        self:move_cursor(cur - step, false, true)
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-j>", function()
-        self:history_next()
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-k>", function()
-        self:history_prev()
-    end, key_opts)
-
-    vim.keymap.set("i", "<C-q>", function()
-        self:send_to_qf()
-    end, key_opts)
-
-    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-        buffer = self.pbuf,
-        callback = function()
-            local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-            self:run_fetch(query)
-        end
-    })
+    -- Navigation
+    map("n", "j", "j")
+    map("n", "k", "k")
+    map("n", "h", function() self:close() end) -- Left/Back
+    
+    -- Quit
+    map("n", "q", function() self:close() end)
+    map("n", "<Esc>", function() self:close() end)
 end
 
 function Files:open()
-    assert(not self._open_called)
-    self._open_called = true
-    
     self:setup_input()
-    self:run_fetch("")
-
-    vim.api.nvim_set_current_win(self.pwin)
-
-    vim.schedule(function()
-        vim.cmd("startinsert!")
-    end)
+    -- Fetch data once (no query filtering)
+    if self.opts.fetch then
+        self:add_new_lines({})
+    end
+    vim.api.nvim_set_current_win(self.lwin)
 end
 
 ---@param opts keystone.files.opts
 ---@param callback keystone.files.Callback
 function M.open(opts, callback)
-    assert(opts.fetch or opts.async_fetch)
-
     local picker = Files:new(opts, callback)
     picker:open()
 end
