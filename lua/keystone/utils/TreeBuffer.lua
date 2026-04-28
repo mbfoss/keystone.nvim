@@ -573,35 +573,6 @@ function TreeBuffer:set_children(parent_id, children)
     return true
 end
 
----@private
----@param current_ids any[] The IDs currently in the tree
----@param updates keystone.TreeBuffer.ItemUpdate[] The new item definitions
----@return number change_start, number change_end_old, number change_end_new
-function TreeBuffer:_compute_diff(current_ids, updates)
-    local change_start = #updates + 1
-    local max_len = math.max(#updates, #current_ids)
-    for i = 1, max_len do
-        local item = updates[i]
-        local old_id = current_ids[i]
-        if not item or not old_id or item.id ~= old_id or item.keep_children == false then
-            change_start = i
-            break
-        end
-    end
-    local suffix_start_old = #current_ids
-    local suffix_start_new = #updates
-
-    while suffix_start_old >= change_start and suffix_start_new >= change_start do
-        local item = updates[suffix_start_new]
-        if item.id ~= current_ids[suffix_start_old] or item.keep_children == false then
-            break
-        end
-        suffix_start_old = suffix_start_old - 1
-        suffix_start_new = suffix_start_new - 1
-    end
-    return change_start, suffix_start_old, suffix_start_new
-end
-
 ---@param id any The ID of the parent node whose children should be removed.
 function TreeBuffer:remove_children(id)
     self:set_children(id, {})
