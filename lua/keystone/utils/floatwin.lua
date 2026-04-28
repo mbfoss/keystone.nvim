@@ -9,15 +9,48 @@ local _current_win = nil
 
 ---@class keystone.floatwin.FloatwinOpts
 ---@field title? string
----@field at_cursor? boolean
+---@field is_hover? boolean
 ---@field move_to_bot? boolean
 ---@field is_markdown boolean?
 
 
 ---@param text string
+function _open_hoverwindow(text)
+    local lines              = vim.split(text, "\n", { plain = true, trimempty = true })
+    local bufnr, winnr       = vim.lsp.util.open_floating_preview(
+        lines,
+        "markdown", -- or "plaintext"
+        {
+            focusable  = false,
+            border     = "rounded",
+            max_width  = 80,
+            max_height = 15,
+        }
+    )
+    vim.bo[bufnr].modifiable = false
+    vim.bo[bufnr].buftype    = "nofile"
+    vim.wo[winnr].wrap       = true
+    local aug                = vim.api.nvim_create_augroup("LoopPlugin_ToolHoverClose", { clear = true })
+    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+        group    = aug,
+        once     = true,
+        callback = function()
+            if vim.api.nvim_win_is_valid(winnr) then
+                vim.api.nvim_win_close(winnr, true)
+            end
+        end,
+    })
+end
+
+---@param text string
 ---@param opts keystone.floatwin.FloatwinOpts?
-function M.create(text, opts)
+function M.open(text, opts)
     opts = opts or {}
+    if opts.is_hover then
+        _open_hoverwindow(text)
+        return
+    end
+
     if _current_win and vim.api.nvim_win_is_valid(_current_win) then
         vim.api.nvim_win_close(_current_win, true)
     end

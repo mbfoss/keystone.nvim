@@ -32,7 +32,7 @@ local Tree = require("keystone.utils.Tree")
 
 ---@alias keystone.TreeBuffer.FormatterFn fun(id:any, data:any,expanded:boolean):string[][],string[][]
 ---@
----@class keystone.TreeBufferOpts
+---@class keystone.TreeBuffer.Opts
 ---@field filetype string?
 ---@field formatter keystone.TreeBuffer.FormatterFn
 ---@field expand_char string?
@@ -46,7 +46,7 @@ local Tree = require("keystone.utils.Tree")
 local _ns_id = vim.api.nvim_create_namespace('LoopPluginTreeBuffer')
 
 ---@class keystone.TreeBuffer:keystone.ScratchBuffer
----@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBufferOpts): keystone.TreeBuffer
+---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBuffer.Opts): keystone.TreeBuffer
 local TreeBuffer = class(ScratchBuffer)
 
 ---@param item keystone.TreeBuffer.ItemDef
@@ -98,7 +98,7 @@ local function _tree_size(tree, starting_id)
     return size
 end
 
----@param opts keystone.TreeBufferOpts
+---@param opts keystone.TreeBuffer.Opts
 function TreeBuffer:init(opts)
     ScratchBuffer.init(self, {
         bo = {

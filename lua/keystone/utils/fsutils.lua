@@ -1,6 +1,6 @@
 local M = {}
 
-local utils = require("keystone.utils.utils")
+local common = require("keystone.utils.common")
 local strutils = require("keystone.utils.strutils")
 
 ---@param path string
@@ -210,7 +210,7 @@ function M.async_load_text_file(path, opts, callback)
     return function()
         if finished or aborted then return end
         aborted = true
-        utils.stop_and_close_timer(timeout_timer)
+        common.stop_and_close_timer(timeout_timer)
         finish("Aborted", nil)
     end
 end

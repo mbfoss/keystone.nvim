@@ -1,6 +1,6 @@
 local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
-local utils      = require("keystone.utils.utils")
+local common     = require("keystone.utils.common")
 
 local M          = {}
 
@@ -38,7 +38,7 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 ---@alias keystone.files.AsyncPreviewLoader fun(data:any,opts:keystone.files.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.files.AsyncPreviewInfo?)):fun()?
 
 ---@class keystone.files.opts
----@field prompt string
+---@field prompt string?
 ---@field fetch keystone.files.Fetcher?
 ---@field async_fetch keystone.files.AsyncFetcher?
 ---@field async_preview keystone.files.AsyncPreviewLoader?
@@ -76,11 +76,11 @@ local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
     local has_preview = opts.has_preview
-    
+
     local width = math.ceil(cols * (opts.width_ratio or 0.8))
     local list_width = has_preview and math.floor(width * 0.4) or width
     local prev_width = has_preview and (width - list_width - 2) or 0
-    
+
     local height = math.ceil(lines * (opts.height_ratio or 0.7))
     local row = math.floor((lines - height) / 2)
     local col = math.floor((cols - width) / 2)
@@ -173,7 +173,7 @@ function Files:setup_ui()
 
     vim.bo[self.lbuf].buftype = "nofile"
     vim.bo[self.lbuf].bufhidden = "wipe"
-    
+
     local base_cfg = { relative = "editor", style = "minimal", border = "rounded" }
 
     -- Open List Window (This is now our main focus)
@@ -197,7 +197,7 @@ function Files:setup_ui()
 
     -- Set window options
     vim.wo[self.lwin].cursorline = true
-    
+
     -- Close on WinLeave
     vim.api.nvim_create_autocmd("WinLeave", {
         buffer = self.lbuf,
@@ -431,7 +431,7 @@ end
 
 function Files:request_clear_preview()
     if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-            self.preview_timer = vim.defer_fn(function()
+        self.preview_timer = vim.defer_fn(function()
             self.preview_timer = nil
             if self.closed then return end
             vim.bo[self.vbuf].modifiable = true
@@ -443,7 +443,7 @@ function Files:request_clear_preview()
 end
 
 function Files:cancel_clear_preview_req()
-    self.preview_timer = utils.stop_and_close_timer(self.preview_timer)
+    self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 end
 
 function Files:clear_list()
@@ -655,7 +655,7 @@ function Files:close(result)
 
     self:stop_spinner()
 
-    self.preview_timer = utils.stop_and_close_timer(self.preview_timer)
+    self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
@@ -703,7 +703,7 @@ function Files:setup_input()
     map("n", "j", "j")
     map("n", "k", "k")
     map("n", "h", function() self:close() end) -- Left/Back
-    
+
     -- Quit
     map("n", "q", function() self:close() end)
     map("n", "<Esc>", function() self:close() end)

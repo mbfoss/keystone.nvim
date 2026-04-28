@@ -13,14 +13,14 @@ local Trackers = require('keystone.utils.Trackers')
 ---@field on_change fun()?
 ---@field on_delete fun()?
 
----@class keystone.StratchBuffer.Opts
+---@class keystone.ScratchBuffer.Opts
 ---@field bo vim.bo?
 
 ---@class keystone.ScratchBuffer
----@field new fun(self: keystone.ScratchBuffer, opts:keystone.StratchBuffer.Opts): keystone.ScratchBuffer
+---@field new fun(self: keystone.ScratchBuffer, opts:keystone.ScratchBuffer.Opts): keystone.ScratchBuffer
 local ScratchBuffer = class()
 
----@param opts keystone.StratchBuffer.Opts
+---@param opts keystone.ScratchBuffer.Opts
 function ScratchBuffer:init(opts)
     vim.validate("opts", opts, "table")
     self._bo = vim.deepcopy(opts.bo or {})

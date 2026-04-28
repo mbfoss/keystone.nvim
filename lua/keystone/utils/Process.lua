@@ -1,6 +1,6 @@
 local uv = require('luv')
 local class = require('keystone.utils.class')
-local utils = require('keystone.utils.utils')
+local common = require('keystone.utils.common')
 
 local function _safe_close(h)
     if h and not h:is_closing() then
@@ -79,7 +79,7 @@ function Process:_spawn()
         if self.exited then return end
         self.exited = true
 
-        self._kill_timer = utils.stop_and_close_timer(self._kill_timer)
+        self._kill_timer = common.stop_and_close_timer(self._kill_timer)
         self:_close_all()
         if self.on_exit then
             self.on_exit(code, signal)

@@ -1,6 +1,6 @@
 local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
-local utils      = require("keystone.utils.utils")
+local common      = require("keystone.utils.common")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -584,7 +584,7 @@ function Picker:request_clear_preview()
 end
 
 function Picker:cancel_clear_preview_req()
-    self.preview_timer = utils.stop_and_close_timer(self.preview_timer)
+    self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 end
 
 function Picker:clear_list()
@@ -796,7 +796,7 @@ function Picker:close(result)
 
     self:stop_spinner()
 
-    self.preview_timer = utils.stop_and_close_timer(self.preview_timer)
+    self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end

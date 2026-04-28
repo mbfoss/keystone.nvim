@@ -1,5 +1,5 @@
 local class = require('keystone.utils.class')
-local utils = require('keystone.utils.utils')
+local common = require('keystone.utils.common')
 
 ---@class keystone.utils.Spinner
 ---@field frames string[]
@@ -38,7 +38,7 @@ function Spinner:start()
         return
     end
     self.running = true
-    self.cancel_timer = utils.start_timer(self.interval,
+    self.cancel_timer = common.start_timer(self.interval,
         vim.schedule_wrap(function()
             if not self.running then return end
             local frame = self.frames[self.frame]

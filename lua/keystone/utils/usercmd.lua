@@ -58,10 +58,10 @@ function M.register_user_cmd(cmd, run_fn, opts)
             _dispatch(cmd, run_fn, cmd_opts)
         end,
         {
-            nargs = "*",
-            complete = opts.subcommand_fn and function(arg_lead, cmd_line, _)
-                return _complete(opts.subcommand_fn, arg_lead, cmd_line) or nil
-            end,
+            nargs = opts.subcommand_fn ~= nil and "*" or nil,
+            complete = opts.subcommand_fn ~= nil and function(arg_lead, cmd_line, _)
+                return _complete(opts.subcommand_fn, arg_lead, cmd_line)
+            end or nil,
             desc = opts.desc,
         })
 end

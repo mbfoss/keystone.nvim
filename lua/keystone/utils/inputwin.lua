@@ -11,7 +11,7 @@ local M = {}
 ---@
 ---@param opts keystone.utils.inputwin.Opts
 ---@param on_confirm fun(value: string|nil)
-function M.input_at_cursor(opts, on_confirm)
+function M.open(opts, on_confirm)
     local prev_win = vim.api.nvim_get_current_win()
     local buf = vim.api.nvim_create_buf(false, true)
     local buf_opts = {

@@ -6,7 +6,7 @@ local TreeBuffer     = require("keystone.utils.TreeBuffer")
 local LRU            = require("keystone.utils.LRU")
 local floatwin       = require("keystone.utils.floatwin")
 local inputwin       = require("keystone.utils.inputwin")
-local utils          = require("keystone.utils.utils")
+local common          = require("keystone.utils.common")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
@@ -120,7 +120,7 @@ OTHER
 `g?`      Show this help]]
     }
 
-    floatwin.create(table.concat(help_text, "\n"), {
+    floatwin.open(table.concat(help_text, "\n"), {
         title = " File Tree Help ",
         is_markdown = true,
     })
@@ -233,7 +233,7 @@ function FileTree:_on_buffer_create()
         })
     end
 
-    self._cancel_viewport_timer = utils.start_timer(1000, self._viewport_monitor_fn)
+    self._cancel_viewport_timer = common.start_timer(1000, self._viewport_monitor_fn)
 
     self:_set_root(self._opts.dir or vim.fn.getcwd())
 end
