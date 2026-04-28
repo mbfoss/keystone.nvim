@@ -147,16 +147,7 @@ function TreeBuffer:_setup_tree_buf()
     local buf = self:get_buf()
     if buf == -1 then return end
 
-    vim.schedule(function()
-        self:_full_render()
-    end)
-
-    -- vim.api.nvim_create_autocmd('BufReadCmd', {
-    --    buffer = buf,
-    --    callback = function(ev)
-    --       self:_ensure_rendered()
-    --   end,
-    --})
+    self:_full_render()
 
     ---@return keystone.TreeBuffer.ItemData?
     local callbacks = {
