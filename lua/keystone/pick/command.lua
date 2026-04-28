@@ -38,9 +38,8 @@ end
 
 ---@param cmd string
 ---@param rest string[]
----@param for_cmd_menu boolean?
 ---@return string[]
-function M.get_subcommands(cmd, rest, for_cmd_menu)
+function M.get_subcommands(cmd, rest)
     if cmd == "Pick" then
         if #rest == 0 then
             local keys = vim.tbl_keys(pickers)

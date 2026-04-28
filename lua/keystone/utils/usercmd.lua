@@ -1,9 +1,14 @@
 local M = {}
 local strutils = require('keystone.utils.strutils')
 
----@param commands_module string
-local function _complete(commands_module, arg_lead, cmd_line)
-    local mod = require(commands_module)
+---@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[]):string[]
+
+---@alias keystone.usercmd.run_fn
+---| fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
+
+
+---@param subcommand_fn keystone.usercmd.subcommand_fn
+local function _complete(subcommand_fn, arg_lead, cmd_line)
     local function filter(strs)
         local out = {}
         for _, s in ipairs(strs or {}) do
@@ -21,22 +26,21 @@ local function _complete(commands_module, arg_lead, cmd_line)
 
     local cmd = args[1]
     if #args == 1 then
-        return filter(mod.get_subcommands(cmd))
+        return filter(subcommand_fn(cmd, {}))
     elseif #args >= 2 then
         local rest = { unpack(args, 2) }
         rest[#rest] = nil
-        return filter(mod.get_subcommands(cmd, rest))
+        return filter(subcommand_fn(cmd, rest))
     end
     return {}
 end
 
 ---@param cmd string
----@param commands_module string
+---@param run_fn keystone.usercmd.run_fn
 ---@param opts vim.api.keyset.create_user_command.command_args
-local function _dispatch(cmd, commands_module, opts)
-    local mod = require(commands_module)
+local function _dispatch(cmd, run_fn, opts)
     local args = strutils.split_shell_args(opts.args)
-    local ok, err = pcall(mod.run_command, cmd, args, opts)
+    local ok, err = pcall(run_fn, cmd, args, opts)
     if not ok then
         vim.notify(
             "[keystone.nvim] " .. cmd .. " command error\n" .. tostring(err),
@@ -46,17 +50,17 @@ local function _dispatch(cmd, commands_module, opts)
 end
 
 ---@param cmd string
----@param commands_module string
----@param opts {desc:string}?
-function M.register_user_cmd(cmd, commands_module, opts)
+---@param run_fn keystone.usercmd.run_fn
+---@param opts {desc:string?,subcommand_fn:keystone.usercmd.subcommand_fn?}?
+function M.register_user_cmd(cmd, run_fn, opts)
     opts = opts or {}
     vim.api.nvim_create_user_command(cmd, function(cmd_opts)
-            _dispatch(cmd, commands_module, cmd_opts)
+            _dispatch(cmd, run_fn, cmd_opts)
         end,
         {
             nargs = "*",
-            complete = function(arg_lead, cmd_line, _)
-                return _complete(commands_module, arg_lead, cmd_line)
+            complete = opts.subcommand_fn and function(arg_lead, cmd_line, _)
+                return _complete(opts.subcommand_fn, arg_lead, cmd_line) or nil
             end,
             desc = opts.desc,
         })

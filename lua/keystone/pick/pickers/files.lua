@@ -152,7 +152,7 @@ end
 ---@param opts keystone.filepicker.Opts?
 function M.open(opts)
     opts = opts or {}
-    return picker.select({
+    return picker.open({
         prompt = opts.prompt or "Files",
         file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),

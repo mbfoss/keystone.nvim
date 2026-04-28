@@ -9,7 +9,7 @@ local fsutils = require("keystone.utils.fsutils")
 function M.open()
     local cwd = vim.fn.getcwd()
 
-    picker.select({
+    picker.open({
         prompt = "Git Diff (Preview Changes)",
         file_preview = false, -- We handle the diff preview manually below
         async_fetch = function(query, fetch_opts, callback)

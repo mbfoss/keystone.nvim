@@ -75,7 +75,7 @@ function M.open(opts)
         return
     end
 
-    picker.select({
+    picker.open({
         prompt = "Quickfix Items",
         file_preview = true,
         fetch = function(query, fetch_opts)

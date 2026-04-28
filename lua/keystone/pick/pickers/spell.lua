@@ -18,7 +18,7 @@ function M.open(opts)
         return
     end
 
-    picker.select({
+    picker.open({
         prompt = "Spell Checker: " .. cursor_word,
         file_preview = false,
         fetch = function(query, fetch_opts)

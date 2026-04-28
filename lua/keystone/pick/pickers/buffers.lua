@@ -38,7 +38,7 @@ end
 function M.open()
     local buffers = vim.api.nvim_list_bufs()
 
-    picker.select({
+    picker.open({
         prompt = "Open Buffers",
         file_preview = true,
         fetch = function(query, fetch_opts)

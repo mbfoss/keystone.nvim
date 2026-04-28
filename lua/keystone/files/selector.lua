@@ -2,9 +2,6 @@ local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
 local utils      = require("keystone.utils.utils")
 
----@mod keystone.picker
----@brief Floating async picker with fuzzy filtering and optional preview.
-
 local M          = {}
 
 local NS_CURSOR  = vim.api.nvim_create_namespace("LoopPlugin_PickerCursor")
@@ -12,46 +9,46 @@ local NS_VIRT    = vim.api.nvim_create_namespace("LoopPlugin_PickerVirtText")
 local NS_SPINNER = vim.api.nvim_create_namespace("LoopPlugin_PickerSpinner")
 local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 
----@class keystone.Picker.Item
+---@class keystone.files.Item
 ---@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
 ---@field data any
 
----@alias keystone.Picker.Callback fun(data:any|nil)
+---@alias keystone.files.Callback fun(data:any|nil)
 
----@class keystone.Picker.FetcherOpts
+---@class keystone.files.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
----@class keystone.Picker.AsyncPreviewOpts
+---@class keystone.files.AsyncPreviewOpts
 ---@field preview_width number
 ---@field preview_height number
 ---@field antiflicker_delay number
 
----@class keystone.Picker.QueryHistoryProvider
+---@class keystone.files.QueryHistoryProvider
 ---@field load fun():string[]
 ---@field store fun(hist:string[])?
 
----@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
+---@alias keystone.files.Fetcher fun(query:string,opts:keystone.files.FetcherOpts):keystone.files.Item[]?,number?
+---@alias keystone.files.AsyncFetcher fun(query:string,opts:keystone.files.FetcherOpts,callback:fun(new_items:keystone.files.Item[]?)):fun()?
 
----@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Picker.AsyncPreviewLoader fun(data:any,opts:keystone.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
+---@alias keystone.files.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
+---@alias keystone.files.AsyncPreviewLoader fun(data:any,opts:keystone.files.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.files.AsyncPreviewInfo?)):fun()?
 
----@class keystone.Picker.opts
+---@class keystone.files.opts
 ---@field prompt string
----@field fetch keystone.Picker.Fetcher?
----@field async_fetch keystone.Picker.AsyncFetcher?
----@field async_preview keystone.Picker.AsyncPreviewLoader?
----@field history_provider keystone.Picker.QueryHistoryProvider?
+---@field fetch keystone.files.Fetcher?
+---@field async_fetch keystone.files.AsyncFetcher?
+---@field async_preview keystone.files.AsyncPreviewLoader?
+---@field history_provider keystone.files.QueryHistoryProvider?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
 ---@field list_wrap boolean?
 
----@class keystone.Picker.Layout
+---@class keystone.files.Layout
 ---@field prompt_row number
 ---@field prompt_col number
 ---@field prompt_width number
@@ -74,7 +71,7 @@ local function _clamp(v, min, max)
 end
 
 ---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
----@return keystone.Picker.Layout
+---@return keystone.files.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
@@ -162,12 +159,12 @@ local function _find_insert_index(items, new_score)
     return low
 end
 
----@class keystone.utils.Picker
----@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
----@field opts keystone.Picker.opts
----@field callback keystone.Picker.Callback
+---@class keystone.utils.Files
+---@field new fun(self: keystone.utils.Files,opts:keystone.files.opts,callback:keystone.files.Callback) : keystone.utils.Files
+---@field opts keystone.files.opts
+---@field callback keystone.files.Callback
 ---@field has_preview boolean
----@field layout keystone.Picker.Layout
+---@field layout keystone.files.Layout
 ---@field pbuf integer
 ---@field lbuf integer
 ---@field vbuf integer|nil
@@ -186,11 +183,11 @@ end
 ---@field current_query string?
 ---@field history string[]
 ---@field history_idx number
-local Picker = class()
+local Files = class()
 
----@param opts keystone.Picker.opts
----@param callback keystone.Picker.Callback
-function Picker:init(opts, callback)
+---@param opts keystone.files.opts
+---@param callback keystone.files.Callback
+function Files:init(opts, callback)
     self.opts = opts
     self.callback = callback
 
@@ -224,7 +221,7 @@ function Picker:init(opts, callback)
 end
 
 ---@return nil
-function Picker:setup_ui()
+function Files:setup_ui()
     local opts = self.opts
 
     self.layout = _compute_layout {
@@ -352,7 +349,7 @@ function Picker:setup_ui()
     end, { buffer = self.pbuf, desc = "Page original <cword>" })
 end
 
-function Picker:on_resize()
+function Files:on_resize()
     if self.closed then return end
 
     self.layout = _compute_layout {
@@ -397,7 +394,7 @@ function Picker:on_resize()
 end
 
 ---@return nil
-function Picker:render_ui()
+function Files:render_ui()
     if not vim.api.nvim_buf_is_valid(self.lbuf) then
         return
     end
@@ -433,14 +430,14 @@ function Picker:render_ui()
 end
 
 ---@return integer
-function Picker:get_cursor()
+function Files:get_cursor()
     return vim.api.nvim_win_get_cursor(self.lwin)[1]
 end
 
 ---@param row integer
 ---@param force boolean?
 ---@param clamp boolean?
-function Picker:move_cursor(row, force, clamp)
+function Files:move_cursor(row, force, clamp)
     if not force then
         if row == self:get_cursor() then return end
     end
@@ -462,7 +459,7 @@ function Picker:move_cursor(row, force, clamp)
 end
 
 ---@return nil
-function Picker:update_preview()
+function Files:update_preview()
     self.async_preview_context = self.async_preview_context + 1
     local preview_context = self.async_preview_context
     local fetch_context = self.async_fetch_context
@@ -539,7 +536,7 @@ function Picker:update_preview()
     assert(type(self.async_preview_cancel) == "function")
 end
 
-function Picker:start_spinner()
+function Files:start_spinner()
     if self.spinner then return end
 
     self.spinner = Spinner:new {
@@ -559,7 +556,7 @@ function Picker:start_spinner()
     self.spinner:start()
 end
 
-function Picker:stop_spinner()
+function Files:stop_spinner()
     if self.spinner then
         self.spinner:stop()
         self.spinner = nil
@@ -570,9 +567,9 @@ function Picker:stop_spinner()
     end
 end
 
-function Picker:request_clear_preview()
+function Files:request_clear_preview()
     if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-        self.preview_timer = vim.defer_fn(function()
+            self.preview_timer = vim.defer_fn(function()
             self.preview_timer = nil
             if self.closed then return end
             vim.bo[self.vbuf].modifiable = true
@@ -583,11 +580,11 @@ function Picker:request_clear_preview()
     end
 end
 
-function Picker:cancel_clear_preview_req()
+function Files:cancel_clear_preview_req()
     self.preview_timer = utils.stop_and_close_timer(self.preview_timer)
 end
 
-function Picker:clear_list()
+function Files:clear_list()
     self.items_data = {}
 
     vim.bo[self.lbuf].modifiable = true
@@ -600,7 +597,7 @@ function Picker:clear_list()
     self:render_ui()
 end
 
-function Picker:add_new_lines(items, query)
+function Files:add_new_lines(items, query)
     local prefix = "  "
     local is_fresh = #self.items_data == 0 and
         vim.api.nvim_buf_line_count(self.lbuf) == 1 and
@@ -662,7 +659,7 @@ function Picker:add_new_lines(items, query)
 end
 
 ---@param query string
-function Picker:run_fetch(query)
+function Files:run_fetch(query)
     local is_new_query = (query ~= self.current_query)
     self.current_query = query
 
@@ -730,7 +727,7 @@ function Picker:run_fetch(query)
     end
 end
 
-function Picker:history_prev()
+function Files:history_prev()
     if not self.opts.history_provider or #self.history == 0 then return end
 
     local new_idx = math.max(1, self.history_idx - 1)
@@ -740,7 +737,7 @@ function Picker:history_prev()
     end
 end
 
-function Picker:history_next()
+function Files:history_next()
     if not self.opts.history_provider then return end
 
     local new_idx = self.history_idx + 1
@@ -753,12 +750,12 @@ function Picker:history_next()
     end
 end
 
-function Picker:set_prompt_text(text)
+function Files:set_prompt_text(text)
     vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
     vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
 end
 
-function Picker:send_to_qf()
+function Files:send_to_qf()
     if #self.items_data == 0 then return end
     local qf_entries = {}
     for _, item in ipairs(self.items_data) do
@@ -790,7 +787,7 @@ function Picker:send_to_qf()
 end
 
 ---@param result any|nil
-function Picker:close(result)
+function Files:close(result)
     if self.closed then return end
     self.closed = true
 
@@ -828,7 +825,7 @@ function Picker:close(result)
     end
 end
 
-function Picker:setup_input()
+function Files:setup_input()
     local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
 
     vim.keymap.set("i", "<CR>", function()
@@ -888,10 +885,10 @@ function Picker:setup_input()
     })
 end
 
-function Picker:open()
+function Files:open()
     assert(not self._open_called)
     self._open_called = true
-
+    
     self:setup_input()
     self:run_fetch("")
 
@@ -902,12 +899,12 @@ function Picker:open()
     end)
 end
 
----@param opts keystone.Picker.opts
----@param callback keystone.Picker.Callback
+---@param opts keystone.files.opts
+---@param callback keystone.files.Callback
 function M.open(opts, callback)
     assert(opts.fetch or opts.async_fetch)
 
-    local picker = Picker:new(opts, callback)
+    local picker = Files:new(opts, callback)
     picker:open()
 end
 

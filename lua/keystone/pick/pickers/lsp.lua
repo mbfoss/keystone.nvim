@@ -91,7 +91,7 @@ function M.references()
             return
         end
 
-        picker.select({
+        picker.open({
             prompt = "LSP References",
             file_preview = true,
             fetch = function(query, fetch_opts)
@@ -163,7 +163,7 @@ function M.document_symbols(kinds)
             return
         end
 
-        picker.select({
+        picker.open({
             prompt = "Document Symbols",
             fetch = function(query, fetch_opts)
                 local filtered = {}

@@ -39,7 +39,7 @@ function M.select(items, opts, on_choice)
     local list_width, list_height = _compute_dimentions(cached)
     local height_ratio = (list_height + 3) / vim.o.lines
 
-    picker.select({
+    picker.open({
         prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select item",
         file_preview = false,
         list_width   = list_width,

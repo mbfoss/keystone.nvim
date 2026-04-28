@@ -153,7 +153,7 @@ function M.open(opts)
     opts = opts or {}
     local cwd = opts.cwd or vim.fn.getcwd()
 
-    return picker.select({
+    return picker.open({
         prompt = "Live Grep",
         file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),

@@ -80,7 +80,7 @@ function M.open(opts)
         vim.list_extend(git_args, { "--", rel_path })
     end
 
-    picker.select({
+    picker.open({
         prompt = "Git Hunks",
         file_preview = false,
 

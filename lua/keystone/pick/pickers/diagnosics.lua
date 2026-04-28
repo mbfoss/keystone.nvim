@@ -45,7 +45,7 @@ function M.open(opts)
         })
     end
 
-    picker.select({
+    picker.open({
         prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
         file_preview = true,
         fetch = function(query, fetch_opts)

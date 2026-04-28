@@ -44,7 +44,7 @@ function M.open()
         end
     end
 
-    picker.select({
+    picker.open({
         prompt = "Recent Files",
         file_preview = true,
         fetch = function(query, fetch_opts)
