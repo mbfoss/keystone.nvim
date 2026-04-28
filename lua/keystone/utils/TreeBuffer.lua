@@ -38,23 +38,12 @@ local Tree = require("keystone.utils.Tree")
 ---@field expand_char string?
 ---@field collapse_char string?
 ---@field indent_string string?
----@field header_enabled boolean?
----@field header {[1]:string,[2]:string,[3]:boolean?}[]?
 
 ---@class keystone.TreeBuffer.Tracker : keystone.Tracker
 ---@field on_selection? fun(id:any,data:any)
 ---@field on_toggle? fun(id:any,data:any,expanded:boolean)
 
 local _ns_id = vim.api.nvim_create_namespace('LoopPluginTreeBuffer')
-
-local _header_hl_group = "LoopPluginTreeBufferHeader"
-vim.api.nvim_set_hl(0, _header_hl_group, {
-    bg = (function()
-        local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = "WinBar", link = false })
-        if not ok then return nil end
-        return hl.bg
-    end)()
-})
 
 ---@class keystone.TreeBuffer:keystone.ScratchBuffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBufferOpts): keystone.TreeBuffer
@@ -126,9 +115,6 @@ function TreeBuffer:init(opts)
     })
     ---@type keystone.TreeBuffer.FormatterFn
     self._formatter = opts.formatter
-    self._header_enabled = opts.header_enabled == true or opts.header ~= nil
-    self._header = self._header_enabled and (opts.header or {}) or nil
-
     self._expand_char = opts.expand_char or "▶"
     self._collapse_char = opts.collapse_char or "▼"
     self._indent_string = opts.indent_string or "  "
@@ -279,20 +265,13 @@ end
 function TreeBuffer:_full_render()
     local buf = self:get_buf()
     if buf <= 0 then return end
+    if not vim.api.nvim_buf_is_loaded(buf) then return end
 
     local buffer_lines = {}
     local extmarks_data = {}
     local hl_calls = {}
     self._flat_ids = {}
     self._id_to_idx = {}
-    local t_insert = table.insert
-    if self._header_enabled then
-        local line, hls, exts = self:_render_header()
-        table.insert(buffer_lines, line)
-        table.insert(self._flat_ids, {})
-        for _, h in ipairs(hls) do table.insert(hl_calls, h) end
-        for _, e in ipairs(exts) do table.insert(extmarks_data, e) end
-    end
 
     local flat = _flatten(self._tree, nil)
 
@@ -316,44 +295,13 @@ function TreeBuffer:_full_render()
 end
 
 ---@private
----@return string line, table hl_calls, table extmark_data
-function TreeBuffer:_render_header()
-    local hl_calls = {}
-    local extmarks_data = {}
-    local left_text = ""
-    local row = 0
-    table.insert(extmarks_data, { row, 0, { line_hl_group = _header_hl_group } })
-
-    if self._header then
-        for _, part in ipairs(self._header) do
-            local text, hl, right_align = part[1], part[2], part[3]
-            text = text:gsub("\n", "↵")
-            if not right_align then
-                local start_col = #left_text
-                left_text = left_text .. text
-                if hl then
-                    table.insert(hl_calls, { hl = hl, row = row, s_col = start_col, e_col = #left_text })
-                end
-            else
-                table.insert(extmarks_data, { row, 0, {
-                    virt_text = { { text, hl } },
-                    virt_text_pos = "right_align",
-                    hl_mode = "combine",
-                } })
-            end
-        end
-    end
-
-    return left_text, hl_calls, extmarks_data
-end
-
----@private
 ---@param start_idx number
 ---@param old_size number
 ---@param new_flat keystone.utils.Tree.FlatNode[]
 function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     local buf = self:get_buf()
     if buf <= 0 then return end
+    if not vim.api.nvim_buf_is_loaded(buf) then return end
 
     local new_lines, new_ids = {}, {}
     local range_hls, range_exts = {}, {}
@@ -475,26 +423,6 @@ function TreeBuffer:get_visible_items(winid)
     end
 
     return visible_items
-end
-
----@param header {[1]:string,[2]:string,[3]:boolean?}[]?
-function TreeBuffer:set_header(header)
-    if not self._header_enabled then
-        return
-    end
-
-    self._header = header or {}
-    local buf = self:get_buf()
-
-    if buf > 0 then
-        local line, hls, exts = self:_render_header()
-
-        vim.bo[buf].modifiable = true
-        vim.api.nvim_buf_clear_namespace(buf, _ns_id, 0, 1)
-        vim.api.nvim_buf_set_lines(buf, 0, 1, false, { line })
-        self:_apply_metadata(buf, hls, exts)
-        vim.bo[buf].modifiable = false
-    end
 end
 
 function TreeBuffer:clear_items()
@@ -624,12 +552,10 @@ function TreeBuffer:set_children(parent_id, children)
     local buf = self:get_buf()
     if buf > 0 then
         if parent_id == nil then
-            local header_offset = self._header_enabled and 1 or 0
             local new_flat = _flatten(self._tree, nil)
-            local current_tree_size = #self._flat_ids - header_offset
+            local current_tree_size = #self._flat_ids
             if current_tree_size < 0 then current_tree_size = 0 end
-
-            self:_render_range(header_offset + 1, current_tree_size, new_flat)
+            self:_render_range(1, current_tree_size, new_flat)
         else
             local parent_data = self._tree:get_data(parent_id)
             assert(parent_data)
