@@ -15,7 +15,7 @@ local function _get_default_config()
 end
 
 ---@type keystone.animate.Config
-local config = _get_default_config()
+M.config = _get_default_config()
 
 local function _keycode(str)
     return vim.api.nvim_replace_termcodes(str, true, false, true)
@@ -23,7 +23,7 @@ end
 
 local function _filter(buf)
     if vim.b[buf].keystone_scroll ~= false and vim.bo[buf].buftype ~= "terminal" then
-        if config.filter then return config.filter(buf) else return true end
+        if M.config.filter then return M.config.filter(buf) else return true end
     end
     return false
 end
@@ -422,9 +422,9 @@ end
 
 ---@param opts keystone.lspwords.Config?
 function M.setup(opts)
-    config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    if config.enabled then
+    if M.config.enabled then
         M.enable()
     else
         M.disable()

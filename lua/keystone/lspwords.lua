@@ -13,7 +13,7 @@ local function _get_default_config()
 end
 
 ---@type keystone.lspwords.Config
-local config = _get_default_config()
+M.config = _get_default_config()
 
 local enabled = false
 
@@ -48,9 +48,9 @@ end
 
 ---@param opts keystone.lspwords.Config?
 function M.setup(opts)
-  config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-  if config.enabled then
+  if M.config.enabled then
     M.enable()
   else
     M.disable()
