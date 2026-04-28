@@ -43,7 +43,7 @@ local Tree = require("keystone.utils.Tree")
 ---@field on_selection? fun(id:any,data:any)
 ---@field on_toggle? fun(id:any,data:any,expanded:boolean)
 
-local _ns_id = vim.api.nvim_create_namespace('LoopPluginTreeBuffer')
+local _ns_id = vim.api.nvim_create_namespace('keystoneTreeBuffer')
 
 ---@class keystone.TreeBuffer:keystone.ScratchBuffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBuffer.Opts): keystone.TreeBuffer

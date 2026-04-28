@@ -15,9 +15,71 @@ local fsutils = require("keystone.utils.fsutils")
 ---@field max_results number?
 
 ---@param query string
----@param opts keystone.livegrep.opts
+---@return table[]
+local function get_query_highlights(query)
+    local highlights = {}
+    local start_search = 1
+
+    while true do
+        local s, e, prefix = query:find("%f[%w](%a+):%S*", start_search)
+        if not s then break end
+        if prefix == "path" or prefix == "in" then
+            local colon_pos = s + #prefix
+            table.insert(highlights, {
+                start = s - 1,
+                finish = colon_pos - 1,
+                hl = "Keyword",
+            })
+            if e >= colon_pos then
+                table.insert(highlights, {
+                    start = colon_pos,
+                    finish = e,
+                    hl = "String",
+                })
+            end
+        end
+        start_search = e + 1
+    end
+    return highlights
+end
+
+---@param query string
 ---@return string, string[]
+local function parse_query_and_globs(query)
+    local include_globs = {}
+    local patterns = { "path:", "in:" }
+
+    for _, pat in ipairs(patterns) do
+        for glob in query:gmatch("%f[%w]" .. pat .. "(%S+)") do
+            if not glob:match("[%*%./\\]") then
+                glob = "*" .. glob .. "*"
+            end
+            table.insert(include_globs, glob)
+        end
+    end
+
+    local cleaned = query
+    for _, pat in ipairs(patterns) do
+        cleaned = cleaned:gsub("%f[%w]" .. pat .. "%S*", "")
+    end
+
+    cleaned = cleaned:gsub("\\(.)", "%1")
+    cleaned = vim.trim(cleaned:gsub("%s+", " "))
+    return cleaned, include_globs
+end
+
+---@param query string
+---@param opts keystone.livegrep.opts
+---@return string, string[], string cleaned_query
 local function get_grep_cmd(query, opts)
+    local cleaned_query, inline_globs = parse_query_and_globs(query)
+
+    -- merge inline + opts globs
+    local include_globs = vim.list_extend(
+        vim.deepcopy(opts.include_globs or {}),
+        inline_globs
+    )
+
     local args = {
         "--column",
         "--line-number",
@@ -25,8 +87,16 @@ local function get_grep_cmd(query, opts)
         "--color", "never",
         "--smart-case",
         "--fixed-strings",
+        "--glob-case-insensitive",
     }
 
+    -- include globs
+    for _, glob in ipairs(include_globs) do
+        table.insert(args, "-g")
+        table.insert(args, glob)
+    end
+
+    -- exclude globs
     if opts.exclude_globs then
         for _, glob in ipairs(opts.exclude_globs) do
             table.insert(args, "-g")
@@ -35,9 +105,10 @@ local function get_grep_cmd(query, opts)
     end
 
     table.insert(args, "--")
-    table.insert(args, query)
+    table.insert(args, cleaned_query)
     table.insert(args, ".")
-    return "rg", args
+
+    return "rg", args, cleaned_query
 end
 
 ---@param query string
@@ -46,12 +117,17 @@ end
 ---@param callback fun(items:table[]?)
 ---@return fun() cancel
 local function async_grep_search(query, grep_opts, fetch_opts, callback)
-    local cmd, args = get_grep_cmd(query, grep_opts)
+    local cmd, args, cleaned_query = get_grep_cmd(query, grep_opts)
+    if cleaned_query == "" then
+        callback()
+        return function() end
+    end
+
     local count = 0
     local process
     local max_results = grep_opts.max_results or 10000
     local read_stop = false
-    local lower_query = query:lower()
+    local lower_query = cleaned_query:lower()
 
     local buffered_feed = strutils.create_line_buffered_feed(function(lines)
         local items = {}
@@ -155,6 +231,7 @@ function M.open(opts)
 
     return picker.open({
         prompt = "Live Grep",
+        highlight_query = get_query_highlights,
         file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
@@ -169,12 +246,12 @@ function M.open(opts)
                 max_results = opts.max_results or 10000,
             }, fetch_opts, callback)
         end,
-            async_preview = function(data, _, callback)
-                return pickertools.default_file_preview(data.filepath, {
-                    lnum = data.lnum,
-                    col = data.col
-                }, callback)
-            end,
+        async_preview = function(data, _, callback)
+            return pickertools.default_file_preview(data.filepath, {
+                lnum = data.lnum,
+                col = data.col
+            }, callback)
+        end,
     }, function(selected)
         if selected then
             uitools.smart_open_file(selected.filepath, selected.lnum, selected.col - 1)

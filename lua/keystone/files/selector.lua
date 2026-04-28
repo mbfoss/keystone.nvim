@@ -4,10 +4,10 @@ local common     = require("keystone.utils.common")
 
 local M          = {}
 
-local NS_CURSOR  = vim.api.nvim_create_namespace("LoopPlugin_PickerCursor")
-local NS_VIRT    = vim.api.nvim_create_namespace("LoopPlugin_PickerVirtText")
-local NS_SPINNER = vim.api.nvim_create_namespace("LoopPlugin_PickerSpinner")
-local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
+local NS_CURSOR  = vim.api.nvim_create_namespace("keystone_PickerCursor")
+local NS_VIRT    = vim.api.nvim_create_namespace("keystone_PickerVirtText")
+local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 ---@class keystone.files.Item
 ---@field label string?

@@ -858,7 +858,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
     local type_label = as_dir and "directory" or "file"
 
     local reload_counter = self._reload_counter
-    inputwin.input_at_cursor({
+    inputwin.open({
             prompt = "New " .. type_label .. " name",
             validate = function(name)
                 local root = self._root
@@ -909,7 +909,7 @@ function FileTree:_rename_node(item)
     local parent_dir = vim.fn.fnamemodify(old_path, ":h")
 
     local reload_counter = self._reload_counter
-    inputwin.input_at_cursor({
+    inputwin.open({
             prompt = ("Rename `%s`"):format(old_name),
             default_text = old_name,
             validate = function(name)

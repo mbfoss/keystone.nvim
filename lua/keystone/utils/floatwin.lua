@@ -30,7 +30,7 @@ function _open_hoverwindow(text)
     vim.bo[bufnr].modifiable = false
     vim.bo[bufnr].buftype    = "nofile"
     vim.wo[winnr].wrap       = true
-    local aug                = vim.api.nvim_create_augroup("LoopPlugin_ToolHoverClose", { clear = true })
+    local aug                = vim.api.nvim_create_augroup("keystone_ToolHoverClose", { clear = true })
     vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
         group    = aug,
         once     = true,

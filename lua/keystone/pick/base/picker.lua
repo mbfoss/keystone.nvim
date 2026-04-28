@@ -1,16 +1,16 @@
 local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
-local common      = require("keystone.utils.common")
+local common     = require("keystone.utils.common")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
 local M          = {}
 
-local NS_CURSOR  = vim.api.nvim_create_namespace("LoopPlugin_PickerCursor")
-local NS_VIRT    = vim.api.nvim_create_namespace("LoopPlugin_PickerVirtText")
-local NS_SPINNER = vim.api.nvim_create_namespace("LoopPlugin_PickerSpinner")
-local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
+local NS_CURSOR  = vim.api.nvim_create_namespace("keystone_PickerCursor")
+local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
+local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 ---@class keystone.Picker.Item
 ---@field label string?
@@ -36,12 +36,14 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("LoopPlugin_PickerPreview")
 
 ---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
 ---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
+---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
 ---@alias keystone.Picker.AsyncPreviewLoader fun(data:any,opts:keystone.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
 
 ---@class keystone.Picker.opts
 ---@field prompt string
+---@field highlight_query keystone.Picker.QueryHighlighter?
 ---@field fetch keystone.Picker.Fetcher?
 ---@field async_fetch keystone.Picker.AsyncFetcher?
 ---@field async_preview keystone.Picker.AsyncPreviewLoader?
@@ -396,7 +398,22 @@ function Picker:on_resize()
     end
 end
 
----@return nil
+function Picker:render_prompt_highlight(query)
+    if not self.opts.highlight_query then return end
+    if not vim.api.nvim_buf_is_valid(self.pbuf) then return end
+
+    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
+
+    local hls = self.opts.highlight_query(query) or {}
+
+    for _, h in ipairs(hls) do
+        vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
+            end_col = h.finish,
+            hl_group = h.hl,
+        })
+    end
+end
+
 function Picker:render_ui()
     if not vim.api.nvim_buf_is_valid(self.lbuf) then
         return
@@ -594,7 +611,7 @@ function Picker:clear_list()
     vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
     vim.bo[self.lbuf].modifiable = false
 
-    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_VIRT, 0, -1)
+    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
     self:request_clear_preview()
     vim.wo[self.lwin].cursorline = false
     self:render_ui()
@@ -634,7 +651,7 @@ function Picker:add_new_lines(items, query)
                 local text, hl = chunk[1], chunk[2]
                 if text and #text > 0 then
                     if hl then
-                        vim.api.nvim_buf_set_extmark(self.lbuf, NS_VIRT, row, col, {
+                        vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, col, {
                             end_col = col + #text,
                             hl_group = hl,
                         })
@@ -651,7 +668,7 @@ function Picker:add_new_lines(items, query)
                 table.insert(vlines, vl)
             end
             table.insert(vlines, { { self.list_sep_line, "Nontext" } })
-            vim.api.nvim_buf_set_extmark(self.lbuf, NS_VIRT, row, 0, {
+            vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, 0, {
                 virt_lines = vlines,
                 hl_mode = "blend"
             })
@@ -883,6 +900,7 @@ function Picker:setup_input()
         buffer = self.pbuf,
         callback = function()
             local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+            self:render_prompt_highlight(query)
             self:run_fetch(query)
         end
     })
