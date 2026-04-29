@@ -168,7 +168,7 @@ function M.open(opts)
                 exclude_globs = opts.exclude_globs,
                 max_results = opts.max_results or 10000,
             }
-            if ksconfig.use_fd_find then
+            if ksconfig.use_fd_find ~= false then
                 return async_fd_search(query, search_opts, fetch_opts, callback)
             else
                 return async_lua_search(query, search_opts, fetch_opts, callback)
