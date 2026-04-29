@@ -52,9 +52,6 @@ local function parse_query_and_globs(query)
     -- extract values
     for _, pat in ipairs(patterns) do
         for glob in cleaned:gmatch("%f[%w]" .. pat .. "(%S+)") do
-            if not glob:match("[%*%./\\]") then
-                glob = "*" .. glob .. "*"
-            end
             table.insert(include_globs, glob)
         end
     end
