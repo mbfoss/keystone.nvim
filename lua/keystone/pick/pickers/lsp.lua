@@ -125,8 +125,9 @@ function M.references()
     end)
 end
 
----@param kinds string[]?
-function M.document_symbols(kinds)
+---@param opts {kinds:string[]?,prompt:string?}?
+function M.document_symbols(opts)
+    opts = opts or {}
     local params = { textDocument = vim.lsp.util.make_text_document_params() }
     local filepath = vim.api.nvim_buf_get_name(0)
 
@@ -134,9 +135,9 @@ function M.document_symbols(kinds)
         if err or not result then return end
 
         local kind_filter
-        if kinds then
+        if opts.kinds then
             kind_filter = {}
-            for _, k in ipairs(kinds) do kind_filter[k] = true end
+            for _, k in ipairs(opts.kinds) do kind_filter[k] = true end
         end
 
         local items = {}
@@ -164,7 +165,7 @@ function M.document_symbols(kinds)
         end
 
         picker.open({
-            prompt = "Document Symbols",
+            prompt = opts.prompt or "Document Symbols",
             fetch = function(query, fetch_opts)
                 local filtered = {}
                 for _, item in ipairs(items) do
@@ -198,7 +199,7 @@ function M.document_symbols(kinds)
 end
 
 function M.document_functions()
-    M.document_symbols({ "Function", "Constructor", "Method" })
+    M.document_symbols({ kinds = { "Function", "Constructor", "Method" }, prompt = "Document Functions" })
 end
 
 return M
