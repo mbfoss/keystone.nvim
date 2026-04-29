@@ -78,6 +78,7 @@ function M.open(opts)
     picker.open({
         prompt = "Quickfix Items",
         file_preview = true,
+        enable_list_sep = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, qf in ipairs(qflist) do

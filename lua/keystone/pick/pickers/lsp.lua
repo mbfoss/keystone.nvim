@@ -94,6 +94,7 @@ function M.references()
         picker.open({
             prompt = "LSP References",
             file_preview = true,
+            enable_list_sep = true,
             fetch = function(query, fetch_opts)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
@@ -166,6 +167,7 @@ function M.document_symbols(opts)
 
         picker.open({
             prompt = opts.prompt or "Document Symbols",
+            enable_list_sep = true,
             fetch = function(query, fetch_opts)
                 local filtered = {}
                 for _, item in ipairs(items) do

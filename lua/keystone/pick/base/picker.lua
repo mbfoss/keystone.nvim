@@ -52,6 +52,7 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 ---@field width_ratio number?
 ---@field list_width number?
 ---@field list_wrap boolean?
+---@field enable_list_sep boolean?
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -193,6 +194,9 @@ local Picker = class()
 ---@param opts keystone.Picker.opts
 ---@param callback keystone.Picker.Callback
 function Picker:init(opts, callback)
+    vim.validate("opts", opts, "table")
+    vim.validate("callback", callback, "function")
+
     self.opts = opts
     self.callback = callback
 
@@ -238,7 +242,9 @@ function Picker:setup_ui()
 
     local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
 
-    self.list_sep_line = string.rep("─", self.layout.list_width)
+    if self.opts.enable_list_sep then
+        self.list_sep_line = string.rep("─", self.layout.list_width)
+    end
 
     self.pbuf = vim.api.nvim_create_buf(false, true)
     self.lbuf = vim.api.nvim_create_buf(false, true)
@@ -364,7 +370,9 @@ function Picker:on_resize()
         list_width = self.opts.list_width
     }
 
-    self.list_sep_line = string.rep("─", self.layout.list_width)
+    if self.opts.enable_list_sep then
+        self.list_sep_line = string.rep("─", self.layout.list_width)
+    end
 
     local base = {
         relative = "editor",
@@ -534,11 +542,11 @@ function Picker:update_preview()
                         local lnum = _clamp(info.lnum, 1, #lines)
                         vim.api.nvim_win_set_cursor(self.vwin, { lnum, 0 })
                         vim.api.nvim_win_call(self.vwin, function()
-                            vim.cmd("normal! zz") -- center the target line
+                            vim.cmd("normal! zz")
                         end)
                         vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
                         vim.api.nvim_buf_set_extmark(self.vbuf, NS_PREVIEW, lnum - 1, 0, {
-                            end_row = lnum, -- makes it "multiline" → enables hl_eol
+                            end_row = lnum,
                             hl_group = "Visual",
                             hl_eol = true,
                             hl_mode = "blend",
@@ -660,14 +668,18 @@ function Picker:add_new_lines(items, query)
                 end
             end
         end
+        local vlines = {}
         if item.virt_lines and #item.virt_lines > 0 then
-            local vlines = {}
             for _, line in ipairs(item.virt_lines) do
                 local vl = { { prefix } }
                 vim.list_extend(vl, line)
                 table.insert(vlines, vl)
             end
+        end
+        if self.opts.enable_list_sep then
             table.insert(vlines, { { self.list_sep_line, "Nontext" } })
+        end
+        if #vlines > 0 then
             vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, 0, {
                 virt_lines = vlines,
                 hl_mode = "blend"

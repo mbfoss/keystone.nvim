@@ -41,6 +41,7 @@ function M.open()
     picker.open({
         prompt = "Open Buffers",
         file_preview = true,
+        enable_list_sep = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, bufnr in ipairs(buffers) do
