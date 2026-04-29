@@ -42,9 +42,12 @@ end
 ---@param opts { list_width: number, is_path: boolean }
 ---@return {score:number,chunks:string[][]}?
 function M.make_picker_item(match_target, query, opts)
-    local is_match, score, positions = strutils.fuzzy_match(match_target, query, {
-        short_bias = not opts.is_path,
-    })
+    local is_match, score, positions
+    if opts.is_path then
+        is_match, score, positions = strutils.fuzzy_match_path(match_target, query)
+    else
+        is_match, score, positions = strutils.fuzzy_match(match_target, query)
+    end    
     if not is_match and query ~= "" then return nil end
 
     local crop_offset = 0

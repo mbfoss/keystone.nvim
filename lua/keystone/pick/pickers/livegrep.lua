@@ -118,7 +118,7 @@ end
 ---@return fun() cancel
 local function async_grep_search(query, grep_opts, fetch_opts, callback)
     local cmd, args, cleaned_query = get_grep_cmd(query, grep_opts)
-    if #cleaned_query == "" then
+    if cleaned_query == "" then
         callback()
         return function() end
     end

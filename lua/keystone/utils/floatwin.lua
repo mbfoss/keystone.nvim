@@ -15,7 +15,7 @@ local _current_win = nil
 
 
 ---@param text string
-function _open_hoverwindow(text)
+local function _open_hoverwindow(text)
     local lines              = vim.split(text, "\n", { plain = true, trimempty = true })
     local bufnr, winnr       = vim.lsp.util.open_floating_preview(
         lines,
@@ -80,15 +80,10 @@ function M.open(text, opts)
         win_opts.title = " " .. tostring(opts.title) .. " "
     end
 
-    if opts.at_cursor then
-        win_opts.relative = "cursor"
-        win_opts.row = 1 -- One line below cursor
-        win_opts.col = 0
-    else
-        win_opts.relative = "editor"
-        win_opts.row = math.floor((ui_height - win_height) / 2)
-        win_opts.col = math.floor((ui_width - win_width) / 2)
-    end
+    win_opts.relative = "editor"
+    win_opts.row = math.floor((ui_height - win_height) / 2)
+    win_opts.col = math.floor((ui_width - win_width) / 2)
+
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 
