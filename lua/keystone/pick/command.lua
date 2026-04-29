@@ -12,6 +12,7 @@ local pickers = {
         })
     end,
     quickfix              = function() require("keystone.pick.pickers.quickfix").open() end,
+    jumplist              = function() require("keystone.pick.pickers.jumplist").open() end,
     lsp_references        = function() require("keystone.pick.pickers.lsp").references() end,
     document_symbols      = function() require("keystone.pick.pickers.lsp").document_symbols() end,
     document_functions    = function() require("keystone.pick.pickers.lsp").document_functions() end,
