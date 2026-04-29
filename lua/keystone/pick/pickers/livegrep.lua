@@ -118,7 +118,7 @@ end
 ---@return fun() cancel
 local function async_grep_search(query, grep_opts, fetch_opts, callback)
     local cmd, args, cleaned_query = get_grep_cmd(query, grep_opts)
-    if cleaned_query == "" then
+    if #cleaned_query == "" then
         callback()
         return function() end
     end
@@ -236,10 +236,6 @@ function M.open(opts)
         file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
-            if not query or #query < 1 then -- Optimization: don't grep for 1 char
-                callback()
-                return function() end
-            end
             return async_grep_search(query, {
                 cwd = cwd,
                 include_globs = opts.include_globs or {},
