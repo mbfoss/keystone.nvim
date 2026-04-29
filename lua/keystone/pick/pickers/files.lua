@@ -33,7 +33,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local items = {}
 
     local exclude_globs = opts.exclude_globs or {}
-    table.insert(exclude_globs, "**/.*") -- ignore hidden
+    -- ignore hidden
+    table.insert(exclude_globs, ".*")
+    table.insert(exclude_globs, "**/.*")
 
     local include_regex_list = opts.include_globs and strutils.compile_globs(opts.include_globs) or nil
     local exclude_regex_list = strutils.compile_globs(exclude_globs)
