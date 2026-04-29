@@ -32,8 +32,11 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results = opts.max_results or 10000
     local items = {}
 
+    local exclude_globs = opts.exclude_globs or {}
+    table.insert(exclude_globs, "**/.*") -- ignore hidden
+
     local include_regex_list = opts.include_globs and strutils.compile_globs(opts.include_globs) or nil
-    local exclude_regex_list = opts.exclude_globs and strutils.compile_globs(opts.exclude_globs) or nil
+    local exclude_regex_list = strutils.compile_globs(exclude_globs)
 
     local cancel_fn
     cancel_fn = fsutils.async_walk_dir(
@@ -168,7 +171,7 @@ function M.open(opts)
                 exclude_globs = opts.exclude_globs,
                 max_results = opts.max_results or 10000,
             }
-            if ksconfig.use_fd_find ~= false then
+            if ksconfig.use_fd_find then
                 return async_fd_search(query, search_opts, fetch_opts, callback)
             else
                 return async_lua_search(query, search_opts, fetch_opts, callback)
