@@ -48,31 +48,37 @@ end
 local function parse_query_and_globs(query)
     local include_globs = {}
     local patterns = { "path:", "in:" }
-
+    local cleaned = query
+    -- extract values
     for _, pat in ipairs(patterns) do
-        for glob in query:gmatch("%f[%w]" .. pat .. "(%S+)") do
+        for glob in cleaned:gmatch("%f[%w]" .. pat .. "(%S+)") do
             if not glob:match("[%*%./\\]") then
                 glob = "*" .. glob .. "*"
             end
             table.insert(include_globs, glob)
         end
     end
-
-    local cleaned = query
+    -- remove patterns
     for _, pat in ipairs(patterns) do
-        cleaned = cleaned:gsub("%f[%w]" .. pat .. "%S*", "")
+        cleaned = cleaned:gsub("()(%s*%f[%w]" .. pat .. "%S+%s*)()", function(start_pos, match, end_pos)
+            local at_start = (start_pos == 1)
+            local at_end = (end_pos > #cleaned)
+            if at_start or at_end then
+                return ""
+            end
+            return " "
+        end)
     end
-
-    cleaned = cleaned:gsub("\\(.)", "%1")
-    cleaned = vim.trim(cleaned:gsub("%s+", " "))
     return cleaned, include_globs
 end
+
 
 ---@param query string
 ---@param opts keystone.livegrep.opts
 ---@return string, string[], string cleaned_query
 local function get_grep_cmd(query, opts)
     local cleaned_query, inline_globs = parse_query_and_globs(query)
+    vim.notify(string.format("qery:'%s'\nglobs:%s", cleaned_query, vim.inspect(inline_globs)))
 
     -- merge inline + opts globs
     local include_globs = vim.list_extend(
