@@ -78,7 +78,7 @@ end
 ---@return string, string[], string cleaned_query
 local function get_grep_cmd(query, opts)
     local cleaned_query, inline_globs = parse_query_and_globs(query)
-    vim.notify(string.format("qery:'%s'\nglobs:%s", cleaned_query, vim.inspect(inline_globs)))
+    --vim.notify(string.format("qery:'%s'\nglobs:%s", cleaned_query, vim.inspect(inline_globs)))
 
     -- merge inline + opts globs
     local include_globs = vim.list_extend(
