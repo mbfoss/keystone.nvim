@@ -13,16 +13,15 @@ local function buffer_to_picker_item(bufnr, list_width)
         return nil
     end
 
-    local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local name = filepath ~= "" and vim.fn.fnamemodify(filepath, ":t") or "[No Name]"
-    local relative_path = fsutils.get_relative_path(filepath) or filepath
-    local modified = vim.bo[bufnr].modified and " [+]" or ""
-    local label = string.format("%d: %s%s", bufnr, name, modified)
-
-    local display_path = fsutils.smart_crop_path(relative_path, list_width)
-    local virt_lines
-    if display_path ~= "" and display_path ~= name then
-        virt_lines = { { { display_path, "Special" } } }
+    local label
+    local bufname = vim.api.nvim_buf_get_name(bufnr)
+    if bufname == "" then
+        label = "[No Name]"
+    else
+        local path = fsutils.get_relative_path(bufname) or bufname
+        local suffix = vim.bo[bufnr].modified and " [+]" or ""
+        local cropped = fsutils.smart_crop_path(path, list_width - #suffix)
+        label = string.format("%d: %s%s", bufnr, cropped, suffix)
     end
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = mark[1], nil ---@type number?,number?
@@ -30,8 +29,7 @@ local function buffer_to_picker_item(bufnr, list_width)
     ---@type keystone.Picker.Item
     return {
         label = label,
-        virt_lines = virt_lines,
-        data = { filepath = filepath, bufnr = bufnr, lnum = lnum, col = col, }
+        data = { filepath = vim.fn.fnamemodify(bufname, ":t"), bufnr = bufnr, lnum = lnum, col = col, }
     }
 end
 
@@ -41,7 +39,6 @@ function M.open()
     picker.open({
         prompt = "Open Buffers",
         file_preview = true,
-        enable_list_sep = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, bufnr in ipairs(buffers) do
