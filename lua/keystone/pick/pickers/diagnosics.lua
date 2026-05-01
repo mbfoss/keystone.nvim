@@ -39,6 +39,9 @@ function M.open(opts)
         vim.notify("No diagnostics found", vim.log.levels.INFO)
         return
     end
+
+    local filepath = vim.api.nvim_buf_get_name(opts.bufnr or 0)
+
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
     local entries = {}
     for _, d in ipairs(diagnostics) do
@@ -83,6 +86,7 @@ function M.open(opts)
                         },
                         score = res.score,
                         bufnr = entry.bufnr,
+                        filepath = filepath,
                         lnum = entry.lnum,
                         col = entry.col,
                     })
