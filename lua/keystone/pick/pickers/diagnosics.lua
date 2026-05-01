@@ -47,7 +47,6 @@ function M.open(opts)
 
     picker.open({
         prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
-        file_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, item in ipairs(raw_data) do

@@ -37,7 +37,6 @@ function M.open()
 
     picker.open({
         prompt = "Jumplist",
-        file_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, data in ipairs(entries) do

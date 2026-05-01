@@ -58,7 +58,7 @@ local function parse_hunks(diff)
     return hunks
 end
 
----@class PickerItem
+---@class keystone.picker.git_hunks.Item
 ---@field label_chunks any
 ---@field score number
 ---@field data GitHunk
@@ -82,11 +82,9 @@ function M.open(opts)
 
     picker.open({
         prompt = "Git Hunks",
-        file_preview = false,
-
         ---@param query string
         ---@param fetch_opts table
-        ---@param callback fun(items: PickerItem[]|nil)
+        ---@param callback fun(items: keystone.picker.git_hunks.Item[]|nil)
         async_fetch = function(query, fetch_opts, callback)
             local buf = {}
 

@@ -58,7 +58,6 @@ function M.select(items, opts, on_choice)
 
     picker.open({
         prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select item",
-        file_preview = false,
         list_width   = list_width,
         height_ratio = height_ratio,
         fetch        = function(query, fetch_opts)

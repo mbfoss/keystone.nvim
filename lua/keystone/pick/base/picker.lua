@@ -1,6 +1,7 @@
 local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
+local fsutils    = require("keystone.utils.fsutils")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -12,11 +13,26 @@ local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
 local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
+
+local _antiflicker_delay = 200
+
 ---@class keystone.Picker.Item
 ---@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
+---@field bufnr number?
+---@field filepath string?
+---@field lnum number?
+---@field col number?
+---@field data any
+
+---@class keystone.picker.ListItem
+---@field text string
+---@field bufnr number?
+---@field filepath string?
+---@field lnum number?
+---@field col number?
 ---@field data any
 
 ---@alias keystone.Picker.Callback fun(data:any|nil)
@@ -24,11 +40,6 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 ---@class keystone.Picker.FetcherOpts
 ---@field list_width number
 ---@field list_height number
-
----@class keystone.Picker.AsyncPreviewOpts
----@field preview_width number
----@field preview_height number
----@field antiflicker_delay number
 
 ---@class keystone.Picker.QueryHistoryProvider
 ---@field load fun():string[]
@@ -38,17 +49,19 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 ---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
+---@alias keystone.Picker.AsyncPreviewItem {bufnr:number?,filepath:string?,lnum:number?,col:number?,data:any}
 ---@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Picker.AsyncPreviewLoader fun(data:any,opts:keystone.Picker.AsyncPreviewOpts,callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
+---@alias keystone.Picker.AsyncPreviewLoader fun(item:keystone.Picker.AsyncPreviewItem, callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
 
 ---@class keystone.Picker.opts
 ---@field prompt string
 ---@field highlight_query keystone.Picker.QueryHighlighter?
 ---@field fetch keystone.Picker.Fetcher?
 ---@field async_fetch keystone.Picker.AsyncFetcher?
+---@field enable_preview boolean?
 ---@field async_preview keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
----@field quickfix_formatter fun(item:keystone.Picker.Item):table?
+---@field quickfix_formatter (fun(data:any):table?)?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
@@ -166,6 +179,36 @@ local function _find_insert_index(items, new_score)
     return low
 end
 
+---@param item keystone.Picker.AsyncPreviewItem
+---@param callback fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)
+local function _default_preview(item, callback)
+    local filepath = item.filepath
+    if not filepath or filepath == "" then
+        vim.schedule(function()
+            callback(nil, { error_msg = "No preview" })
+        end)
+        return function()
+        end
+    end
+    if not fsutils.file_exists(filepath) then
+        vim.schedule(function()
+            callback(nil, { error_msg = "Invalid file path: " .. tostring(filepath) })
+        end)
+        return function()
+        end
+    end
+    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
+        function(load_err, content)
+            callback(content, {
+                filepath = filepath,
+                lnum = item.lnum,
+                col = item.col,
+                error_msg = load_err,
+            })
+        end)
+    return cancel_fn
+end
+
 ---@class keystone.utils.Picker
 ---@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
 ---@field opts keystone.Picker.opts
@@ -180,7 +223,7 @@ end
 ---@field vwin integer|nil
 ---@field spinner keystone.utils.Spinner|nil
 ---@field closed boolean
----@field items_data any[]
+---@field list_items keystone.picker.ListItem[]
 ---@field async_fetch_context number
 ---@field async_fetch_cancel fun()|nil
 ---@field async_preview_context number
@@ -198,12 +241,12 @@ function Picker:init(opts, callback)
     vim.validate("opts", opts, "table")
     vim.validate("callback", callback, "function")
 
-    self.opts = opts
+    self.opts = opts and vim.fn.copy(opts) or {}
     self.callback = callback
 
-    self.has_preview = type(opts.async_preview) == "function"
+    self.has_preview = opts.enable_preview
 
-    self.items_data = {}
+    self.list_items = {} ---@type keystone.picker.ListItem[]
 
     self.closed = false
 
@@ -213,7 +256,6 @@ function Picker:init(opts, callback)
     self.async_preview_context = 0
     self.async_preview_cancel = nil
 
-    self.antiflicker_delay = 200
     self.spinner = nil
 
     self.history = {}
@@ -431,7 +473,7 @@ function Picker:render_ui()
     vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
 
-    local total = #self.items_data
+    local total = #self.list_items
     if total == 0 then
         return
     end
@@ -471,7 +513,7 @@ function Picker:move_cursor(row, force, clamp)
         if row == self:get_cursor() then return end
     end
 
-    local total = #self.items_data
+    local total = #self.list_items
     if total == 0 then return end
 
     if clamp then
@@ -493,7 +535,6 @@ function Picker:update_preview()
     local preview_context = self.async_preview_context
     local fetch_context = self.async_fetch_context
 
-
     if self.closed then return end
     if not self.vbuf then return end
 
@@ -504,20 +545,24 @@ function Picker:update_preview()
         self.async_preview_cancel = nil
     end
 
-    local item = self.items_data[self:get_cursor()]
-    local data = item and item.data
+    ---@type keystone.picker.ListItem
+    local item = self.list_items[self:get_cursor()]
+    local data = item and item.data or nil
 
     if not data then return end
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.prev_height - 2) -- -2 for borders
 
-    self.async_preview_cancel = self.opts.async_preview(
-        data,
+    local preview_fn = self.opts.async_preview or _default_preview
+
+    self.async_preview_cancel = preview_fn(
         {
-            preview_width = preview_width,
-            preview_height = preview_height,
-            antiflicker_delay = self.antiflicker_delay,
+            bufnr = item.bufnr,
+            filepath = item.filepath,
+            lnum = item.lnum,
+            col = item.col,
+            data = item.data,
         },
         function(preview, info)
             if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then return end
@@ -605,7 +650,7 @@ function Picker:request_clear_preview()
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
             vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
-        end, self.antiflicker_delay)
+        end, _antiflicker_delay)
     end
 end
 
@@ -614,7 +659,7 @@ function Picker:cancel_clear_preview_req()
 end
 
 function Picker:clear_list()
-    self.items_data = {}
+    self.list_items = {}
 
     vim.bo[self.lbuf].modifiable = true
     vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
@@ -626,15 +671,15 @@ function Picker:clear_list()
     self:render_ui()
 end
 
-function Picker:add_new_lines(items, query)
+---@param items keystone.Picker.Item[]
+function Picker:add_new_lines(items)
     local prefix = "  "
-    local is_fresh = #self.items_data == 0 and
+    local is_fresh = #self.list_items == 0 and
         vim.api.nvim_buf_line_count(self.lbuf) == 1 and
         vim.api.nvim_buf_get_lines(self.lbuf, 0, 1, false)[1] == ""
 
     for _, item in ipairs(items) do
-        local idx = _find_insert_index(self.items_data, item.score)
-        table.insert(self.items_data, idx, item)
+        -- build label
         local label = item.label
         if not label and item.label_chunks then
             local parts = {}
@@ -644,6 +689,19 @@ function Picker:add_new_lines(items, query)
             label = table.concat(parts)
         end
         label = (label or ""):gsub("\n", "")
+        -- insert in list data
+        ---@type keystone.picker.ListItem
+        local list_item = {
+            text = label,
+            bufnr = item.bufnr,
+            filepath = item.filepath,
+            lnum = item.lnum,
+            col = item.col,
+            data = item.data,
+        }
+        local idx = _find_insert_index(self.list_items, item.score)
+        table.insert(self.list_items, idx, list_item)
+        -- insert in list buf
         local line_text = prefix .. label
         local row = idx - 1
         vim.bo[self.lbuf].modifiable = true
@@ -688,7 +746,7 @@ function Picker:add_new_lines(items, query)
         end
     end
 
-    vim.wo[self.lwin].cursorline = #self.items_data > 0
+    vim.wo[self.lwin].cursorline = #self.list_items > 0
 end
 
 ---@param query string
@@ -712,8 +770,10 @@ function Picker:run_fetch(query)
     if self.opts.fetch then
         self:clear_list()
         local items, initial = self.opts.fetch(query, fetch_opts)
-        self:add_new_lines(items, query)
-        self:move_cursor(initial or 1, true, true)
+        if items then
+            self:add_new_lines(items)
+            self:move_cursor(initial or 1, true, true)
+        end
         return
     end
 
@@ -744,8 +804,8 @@ function Picker:run_fetch(query)
                 return
             end
 
-            self:add_new_lines(new_items, query)
-            if is_new_query and #self.items_data > 0 then
+            self:add_new_lines(new_items)
+            if is_new_query and #self.list_items > 0 then
                 self:move_cursor(1, true, true)
                 is_new_query = false -- Reset so subsequent async chunks don't snap to top
             else
@@ -789,34 +849,22 @@ function Picker:set_prompt_text(text)
 end
 
 function Picker:send_to_qf()
-    if #self.items_data == 0 then return end
-    local qf_entries = {}
+    if #self.list_items == 0 then return end
+    local qf_entries = {} ---@type vim.quickfix.entry[]
 
-    for _, item in ipairs(self.items_data) do
+    for _, item in ipairs(self.list_items) do
         local entry
         if self.opts.quickfix_formatter then
-            entry = self.opts.quickfix_formatter(item)
+            entry = self.opts.quickfix_formatter(item.data)
         end
         if not entry then
-            local d = item.data
-            if d then
-                local label = item.label
-                if not label and item.label_chunks then
-                    local parts = {}
-                    for _, chunk in ipairs(item.label_chunks) do
-                        table.insert(parts, chunk[1] or "")
-                    end
-                    label = table.concat(parts)
-                end
-                label = (label or ""):gsub("\n", "")
-
-                entry = {
-                    filename = d.filepath or d.filename or d.path,
-                    lnum     = d.lnum or 1,
-                    col      = d.col or 1,
-                    text     = label,
-                }
-            end
+            ---@type vim.quickfix.entry
+            entry = {
+                text     = item.text,
+                filename = item.filepath,
+                lnum     = item.lnum or 1,
+                col      = item.col or 1,
+            }
         end
         if entry then
             table.insert(qf_entries, entry)
@@ -826,7 +874,6 @@ function Picker:send_to_qf()
         self:close(nil)
         vim.fn.setqflist(qf_entries, "r")
         vim.cmd("copen")
-        print(string.format("Sent %d items to Quickfix", #qf_entries))
     end
 end
 
@@ -873,8 +920,9 @@ function Picker:setup_input()
     local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
 
     vim.keymap.set("i", "<CR>", function()
-        local item = self.items_data[self:get_cursor()]
-        self:close(item and item.data)
+        ---@type keystone.picker.ListItem
+        local list_item = self.list_items[self:get_cursor()]
+        self:close(list_item and list_item.data or nil)
     end, key_opts)
 
     vim.keymap.set("n", "<Esc>", function() self:close(nil) end, key_opts)

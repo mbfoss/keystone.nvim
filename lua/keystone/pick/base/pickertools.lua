@@ -97,36 +97,6 @@ function M.match_label(match_target, query, opts)
     }
 end
 
----@param filepath string
----@param opts {lnum:number?, col:number?}
----@param callback fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)
-function M.default_file_preview(filepath, opts, callback)
-    if not filepath or filepath == "" then
-        vim.schedule(function()
-            callback(nil, { error_msg = "No preview" })
-        end)
-        return function()
-        end
-    end
-    if not fsutils.file_exists(filepath) then
-        vim.schedule(function()
-            callback(nil, { error_msg = "Invalid file path: " .. tostring(filepath) })
-        end)
-        return function()
-        end
-    end
-    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
-        function(load_err, content)
-            callback(content, {
-                filepath = filepath,
-                lnum = opts.lnum,
-                col = opts.col,
-                error_msg = load_err,
-            })
-        end)
-    return cancel_fn
-end
-
 ---@param name string
 ---@return keystone.Picker.QueryHistoryProvider
 function M.make_history_provider(name)

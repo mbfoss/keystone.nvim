@@ -11,7 +11,6 @@ function M.open()
 
     picker.open({
         prompt = "Git Diff (Preview Changes)",
-        file_preview = false, -- We handle the diff preview manually below
         async_fetch = function(query, fetch_opts, callback)
             local items = {}
             local args = { "diff", "HEAD", "--name-only" }

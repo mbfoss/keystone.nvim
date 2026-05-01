@@ -45,7 +45,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         opts.cwd,
         include_regex_list,
         exclude_regex_list,
-        function(full_path, filename, relative_path)
+        function(filepath, filename, relative_path)
             local res = pickertools.match_label(relative_path, query, {
                 list_width = fetch_opts.list_width,
                 is_path = true,
@@ -59,8 +59,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
             end
             table.insert(items, {
                 label_chunks = res.chunks,
-                data = full_path,
+                data = filepath,
                 score = res.score,
+                filepath = filepath,
             })
             count = count + 1
 
@@ -119,11 +120,15 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
                     })
 
                     if res then
-                        table.insert(items, {
+                        local filepath = vim.fs.joinpath(fd_opts.cwd, relpath)
+                        ---@type keystone.Picker.Item
+                        local item = {
                             label_chunks = res.chunks,
-                            data = vim.fs.joinpath(fd_opts.cwd, relpath),
-                            score = res.score
-                        })
+                            data = filepath,
+                            score = res.score,
+                            filepath = filepath,
+                        }
+                        table.insert(items, item)
                         count = count + 1
                     end
                 else
@@ -159,7 +164,7 @@ function M.open(opts)
     opts = opts or {}
     return picker.open({
         prompt = opts.prompt or "Files",
-        file_preview = true,
+        enable_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
         async_fetch = function(query, fetch_opts, callback)
             if not query or query == "" then
@@ -179,7 +184,7 @@ function M.open(opts)
                 return async_lua_search(query, search_opts, fetch_opts, callback)
             end
         end,
-        async_preview = pickertools.default_file_preview,
+
     }, function(path)
         if path then uitools.smart_open_file(path) end
     end)

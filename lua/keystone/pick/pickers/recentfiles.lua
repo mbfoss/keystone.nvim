@@ -46,7 +46,6 @@ function M.open()
 
     picker.open({
         prompt = "Recent Files",
-        file_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, file in ipairs(recent_files) do
@@ -63,7 +62,7 @@ function M.open()
             end
             return items
         end,
-        async_preview = pickertools.default_file_preview,
+        
     }, function(selected_path)
         if selected_path then
             uitools.smart_open_file(selected_path)

@@ -93,7 +93,6 @@ function M.references()
 
         picker.open({
             prompt = "LSP References",
-            file_preview = true,
             enable_list_sep = true,
             fetch = function(query, fetch_opts)
                 local picker_items = {}

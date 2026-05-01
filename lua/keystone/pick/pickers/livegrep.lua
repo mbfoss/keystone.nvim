@@ -236,7 +236,6 @@ function M.open(opts)
         prompt = "Live Grep",
         highlight_query = get_query_highlights,
         enable_list_sep = true,
-        file_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
             return async_grep_search(query, {
