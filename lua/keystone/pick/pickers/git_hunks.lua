@@ -107,7 +107,7 @@ function M.open(opts)
                     for _, h in ipairs(hunks) do
                         local label = (h.file .. " @" .. tostring(h.start_line))
 
-                        local res = pickertools.make_picker_item(label, query, {
+                        local res = pickertools.match_label(label, query, {
                             list_width = fetch_opts.list_width,
                         })
 

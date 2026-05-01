@@ -28,7 +28,7 @@ function M.open(opts)
                     label = word,
                     data = word
                 }
-                local match = pickertools.make_picker_item(item.label, query, {
+                local match = pickertools.match_label(item.label, query, {
                     list_width = fetch_opts.list_width,
                     is_path = false
                 })

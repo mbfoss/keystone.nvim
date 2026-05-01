@@ -7,8 +7,15 @@ local M = {}
 
 ---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
 
+local _type_prefix = {
+    E = {" ", "Error"},
+    W = {" ", "Warning"},
+    I = {" ", "Info"},
+}
+
 ---@param qf any
 ---@param filter keystone.pick.quickfix_filter
+---@return boolean
 local function matches_filter(qf, filter)
     if filter == "all" or not filter then
         return true
@@ -24,33 +31,21 @@ local function matches_filter(qf, filter)
     return true
 end
 
----@param item table Quickfix item from getqflist()
----@param list_width number
----@return table
-local function qf_item_to_picker_item(item, list_width)
+---@param item table
+---@return {filepath:string,relpath:string,lnum:number,col:number,bufnr:number,type:string,text:string}?
+local function read_qf_item(item)
     local bufnr = item.bufnr
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
     local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local display_path = fsutils.get_relative_path(filepath) or filepath
-    local prefix = ({
-        E = " ",
-        W = " ",
-        I = " ",
-    })[item.type] or ""
-
-    local label = prefix .. vim.trim(item.text ~= "" and item.text or "[No description]")
-    local virt_lines = nil
-    if display_path and #display_path > 0 then
-        virt_lines = { { { string.format("%s:%d:%d", display_path, item.lnum, item.col), "Special" } } }
-    end
+    local relpath = fsutils.get_relative_path(filepath) or filepath
     return {
-        label = label,
-        virt_lines = virt_lines,
-        data = {
-            filepath = filepath,
-            lnum = item.lnum,
-            col = item.col > 0 and item.col - 1 or 0, -- Convert to 0-indexed if needed
-            bufnr = bufnr
-        }
+        bufnr = bufnr,
+        filepath = filepath,
+        relpath = relpath,
+        lnum = item.lnum,
+        col = item.col > 0 and item.col - 1 or 0,
+        type = (item.type or ""):upper(),
+        text = item.text or "",
     }
 end
 
@@ -60,13 +55,15 @@ function M.open(opts)
     local filter = opts.filter or "all"
     local qflist = vim.fn.getqflist()
 
-    local have_items = false
+    local entries = {}
     for _, qf in ipairs(qflist) do
         if matches_filter(qf, filter) then
-            have_items = true
+            local data = read_qf_item(qf)
+            if data then table.insert(entries, data) end
         end
     end
-    if not have_items then
+
+    if vim.tbl_isempty(entries) then
         if filter == "all" then
             vim.notify("Quickfix list is empty", vim.log.levels.WARN)
         else
@@ -81,19 +78,28 @@ function M.open(opts)
         enable_list_sep = true,
         fetch = function(query, fetch_opts)
             local items = {}
-            for _, qf in ipairs(qflist) do
-                if matches_filter(qf, filter) then
-                    local base_item = qf_item_to_picker_item(qf, fetch_opts.list_width)
-                    local match = pickertools.make_picker_item(base_item.label, query, {
-                        list_width = fetch_opts.list_width,
-                        is_path = false
-                    })
-
-                    if match then
-                        base_item.label_chunks = match.chunks
-                        base_item.score = match.score
-                        table.insert(items, base_item)
+            for _, data in ipairs(entries) do
+                local text = vim.trim(data.text ~= "" and data.text or "[No description]")
+                local match = pickertools.match_label(text, query, {
+                    list_width = fetch_opts.list_width,
+                    is_path = false
+                })
+                if match then
+                    local prefix = _type_prefix[data.type]
+                    local chunks = prefix and {prefix} or {}
+                    vim.list_extend(chunks, match.chunks)
+                    local virt_lines = nil
+                    if data.relpath and #data.relpath > 0 then
+                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
                     end
+                    ---@type keystone.Picker.Item
+                    local item = {
+                        label_chunks = chunks,
+                        score = match.score,
+                        virt_lines = virt_lines,
+                        data = data,
+                    }
+                    table.insert(items, item)
                 end
             end
             table.sort(items, function(a, b) return a.score > b.score end)

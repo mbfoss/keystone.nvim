@@ -48,6 +48,7 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 ---@field async_fetch keystone.Picker.AsyncFetcher?
 ---@field async_preview keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
+---@field quickfix_formatter fun(item:keystone.Picker.Item):table?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
@@ -790,24 +791,35 @@ end
 function Picker:send_to_qf()
     if #self.items_data == 0 then return end
     local qf_entries = {}
+
     for _, item in ipairs(self.items_data) do
-        local d = item.data
-        if d then
-            local label = item.label
-            if not label and item.label_chunks then
-                local parts = {}
-                for _, chunk in ipairs(item.label_chunks) do
-                    table.insert(parts, chunk[1] or "")
+        local entry
+        if self.opts.quickfix_formatter then
+            entry = self.opts.quickfix_formatter(item)
+        end
+        if not entry then
+            local d = item.data
+            if d then
+                local label = item.label
+                if not label and item.label_chunks then
+                    local parts = {}
+                    for _, chunk in ipairs(item.label_chunks) do
+                        table.insert(parts, chunk[1] or "")
+                    end
+                    label = table.concat(parts)
                 end
-                label = table.concat(parts)
+                label = (label or ""):gsub("\n", "")
+
+                entry = {
+                    filename = d.filepath or d.filename or d.path,
+                    lnum     = d.lnum or 1,
+                    col      = d.col or 1,
+                    text     = label,
+                }
             end
-            label = (label or ""):gsub("\n", "")
-            table.insert(qf_entries, {
-                filename = d.filepath or d.filename or d.path,
-                lnum     = d.lnum or 1,
-                col      = d.col or 1,
-                text     = label,
-            })
+        end
+        if entry then
+            table.insert(qf_entries, entry)
         end
     end
     if #qf_entries > 0 then

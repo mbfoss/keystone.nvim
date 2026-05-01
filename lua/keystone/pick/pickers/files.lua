@@ -46,7 +46,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         include_regex_list,
         exclude_regex_list,
         function(full_path, filename, relative_path)
-            local res = pickertools.make_picker_item(relative_path, query, {
+            local res = pickertools.match_label(relative_path, query, {
                 list_width = fetch_opts.list_width,
                 is_path = true,
                 offset = 0
@@ -113,7 +113,7 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
             local relpath = line:gsub("^%.[/]", "")
             if strutils.check_path_pattern(line, false, include_regex_list, nil) then
                 if count < max_results then
-                    local res = pickertools.make_picker_item(relpath, query, {
+                    local res = pickertools.match_label(relpath, query, {
                         list_width = fetch_opts.list_width,
                         is_path = true
                     })

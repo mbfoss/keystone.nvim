@@ -23,7 +23,7 @@ function M.open()
                     if not data or is_stderr then return end
                     for line in data:gmatch("[^\r\n]+") do
                         local path = fsutils.get_relative_path(line) or line
-                        local res = pickertools.make_picker_item(path, query, {
+                        local res = pickertools.match_label(path, query, {
                             list_width = fetch_opts.list_width,
                             is_path = true,
                         })

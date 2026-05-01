@@ -6,29 +6,36 @@ local fsutils = require("keystone.utils.fsutils")
 local M = {}
 
 ---@param bufnr number
+---@param query string
 ---@param list_width number
 ---@return keystone.Picker.Item?
-local function buffer_to_picker_item(bufnr, list_width)
+local function buffer_to_picker_item(bufnr, query, list_width)
     if not vim.api.nvim_buf_is_loaded(bufnr) or not vim.bo[bufnr].buflisted then
         return nil
     end
-
     local label
     local bufname = vim.api.nvim_buf_get_name(bufnr)
+    local path = fsutils.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
+    local match, score, positions = pickertools.fuzzy_match(path, query, true)
+    if not match then return nil end
+
     if bufname == "" then
         label = "[No Name]"
     else
-        local path = fsutils.get_relative_path(bufname) or bufname
         local suffix = vim.bo[bufnr].modified and " [+]" or ""
         local cropped = fsutils.smart_crop_path(path, list_width - #suffix)
         label = string.format("%d: %s%s", bufnr, cropped, suffix)
     end
+
+    local label_chunks = pickertools.build_label_chunks()
+
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = mark[1], nil ---@type number?,number?
     if lnum > 1 then col = mark[2] else lnum = nil end
     ---@type keystone.Picker.Item
     return {
         label = label,
+        score = score,
         data = { filepath = vim.fn.fnamemodify(bufname, ":t"), bufnr = bufnr, lnum = lnum, col = col, }
     }
 end
@@ -42,18 +49,9 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, bufnr in ipairs(buffers) do
-                local base_item = buffer_to_picker_item(bufnr, fetch_opts.list_width)
-                if base_item then
-                    local match = pickertools.make_picker_item(base_item.label, query, {
-                        list_width = fetch_opts.list_width,
-                        is_path = false
-                    })
-
-                    if match then
-                        base_item.label_chunks = match.chunks
-                        base_item.score = match.score
-                        table.insert(items, base_item)
-                    end
+                local item = buffer_to_picker_item(bufnr, query, fetch_opts.list_width)
+                if item then
+                    table.insert(items, item)
                 end
             end
             return items

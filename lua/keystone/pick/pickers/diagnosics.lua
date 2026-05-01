@@ -51,25 +51,20 @@ function M.open(opts)
         fetch = function(query, fetch_opts)
             local items = {}
             for _, item in ipairs(raw_data) do
-                local res = pickertools.make_picker_item(item.message, query, {
+                local res = pickertools.match_label(item.message, query, {
                     list_width = fetch_opts.list_width,
                     is_path = false
                 })
 
                 if res then
-                    local final_chunks = vim.deepcopy(item.prefix_chunks)
-                    vim.list_extend(final_chunks, res.chunks)
-
+                    local chunks = vim.deepcopy(item.prefix_chunks)
+                    vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
-                        label_chunks = final_chunks,
+                        label_chunks = chunks,
                         data = item.data,
                         score = res.score
                     })
                 end
-            end
-
-            if query ~= "" then
-                table.sort(items, function(a, b) return a.score > b.score end)
             end
             return items
         end,
@@ -89,7 +84,7 @@ function M.open(opts)
         end,
     }, function(selected)
         if selected then
-            uitools.smart_open_file(selected.filepath, selected.lnum, selected.col)
+            uitools.smart_open_buffer(selected.bufnr, selected.lnum, selected.col)
         end
     end)
 end

@@ -15,6 +15,23 @@ local function _compute_dimentions(items)
     return maxw, height
 end
 
+---@generic T
+---@param items T[] Arbitrary items
+---@param opts table Additional options
+---     - prompt (string|nil)
+---               Text of the prompt. Defaults to `Select one of:`
+---     - format_item (function item -> text)
+---               Function to format an
+---               individual item from `items`. Defaults to `tostring`.
+---     - kind (string|nil)
+---               Arbitrary hint string indicating the item shape.
+---               Plugins reimplementing `vim.ui.select` may wish to
+---               use this to infer the structure or semantics of
+---               `items`, or the context in which select() was called.
+---@param on_choice fun(item: T|nil, idx: integer|nil)
+---               Called once the user made a choice.
+---               `idx` is the 1-based index of `item` within `items`.
+---               `nil` if the user aborted the dialog.
 function M.select(items, opts, on_choice)
     vim.validate("on_choice", on_choice, "function")
     opts = opts or {}
@@ -48,11 +65,10 @@ function M.select(items, opts, on_choice)
             local results = {}
 
             for _, entry in ipairs(cached) do
-                local match = pickertools.make_picker_item(entry.label, query, {
+                local match = pickertools.match_label(entry.label, query, {
                     list_width = fetch_opts.list_width,
                     is_path = false,
                 })
-
                 if match then
                     table.insert(results, {
                         label = entry.label,

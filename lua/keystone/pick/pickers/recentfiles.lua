@@ -50,7 +50,7 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, file in ipairs(recent_files) do
-                local res = pickertools.make_picker_item(file.match_path, query, {
+                local res = pickertools.match_label(file.match_path, query, {
                     list_width = fetch_opts.list_width,
                     is_path = true,
                 })

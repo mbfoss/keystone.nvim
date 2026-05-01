@@ -5,54 +5,56 @@ local fsutils = require("keystone.utils.fsutils")
 
 local M = {}
 
-local function jump_item_to_picker_item(item)
+---@param item vim.fn.getjumplist.ret.item
+---@return {filepath:string, relpath:string, lnum:number,col:number,bufnr:number}?
+local function read_jump_item(item)
     local bufnr = item.bufnr
     if not bufnr or bufnr == 0 then return nil end
     if not vim.api.nvim_buf_is_valid(bufnr) then return nil end
-    local name = vim.api.nvim_buf_get_name(bufnr)
-    local display = name ~= "" and name or "[No Name]"
+    local filepath = item.filename or vim.api.nvim_buf_get_name(bufnr)
+    local relpath = fsutils.get_relative_path(filepath) or filepath
     return {
-        label = string.format(
-            "%s:%d:%d",
-            display,
-            item.lnum or 0,
-            item.col or 0
-        ),
-        data = {
-            filepath = name,
-            lnum = item.lnum,
-            col = (item.col or 1) - 1,
-            bufnr = bufnr,
-        }
+        bufnr = bufnr,
+        filepath = filepath,
+        relpath = relpath,
+        lnum = item.lnum,
+        col = (item.col or 1) - 1,
     }
 end
 
 function M.open()
     local jumplist, _ = unpack(vim.fn.getjumplist())
-
     if not jumplist or vim.tbl_isempty(jumplist) then
         vim.notify("Jumplist is empty", vim.log.levels.WARN)
         return
     end
 
+    local entries = {}
+    for i = #jumplist, 1, -1 do
+        local data = read_jump_item(jumplist[i])
+        if data then table.insert(entries, data) end
+    end
+
     picker.open({
         prompt = "Jumplist",
         file_preview = true,
-
         fetch = function(query, fetch_opts)
             local items = {}
-            for jump_i = #jumplist, 1, -1 do
-                local base_item = jump_item_to_picker_item(jumplist[jump_i])
-                if base_item then
-                    local match = pickertools.make_picker_item(base_item.label, query, {
-                        list_width = fetch_opts.list_width,
-                        is_path = true
-                    })
-                    if match then
-                        base_item.label_chunks = match.chunks
-                        base_item.score = match.score
-                        table.insert(items, base_item)
-                    end
+            for _, data in ipairs(entries) do
+                local label = data.relpath or "[No Name]"
+                local match = pickertools.match_label(label, query, {
+                    list_width = fetch_opts.list_width,
+                    is_path = true
+                })
+                if match then
+                    table.insert(match.chunks, { string.format(":%d:%d", data.lnum, data.col) })
+                    ---@type keystone.Picker.Item
+                    local item = {
+                        label_chunks = match.chunks,
+                        score = match.score,
+                        data = data,
+                    }
+                    table.insert(items, item)
                 end
             end
             return items
