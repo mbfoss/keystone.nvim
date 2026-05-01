@@ -21,31 +21,6 @@ local function kind_to_string(kind)
     return _kind_to_str_cache[kind] or ""
 end
 
-
----@param ref table LSP Reference result
----@param list_width number
----@return keystone.Picker.Item
-local function lsp_item_to_picker_item(ref, list_width)
-    local filepath = ref.filename
-    local lnum = ref.lnum
-    local col = ref.col
-    local line_text = ref.text
-    local display_path = fsutils.get_relative_path(filepath) or filepath or ""
-    ---@type string?
-    local loc = (lnum and string.format("%s:%d", display_path, lnum) or display_path) or ""
-    loc = fsutils.smart_crop_path(loc, list_width)
-    if loc == "" then loc = nil end
-    return {
-        label = vim.trim(line_text or ""),
-        virt_lines = { { { loc, "Special" } } },
-        data = {
-            filepath = filepath,
-            lnum = lnum,
-            col = col,
-        }
-    }
-end
-
 function M.references()
     local params = vim.lsp.util.make_position_params(0, 'utf-8')
     ---@diagnostic disable-next-line: inject-field
@@ -94,28 +69,37 @@ function M.references()
         picker.open({
             prompt = "LSP References",
             enable_list_sep = true,
+            enable_preview = true,
             fetch = function(query, fetch_opts)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
-                    ---@type keystone.Picker.Item
-                    local item = lsp_item_to_picker_item(ref, fetch_opts.list_width)
-                    local match = pickertools.match_label(item.label, query, {
+                    local text = ref.text and vim.fn.trim(ref.text) or ""
+                    local match = pickertools.match_label(text, query, {
                         list_width = fetch_opts.list_width,
                         is_path = false
                     })
                     if match then
-                        item.label_chunks = match.chunks
-                        item.score = match.score
+                        local display_path = fsutils.get_relative_path(ref.filename) or ref.filename or ""
+                        local loc = ref.lnum and string.format("%s:%d", display_path, ref.lnum) or display_path
+                        loc = fsutils.smart_crop_path(loc, fetch_opts.list_width)
+                        ---@type keystone.Picker.Item
+                        local item = {
+                            label_chunks = match.chunks,
+                            virt_lines = { { { loc, "Special" } } },
+                            score = match.score,
+                            filepath = ref.filename,
+                            lnum = ref.lnum,
+                            col = ref.col,
+                            data = {
+                                filepath = ref.filename,
+                                lnum = ref.lnum,
+                                col = ref.col,
+                            }
+                        }
                         table.insert(picker_items, item)
                     end
                 end
                 return picker_items
-            end,
-            async_preview = function(data, _, callback)
-                return pickertools.default_file_preview(data.filepath, {
-                    lnum = data.lnum,
-                    col = data.col
-                }, callback)
             end,
         }, function(data)
             if data then
@@ -166,7 +150,7 @@ function M.document_symbols(opts)
 
         picker.open({
             prompt = opts.prompt or "Document Symbols",
-            enable_list_sep = true,
+            enable_preview = true,
             fetch = function(query, fetch_opts)
                 local filtered = {}
                 for _, item in ipairs(items) do
@@ -178,18 +162,15 @@ function M.document_symbols(opts)
                         table.insert(filtered, {
                             label_chunks = match.chunks,
                             score = match.score,
-                            data = item.data
+                            data = item.data,
+                            filepath = item.data.filepath,
+                            lnum = item.data.lnum,
+                            col = item.data.col,
                         })
                     end
                 end
                 table.sort(filtered, function(a, b) return a.score > b.score end)
                 return filtered
-            end,
-            async_preview = function(data, _, callback)
-                return pickertools.default_file_preview(data.filepath, {
-                    lnum = data.lnum,
-                    col = data.col
-                }, callback)
             end,
         }, function(data)
             if data then

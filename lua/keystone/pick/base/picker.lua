@@ -61,7 +61,7 @@ local _antiflicker_delay = 200
 ---@field enable_preview boolean?
 ---@field async_preview keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
----@field quickfix_formatter (fun(data:any):table?)?
+---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
@@ -547,9 +547,6 @@ function Picker:update_preview()
 
     ---@type keystone.picker.ListItem
     local item = self.list_items[self:get_cursor()]
-    local data = item and item.data or nil
-
-    if not data then return end
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.prev_height - 2) -- -2 for borders
@@ -852,21 +849,20 @@ function Picker:send_to_qf()
     if #self.list_items == 0 then return end
     local qf_entries = {} ---@type vim.quickfix.entry[]
 
-    for _, item in ipairs(self.list_items) do
-        local entry
-        if self.opts.quickfix_formatter then
-            entry = self.opts.quickfix_formatter(item.data)
+    if self.opts.quickfix_formatter then
+        for _, item in ipairs(self.list_items) do
+            local entry = self.opts.quickfix_formatter(item.data)
+            if entry then table.insert(qf_entries, entry) end
         end
-        if not entry then
+    else
+        for _, item in ipairs(self.list_items) do
             ---@type vim.quickfix.entry
-            entry = {
+            local entry = {
                 text     = item.text,
                 filename = item.filepath,
                 lnum     = item.lnum or 1,
                 col      = item.col or 1,
             }
-        end
-        if entry then
             table.insert(qf_entries, entry)
         end
     end
@@ -917,13 +913,15 @@ function Picker:close(result)
 end
 
 function Picker:setup_input()
-    local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
-
-    vim.keymap.set("i", "<CR>", function()
+    local confirm = function()
         ---@type keystone.picker.ListItem
         local list_item = self.list_items[self:get_cursor()]
         self:close(list_item and list_item.data or nil)
-    end, key_opts)
+    end
+
+    local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
+
+    vim.keymap.set({ "i", "n" }, "<CR>", confirm, key_opts)
 
     vim.keymap.set("n", "<Esc>", function() self:close(nil) end, key_opts)
     vim.keymap.set("i", "<C-c>", function() self:close(nil) end, key_opts)

@@ -67,11 +67,12 @@ function M.match_label(match_target, query, opts)
     local crop_offset = 0
     local final_display
     if opts.maxlen then
+        local max_len = math.max(opts.maxlen or 3, 3)
         if opts.is_path then
-            final_display = fsutils.smart_crop_path(match_target, opts.maxlen)
+            final_display = fsutils.smart_crop_path(match_target, max_len)
             crop_offset = #final_display - #match_target
         elseif #match_target > opts.maxlen then
-            final_display = match_target:sub(1, opts.maxlen - 3) .. "..."
+            final_display = match_target:sub(1, max_len - 3) .. "..."
         else
             final_display = match_target
         end

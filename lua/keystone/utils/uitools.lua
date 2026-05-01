@@ -17,9 +17,7 @@ function M.is_regular_buffer(bufnr)
     if not vim.api.nvim_buf_is_valid(bufnr) then
         return false
     end
-    local buftype = vim.bo[bufnr].buftype
-    local buflisted = vim.bo[bufnr].buflisted
-    if buftype ~= '' or not buflisted then
+    if vim.bo[bufnr].buftype ~= '' then
         return false
     end
     return true
@@ -155,10 +153,10 @@ function M.smart_open_buffer(bufnr, lnum, col)
     end
     if lnum then
         local line_count = vim.api.nvim_buf_line_count(bufnr)
-        local safe_lnum = math.max(1, math.min(lnum, line_count))
+        local safe_lnum = math.max(1, math.min(lnum, line_count)) or 1
         local ok = pcall(vim.api.nvim_win_set_cursor, target_win, { safe_lnum, col or 0 })
         if not ok then
-            vim.api.nvim_win_set_cursor(target_win, { safe_lnum or 0 })
+            pcall(vim.api.nvim_win_set_cursor, target_win, { safe_lnum, 0 })
         end
     end
 

@@ -11,6 +11,7 @@ function M.open()
 
     picker.open({
         prompt = "Git Diff (Preview Changes)",
+        enable_preview = true,
         async_fetch = function(query, fetch_opts, callback)
             local items = {}
             local args = { "diff", "HEAD", "--name-only" }
@@ -50,12 +51,12 @@ function M.open()
             process:start()
             return function() process:kill() end
         end,
-        async_preview = function(relative_path, _, callback)
+        async_preview = function(item, callback)
             local diff_output = {}
-
+            local filepath = item.data
             local process = Process:new("git", {
                 cwd = cwd,
-                args = { "diff", "HEAD", "--", relative_path },
+                args = { "diff", "HEAD", "--", filepath },
                 on_output = function(data, is_stderr)
                     if data and not is_stderr then table.insert(diff_output, data) end
                 end,
@@ -66,7 +67,7 @@ function M.open()
                     vim.schedule(function()
                         callback(content, {
                             filetype = "diff",
-                            filepath = relative_path
+                            filepath = filepath
                         })
                     end)
                 end,

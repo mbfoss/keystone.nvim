@@ -8,11 +8,11 @@ local M = {}
 ---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
 
 local _type_prefix = {
-    E = {" ", "Error"},
-    W = {" ", "Warning"},
-    I = {" ", "Info"},
+    E = { "󰅚 ", "DiagnosticError" },
+    W = { "󰀪 ", "DiagnosticWarn" },
+    I = { "󰋽 ", "DiagnosticInfo" },
+    N = { "󰌶 ", "DiagnosticHint" },
 }
-
 ---@param qf any
 ---@param filter keystone.pick.quickfix_filter
 ---@return boolean
@@ -75,6 +75,7 @@ function M.open(opts)
     picker.open({
         prompt = "Quickfix Items",
         enable_list_sep = true,
+        enable_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, data in ipairs(entries) do
@@ -84,8 +85,7 @@ function M.open(opts)
                     is_path = false
                 })
                 if match then
-                    local prefix = _type_prefix[data.type]
-                    local chunks = prefix and {prefix} or {}
+                    local chunks = { _type_prefix[data.type] or _type_prefix.N }
                     vim.list_extend(chunks, match.chunks)
                     local virt_lines = nil
                     if data.relpath and #data.relpath > 0 then
@@ -96,6 +96,9 @@ function M.open(opts)
                         label_chunks = chunks,
                         score = match.score,
                         virt_lines = virt_lines,
+                        filepath = data.filepath,
+                        lnum = data.lnum,
+                        col = data.col,
                         data = data,
                     }
                     table.insert(items, item)
@@ -103,12 +106,6 @@ function M.open(opts)
             end
             table.sort(items, function(a, b) return a.score > b.score end)
             return items
-        end,
-        async_preview = function(data, _, callback)
-            return pickertools.default_file_preview(data.filepath, {
-                lnum = data.lnum,
-                col = data.col
-            }, callback)
         end,
     }, function(data)
         if data then

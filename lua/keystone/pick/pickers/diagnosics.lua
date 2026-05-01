@@ -17,6 +17,19 @@ local function get_severity_info(severity)
     return res[1], res[2]
 end
 
+local function severity_to_qf_type(severity)
+    if severity == vim.diagnostic.severity.ERROR then
+        return "E"
+    elseif severity == vim.diagnostic.severity.WARN then
+        return "W"
+    elseif severity == vim.diagnostic.severity.INFO then
+        return "I"
+    elseif severity == vim.diagnostic.severity.HINT then
+        return "N"
+    end
+    return ""
+end
+
 ---@param opts {bufnr:number?}?
 function M.open(opts)
     opts = opts or {}
@@ -27,60 +40,66 @@ function M.open(opts)
         return
     end
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
-    local raw_data = {}
+    local entries = {}
     for _, d in ipairs(diagnostics) do
         local sev_text, sev_hl = get_severity_info(d.severity)
 
-        table.insert(raw_data, {
+        table.insert(entries, {
             message = d.message:gsub("\n", " "),
+            severity = d.severity,
             prefix_chunks = {
-                { sev_text,                            sev_hl },
-                { string.format(" %3d: ", d.lnum + 1), "Comment" }
+                { sev_text,                          sev_hl },
+                { string.format(" %3d", d.lnum + 1), "Number" },
+                { ": ",                              "Comment" }
             },
-            data = {
-                lnum = d.lnum + 1,
-                col = d.col + 1,
-                bufnr = d.bufnr
-            }
+            bufnr = d.bufnr,
+            lnum = d.lnum + 1,
+            col = d.col,
         })
     end
 
     picker.open({
         prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
+        enable_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
-            for _, item in ipairs(raw_data) do
-                local res = pickertools.match_label(item.message, query, {
+            for _, entry in ipairs(entries) do
+                local res = pickertools.match_label(entry.message, query, {
                     list_width = fetch_opts.list_width,
                     is_path = false
                 })
 
                 if res then
-                    local chunks = vim.deepcopy(item.prefix_chunks)
+                    local chunks = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
                         label_chunks = chunks,
-                        data = item.data,
-                        score = res.score
+                        data = {
+                            message = entry.message,
+                            severity = entry.severity,
+                            bufnr = entry.bufnr,
+                            lnum = entry.lnum,
+                            col = entry.col,
+                        },
+                        score = res.score,
+                        bufnr = entry.bufnr,
+                        lnum = entry.lnum,
+                        col = entry.col,
                     })
                 end
             end
             return items
         end,
-        async_preview = function(data, _, callback)
-            if data.bufnr then
-                local lines = vim.api.nvim_buf_get_lines(data.bufnr, 0, -1, false)
-                local content = table.concat(lines, "\n")
-                callback(content, {
-                    filetype = vim.bo[data.bufnr].filetype,
-                    lnum = data.lnum,
-                    col = data.col
-                })
-            else
-                callback(nil, { error_msg = "Unknown buffer" })
-            end
-            return function() end
-        end,
+        quickfix_formatter = function(data)
+            ---@type vim.quickfix.entry
+            return {
+                type     = severity_to_qf_type(data.severity),
+                text     = data.message,
+                filename = data.filepath,
+                lnum     = data.lnum or 1,
+                col      = data.col or 0,
+            }
+        end
     }, function(selected)
         if selected then
             uitools.smart_open_buffer(selected.bufnr, selected.lnum, selected.col)

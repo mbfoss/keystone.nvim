@@ -37,10 +37,12 @@ function M.open()
 
     picker.open({
         prompt = "Jumplist",
+        enable_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, data in ipairs(entries) do
-                local label = data.relpath or "[No Name]"
+                local label = data.relpath or ""
+                if label == "" then label = "[No Name]" end
                 local match = pickertools.match_label(label, query, {
                     list_width = fetch_opts.list_width,
                     is_path = true
@@ -52,22 +54,18 @@ function M.open()
                         label_chunks = match.chunks,
                         score = match.score,
                         data = data,
+                        filepath = data.filepath,
+                        lnum = data.lnum,
+                        col = data.col,
                     }
                     table.insert(items, item)
                 end
             end
             return items
         end,
-
-        async_preview = function(data, _, callback)
-            return pickertools.default_file_preview(data.filepath, {
-                lnum = data.lnum,
-                col = data.col
-            }, callback)
-        end,
     }, function(data)
         if data then
-            uitools.smart_open_file(data.filepath, data.lnum, data.col)
+            uitools.smart_open_buffer(data.bufnr, data.lnum, data.col)
         end
     end)
 end

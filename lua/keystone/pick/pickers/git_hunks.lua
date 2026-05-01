@@ -82,6 +82,7 @@ function M.open(opts)
 
     picker.open({
         prompt = "Git Hunks",
+        enable_preview = true,
         ---@param query string
         ---@param fetch_opts table
         ---@param callback fun(items: keystone.picker.git_hunks.Item[]|nil)
@@ -135,8 +136,8 @@ function M.open(opts)
             return function() process:kill() end
         end,
 
-        ---@param hunk GitHunk
-        async_preview = function(hunk, _, callback)
+        async_preview = function(item, callback)
+            local hunk = item.data
             vim.schedule(function()
                 callback(hunk.patch or "", {
                     filetype = "diff",

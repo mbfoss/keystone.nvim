@@ -170,7 +170,9 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             local item = {
                 label_chunks = chunks,
                 virt_lines = { { { location, "Special" } } },
-                file = abs_path,
+                filepath = abs_path,
+                lnum = tonumber(lnum),
+                col = tonumber(col),
                 data = {
                     filepath = abs_path,
                     lnum = tonumber(lnum),
@@ -231,10 +233,10 @@ end
 function M.open(opts)
     opts = opts or {}
     local cwd = opts.cwd or vim.fn.getcwd()
-
     return picker.open({
         prompt = "Live Grep",
         highlight_query = get_query_highlights,
+        enable_preview = true,
         enable_list_sep = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
@@ -244,12 +246,6 @@ function M.open(opts)
                 exclude_globs = opts.exclude_globs or {},
                 max_results = opts.max_results or 10000,
             }, fetch_opts, callback)
-        end,
-        async_preview = function(data, _, callback)
-            return pickertools.default_file_preview(data.filepath, {
-                lnum = data.lnum,
-                col = data.col
-            }, callback)
         end,
     }, function(selected)
         if selected then
