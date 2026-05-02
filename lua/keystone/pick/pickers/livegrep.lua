@@ -30,13 +30,6 @@ local function get_query_highlights(query)
                 finish = colon_pos - 1,
                 hl = "Keyword",
             })
-            if e >= colon_pos then
-                table.insert(highlights, {
-                    start = colon_pos,
-                    finish = e,
-                    hl = "String",
-                })
-            end
         end
         start_search = e + 1
     end
@@ -51,21 +44,25 @@ local function parse_query_and_globs(query)
     local cleaned = query
     -- extract values
     for _, pat in ipairs(patterns) do
-        for filter in cleaned:gmatch("%f[%w]" .. pat .. ":(%S+)") do
+        for filter in cleaned:gmatch("%f[%w]" .. pat .. ":(%S*)") do
             if pat == "glob" then
-                table.insert(include_globs, filter)
+                if filter ~= "" then
+                    table.insert(include_globs, filter)
+                end
             elseif pat == "in" then
                 filter = filter:gsub("^!", "\\!") -- escape leading !
                 filter = filter:gsub("^%*+", ""):gsub("%*+$", "")
                 filter = filter:gsub("^%/+", ""):gsub("%/+$", "")
-                table.insert(include_globs, "*" .. filter .. "*")
-                table.insert(include_globs, "**/" .. filter .. "/**")
+                if filter ~= "" then
+                    table.insert(include_globs, "*" .. filter .. "*")
+                    table.insert(include_globs, "**/" .. filter .. "/**")
+                end
             end
         end
     end
     -- remove patterns
     for _, pat in ipairs(patterns) do
-        cleaned = cleaned:gsub("()(%s*%f[%w]" .. pat .. ":%S+%s*)()", function(start_pos, match, end_pos)
+        cleaned = cleaned:gsub("()(%s*%f[%w]" .. pat .. ":%S*%s*)()", function(start_pos, match, end_pos)
             local at_start = (start_pos == 1)
             local at_end = (end_pos > #cleaned)
             if at_start or at_end then
