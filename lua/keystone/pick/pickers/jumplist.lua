@@ -29,6 +29,7 @@ function M.open()
         return
     end
 
+    ---@type {filepath:string, relpath:string, lnum:number,col:number,bufnr:number}[]
     local entries = {}
     for i = #jumplist, 1, -1 do
         local data = read_jump_item(jumplist[i])
@@ -53,10 +54,12 @@ function M.open()
                     local item = {
                         label_chunks = match.chunks,
                         score = match.score,
-                        data = data,
-                        filepath = data.filepath,
-                        lnum = data.lnum,
-                        col = data.col,
+                        data = {
+                            filepath = data.filepath,
+                            bufnr = data.bufnr,
+                            lnum = data.lnum,
+                            col = data.col,
+                        }
                     }
                     table.insert(items, item)
                 end

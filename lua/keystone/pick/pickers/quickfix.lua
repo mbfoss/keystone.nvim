@@ -96,10 +96,12 @@ function M.open(opts)
                         label_chunks = chunks,
                         score = match.score,
                         virt_lines = virt_lines,
-                        filepath = data.filepath,
-                        lnum = data.lnum,
-                        col = data.col,
-                        data = data,
+                        data = {
+                            filepath = data.filepath,
+                            lnum = data.lnum,
+                            col = data.col,
+                            data = data,
+                        }
                     }
                     table.insert(items, item)
                 end

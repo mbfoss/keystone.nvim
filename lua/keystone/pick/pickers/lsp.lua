@@ -87,9 +87,6 @@ function M.references()
                             label_chunks = match.chunks,
                             virt_lines = { { { loc, "Special" } } },
                             score = match.score,
-                            filepath = ref.filename,
-                            lnum = ref.lnum,
-                            col = ref.col,
                             data = {
                                 filepath = ref.filename,
                                 lnum = ref.lnum,
@@ -163,9 +160,6 @@ function M.document_symbols(opts)
                             label_chunks = match.chunks,
                             score = match.score,
                             data = item.data,
-                            filepath = item.data.filepath,
-                            lnum = item.data.lnum,
-                            col = item.data.col,
                         })
                     end
                 end

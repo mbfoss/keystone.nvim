@@ -25,7 +25,9 @@ function M.open(opts)
             for i, word in ipairs(suggestions) do
                 local item = {
                     label = word,
-                    data = word
+                    data = {
+                        word = word
+                    }
                 }
                 local match = pickertools.match_label(item.label, query, {
                     maxlen = fetch_opts.list_width,
@@ -40,9 +42,9 @@ function M.open(opts)
             end
             return items
         end,
-    }, function(word)
-        if word then
-            vim.cmd("normal! ciw" .. word)
+    }, function(data)
+        if data then
+            vim.cmd("normal! ciw" .. data.word)
         end
     end)
 end

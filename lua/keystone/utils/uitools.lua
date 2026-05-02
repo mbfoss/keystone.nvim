@@ -75,6 +75,9 @@ end
 ---@param line? integer 1‑based line number (nil = just open)
 ---@param col? integer 1‑based line number (nil = just open)
 function M.set_cursor_pos(winid, line, col)
+    if not vim.api.nvim_win_is_valid(winid) then
+        return
+    end
     if line and type(line) == 'number' and line > 0 then
         local bufnr = vim.api.nvim_win_get_buf(winid)
         if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -117,9 +120,12 @@ function M.smart_open_file(filepath, line, col)
     if bufnr ~= -1 then
         vim.api.nvim_win_set_buf(winid, bufnr)
     else
-        vim.cmd.edit(vim.fn.fnameescape(filepath))
-        M.set_cursor_pos(winid, line, col)
+        local buf = vim.fn.bufadd(full_path)
+        vim.fn.bufload(buf)
+        vim.bo[buf].buflisted = true
+        vim.api.nvim_set_current_buf(buf)
         bufnr = vim.api.nvim_win_get_buf(winid)
+        M.set_cursor_pos(winid, line, col)
     end
 
     return winid, bufnr

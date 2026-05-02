@@ -194,9 +194,6 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
                 local item = {
                     label_chunks = chunks,
                     virt_lines = { { { location, "Special" } } },
-                    filepath = abs_path,
-                    lnum = tonumber(lnum),
-                    col = tonumber(col),
                     data = {
                         filepath = abs_path,
                         lnum = tonumber(lnum),
@@ -269,9 +266,9 @@ function M.open(opts)
                 max_results = opts.max_results or 10000,
             }, fetch_opts, callback)
         end,
-    }, function(selected)
-        if selected then
-            uitools.smart_open_file(selected.filepath, selected.lnum, selected.col - 1)
+    }, function(data)
+        if data then
+            uitools.smart_open_file(data.filepath, data.lnum, data.col - 1)
         end
     end)
 end
