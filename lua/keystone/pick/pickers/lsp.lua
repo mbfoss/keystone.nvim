@@ -75,7 +75,7 @@ function M.references()
                 for _, ref in ipairs(lsp_items) do
                     local text = ref.text and vim.fn.trim(ref.text) or ""
                     local match = pickertools.match_label(text, query, {
-                        list_width = fetch_opts.list_width,
+                        maxlen = fetch_opts.list_width,
                         is_path = false
                     })
                     if match then
@@ -155,7 +155,7 @@ function M.document_symbols(opts)
                 local filtered = {}
                 for _, item in ipairs(items) do
                     local match = pickertools.match_label(item.data.name, query, {
-                        list_width = fetch_opts.list_width,
+                        maxlen = fetch_opts.list_width,
                         is_path = false
                     })
                     if match then

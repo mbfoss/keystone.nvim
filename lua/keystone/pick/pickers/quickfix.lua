@@ -81,7 +81,7 @@ function M.open(opts)
             for _, data in ipairs(entries) do
                 local text = vim.trim(data.text ~= "" and data.text or "[No description]")
                 local match = pickertools.match_label(text, query, {
-                    list_width = fetch_opts.list_width,
+                    maxlen = fetch_opts.list_width,
                     is_path = false
                 })
                 if match then

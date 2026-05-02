@@ -16,24 +16,25 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 local _antiflicker_delay = 200
 
+---@class keystone.picker.ItemData
+---@field filepath string?
+---@field lnum number?
+---@field col number?
+---@field [string] any
+
 ---@class keystone.Picker.Item
 ---@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
----@field filepath string?
----@field lnum number?
----@field col number?
----@field data any
+---@field data keystone.picker.ItemData
 
 ---@class keystone.picker.ListItem
 ---@field text string
----@field filepath string?
----@field lnum number?
----@field col number?
----@field data any
+---@field score number
+---@field data keystone.picker.ItemData
 
----@alias keystone.Picker.Callback fun(data:any?)
+---@alias keystone.Picker.Callback fun(data:keystone.picker.ItemData?)
 
 ---@class keystone.Picker.FetcherOpts
 ---@field list_width number
@@ -47,14 +48,13 @@ local _antiflicker_delay = 200
 ---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
----@class keystone.Picker.AsyncPreviewItem
----@field filepath string?
----@field lnum number?
----@field col number?
----@field data any
+---@class keystone.Picker.AsyncPreviewOpts
+---@field viewport_with number?
+---@field viewport_height number?
+
 
 ---@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Picker.AsyncPreviewLoader fun(item:keystone.Picker.AsyncPreviewItem, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
+---@alias keystone.Picker.AsyncPreviewLoader fun(data:keystone.picker.ItemData, opts:keystone.Picker.AsyncPreviewOpts, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Picker.opts
 ---@field prompt string
@@ -166,6 +166,9 @@ local function _center_for_previwer(msg, width, height)
     table.insert(lines, centered)
     return lines
 end
+
+---@param items keystone.picker.ListItem[]
+---@param new_score number
 local function _find_insert_index(items, new_score)
     if not new_score then
         return #items + 1
@@ -182,10 +185,9 @@ local function _find_insert_index(items, new_score)
     return low
 end
 
----@param item keystone.Picker.AsyncPreviewItem
----@param callback fun(preview:keystone.Picker.AsyncPreviewData?)
-local function _default_preview(item, callback)
-    local filepath = item.filepath
+---@type keystone.Picker.AsyncPreviewLoader
+local function _default_preview(data, _, callback)
+    local filepath = data.filepath
     if not filepath or filepath == "" then
         vim.schedule(function()
             callback({})
@@ -205,8 +207,8 @@ local function _default_preview(item, callback)
             callback({
                 content = content,
                 filepath = filepath,
-                lnum = item.lnum,
-                col = item.col,
+                lnum = data.lnum,
+                col = data.col,
                 error_msg = load_err,
             })
         end)
@@ -380,7 +382,7 @@ function Picker:setup_ui()
                             vim.api.nvim_del_augroup_by_id(focus_augroup)
                             focus_augroup = nil
                         end
-                        self:close(nil)
+                        self:close()
                     end)
                 end
             end
@@ -562,11 +564,10 @@ function Picker:update_preview()
     local preview_fn = self.opts.async_preview or _default_preview
 
     self.async_preview_cancel = preview_fn(
+        item.data,
         {
-            filepath = item.filepath,
-            lnum = item.lnum,
-            col = item.col,
-            data = item.data,
+            viewport_with = preview_width,
+            viewport_height = preview_height,
         },
         function(preview)
             if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then return end
@@ -702,9 +703,7 @@ function Picker:add_new_lines(items)
         ---@type keystone.picker.ListItem
         local list_item = {
             text = label,
-            filepath = item.filepath,
-            lnum = item.lnum,
-            col = item.col,
+            score = item.score,
             data = item.data,
         }
         local idx = _find_insert_index(self.list_items, item.score)
@@ -867,24 +866,25 @@ function Picker:send_to_qf()
         end
     else
         for _, item in ipairs(self.list_items) do
+            local data = item.data or {}
             ---@type vim.quickfix.entry
             local entry = {
                 text     = item.text,
-                filename = item.filepath,
-                lnum     = item.lnum or 1,
-                col      = item.col or 1,
+                filename = data.filepath,
+                lnum     = data.lnum or 1,
+                col      = data.col or 1,
             }
             table.insert(qf_entries, entry)
         end
     end
     if #qf_entries > 0 then
-        self:close(nil)
+        self:close()
         vim.fn.setqflist(qf_entries, "r")
         vim.cmd("copen")
     end
 end
 
----@param selected_data any?
+---@param selected_data keystone.picker.ItemData?
 function Picker:close(selected_data)
     if self.closed then return end
     self.closed = true
@@ -939,8 +939,8 @@ function Picker:setup_input()
 
     vim.keymap.set({ "i", "n" }, "<CR>", confirm, key_opts)
 
-    vim.keymap.set("n", "<Esc>", function() self:close(nil) end, key_opts)
-    vim.keymap.set("i", "<C-c>", function() self:close(nil) end, key_opts)
+    vim.keymap.set("n", "<Esc>", function() self:close() end, key_opts)
+    vim.keymap.set("i", "<C-c>", function() self:close() end, key_opts)
 
     vim.keymap.set("i", "<Down>", function()
         self:move_cursor(self:get_cursor() + 1)

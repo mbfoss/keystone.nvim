@@ -47,9 +47,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         exclude_regex_list,
         function(filepath, filename, relative_path)
             local res = pickertools.match_label(relative_path, query, {
-                list_width = fetch_opts.list_width,
+                maxlen = fetch_opts.list_width,
                 is_path = true,
-                offset = 0
+                offset = 0,
             })
 
             if not res then return end
@@ -57,11 +57,13 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 cancel_fn()
                 return
             end
+            -- table.insert(res.chunks, 1, { tostring(res.score) .. ": ", "Nontext" })
             table.insert(items, {
                 label_chunks = res.chunks,
-                data = filepath,
                 score = res.score,
-                filepath = filepath,
+                data = {
+                    filepath = filepath
+                },
             })
             count = count + 1
 
@@ -115,7 +117,7 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
             if strutils.check_path_pattern(line, false, include_regex_list, nil) then
                 if count < max_results then
                     local res = pickertools.match_label(relpath, query, {
-                        list_width = fetch_opts.list_width,
+                        maxlen = fetch_opts.list_width,
                         is_path = true
                     })
 
@@ -124,9 +126,10 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
                         ---@type keystone.Picker.Item
                         local item = {
                             label_chunks = res.chunks,
-                            data = filepath,
                             score = res.score,
-                            filepath = filepath,
+                            data = {
+                                filepath = filepath,
+                            },
                         }
                         table.insert(items, item)
                         count = count + 1
@@ -185,8 +188,10 @@ function M.open(opts)
             end
         end,
 
-    }, function(path)
-        if path then uitools.smart_open_file(path) end
+    }, function(data)
+        if data then
+            uitools.smart_open_file(data.filepath)
+        end
     end)
 end
 

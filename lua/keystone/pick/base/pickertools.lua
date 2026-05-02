@@ -4,10 +4,10 @@ local strutils = require("keystone.utils.strutils")
 local fsutils = require("keystone.utils.fsutils")
 
 ---@param text string The final string to be shown
----@param positions integer[] Matched indices (already adjusted for any offsets)
+---@param positions integer[] Matched indices
 ---@param hl_group string? Optional override for the match highlight
 ---@return table[] chunks
-function M.build_highlight_chunks(text, positions, hl_group)
+local function build_highlight_chunks(text, positions, hl_group)
     if not positions or #positions == 0 then
         return { { text } }
     end
@@ -35,20 +35,6 @@ function M.build_highlight_chunks(text, positions, hl_group)
         table.insert(chunks, last_was_match and { current_chunk, hl } or { current_chunk })
     end
     return chunks
-end
-
----@param match_target string What we match against
----@param query string User input
----@param is_path boolean
----@return boolean matched,number score,number[] positions
-function M.fuzzy_match(match_target, query, is_path)
-    local is_match, score, positions
-    if is_path then
-        is_match, score, positions = strutils.fuzzy_match_path(match_target, query)
-    else
-        is_match, score, positions = strutils.fuzzy_match(match_target, query)
-    end
-    return is_match, score, positions
 end
 
 ---@param match_target string What we match against
@@ -94,15 +80,21 @@ function M.match_label(match_target, query, opts)
     end
     return {
         score = score or 0,
-        chunks = M.build_highlight_chunks(final_display, adjusted)
+        chunks = build_highlight_chunks(final_display, adjusted)
     }
 end
 
 ---@param name string
+---@param opts {max_entries:number?}?
 ---@return keystone.Picker.QueryHistoryProvider
-function M.make_history_provider(name)
+function M.make_history_provider(name, opts)
+    opts = opts or {}
+
+    assert(type(name) == "string" and name:match("^[%w_]+$"), "invalid name")
+    assert(not opts.max_entries or type(opts.max_entries) == "number")
+
     local file_path = vim.fs.joinpath(vim.fn.stdpath("data"), "keystonehist." .. name .. ".txt")
-    local max_entries = 50
+    local max_entries = opts.max_entries or 50
     ---@type keystone.Picker.QueryHistoryProvider
     local provider = {
         load = function()

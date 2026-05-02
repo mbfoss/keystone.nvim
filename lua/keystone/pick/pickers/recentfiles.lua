@@ -51,23 +51,22 @@ function M.open()
             local items = {}
             for _, file in ipairs(recent_files) do
                 local res = pickertools.match_label(file.match_path, query, {
-                    list_width = fetch_opts.list_width,
+                    maxlen = fetch_opts.list_width,
                     is_path = true,
                 })
                 if res then
                     table.insert(items, {
                         label_chunks = res.chunks,
-                        data = file.full_path,
-                        filepath = file.full_path,
+                        data = { filepath = file.full_path },
                     })
                 end
             end
             return items
         end,
 
-    }, function(selected_path)
-        if selected_path then
-            uitools.smart_open_file(selected_path)
+    }, function(data)
+        if data then
+            uitools.smart_open_file(data.filepath)
         end
     end)
 end

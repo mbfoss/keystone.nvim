@@ -64,8 +64,8 @@ function M.open(opts)
             end
             return items
         end,
-        async_preview = function(item, callback)
-            local bufnr = item.data.bufnr
+        async_preview = function(data, _, callback)
+            local bufnr = data.bufnr
             local cancelled = false
             vim.schedule(function()
                 if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then

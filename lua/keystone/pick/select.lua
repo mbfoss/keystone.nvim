@@ -65,7 +65,7 @@ function M.select(items, opts, on_choice)
 
             for _, entry in ipairs(cached) do
                 local match = pickertools.match_label(entry.label, query, {
-                    list_width = fetch_opts.list_width,
+                    maxlen = fetch_opts.list_width,
                     is_path = false,
                 })
                 if match then

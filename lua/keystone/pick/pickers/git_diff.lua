@@ -5,55 +5,56 @@ local pickertools = require("keystone.pick.base.pickertools")
 local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local fsutils = require("keystone.utils.fsutils")
+local strutils = require("keystone.utils.strutils")
 
 function M.open()
     local cwd = vim.fn.getcwd()
 
+    local result = vim.system(
+        { "git", "diff", "HEAD", "--name-only" },
+        { text = true }
+    ):wait()
+
+    local lines = vim.split(result.stdout or "", "\n", { trimempty = true })
+    if result.code ~= 0 then
+        local err = result.stderr and strutils.crop_string_for_ui(result.stderr, 70) or ""
+        vim.notify(
+            ("git diff failed (exit code %d): %s"):format(result.code, err ~= "" and err or "unknown error"),
+            vim.log.levels.ERROR
+        )
+        return
+    end
+    if #lines == 0 then
+        vim.notify("No changed files (git diff HEAD is empty)", vim.log.levels.INFO)
+        return
+    end
+
     picker.open({
         prompt = "Git Diff (Preview Changes)",
         enable_preview = true,
-        async_fetch = function(query, fetch_opts, callback)
+        fetch = function(query, fetch_opts)
             local items = {}
-            local args = { "diff", "HEAD", "--name-only" }
-
-            local process = Process:new("git", {
-                cwd = cwd,
-                args = args,
-                on_output = function(data, is_stderr)
-                    if not data or is_stderr then return end
-                    for line in data:gmatch("[^\r\n]+") do
-                        local path = fsutils.get_relative_path(line) or line
-                        local res = pickertools.match_label(path, query, {
-                            list_width = fetch_opts.list_width,
-                            is_path = true,
-                        })
-
-                        if res then
-                            table.insert(items, {
-                                label_chunks = res.chunks,
-                                data = path,
-                                score = res.score
-                            })
-                        end
-                    end
-                end,
-                on_exit = function()
-                    if query ~= "" then
-                        table.sort(items, function(a, b) return a.score > b.score end)
-                    end
-                    vim.schedule(function()
-                        callback(items)
-                        callback(nil)
-                    end)
-                end,
-            })
-
-            process:start()
-            return function() process:kill() end
+            for _, line in ipairs(lines) do
+                local path = fsutils.get_relative_path(line) or line
+                local res = pickertools.match_label(path, query, {
+                    maxlen = fetch_opts.list_width,
+                    is_path = true,
+                })
+                if res then
+                    table.insert(items, {
+                        label_chunks = res.chunks,
+                        score = res.score,
+                        data = {
+                            path = path,
+                        }
+                    })
+                end
+            end
+            return items
         end,
-        async_preview = function(item, callback)
+        async_preview = function(data, _, callback)
             local diff_output = {}
-            local filepath = item.data
+            local filepath = data.path
             local process = Process:new("git", {
                 cwd = cwd,
                 args = { "diff", "HEAD", "--", filepath },
@@ -76,9 +77,9 @@ function M.open()
             process:start()
             return function() process:kill() end
         end,
-    }, function(selected_rel_path)
-        if selected_rel_path then
-            local full_path = vim.fs.joinpath(cwd, selected_rel_path)
+    }, function(data)
+        if data then
+            local full_path = vim.fs.joinpath(cwd, data.path)
             uitools.smart_open_file(full_path)
         end
     end)

@@ -113,9 +113,14 @@ function M.smart_open_file(filepath, line, col)
     local winid = M.get_regular_window()
     vim.api.nvim_set_current_win(winid)
 
-    vim.cmd.edit(vim.fn.fnameescape(filepath))
-    M.set_cursor_pos(winid, line, col)
-    local bufnr = vim.api.nvim_win_get_buf(winid)
+    local bufnr = vim.fn.bufnr(full_path)
+    if bufnr ~= -1 then
+        vim.api.nvim_win_set_buf(winid, bufnr)
+    else
+        vim.cmd.edit(vim.fn.fnameescape(filepath))
+        M.set_cursor_pos(winid, line, col)
+        bufnr = vim.api.nvim_win_get_buf(winid)
+    end
 
     return winid, bufnr
 end

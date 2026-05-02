@@ -68,27 +68,23 @@ function M.open(opts)
             local items = {}
             for _, entry in ipairs(entries) do
                 local res = pickertools.match_label(entry.message, query, {
-                    list_width = fetch_opts.list_width,
+                    maxlen = fetch_opts.list_width,
                     is_path = false
                 })
-
                 if res then
                     local chunks = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
                         label_chunks = chunks,
+                        score = res.score,
                         data = {
                             message = entry.message,
                             severity = entry.severity,
                             bufnr = entry.bufnr,
+                            filepath = filepath,
                             lnum = entry.lnum,
                             col = entry.col,
                         },
-                        score = res.score,
-                        bufnr = entry.bufnr,
-                        filepath = filepath,
-                        lnum = entry.lnum,
-                        col = entry.col,
                     })
                 end
             end
@@ -104,9 +100,9 @@ function M.open(opts)
                 col      = data.col or 0,
             }
         end
-    }, function(selected)
-        if selected then
-            uitools.smart_open_buffer(selected.bufnr, selected.lnum, selected.col)
+    }, function(data)
+        if data then
+            uitools.smart_open_buffer(data.bufnr, data.lnum, data.col)
         end
     end)
 end

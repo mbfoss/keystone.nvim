@@ -44,7 +44,7 @@ function M.open()
                 local label = data.relpath or ""
                 if label == "" then label = "[No Name]" end
                 local match = pickertools.match_label(label, query, {
-                    list_width = fetch_opts.list_width,
+                    maxlen = fetch_opts.list_width,
                     is_path = true
                 })
                 if match then

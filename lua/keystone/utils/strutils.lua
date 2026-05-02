@@ -349,7 +349,6 @@ function M.fuzzy_match_path(text, query)
 
 		if tc == qc then
 			local current_match_score = 0
-
 			-- Base Scoring & Gaps
 			if last > 0 then
 				local gap = ti - last - 1
@@ -357,25 +356,20 @@ function M.fuzzy_match_path(text, query)
 			else
 				current_match_score = 3
 			end
-
 			-- Boundary Bonuses
 			if _is_boundary(text, ti) then
 				current_match_score = current_match_score + 6
 			end
-
 			-- Proximity Weighting
 			if ti >= filename_start then
 				-- Standard high multiplier for actual filename matches
 				current_match_score = current_match_score * 3.0
 			else
-				-- FOLDER WEIGHTING: Proximity to filename
+				-- Proximity to filename
 				-- Matches near the end of the path string get more weight than the root.
-				-- Formula: 0.5 (base) + 0.5 * (current_index / filename_start)
-				-- Result: Matches at start of path ~0.5x, matches right before filename ~1.0x
 				local proximity_multiplier = 0.5 + (0.5 * (ti / filename_start))
 				current_match_score = current_match_score * proximity_multiplier
 			end
-
 			score = score + current_match_score
 			last = ti
 			positions[#positions + 1] = ti
