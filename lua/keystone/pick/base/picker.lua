@@ -21,7 +21,6 @@ local _antiflicker_delay = 200
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
----@field bufnr number?
 ---@field filepath string?
 ---@field lnum number?
 ---@field col number?
@@ -29,13 +28,12 @@ local _antiflicker_delay = 200
 
 ---@class keystone.picker.ListItem
 ---@field text string
----@field bufnr number?
 ---@field filepath string?
 ---@field lnum number?
 ---@field col number?
 ---@field data any
 
----@alias keystone.Picker.Callback fun(data:any|nil)
+---@alias keystone.Picker.Callback fun(data:any?)
 
 ---@class keystone.Picker.FetcherOpts
 ---@field list_width number
@@ -49,9 +47,14 @@ local _antiflicker_delay = 200
 ---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
----@alias keystone.Picker.AsyncPreviewItem {bufnr:number?,filepath:string?,lnum:number?,col:number?,data:any}
----@alias keystone.Picker.AsyncPreviewInfo {filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Picker.AsyncPreviewLoader fun(item:keystone.Picker.AsyncPreviewItem, callback:fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)):fun()?
+---@class keystone.Picker.AsyncPreviewItem
+---@field filepath string?
+---@field lnum number?
+---@field col number?
+---@field data any
+
+---@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
+---@alias keystone.Picker.AsyncPreviewLoader fun(item:keystone.Picker.AsyncPreviewItem, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Picker.opts
 ---@field prompt string
@@ -180,26 +183,27 @@ local function _find_insert_index(items, new_score)
 end
 
 ---@param item keystone.Picker.AsyncPreviewItem
----@param callback fun(preview:string?,info:keystone.Picker.AsyncPreviewInfo?)
+---@param callback fun(preview:keystone.Picker.AsyncPreviewData?)
 local function _default_preview(item, callback)
     local filepath = item.filepath
     if not filepath or filepath == "" then
         vim.schedule(function()
-            callback(nil, { error_msg = "No preview" })
+            callback({})
         end)
         return function()
         end
     end
     if not fsutils.file_exists(filepath) then
         vim.schedule(function()
-            callback(nil, { error_msg = "Invalid file path: " .. tostring(filepath) })
+            callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
         end)
         return function()
         end
     end
     local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
         function(load_err, content)
-            callback(content, {
+            callback({
+                content = content,
                 filepath = filepath,
                 lnum = item.lnum,
                 col = item.col,
@@ -217,18 +221,18 @@ end
 ---@field layout keystone.Picker.Layout
 ---@field pbuf integer
 ---@field lbuf integer
----@field vbuf integer|nil
+---@field vbuf integer?
 ---@field pwin integer
 ---@field lwin integer
----@field vwin integer|nil
----@field spinner keystone.utils.Spinner|nil
+---@field vwin integer?
+---@field spinner keystone.utils.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.picker.ListItem[]
 ---@field async_fetch_context number
----@field async_fetch_cancel fun()|nil
+---@field async_fetch_cancel fun()?
 ---@field async_preview_context number
----@field async_preview_cancel fun()|nil
----@field preview_timer table|nil
+---@field async_preview_cancel fun()?
+---@field preview_timer table?
 ---@field resize_augroup number?
 ---@field current_query string?
 ---@field history string[]
@@ -293,13 +297,19 @@ function Picker:setup_ui()
     self.lbuf = vim.api.nvim_create_buf(false, true)
     self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
 
+    vim.bo[self.pbuf].bufhidden = "wipe"
+    vim.bo[self.lbuf].bufhidden = "wipe"
+
     vim.bo[self.lbuf].modifiable = false
-    if self.vbuf then vim.bo[self.vbuf].modifiable = false end
+
+    if self.vbuf then
+        vim.bo[self.vbuf].modifiable = false
+        vim.bo[self.vbuf].bufhidden = "unload"
+    end
 
     for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
         if b then
             vim.bo[b].buftype = "nofile"
-            vim.bo[b].bufhidden = "wipe"
             vim.bo[b].swapfile = false
             vim.bo[b].undolevels = -1
             vim.bo[b].modeline = false
@@ -307,10 +317,12 @@ function Picker:setup_ui()
                 buffer = b,
                 once = true,
                 callback = function(ev)
-                    if (b == self.pbuf) then self.pbuf = -1 end
-                    if (b == self.lbuf) then self.lbuf = -1 end
-                    if (b == self.vbuf) then self.vbuf = -1 end
-                    vim.schedule(function() self:close() end)
+                    if not self.closed then
+                        if (b == self.pbuf) then self.pbuf = -1 end
+                        if (b == self.lbuf) then self.lbuf = -1 end
+                        if (b == self.vbuf) then self.vbuf = -1 end
+                        vim.schedule(function() self:close() end)
+                    end
                 end,
             })
         end
@@ -555,19 +567,25 @@ function Picker:update_preview()
 
     self.async_preview_cancel = preview_fn(
         {
-            bufnr = item.bufnr,
             filepath = item.filepath,
             lnum = item.lnum,
             col = item.col,
             data = item.data,
         },
-        function(preview, info)
+        function(preview)
             if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then return end
-            local lines
-            if preview then
-                lines = vim.split(preview, "\n")
-            elseif info and info.error_msg then
-                lines = _center_for_previwer(info.error_msg, preview_width, preview_height)
+            local content = preview.content
+            local lines ---@type string[]
+            if content then
+                if type(content) == "string" then
+                    lines = vim.split(content, "\n")
+                else
+                    lines = content
+                end
+            elseif preview.error_msg then
+                lines = _center_for_previwer(preview.error_msg, preview_width, preview_height)
+            else
+                lines = _center_for_previwer("No preview", preview_width, preview_height)
             end
             lines = lines or {}
             if vim.api.nvim_buf_is_valid(self.vbuf) then
@@ -575,14 +593,14 @@ function Picker:update_preview()
                 vim.bo[self.vbuf].modifiable = true
                 vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
                 vim.bo[self.vbuf].modifiable = false
-                if preview and info then
-                    local filetype = info.filetype
-                    if not filetype and info.filepath then
-                        filetype = vim.filetype.match({ filename = info.filepath })
+                if content and preview then
+                    local filetype = preview.filetype
+                    if not filetype and preview.filepath then
+                        filetype = vim.filetype.match({ filename = preview.filepath })
                     end
                     vim.bo[self.vbuf].filetype = filetype or ""
-                    if info.lnum then
-                        local lnum = _clamp(info.lnum, 1, #lines)
+                    if preview.lnum then
+                        local lnum = _clamp(preview.lnum, 1, #lines)
                         vim.api.nvim_win_set_cursor(self.vwin, { lnum, 0 })
                         vim.api.nvim_win_call(self.vwin, function()
                             vim.cmd("normal! zz")
@@ -690,7 +708,6 @@ function Picker:add_new_lines(items)
         ---@type keystone.picker.ListItem
         local list_item = {
             text = label,
-            bufnr = item.bufnr,
             filepath = item.filepath,
             lnum = item.lnum,
             col = item.col,
@@ -873,8 +890,8 @@ function Picker:send_to_qf()
     end
 end
 
----@param result any|nil
-function Picker:close(result)
+---@param selected_data any?
+function Picker:close(selected_data)
     if self.closed then return end
     self.closed = true
 
@@ -895,6 +912,13 @@ function Picker:close(result)
             vim.api.nvim_win_close(w, true)
         end
     end
+
+    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
+        if b and vim.api.nvim_buf_is_valid(b) then
+            vim.api.nvim_buf_delete(b, { force = true })
+        end
+    end
+
     if self.opts.history_provider then
         if self.current_query and self.current_query ~= "" and self.current_query ~= self.history[#self.history] then
             table.insert(self.history, self.current_query)
@@ -905,11 +929,9 @@ function Picker:close(result)
     end
 
     vim.cmd("stopinsert!")
-    if result ~= nil then
-        vim.schedule(function()
-            self.callback(result)
-        end)
-    end
+    vim.schedule(function()
+        self.callback(selected_data)
+    end)
 end
 
 function Picker:setup_input()

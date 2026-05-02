@@ -139,9 +139,9 @@ function M.open(opts)
         async_preview = function(item, callback)
             local hunk = item.data
             vim.schedule(function()
-                callback(hunk.patch or "", {
+                callback({
+                    content = hunk.patch or "",
                     filetype = "diff",
-                    filepath = hunk.file,
                 })
             end)
             return function() end

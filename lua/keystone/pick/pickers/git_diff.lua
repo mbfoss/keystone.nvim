@@ -65,9 +65,9 @@ function M.open()
                     if content == "" then content = "No changes (staged or unstaged)" end
 
                     vim.schedule(function()
-                        callback(content, {
+                        callback({
+                            content = content,
                             filetype = "diff",
-                            filepath = filepath
                         })
                     end)
                 end,

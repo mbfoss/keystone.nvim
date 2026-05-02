@@ -21,6 +21,7 @@ local pickers = {
     git_diff              = function() require("keystone.pick.pickers.git_diff").open() end,
     git_hunks             = function() require("keystone.pick.pickers.git_hunks").open({ current_file = true }) end,
     buffers               = function() require("keystone.pick.pickers.buffers").open() end,
+    all_buffers           = function() require("keystone.pick.pickers.buffers").open({ include_unloaded = true, included_unlised = true }) end,
     spell_suggest         = function() require("keystone.pick.pickers.spell").open() end,
 }
 

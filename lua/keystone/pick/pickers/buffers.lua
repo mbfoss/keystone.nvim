@@ -10,25 +10,28 @@ local M = {}
 ---@param list_width number
 ---@return keystone.Picker.Item?
 local function buffer_to_picker_item(bufnr, query, list_width)
-    if not vim.api.nvim_buf_is_loaded(bufnr) or not vim.bo[bufnr].buflisted then
-        return nil
-    end
-
     local bufname = vim.api.nvim_buf_get_name(bufnr)
-    local path
+    local filepath = vim.bo[bufnr].buftype == "" and vim.fn.fnamemodify(bufname, ":t") or ""
+    local label
     if bufname ~= "" then
-        path = fsutils.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
+        label = fsutils.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
     else
-        path = "[No Name]"
+        label = "[No Name]"
     end
     local modified = vim.bo[bufnr].modified
-    local match = pickertools.match_label(path, query, { is_path = true, maxlen = list_width - (modified and 9 or 5) })
+    local match = pickertools.match_label(label, query, { is_path = true, maxlen = list_width - (modified and 9 or 5) })
     if not match then return nil end
 
-    local label_chunks = { { string.format("%3d",bufnr), "Comment" }, { ": ", "Nontext" } }
+    local label_chunks = { { string.format("%3d", bufnr), "Comment" }, { ": ", "Nontext" } }
     vim.list_extend(label_chunks, match.chunks)
     if modified then
         table.insert(label_chunks, { " [+]", "Special" })
+    end
+    if not vim.api.nvim_buf_is_loaded(bufnr) then
+        table.insert(label_chunks, { " [unloaded]", "Special" })
+    end
+    if not vim.bo[bufnr].buflisted then
+        table.insert(label_chunks, { " [unlisted]", "Special" })
     end
 
     local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
@@ -38,27 +41,49 @@ local function buffer_to_picker_item(bufnr, query, list_width)
         label_chunks = label_chunks,
         score = match.score,
         data = { bufnr = bufnr, lnum = lnum, col = col, },
-        filepath = vim.fn.fnamemodify(bufname, ":t"),
-        lnum = lnum,
-        col = col,
     }
 end
 
-function M.open()
+---@param opts {include_unloaded:boolean?, included_unlised:boolean?}?
+function M.open(opts)
+    opts = opts or {}
+    local max_preview_size = 1024 * 1024
     local buffers = vim.api.nvim_list_bufs()
-
     picker.open({
         prompt = "Open Buffers",
         enable_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, bufnr in ipairs(buffers) do
-                local item = buffer_to_picker_item(bufnr, query, fetch_opts.list_width)
-                if item then
-                    table.insert(items, item)
+                if (opts.include_unloaded or vim.api.nvim_buf_is_loaded(bufnr)) and (opts.included_unlised or vim.bo[bufnr].buflisted) then
+                    local item = buffer_to_picker_item(bufnr, query, fetch_opts.list_width)
+                    if item then
+                        table.insert(items, item)
+                    end
                 end
             end
             return items
+        end,
+        async_preview = function(item, callback)
+            local bufnr = item.data.bufnr
+            local cancelled = false
+            vim.schedule(function()
+                if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then
+                    if not cancelled then
+                        local size = vim.api.nvim_buf_get_offset(bufnr, vim.api.nvim_buf_line_count(bufnr))
+                        if size > max_preview_size then
+                            callback({ error_msg = "Buffer too large for preview" })
+                        end
+                        callback({
+                            content = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true),
+                            filetype = vim.bo[bufnr].filetype,
+                        })
+                    end
+                else
+                    callback({})
+                end
+            end)
+            return function() cancelled = true end
         end,
     }, function(data)
         if data then
