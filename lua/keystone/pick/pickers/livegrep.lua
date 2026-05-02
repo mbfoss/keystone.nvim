@@ -23,7 +23,7 @@ local function get_query_highlights(query)
     while true do
         local s, e, prefix = query:find("%f[%w](%a+):%S*", start_search)
         if not s then break end
-        if prefix == "path" or prefix == "in" then
+        if prefix == "glob" or prefix == "in" then
             local colon_pos = s + #prefix
             table.insert(highlights, {
                 start = s - 1,
@@ -47,17 +47,25 @@ end
 ---@return string, string[]
 local function parse_query_and_globs(query)
     local include_globs = {}
-    local patterns = { "path:", "in:" }
+    local patterns = { "glob", "in" }
     local cleaned = query
     -- extract values
     for _, pat in ipairs(patterns) do
-        for glob in cleaned:gmatch("%f[%w]" .. pat .. "(%S+)") do
-            table.insert(include_globs, glob)
+        for filter in cleaned:gmatch("%f[%w]" .. pat .. ":(%S+)") do
+            if pat == "glob" then
+                table.insert(include_globs, filter)
+            elseif pat == "in" then
+                filter = filter:gsub("^!", "\\!") -- escape leading !
+                filter = filter:gsub("^%*+", ""):gsub("%*+$", "")
+                filter = filter:gsub("^%/+", ""):gsub("%/+$", "")
+                table.insert(include_globs, "*" .. filter .. "*")
+                table.insert(include_globs, "**/" .. filter .. "/**")
+            end
         end
     end
     -- remove patterns
     for _, pat in ipairs(patterns) do
-        cleaned = cleaned:gsub("()(%s*%f[%w]" .. pat .. "%S+%s*)()", function(start_pos, match, end_pos)
+        cleaned = cleaned:gsub("()(%s*%f[%w]" .. pat .. ":%S+%s*)()", function(start_pos, match, end_pos)
             local at_start = (start_pos == 1)
             local at_end = (end_pos > #cleaned)
             if at_start or at_end then
@@ -69,6 +77,49 @@ local function parse_query_and_globs(query)
     return cleaned, include_globs
 end
 
+---@param line string
+---@return string|nil file, integer|nil lnum, integer|nil col, string[]? chunks
+local function parse_rg_json(line)
+    local ok, decoded = pcall(vim.json.decode, line)
+    if not ok or not decoded then return end
+
+    if decoded.type ~= "match" then return end
+
+    local data = decoded.data
+    local path = data.path and data.path.text or nil
+    local lnum = data.line_number
+    local submatches = data.submatches or {}
+
+    local text = data.lines.text or data.lines.bytes or ""
+    local chunks = {}
+
+    local last_idx = 1
+
+    for _, m in ipairs(submatches) do
+        local s = m.start + 1
+        local e = m["end"]
+
+        -- non-highlight
+        if s > last_idx then
+            table.insert(chunks, { text:sub(last_idx, s - 1) })
+        end
+
+        -- highlight
+        table.insert(chunks, { text:sub(s, e), "Label" })
+
+        last_idx = e + 1
+    end
+
+    -- trailing text
+    if last_idx <= #text then
+        table.insert(chunks, { text:sub(last_idx) })
+    end
+
+    -- column: take first match if exists
+    local col = submatches[1] and (submatches[1].start + 1) or 1
+
+    return path, lnum, col, chunks
+end
 
 ---@param query string
 ---@param opts keystone.livegrep.opts
@@ -84,10 +135,8 @@ local function get_grep_cmd(query, opts)
     )
 
     local args = {
-        "--column",
-        "--line-number",
+        "--json",
         "--no-heading",
-        "--color", "never",
         "--smart-case",
         "--fixed-strings",
         "--glob-case-insensitive",
@@ -130,67 +179,40 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
     local process
     local max_results = grep_opts.max_results or 10000
     local read_stop = false
-    local lower_query = cleaned_query:lower()
 
     local buffered_feed = strutils.create_line_buffered_feed(function(lines)
         local items = {}
         for _, line in ipairs(lines) do
             if read_stop then return end
-            local file, lnum, col, text = line:match("^(.-):(%d+):(%d+):(.*)$")
-            if not file then
-                file, lnum, text = line:match("^(.-):(%d+):(.*)$")
-                col = "1"
-            end
-            if not file or not lnum or not text then goto continue end
-
-            local abs_path = vim.fs.joinpath(grep_opts.cwd, file)
-            local rel_path = fsutils.get_relative_path(abs_path)
-            local location = string.format("%s:%s", rel_path, lnum)
-            location = fsutils.smart_crop_path(location, fetch_opts.list_width)
-            local chunks = {}
-            local start_idx = 1
-            text = vim.fn.trim(text, "", 0)
-            local lower_text = text:lower()
-            while true do
-                local s, e = lower_text:find(lower_query, start_idx, true)
-                if not s then
-                    if start_idx <= #text then
-                        table.insert(chunks, { text:sub(start_idx) })
-                    end
-                    break
-                end
-                if s > start_idx then
-                    table.insert(chunks, { text:sub(start_idx, s - 1) })
-                end
-                table.insert(chunks, { text:sub(s, e), "Label" }) -- your yellow highlight
-                start_idx = e + 1
-            end
-
-            ---@type keystone.Picker.Item
-            local item = {
-                label_chunks = chunks,
-                virt_lines = { { { location, "Special" } } },
-                filepath = abs_path,
-                lnum = tonumber(lnum),
-                col = tonumber(col),
-                data = {
+            local file, lnum, col, chunks = parse_rg_json(line)
+            if chunks then
+                local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
+                local rel_path = fsutils.get_relative_path(abs_path)
+                local location = string.format("%s:%s", rel_path, lnum)
+                location = fsutils.smart_crop_path(location, fetch_opts.list_width)
+                ---@type keystone.Picker.Item
+                local item = {
+                    label_chunks = chunks,
+                    virt_lines = { { { location, "Special" } } },
                     filepath = abs_path,
                     lnum = tonumber(lnum),
                     col = tonumber(col),
+                    data = {
+                        filepath = abs_path,
+                        lnum = tonumber(lnum),
+                        col = tonumber(col),
+                    }
                 }
-            }
-            table.insert(items, item)
-            count = count + 1
-
-            if count >= max_results then
-                process:kill({
-                    stop_read = true
-                })
-                read_stop = true
-                break
+                table.insert(items, item)
+                count = count + 1
+                if count >= max_results then
+                    process:kill({
+                        stop_read = true
+                    })
+                    read_stop = true
+                    break
+                end
             end
-
-            ::continue::
         end
 
         if #items > 0 then

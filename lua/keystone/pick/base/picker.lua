@@ -297,18 +297,14 @@ function Picker:setup_ui()
     self.lbuf = vim.api.nvim_create_buf(false, true)
     self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
 
-    vim.bo[self.pbuf].bufhidden = "wipe"
-    vim.bo[self.lbuf].bufhidden = "wipe"
-
     vim.bo[self.lbuf].modifiable = false
-
     if self.vbuf then
         vim.bo[self.vbuf].modifiable = false
-        vim.bo[self.vbuf].bufhidden = "unload"
     end
 
     for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
         if b then
+            vim.bo[self.lbuf].bufhidden = "wipe"
             vim.bo[b].buftype = "nofile"
             vim.bo[b].swapfile = false
             vim.bo[b].undolevels = -1
@@ -632,9 +628,7 @@ function Picker:start_spinner()
         interval = 80,
         on_update = function(frame)
             if not vim.api.nvim_buf_is_valid(self.pbuf) then return end
-
             vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
-
             vim.api.nvim_buf_set_extmark(self.pbuf, NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
                 virt_text_pos = "right_align"
