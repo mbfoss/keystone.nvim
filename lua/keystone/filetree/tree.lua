@@ -20,18 +20,17 @@ local function is_valid(win)
     return ok and val == true
 end
 
-local function create_tree_buffer(current_filename)
+local function create_tree_buffer()
     if not tree then
         local FileTree = require("keystone.filetree.FileTree")
         tree = FileTree:new({
             track_current_file = {
                 enabled = true,
                 auto_collapse_others = true,
-                initial_file = current_filename,
             },
         })
     end
-    return tree:get_compbuffer():get_or_create_buf()
+    return tree:get_compbuffer():get_or_create_buf(), tree
 end
 
 local function apply_width()
@@ -48,7 +47,7 @@ local function open()
 
     local filename = vim.api.nvim_buf_get_name(0)
 
-    _buf = create_tree_buffer(filename)
+    _buf, tree = create_tree_buffer()
 
     vim.cmd("topleft vnew")
     _win = vim.api.nvim_get_current_win()
@@ -69,6 +68,8 @@ local function open()
         group = _augroup,
         callback = apply_width,
     })
+
+    tree:reveal(filename, true, true)
 end
 
 local function close()

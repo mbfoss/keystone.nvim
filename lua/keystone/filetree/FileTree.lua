@@ -129,7 +129,7 @@ end
 ---@class keystone.FileTree.Opts
 ---@field dir string?
 ---@field follow_cwd boolean?
----@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?,initial_file:string?}?
+---@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?}?
 ---@field monitor_file_system boolean?
 ---@field max_monitored_folders number?
 
@@ -236,12 +236,6 @@ function FileTree:_on_buffer_create()
     self._cancel_viewport_timer = common.start_timer(1000, self._viewport_monitor_fn)
 
     self:_set_root(self._opts.dir or vim.fn.getcwd())
-    do
-        local track = self._opts.track_current_file
-        if track and track.enabled and track.initial_file and track.initial_file ~= "" then
-            self:_reveal(track.initial_file, track.auto_collapse_others, true)
-        end
-    end
 end
 
 function FileTree:_on_buffer_delete()
@@ -749,6 +743,14 @@ function FileTree:_process_dir(path, entries, error_flag)
     end
 end
 
+---@param path string
+---@param collapse_others boolean?
+---@param set_current boolean?
+function FileTree:reveal(path, collapse_others, set_current)
+    self:_reveal(path, collapse_others, set_current)
+end
+
+---@private
 ---@param path string
 ---@param collapse_others boolean?
 ---@param set_current boolean?

@@ -19,7 +19,7 @@ M.config = _get_default_config()
 ---@param opts keystone.explore.Config?
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
-    require("keystone.utils.usercmd").register_user_cmd("keystoneExplore", function(cmd, args, opts)
+    require("keystone.utils.usercmd").register_user_cmd("KeystoneExplore", function(cmd, args, opts)
             require("keystone.explore.command").run_command(cmd, args, opts)
         end,
         {
