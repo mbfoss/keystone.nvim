@@ -70,9 +70,8 @@ function M.select(items, opts, on_choice)
                 })
                 if match then
                     table.insert(results, {
-                        label = entry.label,
-                        data = entry.data,
                         label_chunks = match.chunks,
+                        data = entry.data,
                     })
                 end
             end

@@ -23,7 +23,6 @@ local _antiflicker_delay = 200
 ---@field [string] any
 
 ---@class keystone.Picker.Item
----@field label string?
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
@@ -690,15 +689,17 @@ function Picker:add_new_lines(items)
 
     for _, item in ipairs(items) do
         -- build label
-        local label = item.label
-        if not label and item.label_chunks then
+        local label
+        if item.label_chunks then
             local parts = {}
             for _, chunk in ipairs(item.label_chunks) do
                 table.insert(parts, chunk[1] or "")
             end
             label = table.concat(parts)
+        else
+            label = ""
         end
-        label = (label or ""):gsub("\n", "")
+        label = label:gsub("\n", "")
         -- insert in list data
         ---@type keystone.picker.ListItem
         local list_item = {
