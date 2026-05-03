@@ -1,9 +1,17 @@
+local class = require("keystone.utils.class")
+
 ---@class snacks.animate
 local M = {}
+
+local _ns_name_onkey = "snacks_animate_onkey"
+local _augroup_name = "snacks_animate"
+
+---@alias keysstone.animate.easing_fn fun(i:number):number
 
 ---@class keystone.animate.Config
 ---@field enabled boolean?
 ---@field filter function?
+---@field easing keysstone.animate.easing_fn?
 ---@field animate_repeat number?
 
 local function _get_default_config()
@@ -11,6 +19,7 @@ local function _get_default_config()
     return {
         enabled = true,
         filter = nil,
+        easing = nil,
     }
 end
 
@@ -28,27 +37,59 @@ local function _filter(buf)
     return false
 end
 
-local Animate = {}
+--- Determines the amount of scrollable lines between two window views,
+--- taking folds and virtual lines into account.
+---@param from vim.fn.winsaveview.ret
+---@param to vim.fn.winsaveview.ret
+local function _scroll_lines(win, from, to)
+    if from.topline == to.topline then
+        return math.abs(from.topfill - to.topfill)
+    end
+    if to.topline < from.topline then
+        from, to = to, from
+    end
+    local start_row, end_row, offset = from.topline - 1, to.topline - 1, 0
+    if from.topfill > 0 then
+        start_row = start_row + 1
+        offset = from.topfill + 1
+    end
+    if to.topfill > 0 then
+        offset = offset - to.topfill
+    end
+    if not vim.api.nvim_win_text_height then
+        return end_row - start_row + offset
+    end
+    return vim.api.nvim_win_text_height(win, { start_row = start_row, end_row = end_row }).all + offset - 1
+end
+
+local _easing = {
+    linear = function(t) return t end,
+    out_quad = function(t) return 1 - (1 - t) * (1 - t) end,
+    in_out = function(t)
+        return t < 0.5
+            and 2 * t * t
+            or 1 - math.pow(-2 * t + 2, 2) / 2
+    end,
+}
 
 ---@param from number
 ---@param to number
 ---@param cb fun(value:number, ctx:{done:boolean})
----@param opts? { duration?:number, step?:number, easing?:fun(t:number):number }
-function Animate.run(from, to, cb, opts)
+---@param opts? { duration?:number, step?:number, easing?:keysstone.animate.easing_fn }
+---@return {stop:function}
+local function _animate(from, to, cb, opts)
     opts = opts or {}
 
     local duration = opts.duration or 120 -- total ms
     local step = opts.step or 16          -- frame interval
-    local easing = opts.easing or function(t) return t end
+    local easing = opts.easing or _easing.in_out
 
     local timer = assert(vim.uv.new_timer())
     local start = vim.uv.hrtime() / 1e6
-
     local function stop()
         if timer:is_active() then timer:stop() end
         if not timer:is_closing() then timer:close() end
     end
-
     timer:start(0, step, vim.schedule_wrap(function()
         local now = vim.uv.hrtime() / 1e6
         local elapsed = now - start
@@ -63,19 +104,8 @@ function Animate.run(from, to, cb, opts)
             stop()
         end
     end))
-
     return { stop = stop }
 end
-
-Animate.easing = {
-    linear = function(t) return t end,
-    out_quad = function(t) return 1 - (1 - t) * (1 - t) end,
-    in_out = function(t)
-        return t < 0.5
-            and 2 * t * t
-            or 1 - math.pow(-2 * t + 2, 2) / 2
-    end,
-}
 
 
 ---@alias snacks.animate.View {topline:number, lnum:number}
@@ -91,8 +121,7 @@ Animate.easing = {
 ---@field changedtick number
 ---@field last number vim.uv.hrtime of last scroll
 ---@field _wo vim.wo Backup of window options
-local State = {}
-State.__index = State
+local State = class()
 
 local mouse_scrolling = false
 
@@ -101,7 +130,6 @@ local SCROLL_UP, SCROLL_DOWN = _keycode("<c-y>"), _keycode("<c-e>")
 
 local uv = vim.uv or vim.loop
 local stats = { targets = 0, animating = 0, reset = 0, skipped = 0, mousescroll = 0, scrolls = 0 }
-local debug_timer = assert((vim.uv or vim.loop).new_timer())
 local states = {} ---@type table<number, snacks.animate.State>
 
 local function is_enabled(buf)
@@ -111,35 +139,6 @@ local function is_enabled(buf)
         and vim.fn.reg_executing() == ""
         and vim.fn.reg_recording() == ""
         and _filter(buf)
-end
-
----@param win number
-function State.get(win)
-    local buf = vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win)
-    if not buf or not is_enabled(buf) then
-        states[win] = nil
-        return nil
-    end
-
-    local view = vim.api.nvim_win_call(win, vim.fn.winsaveview) ---@type vim.fn.winsaveview.ret
-    local ret = states[win]
-    if not (ret and ret:valid()) then
-        if ret then
-            ret:stop()
-        end
-        ret = setmetatable({}, State)
-        ret.buf = buf
-        ret._wo = {}
-        ret.changedtick = vim.api.nvim_buf_get_changedtick(buf)
-        ret.current = vim.deepcopy(view)
-        ret.last = 0
-        ret.target = vim.deepcopy(view)
-        ret.win = win
-    end
-    ret.scrolloff = ret._wo.scrolloff or vim.wo[win].scrolloff
-    ret.view = view
-    states[win] = ret
-    return ret
 end
 
 function State:stop()
@@ -184,9 +183,39 @@ function State:update()
     end
 end
 
+---@private
+---@param win number
+local function get_state(win)
+    local buf = vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win)
+    if not buf or not is_enabled(buf) then
+        states[win] = nil
+        return nil
+    end
+
+    local view = vim.api.nvim_win_call(win, vim.fn.winsaveview) ---@type vim.fn.winsaveview.ret
+    local ret = states[win]
+    if not (ret and ret:valid()) then
+        if ret then
+            ret:stop()
+        end
+        ret = setmetatable({}, State)
+        ret.buf = buf
+        ret._wo = {}
+        ret.changedtick = vim.api.nvim_buf_get_changedtick(buf)
+        ret.current = vim.deepcopy(view)
+        ret.last = 0
+        ret.target = vim.deepcopy(view)
+        ret.win = win
+    end
+    ret.scrolloff = ret._wo.scrolloff or vim.wo[win].scrolloff
+    ret.view = view
+    states[win] = ret
+    return ret
+end
+
 --- Reset the scroll state for a buffer
 ---@param win number
-function State.reset(win)
+local function reset_state(win)
     if states[win] then
         states[win]:stop()
         states[win] = nil
@@ -197,14 +226,14 @@ function M.enable()
     if M.enabled then
         return
     end
+
     M.enabled = true
     states = {}
+
     -- get initial state for all windows
     for _, win in ipairs(vim.api.nvim_list_wins()) do
-        State.get(win)
+        get_state(win)
     end
-
-    local group = vim.api.nvim_create_augroup("snacks_scroll", { clear = true })
 
     local function on_key(key)
         -- compare against raw keycodes
@@ -213,16 +242,18 @@ function M.enable()
             mouse_scrolling = true
         end
     end
-    -- attach (namespace required)
-    local ns = vim.api.nvim_create_namespace("snacks_animate_scrollwheel")
-    vim.on_key(on_key, ns)
+
+    -- attach
+    vim.on_key(on_key, vim.api.nvim_create_namespace(_ns_name_onkey))
+
+    local group = vim.api.nvim_create_augroup(_augroup_name, { clear = true })
 
     -- initialize state for buffers entering windows
     vim.api.nvim_create_autocmd("BufWinEnter", {
         group = group,
         callback = vim.schedule_wrap(function(ev)
             for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                State.get(win)
+                get_state(win)
             end
         end),
     })
@@ -232,7 +263,7 @@ function M.enable()
         group = group,
         callback = function(ev)
             for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                State.get(win)
+                get_state(win)
             end
         end,
     })
@@ -255,7 +286,7 @@ function M.enable()
         callback = function(ev)
             if (ev.file == "/" or ev.file == "?") and vim.o.incsearch then
                 for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                    State.reset(win)
+                    reset_state(win)
                 end
             end
         end,
@@ -273,6 +304,16 @@ function M.enable()
             end
         end,
     })
+
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group = group,
+        callback = function(args)
+            local win = tonumber(args.match)
+            if win then
+                reset_state(win)
+            end
+        end,
+    })
 end
 
 function M.disable()
@@ -281,39 +322,15 @@ function M.disable()
     end
     M.enabled = false
     states = {}
-    vim.api.nvim_del_augroup_by_name("snacks_scroll")
-end
-
---- Determines the amount of scrollable lines between two window views,
---- taking folds and virtual lines into account.
----@param from vim.fn.winsaveview.ret
----@param to vim.fn.winsaveview.ret
-local function scroll_lines(win, from, to)
-    if from.topline == to.topline then
-        return math.abs(from.topfill - to.topfill)
-    end
-    if to.topline < from.topline then
-        from, to = to, from
-    end
-    local start_row, end_row, offset = from.topline - 1, to.topline - 1, 0
-    if from.topfill > 0 then
-        start_row = start_row + 1
-        offset = from.topfill + 1
-    end
-    if to.topfill > 0 then
-        offset = offset - to.topfill
-    end
-    if not vim.api.nvim_win_text_height then
-        return end_row - start_row + offset
-    end
-    return vim.api.nvim_win_text_height(win, { start_row = start_row, end_row = end_row }).all + offset - 1
+    vim.on_key(nil, vim.api.nvim_create_namespace(_ns_name_onkey))
+    vim.api.nvim_del_augroup_by_name(_augroup_name)
 end
 
 --- Check if we need to animate the scroll
 ---@param win number
 ---@private
 function M.check(win)
-    local state = State.get(win)
+    local state = get_state(win)
     if not state then
         return
     end
@@ -347,7 +364,6 @@ function M.check(win)
     state:wo({ virtualedit = "all", scrolloff = 0 })
 
     local now = uv.hrtime()
-    local repeat_delta = (now - state.last) / 1e6
     state.last = now
 
     local opts = {}
@@ -361,7 +377,7 @@ function M.check(win)
         move_from = vim.fn.winline()
         state:update()
         -- calculate the amount of lines to scroll, taking folds into account
-        scrolls = scroll_lines(state.win, state.current, state.target)
+        scrolls = _scroll_lines(state.win, state.current, state.target)
         col_from = vim.fn.virtcol({ state.current.lnum, state.current.col })
         col_to = vim.fn.virtcol({ state.target.lnum, state.target.col })
     end)
@@ -371,7 +387,7 @@ function M.check(win)
 
     local scrolled = 0
 
-    state.anim = Animate.run(0, scrolls, function(value, ctx)
+    state.anim = _animate(0, scrolls, function(value, ctx)
         if not state:valid() then
             state:stop()
             return
@@ -408,7 +424,7 @@ function M.check(win)
             -- execute all commands in one go
             vim.cmd(("keepjumps normal! %s"):format(table.concat(commands, "")))
 
-            -- restore count (see #1024)
+            -- restore count
             if vim.v.count ~= count then
                 local cursor = vim.api.nvim_win_get_cursor(win)
                 vim.cmd(("keepjumps normal! %dzh"):format(count))
