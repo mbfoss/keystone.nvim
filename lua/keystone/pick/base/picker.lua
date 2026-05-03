@@ -368,22 +368,20 @@ function Picker:setup_ui()
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
     ---@type number?
-    local focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
+    assert(not self.focus_augroup)
+    self.focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("WinEnter", {
-        group = focus_augroup,
+        group = self.focus_augroup,
         callback = function(args)
             local win = vim.api.nvim_get_current_win()
+            assert(not self.closed)
             if win ~= self.pwin and win ~= self.lwin and win ~= self.vwin then
                 local cfg = vim.api.nvim_win_get_config(win)
-                if cfg.relative == "" then -- skip popups
-                    vim.schedule(function()
-                        if focus_augroup then
-                            vim.api.nvim_del_augroup_by_id(focus_augroup)
-                            focus_augroup = nil
-                        end
-                        self:close()
-                    end)
-                end
+                --if cfg.relative == "" then -- skip popups
+                vim.schedule(function()
+                    self:close()
+                end)
+                --end
             end
         end
     })
@@ -393,16 +391,13 @@ function Picker:setup_ui()
     vim.api.nvim_create_autocmd("VimResized", {
         group = self.resize_augroup,
         callback = function()
+            assert(not self.closed)
             vim.schedule(function()
-                if not self.closed then
-                    self:on_resize()
-                elseif self.resize_augroup then
-                    vim.api.nvim_del_augroup_by_id(self.resize_augroup)
-                    self.resize_augroup = nil
-                end
+                self:on_resize()
             end)
         end
     })
+
     assert(self.pbuf > 0)
     vim.keymap.set("i", "<C-r><C-w>", function()
         vim.api.nvim_feedkeys(
@@ -897,6 +892,11 @@ function Picker:close(selected_data)
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
 
+    if self.focus_augroup then
+        vim.api.nvim_del_augroup_by_id(self.focus_augroup)
+        self.focus_augroup = nil
+    end
+
     if self.resize_augroup then
         vim.api.nvim_del_augroup_by_id(self.resize_augroup)
         self.resize_augroup = nil
@@ -936,61 +936,61 @@ function Picker:setup_input()
         self:close(list_item and list_item.data or nil)
     end
 
-    local key_opts = { buffer = self.pbuf, nowait = true, silent = true }
+    local function key_opts_of(buf)
+        return { buffer = buf, nowait = true, silent = true }
+    end
 
-    vim.keymap.set({ "i", "n" }, "<CR>", confirm, key_opts)
+    do
+        local pbuf_key_opts = key_opts_of(self.pbuf)
+        vim.keymap.set({ "i", "n" }, "<CR>", confirm, pbuf_key_opts)
 
-    vim.keymap.set("n", "<Esc>", function() self:close() end, key_opts)
-    vim.keymap.set("i", "<C-c>", function() self:close() end, key_opts)
+        vim.keymap.set("n", "<Esc>", function() self:close() end, pbuf_key_opts)
+        vim.keymap.set("i", "<C-c>", function() self:close() end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<Down>", function()
-        self:move_cursor(self:get_cursor() + 1)
-    end, key_opts)
+        vim.keymap.set("i", "<Down>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
+        vim.keymap.set("i", "<C-n>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<C-n>", function()
-        self:move_cursor(self:get_cursor() + 1)
-    end, key_opts)
+        vim.keymap.set("i", "<Up>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
+        vim.keymap.set("i", "<C-p>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<Up>", function()
-        self:move_cursor(self:get_cursor() - 1)
-    end, key_opts)
+        vim.keymap.set("i", "<C-d>", function()
+            local cur = self:get_cursor()
+            local step = math.floor(self.layout.list_height / 2)
+            self:move_cursor(cur + step, false, true)
+        end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<C-p>", function()
-        self:move_cursor(self:get_cursor() - 1)
-    end, key_opts)
+        vim.keymap.set("i", "<C-u>", function()
+            local cur = self:get_cursor()
+            local step = math.floor(self.layout.list_height / 2)
+            self:move_cursor(cur - step, false, true)
+        end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<C-d>", function()
-        local cur = self:get_cursor()
-        local step = math.floor(self.layout.list_height / 2)
-        self:move_cursor(cur + step, false, true)
-    end, key_opts)
+        vim.keymap.set("i", "<C-j>", function() self:history_next() end, pbuf_key_opts)
+        vim.keymap.set("i", "<C-k>", function() self:history_prev() end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<C-u>", function()
-        local cur = self:get_cursor()
-        local step = math.floor(self.layout.list_height / 2)
-        self:move_cursor(cur - step, false, true)
-    end, key_opts)
+        vim.keymap.set("i", "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
-    vim.keymap.set("i", "<C-j>", function()
-        self:history_next()
-    end, key_opts)
+        vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+            buffer = self.pbuf,
+            callback = function()
+                local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+                self:render_prompt_highlight(query)
+                self:run_fetch(query)
+            end
+        })
+    end
 
-    vim.keymap.set("i", "<C-k>", function()
-        self:history_prev()
-    end, key_opts)
+    do
+        local lbuf_key_opts = key_opts_of(self.lbuf)
+        vim.keymap.set("n", "<CR>", confirm, lbuf_key_opts)
+        vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
+    end
 
-    vim.keymap.set("i", "<C-q>", function()
-        self:send_to_qf()
-    end, key_opts)
-
-    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-        buffer = self.pbuf,
-        callback = function()
-            local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-            self:render_prompt_highlight(query)
-            self:run_fetch(query)
-        end
-    })
+    if self.vbuf then
+        local vbuf_key_opts = key_opts_of(self.vbuf)
+        vim.keymap.set("n", "<CR>", confirm, vbuf_key_opts)
+        vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
+    end
 end
 
 function Picker:open()
