@@ -90,7 +90,7 @@ function M.references()
                             data = {
                                 filepath = ref.filename,
                                 lnum = ref.lnum,
-                                col = ref.col,
+                                col = ref.col - 1,
                             }
                         }
                         table.insert(picker_items, item)

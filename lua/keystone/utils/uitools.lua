@@ -101,6 +101,8 @@ end
 ---@return number winid or -1
 ---@return number bufnr or -1
 function M.smart_open_file(filepath, line, col)
+    if line < 1 then line = 1 end
+    if col < 0 then col = 0 end
     if not filepath or filepath == "" then return -1, -1 end
     local full_path = vim.fn.fnamemodify(filepath, ':p')
     for _, winid in ipairs(vim.api.nvim_list_wins()) do
