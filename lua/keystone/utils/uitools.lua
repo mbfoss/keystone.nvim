@@ -125,9 +125,9 @@ function M.smart_open_file(filepath, line, col)
         vim.bo[buf].buflisted = true
         vim.api.nvim_set_current_buf(buf)
         bufnr = vim.api.nvim_win_get_buf(winid)
-        M.set_cursor_pos(winid, line, col)
     end
 
+    M.set_cursor_pos(winid, line, col)
     return winid, bufnr
 end
 
