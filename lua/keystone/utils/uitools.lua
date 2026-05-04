@@ -75,10 +75,10 @@ end
 ---@param line? integer 1‑based line number (nil = just open)
 ---@param col? integer 1‑based line number (nil = just open)
 function M.set_cursor_pos(winid, line, col)
-    if not vim.api.nvim_win_is_valid(winid) then
-        return
-    end
     if line and type(line) == 'number' and line > 0 then
+        if not vim.api.nvim_win_is_valid(winid) then
+            return
+        end
         local bufnr = vim.api.nvim_win_get_buf(winid)
         if not vim.api.nvim_buf_is_valid(bufnr) then
             return
@@ -101,8 +101,8 @@ end
 ---@return number winid or -1
 ---@return number bufnr or -1
 function M.smart_open_file(filepath, line, col)
-    if line < 1 then line = 1 end
-    if col < 0 then col = 0 end
+    if line and line < 1 then line = nil end
+    if col and col < 0 then col = nil end
     if not filepath or filepath == "" then return -1, -1 end
     local full_path = vim.fn.fnamemodify(filepath, ':p')
     for _, winid in ipairs(vim.api.nvim_list_wins()) do
