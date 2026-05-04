@@ -14,8 +14,6 @@ local _antiflicker_delay = 200
 
 ---@class keystone.explorer.ItemData
 ---@field filepath string?
----@field lnum number?
----@field col number?
 ---@field [string] any
 
 ---@class keystone.Explorer.Item
@@ -34,14 +32,14 @@ local _antiflicker_delay = 200
 ---@field list_height number
 
 
----@alias keystone.Explorer.Fetcher fun(query:string,opts:keystone.Explorer.FetcherOpts):keystone.Explorer.Item[]?,number?
+---@alias keystone.Explorer.Fetcher fun(current:keystone.explorer.ItemData?,direction:"in"|"out",opts:keystone.Explorer.FetcherOpts):keystone.Explorer.Item[]?,number?
 
 ---@class keystone.Explorer.AsyncPreviewOpts
 ---@field viewport_with number?
 ---@field viewport_height number?
 
 
----@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
+---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,error_msg:string?}
 ---@alias keystone.Explorer.AsyncPreviewLoader fun(data:keystone.explorer.ItemData, opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Explorer.opts
@@ -162,8 +160,6 @@ local function _default_preview(data, _, callback)
             callback({
                 content = content,
                 filepath = filepath,
-                lnum = data.lnum,
-                col = data.col,
                 error_msg = load_err,
             })
         end)
@@ -186,7 +182,6 @@ end
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
 ---@field resize_augroup number?
----@field current_query string?
 local Explorer = class()
 
 ---@param opts keystone.Explorer.opts
@@ -464,15 +459,6 @@ function Explorer:update_preview()
                         filetype = vim.filetype.match({ filename = preview.filepath })
                     end
                     vim.bo[self.vbuf].filetype = filetype or ""
-                    if preview.lnum then
-                        local lnum = _clamp(preview.lnum, 1, #lines)
-                        vim.api.nvim_win_set_cursor(self.vwin, { lnum, 0 })
-                        vim.api.nvim_win_call(self.vwin, function()
-                            vim.cmd("normal! zz")
-                        end)
-                    else
-                        vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
-                    end
                 else
                     vim.bo[self.vbuf].filetype = ""
                     vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
@@ -588,16 +574,16 @@ function Explorer:add_new_lines(items)
     vim.wo[self.lwin].cursorline = #self.list_items > 0
 end
 
----@param query string
-function Explorer:run_fetch(query)
-    self.current_query = query
+---@param current keystone.explorer.ItemData?
+---@param direction "in"|"out"
+function Explorer:run_fetch(current, direction)
     self:request_clear_preview()
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2), -- -2 for borders
         list_height = math.max(1, self.layout.list_height - 2),
     }
     self:clear_list()
-    local items, initial = self.opts.fetch(query, fetch_opts)
+    local items, initial = self.opts.fetch(current, direction, fetch_opts)
     if items then
         self:add_new_lines(items)
         self:move_cursor(initial or 1, true, true)
@@ -650,8 +636,19 @@ function Explorer:setup_input()
         return { buffer = buf, nowait = true, silent = true }
     end
 
+    ---@param direction "in"|"out"
+    local fetch_action = function(direction)
+        local cur = self:get_cursor()
+        if cur > #self.list_items then return end
+        local item = self.list_items[cur]
+        if not item then return end
+        self:run_fetch(item.data, direction)
+    end
+
     do
         local lbuf_key_opts = key_opts_of(self.lbuf)
+        vim.keymap.set("n", "l", function() fetch_action("in") end, lbuf_key_opts)
+        vim.keymap.set("n", "h", function() fetch_action("out") end, lbuf_key_opts)
         vim.keymap.set("n", "<CR>", confirm, lbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
     end
@@ -668,9 +665,9 @@ function Explorer:open()
     self._open_called = true
 
     self:setup_input()
-    self:run_fetch("")
 
     vim.api.nvim_set_current_win(self.lwin)
+    self:run_fetch(nil, "in")
 end
 
 ---@param opts keystone.Explorer.opts
