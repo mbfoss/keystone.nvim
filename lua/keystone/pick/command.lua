@@ -24,6 +24,8 @@ local pickers = {
     all_buffers           = function() require("keystone.pick.pickers.buffers").open({ include_unloaded = true, included_unlised = true }) end,
     spell_suggest         = function() require("keystone.pick.pickers.spell").open() end,
     highlights            = function() require("keystone.pick.pickers.highlights").open() end,
+    autocommands          = function() require("keystone.pick.pickers.autocommands").open() end,
+    keymaps               = function() require("keystone.pick.pickers.keymaps").open() end,
 }
 
 local function _pick(picker_type)
