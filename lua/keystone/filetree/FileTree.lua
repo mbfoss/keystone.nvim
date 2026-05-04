@@ -129,6 +129,7 @@ end
 ---@class keystone.FileTree.Opts
 ---@field dir string?
 ---@field follow_cwd boolean?
+---@field show_hidden boolean?
 ---@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?}?
 ---@field monitor_file_system boolean?
 ---@field max_monitored_folders number?
@@ -414,7 +415,14 @@ end
 ---@param exclude_globs string[]?
 ---@param follow_symlinks boolean?
 function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
-    local newroot = root and vim.fs.normalize(root) or nil -- normalize is important because we may use / to split path
+    if self._opts.show_hidden ~= true then
+        exclude_globs = exclude_globs and vim.copy(exclude_globs) or {}
+        table.insert(exclude_globs, ".*")
+        table.insert(exclude_globs, "**/.*")
+    end
+
+    -- it's important to normalize the path because we use / as sperator
+    local newroot = root and vim.fs.normalize(root) or nil
     if self._root and self._root ~= newroot then
         self:_clear()
     end
