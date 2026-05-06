@@ -29,10 +29,7 @@ function M.open(opts)
                         word = word
                     }
                 }
-                local match = pickertools.match_label(item.label, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = false
-                })
+                local match = pickertools.match_label(item.label, query)
 
                 if match then
                     item.label_chunks = match.chunks

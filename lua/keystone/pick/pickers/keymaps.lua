@@ -106,9 +106,7 @@ function M.open()
                         format_lhs(km.lhs or ""),
                         (km.desc and km.desc ~= "") and km.desc or (km.rhs or "")
                     )
-                    local match = pickertools.match_label(label, query, {
-                        maxlen = fetch_opts.list_width,
-                    })
+                    local match = pickertools.match_label(label, query)
                     if match then
                         table.insert(items, {
                             label_chunks = match.chunks,

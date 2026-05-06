@@ -80,9 +80,7 @@ function M.open()
                         (ac.pattern and ac.pattern ~= "") and ac.pattern or "*"
                     )
 
-                    local match = pickertools.match_label(label, query, {
-                        maxlen = fetch_opts.list_width,
-                    })
+                    local match = pickertools.match_label(label, query)
                     local virt_lines = (ac.desc and ac.desc ~= "") and {
                         { { ac.desc, "Comment" } }
                     } or {}

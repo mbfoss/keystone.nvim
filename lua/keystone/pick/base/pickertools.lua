@@ -37,50 +37,15 @@ local function build_highlight_chunks(text, positions, hl_group)
     return chunks
 end
 
----@param match_target string What we match against
+---@param text string What we match against
 ---@param query string User input
----@param opts { maxlen: number?, is_path: boolean? }?
 ---@return {score:number,chunks:string[][]}?
-function M.match_label(match_target, query, opts)
-    opts = opts or {}
-    local is_match, score, positions
-    if opts.is_path then
-        is_match, score, positions = strutils.fuzzy_match_path(match_target, query)
-    else
-        is_match, score, positions = strutils.fuzzy_match(match_target, query)
-    end
-    if not is_match and query ~= "" then return nil end
-    local crop_offset = 0
-    local final_display
-    if opts.maxlen then
-        local max_len = math.max(opts.maxlen or 3, 3)
-        if opts.is_path then
-            final_display = fsutils.smart_crop_path(match_target, max_len)
-            crop_offset = #final_display - #match_target
-        elseif #match_target > opts.maxlen then
-            final_display = match_target:sub(1, max_len - 3) .. "..."
-        else
-            final_display = match_target
-        end
-    else
-        final_display = match_target
-    end
-    local adjusted = {}
-    if crop_offset ~= 0 then
-        if positions then
-            for _, p in ipairs(positions) do
-                local adj = p + crop_offset
-                if adj >= 1 and adj <= #final_display then
-                    table.insert(adjusted, adj)
-                end
-            end
-        end
-    else
-        adjusted = positions
-    end
+function M.match_label(text, query)
+    local is_match, score, positions = strutils.fuzzy_match_path(text, query)
+    if not is_match then return nil end
     return {
         score = score or 0,
-        chunks = build_highlight_chunks(final_display, adjusted)
+        chunks = build_highlight_chunks(text, positions)
     }
 end
 

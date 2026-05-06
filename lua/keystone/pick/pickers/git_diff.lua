@@ -36,10 +36,7 @@ function M.open()
             local items = {}
             for _, line in ipairs(lines) do
                 local path = fsutils.get_relative_path(line) or line
-                local res = pickertools.match_label(path, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = true,
-                })
+                local res = pickertools.match_label(path, query)
                 if res then
                     table.insert(items, {
                         label_chunks = res.chunks,

@@ -19,7 +19,7 @@ local function buffer_to_picker_item(bufnr, query, list_width)
         label = "[No Name]"
     end
     local modified = vim.bo[bufnr].modified
-    local match = pickertools.match_label(label, query, { is_path = true, maxlen = list_width - (modified and 9 or 5) })
+    local match = pickertools.match_label(label, query)
     if not match then return nil end
 
     local label_chunks = { { string.format("%3d", bufnr), "Comment" }, { ": ", "Nontext" } }

@@ -46,27 +46,23 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         include_regex_list,
         exclude_regex_list,
         function(filepath, filename, relative_path)
-            local res = pickertools.match_label(relative_path, query, {
-                maxlen = fetch_opts.list_width,
-                is_path = true,
-                offset = 0,
-            })
+            local res = pickertools.match_label(filename, query)
 
             if not res then return end
             if count >= max_results then
                 cancel_fn()
                 return
             end
-            -- table.insert(res.chunks, 1, { tostring(res.score) .. ": ", "Nontext" })
+            local chunks = {{ relative_path:sub(1, #relative_path - #filename) }}
+            vim.list_extend(chunks, res.chunks)
             table.insert(items, {
-                label_chunks = res.chunks,
+                label_chunks = chunks,
                 score = res.score,
                 data = {
                     filepath = filepath
                 },
             })
             count = count + 1
-
             if #items >= 20 then
                 local batch = items
                 items = {}
@@ -116,11 +112,7 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
             local relpath = line:gsub("^%.[/]", "")
             if strutils.check_path_pattern(line, false, include_regex_list, nil) then
                 if count < max_results then
-                    local res = pickertools.match_label(relpath, query, {
-                        maxlen = fetch_opts.list_width,
-                        is_path = true
-                    })
-
+                    local res = pickertools.match_label(relpath, query)
                     if res then
                         local filepath = vim.fs.joinpath(fd_opts.cwd, relpath)
                         ---@type keystone.Picker.Item

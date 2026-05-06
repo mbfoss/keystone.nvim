@@ -74,10 +74,7 @@ function M.references()
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
                     local text = ref.text and vim.fn.trim(ref.text) or ""
-                    local match = pickertools.match_label(text, query, {
-                        maxlen = fetch_opts.list_width,
-                        is_path = false
-                    })
+                    local match = pickertools.match_label(text, query)
                     if match then
                         local display_path = fsutils.get_relative_path(ref.filename) or ref.filename or ""
                         local loc = ref.lnum and string.format("%s:%d", display_path, ref.lnum) or display_path
@@ -151,10 +148,7 @@ function M.document_symbols(opts)
             fetch = function(query, fetch_opts)
                 local filtered = {}
                 for _, item in ipairs(items) do
-                    local match = pickertools.match_label(item.data.name, query, {
-                        maxlen = fetch_opts.list_width,
-                        is_path = false
-                    })
+                    local match = pickertools.match_label(item.data.name, query)
                     if match then
                         table.insert(filtered, {
                             label_chunks = match.chunks,

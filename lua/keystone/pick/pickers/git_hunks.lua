@@ -37,9 +37,7 @@ function M.open()
                     -- h.added.start is the 1-indexed start line
                     local start_line = h.added.start
 
-                    local res = pickertools.match_label(file_path, query, {
-                        maxlen = fetch_opts.list_width - 7,
-                    })
+                    local res = pickertools.match_label(file_path, query)
 
                     if res then
                         local chunks = { { tostring(start_line), "Number" }, { ": ", "NonText" } }

@@ -50,10 +50,7 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, file in ipairs(recent_files) do
-                local res = pickertools.match_label(file.match_path, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = true,
-                })
+                local res = pickertools.match_label(file.match_path, query)
                 if res then
                     table.insert(items, {
                         label_chunks = res.chunks,

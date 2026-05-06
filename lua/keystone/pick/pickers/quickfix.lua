@@ -80,10 +80,7 @@ function M.open(opts)
             local items = {}
             for _, data in ipairs(entries) do
                 local text = vim.trim(data.text ~= "" and data.text or "[No description]")
-                local match = pickertools.match_label(text, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = false
-                })
+                local match = pickertools.match_label(text, query)
                 if match then
                     local chunks = { _type_prefix[data.type] or _type_prefix.N }
                     vim.list_extend(chunks, match.chunks)

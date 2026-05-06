@@ -64,10 +64,7 @@ function M.select(items, opts, on_choice)
             local results = {}
 
             for _, entry in ipairs(cached) do
-                local match = pickertools.match_label(entry.label, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = false,
-                })
+                local match = pickertools.match_label(entry.label, query)
                 if match then
                     table.insert(results, {
                         label_chunks = match.chunks,

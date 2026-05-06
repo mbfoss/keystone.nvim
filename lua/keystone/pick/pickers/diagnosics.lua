@@ -67,10 +67,7 @@ function M.open(opts)
         fetch = function(query, fetch_opts)
             local items = {}
             for _, entry in ipairs(entries) do
-                local res = pickertools.match_label(entry.message, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = false
-                })
+                local res = pickertools.match_label(entry.message, query)
                 if res then
                     local chunks = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)

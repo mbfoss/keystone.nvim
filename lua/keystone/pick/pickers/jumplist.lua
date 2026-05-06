@@ -44,10 +44,7 @@ function M.open()
             for _, data in ipairs(entries) do
                 local label = data.relpath or ""
                 if label == "" then label = "[No Name]" end
-                local match = pickertools.match_label(label, query, {
-                    maxlen = fetch_opts.list_width,
-                    is_path = true
-                })
+                local match = pickertools.match_label(label, query)
                 if match then
                     table.insert(match.chunks, { string.format(":%d:%d", data.lnum, data.col) })
                     ---@type keystone.Picker.Item
