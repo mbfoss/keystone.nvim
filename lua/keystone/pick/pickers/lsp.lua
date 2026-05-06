@@ -127,7 +127,7 @@ function M.document_symbols(opts)
                         data = {
                             name = s.name,
                             filepath = filepath,
-                            lnum = s.selectionRange.start.line,
+                            lnum = s.selectionRange.start.line + 1,
                             col = s.selectionRange.start.character
                         }
                     })
