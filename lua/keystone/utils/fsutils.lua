@@ -42,43 +42,42 @@ function M.create_file(path)
     return true
 end
 
-
 ---@param path string
 ---@param max_len number
 ---@return string preview
 ---@return boolean is_different
 function M.smart_crop_path(path, max_len)
-	max_len = math.max(max_len, 0)
-	local len = #path
-	if len <= max_len then return path, false end
-	local limit = max_len - 1
-	local sep = package.config:sub(1, 1)
-	local tail = path:sub(-limit)
-	local sep_pos = tail:find(sep)
-	if sep_pos then
-		return "…" .. tail:sub(sep_pos), true
-	end
-	return "…" .. tail, true
+    max_len = math.max(max_len, 0)
+    local len = #path
+    if len <= max_len then return path, false end
+    local limit = max_len - 1
+    local sep = package.config:sub(1, 1)
+    local tail = path:sub(-limit)
+    local sep_pos = tail:find(sep)
+    if sep_pos then
+        return "…" .. tail:sub(sep_pos), true
+    end
+    return "…" .. tail, true
 end
 
 ---@param path string
 ---@param base string?
 function M.get_relative_path(path, base)
-	base = base or vim.fn.getcwd()
+    base = base or vim.fn.getcwd()
 
-	local full_path = vim.fn.fnamemodify(path, ":p")
-	base = vim.fn.fnamemodify(base, ":p")
+    local full_path = vim.fn.fnamemodify(path, ":p")
+    base = vim.fn.fnamemodify(base, ":p")
 
-	-- ensure trailing slash for proper prefix match
-	if base:sub(-1) ~= "/" then
-		base = base .. "/"
-	end
+    -- ensure trailing slash for proper prefix match
+    if base:sub(-1) ~= "/" then
+        base = base .. "/"
+    end
 
-	if full_path:find(base, 1, true) == 1 then
-		return full_path:sub(#base + 1)
-	end
+    if full_path:find(base, 1, true) == 1 then
+        return full_path:sub(#base + 1)
+    end
 
-	return nil -- not relative to base
+    return nil -- not relative to base
 end
 
 ---@param filepath string
@@ -144,7 +143,7 @@ function M.async_load_text_file(path, opts, callback)
             timer = nil
         end
         if fd then
-                    uv.fs_close(fd)
+            uv.fs_close(fd)
             fd = nil
         end
         if err then chunks = {} end
@@ -159,7 +158,7 @@ function M.async_load_text_file(path, opts, callback)
     end, timeout_ms)
     uv.fs_open(path, "r", 438, function(open_err, opened_fd)
         if open_err or finished or aborted then
-                    if opened_fd then uv.fs_close(opened_fd) end
+            if opened_fd then uv.fs_close(opened_fd) end
             if open_err and not (finished or aborted) then
                 return finish("Could not open file: " .. open_err, nil)
             end
@@ -167,7 +166,7 @@ function M.async_load_text_file(path, opts, callback)
         end
 
         fd = opened_fd
-            uv.fs_fstat(fd, function(stat_err, stat)
+        uv.fs_fstat(fd, function(stat_err, stat)
             if finished or aborted then return end
             if stat_err then return finish("Stat error: " .. stat_err, nil) end
 
@@ -178,7 +177,7 @@ function M.async_load_text_file(path, opts, callback)
             local function read_next()
                 if not fd or finished or aborted then return end
 
-                            uv.fs_read(fd, 8192, offset, function(read_err, data)
+                uv.fs_read(fd, 8192, offset, function(read_err, data)
                     if finished or aborted then return end
 
                     if read_err then
@@ -256,7 +255,7 @@ function M.monitor_dir(dir, change_callback)
         terminated = true
         if handle then
             if handle:is_active() then
-                            uv.fs_event_stop(handle)
+                uv.fs_event_stop(handle)
             end
             handle:close()
             handle = nil
@@ -298,13 +297,13 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
 
         local path = table.remove(pending_dirs, 1)
-            local fd = uv.fs_scandir(path)
+        local fd = uv.fs_scandir(path)
         if not fd then
             vim.schedule(process_next_dir)
             return
         end
         while true do
-                    local name, type_ = uv.fs_scandir_next(fd)
+            local name, type_ = uv.fs_scandir_next(fd)
             if not name then break end
 
             local full_path = vim.fs.joinpath(path, name)
@@ -330,6 +329,61 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         is_cancelled = true
         pending_dirs = {} -- Clear references to free memory
     end
+end
+
+--- Rename a file and update buffers
+---@param from string
+---@param to string
+---@return boolean ok,string?
+function M.rename_file(from, to)
+    vim.validate("form", from, "string")
+    vim.validate("to", to, "string")
+
+    from = vim.fn.fnamemodify(from, ":p")
+    to = vim.fn.fnamemodify(to, ":p")
+
+    local lsp_changes = {
+        files = { {
+            oldUri = vim.uri_from_fname(from),
+            newUri = vim.uri_from_fname(to),
+        } }
+    }
+
+    local lsp_clients = vim.lsp.get_clients()
+    for _, client in ipairs(lsp_clients) do
+        if client:supports_method("workspace/willRenameFiles") then
+            local resp = client:request_sync("workspace/willRenameFiles", lsp_changes, 1000, 0)
+            if resp and resp.result ~= nil then
+                vim.lsp.util.apply_workspace_edit(resp.result, client.offset_encoding)
+            end
+        end
+    end
+
+    vim.fn.mkdir(vim.fs.dirname(to), "p")
+    local ok, rename_err = vim.uv.fs_rename(from, to)
+    if not ok then
+        return false, rename_err
+    end
+
+
+    -- replace buffer in all windows
+    local from_buf = vim.fn.bufnr(from)
+    if from_buf >= 0 then
+        local to_buf = vim.fn.bufadd(to)
+        vim.bo[to_buf].buflisted = true
+        for _, win in ipairs(vim.fn.win_findbuf(from_buf)) do
+            vim.api.nvim_win_set_buf(win, to_buf)
+        end
+        vim.api.nvim_buf_delete(from_buf, { force = true })
+    end
+
+    for _, client in ipairs(lsp_clients) do
+        if client:supports_method("workspace/didRenameFiles") then
+            client:notify("workspace/didRenameFiles", lsp_changes)
+        end
+    end
+
+    return true
 end
 
 return M

@@ -57,7 +57,7 @@ function M.select(items, opts, on_choice)
     local height_ratio = (list_height + 3) / vim.o.lines
 
     picker.open({
-        prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select item",
+        prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
         list_width   = list_width,
         height_ratio = height_ratio,
         fetch        = function(query, fetch_opts)

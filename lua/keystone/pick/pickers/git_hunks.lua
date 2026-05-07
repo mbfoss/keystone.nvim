@@ -53,12 +53,33 @@ function M.open()
                 return items
             end,
 
-            async_preview = function(data, _, callback)
-                -- Gitsigns hunks already contain the 'lines' (diff strings)
-                local content = table.concat(data.hunk.lines, "\n")
+            async_preview = function(data, opts, callback)
+                local viewport_height = opts.viewport_height or 20
+                local hunk = data.hunk
+                -- amount of surrounding context to show
+                local context = math.max(math.floor((viewport_height - #hunk.lines) / 2), 2)
+                local start_line = hunk.added.start
+                local end_line = start_line + math.max(hunk.added.count - 1, 0)
+                -- fetch surrounding buffer lines
+                local before_start = math.max(start_line - context, 1)
+                local before =
+                    vim.api.nvim_buf_get_lines(bufnr, before_start - 1, start_line - 1, false)
+                local after =
+                    vim.api.nvim_buf_get_lines(bufnr, end_line, end_line + context, false)
+                local content = {}
+                -- unchanged context before
+                for _, line in ipairs(before) do
+                    table.insert(content, " " .. line)
+                end
+                -- original diff hunk lines
+                vim.list_extend(content, hunk.lines)
+                -- unchanged context after
+                for _, line in ipairs(after) do
+                    table.insert(content, " " .. line)
+                end
                 vim.schedule(function()
                     callback({
-                        content = content,
+                        content = table.concat(content, "\n"),
                         filetype = "diff",
                     })
                 end)

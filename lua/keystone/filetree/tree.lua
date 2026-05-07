@@ -49,6 +49,7 @@ local function open()
 
     _buf, tree = create_tree_buffer()
 
+    local last_win = vim.api.nvim_get_current_win()
     vim.cmd("topleft vnew")
     _win = vim.api.nvim_get_current_win()
 
@@ -70,6 +71,8 @@ local function open()
     })
 
     tree:reveal(filename, true, true)
+
+    vim.api.nvim_set_current_win(last_win)
 end
 
 local function close()
