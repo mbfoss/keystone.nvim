@@ -6,9 +6,7 @@ local KEY_MARKER = "Keystone_filetreewin"
 local _augroup = vim.api.nvim_create_augroup("keystone_filetree", { clear = true })
 
 local _win = nil
-local _buf = nil
-
-local tree = nil
+local _tree = nil ---@type keystone.FileTree?
 
 ---@param win number
 ---@return boolean
@@ -18,19 +16,6 @@ local function is_valid(win)
         return vim.w[win][KEY_MARKER]
     end)
     return ok and val == true
-end
-
-local function create_tree_buffer()
-    if not tree then
-        local FileTree = require("keystone.filetree.FileTree")
-        tree = FileTree:new({
-            track_current_file = {
-                enabled = true,
-                auto_collapse_others = true,
-            },
-        })
-    end
-    return tree:get_compbuffer():get_or_create_buf(), tree
 end
 
 local function apply_width()
@@ -45,17 +30,32 @@ local function open()
         return
     end
 
+    if not _tree then
+        local FileTree = require("keystone.filetree.FileTree")
+        _tree = FileTree:new({
+            track_current_file = {
+                enabled = true,
+                auto_collapse_others = true,
+            },
+        })
+    end
+    _tree:create_buffer()
+    local bufnr = _tree:get_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
+
     local filename = vim.api.nvim_buf_get_name(0)
-
-    _buf, tree = create_tree_buffer()
-
     local last_win = vim.api.nvim_get_current_win()
-    vim.cmd("topleft vnew")
+    vim.cmd("topleft vsplit")
     _win = vim.api.nvim_get_current_win()
+    vim.api.nvim_set_current_win(last_win)
 
     vim.w[_win][KEY_MARKER] = true
 
-    vim.api.nvim_win_set_buf(_win, _buf)
+    local bufname = "keystone://" .. bufnr .. "/File Tree"
+    vim.api.nvim_buf_set_name(bufnr, bufname)
+    vim.api.nvim_win_set_buf(_win, bufnr)
 
     vim.wo[_win].wrap = false
     vim.wo[_win].spell = false
@@ -70,12 +70,13 @@ local function open()
         callback = apply_width,
     })
 
-    tree:reveal(filename, true, true)
-
-    vim.api.nvim_set_current_win(last_win)
+    _tree:reveal(filename, true, true)
 end
 
 local function close()
+    if _tree then
+        _tree:delete_buffer()
+    end
     if _win and is_valid(_win) then
         vim.api.nvim_win_close(_win, true)
     end

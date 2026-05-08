@@ -203,7 +203,7 @@ function FileTree:_on_buffer_create()
     local track_config = self._opts.track_current_file or {}
     local track_collapse_others = track_config.auto_collapse_others ~= false
     local on_buffer_enter = function()
-        if self._tree:get_buf() == -1 then
+        if self._tree:get_bufnr() == -1 then
             return
         end
         local buf = vim.api.nvim_get_current_buf()
@@ -261,7 +261,7 @@ end
 function FileTree:_get_viewport_monitor_fn()
     local lastwinid, topline, botline, toggle_counter
     return function()
-        local buf = self._tree:get_buf()
+        local buf = self._tree:get_bufnr()
         if buf <= 0 then return end
 
         local winid = vim.fn.bufwinid(buf)
@@ -366,9 +366,17 @@ function FileTree:_setup_keymaps()
     end
 end
 
----@return keystone.ScratchBuffer
-function FileTree:get_compbuffer()
-    return self._tree
+---@return boolean
+function FileTree:create_buffer()
+    return self._tree:create()
+end
+
+function FileTree:delete_buffer()
+    self._tree:delete()
+end
+
+function FileTree:get_bufnr()
+    return self._tree:get_bufnr()
 end
 
 ---@param rel string
@@ -395,7 +403,7 @@ function FileTree:_start_dir_monitor(path)
         local reload_counter = self._reload_counter
         ---@type keystone.FileTree.ProcessDirEntry[]
         if reload_counter ~= self._reload_counter then return end
-        if self._tree:get_buf() ~= -1 then
+        if self._tree:get_bufnr() ~= -1 then
             self:_read_dir(path, reload_counter, false)
         end
     end)

@@ -29,11 +29,7 @@ function ScratchBuffer:init(opts)
     self._trackers = Trackers:new()
 end
 
-function ScratchBuffer:destroy()
-    if self._destroyed then
-        return
-    end
-    self._destroyed = true
+function ScratchBuffer:delete()
     if self._buf > 0 then
         if vim.v.exiting == vim.NIL then
             vim.api.nvim_buf_delete(self._buf, { force = true })
@@ -47,39 +43,26 @@ function ScratchBuffer:add_tracker(callbacks)
     return self._trackers:add_tracker(callbacks)
 end
 
----@return number -- buffer number
-function ScratchBuffer:get_buf()
-    if vim.v.exiting ~= vim.NIL then return -1 end
-    if self._destroyed then return -1 end
-    return self._buf
-end
-
-function ScratchBuffer:is_destroyed()
-    return self._destroyed
-end
-
----@return number -- buffer number
----@return boolean refresh_needed
-function ScratchBuffer:get_or_create_buf()
-    assert(not self._destroyed)
-    if vim.v.exiting ~= vim.NIL then return -1, false end
-
+---@return boolean
+function ScratchBuffer:create()
+    if vim.v.exiting ~= vim.NIL then return false end
     if self._buf ~= -1 then
-        local refresh_needed = false
         if not vim.api.nvim_buf_is_loaded(self._buf) then
             vim.fn.bufload(self._buf)
-            self:_on_loaded()
-            refresh_needed = true
         end
-        return self._buf, refresh_needed
+        return true
     end
-
     local listed = self._bo.buflisted
     if listed == nil then listed = true end
     self._buf = vim.api.nvim_create_buf(listed, true)
     self._trackers:invoke("on_create")
     self:_on_loaded()
-    return self._buf, true
+    return true
+end
+
+---@return number -- buffer number
+function ScratchBuffer:get_bufnr()
+    return self._buf
 end
 
 ---@private

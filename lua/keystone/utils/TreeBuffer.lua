@@ -138,13 +138,9 @@ function TreeBuffer:init(opts)
     })
 end
 
-function TreeBuffer:destroy()
-    ScratchBuffer.destroy(self)
-end
-
 ---@private
 function TreeBuffer:_setup_tree_buf()
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf == -1 then return end
 
     self:_full_render()
@@ -256,7 +252,7 @@ end
 
 ---@private
 function TreeBuffer:_full_render()
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf <= 0 then return end
     if not vim.api.nvim_buf_is_loaded(buf) then return end
 
@@ -292,7 +288,7 @@ end
 ---@param old_size number
 ---@param new_flat keystone.utils.Tree.FlatNode[]
 function TreeBuffer:_render_range(start_idx, old_size, new_flat)
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf <= 0 then return end
     if not vim.api.nvim_buf_is_loaded(buf) then return end
 
@@ -349,7 +345,7 @@ end
 ---@private
 function TreeBuffer:_fix_viewport()
     local winid = self:_get_winid()
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if winid > 0 and buf > 0 then
         local line_count = vim.api.nvim_buf_line_count(buf)
         local win_height = vim.api.nvim_win_get_height(winid)
@@ -395,7 +391,7 @@ end
 ---@return keystone.TreeBuffer.Item[]
 function TreeBuffer:get_visible_items(winid)
     if not winid or not vim.api.nvim_win_is_valid(winid) then return {} end
-    if vim.api.nvim_win_get_buf(winid) ~= self:get_buf() then return {} end
+    if vim.api.nvim_win_get_buf(winid) ~= self:get_bufnr() then return {} end
     local start_line = vim.fn.line("w0", winid)
     local end_line = vim.fn.line("w$", winid)
 
@@ -483,7 +479,7 @@ end
 ---@private
 ---@return number
 function TreeBuffer:_get_winid()
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf <= 0 then return -1 end
     local winid
     if vim.api.nvim_get_current_buf() == buf then
@@ -542,7 +538,7 @@ function TreeBuffer:set_children(parent_id, children)
     local old_visible_size = _tree_size(self._tree, parent_id)
     self._tree:set_children(parent_id, baseitems)
 
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf > 0 then
         if parent_id == nil then
             local new_flat = _flatten(self._tree, nil)
@@ -648,7 +644,7 @@ function TreeBuffer:add_item(parent_id, item)
     local item_data = _itemdef_to_itemdata(item)
     self._tree:add_item(parent_id, item.id, item_data)
 
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf > 0 then
         if parent_id == nil then
             local insert_idx = #self._flat_ids + 1
@@ -688,7 +684,7 @@ function TreeBuffer:add_sibling(reference_id, item, before)
     local item_data = _itemdef_to_itemdata(item)
     self._tree:add_sibling(reference_id, item.id, item_data, before)
 
-    local buf = self:get_buf()
+    local buf = self:get_bufnr()
     if buf <= 0 then return true end
     local ref_idx = self._id_to_idx[reference_id]
     if ref_idx then
