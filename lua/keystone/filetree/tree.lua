@@ -3,32 +3,28 @@ local M = {}
 local config = require("keystone.filetree").config
 
 local KEY_MARKER = "Keystone_filetreewin"
-local _augroup = vim.api.nvim_create_augroup("keystone_filetree", { clear = true })
 
-local _win = nil
-local _tree = nil ---@type keystone.FileTree?
+local _tree ---@type keystone.FileTree?
 
----@param win number
----@return boolean
-local function is_valid(win)
-    if not vim.api.nvim_win_is_valid(win) then return false end
-    local ok, val = pcall(function()
-        return vim.w[win][KEY_MARKER]
-    end)
-    return ok and val == true
+---@return number?
+local function get_win()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(vim.api.nvim_get_current_tabpage())) do
+        local ok, val = pcall(function() return vim.w[win][KEY_MARKER] end)
+        if ok and val == true then return win end
+    end
+    return nil
 end
 
-local function apply_width()
-    if not _win or not is_valid(_win) then return end
+---@param win number
+local function apply_width(win)
     local total = vim.o.columns
     local width = math.floor(total * (config.width_ratio or 0.2))
-    vim.api.nvim_win_set_width(_win, width)
+    vim.api.nvim_win_set_width(win, width)
 end
 
 local function open()
-    if _win and is_valid(_win) then
-        return
-    end
+    local win = get_win()
+    if win then return end
 
     if not _tree then
         local FileTree = require("keystone.filetree.FileTree")
@@ -39,6 +35,7 @@ local function open()
             },
         })
     end
+
     _tree:create_buffer()
     local bufnr = _tree:get_bufnr()
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -48,44 +45,55 @@ local function open()
     local filename = vim.api.nvim_buf_get_name(0)
     local last_win = vim.api.nvim_get_current_win()
     vim.cmd("topleft vsplit")
-    _win = vim.api.nvim_get_current_win()
+    win = vim.api.nvim_get_current_win()
     vim.api.nvim_set_current_win(last_win)
 
-    vim.w[_win][KEY_MARKER] = true
+    vim.w[win][KEY_MARKER] = true
 
     local bufname = "keystone://" .. bufnr .. "/File Tree"
     vim.api.nvim_buf_set_name(bufnr, bufname)
-    vim.api.nvim_win_set_buf(_win, bufnr)
+    vim.api.nvim_win_set_buf(win, bufnr)
 
-    vim.wo[_win].wrap = false
-    vim.wo[_win].spell = false
-    vim.wo[_win].winfixbuf = true
-    vim.wo[_win].winfixheight = true
-    vim.wo[_win].winfixwidth = true
+    vim.wo[win].wrap = false
+    vim.wo[win].spell = false
+    vim.wo[win].winfixbuf = true
+    vim.wo[win].winfixheight = true
+    vim.wo[win].winfixwidth = true
 
-    apply_width()
+    apply_width(win)
 
+    local augroup_name = "keystone_filetree_w" .. win
+    local augroup = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
-        group = _augroup,
+        group = augroup,
         callback = apply_width,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group = augroup,
+        callback = function(args)
+            local closedwin = tonumber(args.match)
+            if closedwin ~= win then
+                apply_width(win)
+            else
+                win = nil
+                vim.schedule(function()
+                    if _tree then
+                        _tree:delete_buffer()
+                    end
+                end)
+                vim.api.nvim_del_augroup_by_id(augroup)
+                vim.notify("cleanup complete")
+            end
+        end,
     })
 
     _tree:reveal(filename, true, true)
 end
 
-local function close()
-    if _tree then
-        _tree:delete_buffer()
-    end
-    if _win and is_valid(_win) then
-        vim.api.nvim_win_close(_win, true)
-    end
-    _win = nil
-end
-
 function M.toggle()
-    if _win and is_valid(_win) then
-        close()
+    local win = get_win()
+    if win then
+        vim.api.nvim_win_close(win, false)
     else
         open()
     end
@@ -96,11 +104,14 @@ function M.open()
 end
 
 function M.close()
-    close()
+    local win = get_win()
+    if win then
+        vim.api.nvim_win_close(win, false)
+    end
 end
 
 function M.is_visible()
-    return _win and is_valid(_win)
+    return get_win() ~= nil
 end
 
 return M
