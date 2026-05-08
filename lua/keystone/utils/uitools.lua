@@ -121,11 +121,9 @@ function M.smart_open_file(filepath, line, col)
     local bufnr = vim.fn.bufnr(full_path)
     if bufnr ~= -1 then
         vim.api.nvim_win_set_buf(winid, bufnr)
+        vim.bo[bufnr].buflisted = true
     else
-        local buf = vim.fn.bufadd(full_path)
-        vim.fn.bufload(buf)
-        vim.bo[buf].buflisted = true
-        vim.api.nvim_set_current_buf(buf)
+        vim.cmd.edit(vim.fn.fnameescape(filepath))
         bufnr = vim.api.nvim_win_get_buf(winid)
     end
 

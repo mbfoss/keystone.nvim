@@ -948,7 +948,7 @@ function FileTree:_rename_node(item)
             if reload_counter ~= self._reload_counter then return end
             if not self._tree:get_item(old_path) then return end
             local new_path = vim.fs.joinpath(parent_dir, new_name)
-            local ok, err = fsutils.rename_file(old_path, new_name)
+            local ok, err = fsutils.rename_file(old_path, new_path)
             if ok then
                 self:_read_dir(parent_dir, self._reload_counter, false)
                 self:_reveal(new_path)

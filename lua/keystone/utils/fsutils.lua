@@ -266,6 +266,41 @@ end
 
 local uv = vim.uv or vim.loop
 
+
+---@param dir string
+---@param on_file fun(name:string,type:"file"|"directory"|"link")
+---@param on_done fun()
+---@return function # cancel function
+function M.async_scan_dir(dir, include_regex_list, exclude_regex_list, on_file, on_done)
+    local is_cancelled = false
+    local cancel_fn = function()
+        is_cancelled = true
+    end
+
+    local on_done_called = false
+    local call_on_done = function()
+        if not on_done_called then
+            vim.schedule(function()
+                on_done()
+            end)
+            on_done_called = true
+        end
+    end
+    --TODO: need to close fd?
+    local fd = uv.fs_scandir(dir)
+    if not fd then
+        call_on_done()
+        return cancel_fn
+    end
+    while true do
+        local name, type = uv.fs_scandir_next(fd)
+        if not name or is_cancelled then break end
+        on_file(name, type)
+    end
+    call_on_done()
+    return cancel_fn
+end
+
 ---@param dir string
 ---@param include_regex_list vim.regex[]?
 ---@param exclude_regex_list vim.regex[]?
@@ -297,6 +332,7 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
 
         local path = table.remove(pending_dirs, 1)
+        --TODO: need to close fd?
         local fd = uv.fs_scandir(path)
         if not fd then
             vim.schedule(process_next_dir)
@@ -331,7 +367,7 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
     end
 end
 
---- Rename a file and update buffers
+--- Rename a file and update buffers (LSP aware)
 ---@param from string
 ---@param to string
 ---@return boolean ok,string?

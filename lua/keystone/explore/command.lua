@@ -1,7 +1,8 @@
-local M = {}
+local M        = {}
 
-local uv = vim.uv
+local uv       = vim.uv
 local explorer = require("keystone.explore.explorer")
+local fsutils  = require("keystone.utils.fsutils")
 
 local function scandir(path)
     local handle = uv.fs_scandir(path)
@@ -33,40 +34,38 @@ end
 local function _explore_files()
     explorer.open({
         prompt = "Explore",
-        --  enable_preview = true,
-        fetch = function(current, direction, fetch_opts)
+        enable_preview = true,
+        async_fetch = function(current, fetch_opts, callback)
             local path
-
             if not current then
-                path = uv.cwd()
-            else
-                path = current.path
-                if direction == "out" then
-                    path = vim.fn.fnamemodify(path, ":h:h")
-                end
+                current = {
+                    path = uv.cwd()
+                }
             end
+            path = current.path
 
-            local entries = scandir(path)
-            local result = {}
-
-            for _, entry in ipairs(entries) do
-                local full_path = path .. "/" .. entry.name
-
-                local is_dir = entry.type == "directory"
+            local entries = {}
+            local cancel = fsutils.async_scan_dir(path, nil, nil,
+                function(name, type)
+                local full_path = vim.fs.joinpath(path, name)
+                local is_dir = type == "directory"
                 local prefix = is_dir and { " ", "Directory" } or { " " }
-                table.insert(result, {
+                table.insert(entries, {
                     label_chunks = {
                         prefix,
-                        { entry.name },
+                        {name },
                     },
                     data = {
                         path = full_path,
                         is_dir = is_dir,
                     },
                 })
-            end
+                end,
+                function()
+                    callback((entries))
+                end)
 
-            return result
+            return cancel
         end
     }, function(data)
     end)

@@ -22,7 +22,7 @@ local _antiflicker_delay = 200
 ---@field col number?
 ---@field [string] any
 
----@class keystone.Explorer..Item
+---@class keystone.Explorer.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
@@ -33,44 +33,33 @@ local _antiflicker_delay = 200
 ---@field score number
 ---@field data keystone.explorer.ItemData
 
----@alias keystone.Explorer..Callback fun(data:keystone.explorer.ItemData?)
+---@alias keystone.Explorer.Callback fun(data:keystone.explorer.ItemData?)
 
----@class keystone.Explorer..FetcherOpts
+---@class keystone.Explorer.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
----@class keystone.Explorer..QueryHistoryProvider
----@field load fun():string[]
----@field store fun(hist:string[])?
+---@alias keystone.Explorer.AsyncFetcher fun(data:keystone.explorer.ItemData?,opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
 
----@alias keystone.Explorer..Fetcher fun(query:string,opts:keystone.Explorer..FetcherOpts):keystone.Explorer..Item[]?,number?
----@alias keystone.Explorer..AsyncFetcher fun(query:string,opts:keystone.Explorer..FetcherOpts,callback:fun(new_items:keystone.Explorer..Item[]?)):fun()?
----@alias keystone.Explorer..QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
-
----@class keystone.Explorer..AsyncPreviewOpts
+---@class keystone.Explorer.AsyncPreviewOpts
 ---@field viewport_with number?
 ---@field viewport_height number?
 
+---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
+---@alias keystone.Explorer.AsyncPreviewLoader fun(data:keystone.explorer.ItemData, opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
----@alias keystone.Explorer..AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Explorer..AsyncPreviewLoader fun(data:keystone.explorer.ItemData, opts:keystone.Explorer..AsyncPreviewOpts, callback:fun(preview:keystone.Explorer..AsyncPreviewData?)):fun()?
-
----@class keystone.Explorer..opts
+---@class keystone.Explorer.opts
 ---@field prompt string
----@field highlight_query keystone.Explorer..QueryHighlighter?
----@field fetch keystone.Explorer..Fetcher?
----@field async_fetch keystone.Explorer..AsyncFetcher?
+---@field async_fetch keystone.Explorer.AsyncFetcher?
 ---@field enable_preview boolean?
----@field async_preview keystone.Explorer..AsyncPreviewLoader?
----@field history_provider keystone.Explorer..QueryHistoryProvider?
----@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
+---@field async_preview keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_width number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
 
----@class keystone.Explorer..Layout
+---@class keystone.Explorer.Layout
 ---@field prompt_row number
 ---@field prompt_col number
 ---@field prompt_width number
@@ -93,7 +82,7 @@ local function _clamp(v, min, max)
 end
 
 ---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
----@return keystone.Explorer..Layout
+---@return keystone.Explorer.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
@@ -132,17 +121,12 @@ local function _compute_layout(opts)
     local col = math.floor((cols - (list_width + prev_width + spacing)) / 2)
 
     return {
-        prompt_row = row,
-        prompt_col = col,
-        prompt_width = list_width + prev_width + spacing,
-        prompt_height = 1,
-
-        list_row = row + 3,
+        list_row = row,
         list_col = col,
         list_width = list_width,
         list_height = list_height,
 
-        prev_row = row + 3,
+        prev_row = row,
         prev_col = col + list_width + spacing,
         prev_width = prev_width,
         prev_height = list_height
@@ -184,7 +168,7 @@ local function _find_insert_index(items, new_score)
     return low
 end
 
----@type keystone.Explorer..AsyncPreviewLoader
+---@type keystone.Explorer.AsyncPreviewLoader
 local function _default_preview(data, _, callback)
     local filepath = data.filepath
     if not filepath or filepath == "" then
@@ -215,15 +199,13 @@ local function _default_preview(data, _, callback)
 end
 
 ---@class keystone.utils.Explorer
----@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer..opts,callback:keystone.Explorer..Callback) : keystone.utils.Explorer
----@field opts keystone.Explorer..opts
----@field callback keystone.Explorer..Callback
+---@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer.opts,callback:keystone.Explorer.Callback) : keystone.utils.Explorer
+---@field opts keystone.Explorer.opts
+---@field callback keystone.Explorer.Callback
 ---@field has_preview boolean
----@field layout keystone.Explorer..Layout
----@field pbuf integer
+---@field layout keystone.Explorer.Layout
 ---@field lbuf integer
 ---@field vbuf integer?
----@field pwin integer
 ---@field lwin integer
 ---@field vwin integer?
 ---@field spinner keystone.utils.Spinner?
@@ -235,13 +217,10 @@ end
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
 ---@field resize_augroup number?
----@field current_query string?
----@field history string[]
----@field history_idx number
 local Explorer = class()
 
----@param opts keystone.Explorer..opts
----@param callback keystone.Explorer..Callback
+---@param opts keystone.Explorer.opts
+---@param callback keystone.Explorer.Callback
 function Explorer:init(opts, callback)
     vim.validate("opts", opts, "table")
     vim.validate("callback", callback, "function")
@@ -263,17 +242,6 @@ function Explorer:init(opts, callback)
 
     self.spinner = nil
 
-    self.history = {}
-    self.history_idx = 0
-
-    if self.opts.history_provider then
-        self.history = self.opts.history_provider.load() or {}
-        self.history_idx = #self.history + 1
-    end
-
-    local cword_ok, cword = pcall(vim.fn.expand, "<cword>")
-    self.original_cword = tostring(cword_ok and (type(cword) == "table" and cword[1] or cword) or "")
-
     self:setup_ui()
 end
 
@@ -294,7 +262,6 @@ function Explorer:setup_ui()
         self.list_sep_line = string.rep("─", self.layout.list_width)
     end
 
-    self.pbuf = vim.api.nvim_create_buf(false, true)
     self.lbuf = vim.api.nvim_create_buf(false, true)
     self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
 
@@ -303,7 +270,7 @@ function Explorer:setup_ui()
         vim.bo[self.vbuf].modifiable = false
     end
 
-    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
+    for _, b in ipairs({ self.lbuf, self.vbuf }) do
         if b then
             vim.bo[b].bufhidden = "wipe"
             vim.bo[b].buftype = "nofile"
@@ -315,7 +282,6 @@ function Explorer:setup_ui()
                 once = true,
                 callback = function(ev)
                     if not self.closed then
-                        if (b == self.pbuf) then self.pbuf = -1 end
                         if (b == self.lbuf) then self.lbuf = -1 end
                         if (b == self.vbuf) then self.vbuf = -1 end
                         vim.schedule(function() self:close() end)
@@ -330,15 +296,6 @@ function Explorer:setup_ui()
         style = "minimal",
         border = "rounded"
     }
-
-    self.pwin = vim.api.nvim_open_win(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
-        row = self.layout.prompt_row,
-        col = self.layout.prompt_col,
-        width = self.layout.prompt_width,
-        height = 1,
-        title = title,
-        title_pos = "center"
-    }))
 
     self.lwin = vim.api.nvim_open_win(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
         row = self.layout.list_row,
@@ -358,36 +315,17 @@ function Explorer:setup_ui()
     end
 
     local winhl = "NormalFloat:Normal,FloatBorder:LoopTransparentBorder"
-    for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
+    for _, w in ipairs({ self.lwin, self.vwin }) do
         if w then
             vim.wo[w].winhighlight = winhl
         end
     end
 
-    vim.wo[self.pwin].wrap = false
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
-    ---@type number?
-    assert(not self.focus_augroup)
-    self.focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
-    vim.api.nvim_create_autocmd("WinEnter", {
-        group = self.focus_augroup,
-        callback = function(args)
-            local win = vim.api.nvim_get_current_win()
-            assert(not self.closed)
-            if win ~= self.pwin and win ~= self.lwin and win ~= self.vwin then
-                local cfg = vim.api.nvim_win_get_config(win)
-                --if cfg.relative == "" then -- skip popups
-                vim.schedule(function()
-                    self:close()
-                end)
-                --end
-            end
-        end
-    })
 
     assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.pbuf, { clear = true })
+    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.lbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = self.resize_augroup,
         callback = function()
@@ -397,13 +335,6 @@ function Explorer:setup_ui()
             end)
         end
     })
-
-    vim.keymap.set("i", "<C-r><C-w>", function()
-        vim.api.nvim_feedkeys(
-            vim.api.nvim_replace_termcodes(self.original_cword, true, false, true),
-            "i", false
-        )
-    end, { buffer = self.pbuf, desc = "Page original <cword>" })
 end
 
 function Explorer:on_resize()
@@ -424,15 +355,6 @@ function Explorer:on_resize()
         relative = "editor",
     }
 
-    if self.pwin and vim.api.nvim_win_is_valid(self.pwin) then
-        vim.api.nvim_win_set_config(self.pwin, vim.tbl_extend("force", base, {
-            row = self.layout.prompt_row,
-            col = self.layout.prompt_col,
-            width = self.layout.prompt_width,
-            height = 1,
-        }))
-    end
-
     if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
         vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base, {
             row = self.layout.list_row,
@@ -452,29 +374,12 @@ function Explorer:on_resize()
     end
 end
 
-function Explorer:render_prompt_highlight(query)
-    if not self.opts.highlight_query then return end
-    if not vim.api.nvim_buf_is_valid(self.pbuf) then return end
-
-    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
-
-    local hls = self.opts.highlight_query(query) or {}
-
-    for _, h in ipairs(hls) do
-        vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
-            end_col = h.finish,
-            hl_group = h.hl,
-        })
-    end
-end
-
 function Explorer:render_ui()
     if not vim.api.nvim_buf_is_valid(self.lbuf) then
         return
     end
 
     vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
-    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
 
     local total = #self.list_items
     if total == 0 then
@@ -488,17 +393,6 @@ function Explorer:render_ui()
             virt_text = { { "> ", "Special" } },
             virt_text_pos = "overlay",
             priority = 200,
-        })
-    end
-
-    if total > 0 and vim.api.nvim_buf_is_valid(self.pbuf) then
-        local text = string.format("%d/%d", cur, total)
-
-        vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
-            virt_text = { { text, "Comment" } },
-            virt_text_pos = "right_align",
-            hl_mode = "blend",
-            priority = 1,
         })
     end
 end
@@ -621,9 +515,9 @@ function Explorer:start_spinner()
     self.spinner = Spinner:new {
         interval = 80,
         on_update = function(frame)
-            if not vim.api.nvim_buf_is_valid(self.pbuf) then return end
-            vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
-            vim.api.nvim_buf_set_extmark(self.pbuf, NS_SPINNER, 0, 0, {
+            if not vim.api.nvim_buf_is_valid(self.lbuf) then return end
+            vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
+            vim.api.nvim_buf_set_extmark(self.lbuf, NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
                 virt_text_pos = "right_align"
             })
@@ -638,10 +532,7 @@ function Explorer:stop_spinner()
         self.spinner:stop()
         self.spinner = nil
     end
-
-    if vim.api.nvim_buf_is_valid(self.pbuf) then
-        vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
-    end
+    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
 end
 
 function Explorer:request_clear_preview()
@@ -674,7 +565,7 @@ function Explorer:clear_list()
     self:render_ui()
 end
 
----@param items keystone.Explorer..Item[]
+---@param items keystone.Explorer.Item[]
 function Explorer:add_new_lines(items)
     local prefix = "  "
     local is_fresh = #self.list_items == 0 and
@@ -751,11 +642,8 @@ function Explorer:add_new_lines(items)
     vim.wo[self.lwin].cursorline = #self.list_items > 0
 end
 
----@param query string
-function Explorer:run_fetch(query)
-    local is_new_query = (query ~= self.current_query)
-    self.current_query = query
-
+---@param item_data? keystone.explorer.ItemData
+function Explorer:run_fetch(item_data)
     if self.async_fetch_cancel then
         self.async_fetch_cancel()
         self.async_fetch_cancel = nil
@@ -769,24 +657,16 @@ function Explorer:run_fetch(query)
         list_height = math.max(1, self.layout.list_height - 2),
     }
 
-    if self.opts.fetch then
-        self:clear_list()
-        local items, initial = self.opts.fetch(query, fetch_opts)
-        if items then
-            self:add_new_lines(items)
-            self:move_cursor(initial or 1, true, true)
-        end
-        return
-    end
-
     self.async_fetch_context = self.async_fetch_context + 1
     local context = self.async_fetch_context
 
     local waiting_first = true
     local complete = false
 
+    local is_new_query = true
+
     self.async_fetch_cancel = self.opts.async_fetch(
-        query,
+        item_data,
         fetch_opts,
         function(new_items)
             if self.closed or context ~= self.async_fetch_context then return end
@@ -822,63 +702,6 @@ function Explorer:run_fetch(query)
     end
 end
 
-function Explorer:history_prev()
-    if not self.opts.history_provider or #self.history == 0 then return end
-
-    local new_idx = math.max(1, self.history_idx - 1)
-    if new_idx ~= self.history_idx then
-        self.history_idx = new_idx
-        self:set_prompt_text(self.history[self.history_idx])
-    end
-end
-
-function Explorer:history_next()
-    if not self.opts.history_provider then return end
-
-    local new_idx = self.history_idx + 1
-    if new_idx <= #self.history then
-        self.history_idx = new_idx
-        self:set_prompt_text(self.history[self.history_idx])
-    elseif new_idx == #self.history + 1 then
-        self.history_idx = new_idx
-        self:set_prompt_text("")
-    end
-end
-
-function Explorer:set_prompt_text(text)
-    vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
-    vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
-end
-
-function Explorer:send_to_qf()
-    if #self.list_items == 0 then return end
-    local qf_entries = {} ---@type vim.quickfix.entry[]
-
-    if self.opts.quickfix_formatter then
-        for _, item in ipairs(self.list_items) do
-            local entry = self.opts.quickfix_formatter(item.data)
-            if entry then table.insert(qf_entries, entry) end
-        end
-    else
-        for _, item in ipairs(self.list_items) do
-            local data = item.data or {}
-            ---@type vim.quickfix.entry
-            local entry = {
-                text     = item.text,
-                filename = data.filepath,
-                lnum     = data.lnum or 1,
-                col      = data.col or 1,
-            }
-            table.insert(qf_entries, entry)
-        end
-    end
-    if #qf_entries > 0 then
-        self:close()
-        vim.fn.setqflist(qf_entries, "r")
-        vim.cmd("copen")
-    end
-end
-
 ---@param selected_data keystone.explorer.ItemData?
 function Explorer:close(selected_data)
     if self.closed then return end
@@ -901,28 +724,6 @@ function Explorer:close(selected_data)
         self.resize_augroup = nil
     end
 
-    for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
-        if w and vim.api.nvim_win_is_valid(w) then
-            vim.api.nvim_win_close(w, true)
-        end
-    end
-
-    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
-        if b and vim.api.nvim_buf_is_valid(b) then
-            vim.api.nvim_buf_delete(b, { force = true })
-        end
-    end
-
-    if self.opts.history_provider then
-        if self.current_query and self.current_query ~= "" and self.current_query ~= self.history[#self.history] then
-            table.insert(self.history, self.current_query)
-            if self.opts.history_provider.store then
-                self.opts.history_provider.store(self.history)
-            end
-        end
-    end
-
-    vim.cmd("stopinsert!")
     vim.schedule(function()
         self.callback(selected_data)
     end)
@@ -939,53 +740,26 @@ function Explorer:setup_input()
         return { buffer = buf, nowait = true, silent = true }
     end
 
-    do
-        local pbuf_key_opts = key_opts_of(self.pbuf)
-        vim.keymap.set({ "i", "n" }, "<CR>", confirm, pbuf_key_opts)
-
-        vim.keymap.set("n", "<Esc>", function() self:close() end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-c>", function() self:close() end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<Down>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-n>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<Up>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-p>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<C-d>", function()
-            local cur = self:get_cursor()
-            local step = math.floor(self.layout.list_height / 2)
-            self:move_cursor(cur + step, false, true)
-        end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<C-u>", function()
-            local cur = self:get_cursor()
-            local step = math.floor(self.layout.list_height / 2)
-            self:move_cursor(cur - step, false, true)
-        end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<C-j>", function() self:history_next() end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-k>", function() self:history_prev() end, pbuf_key_opts)
-
-        vim.keymap.set("i", "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
-
-        vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-            buffer = self.pbuf,
-            callback = function()
-                local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-                self:render_prompt_highlight(query)
-                self:run_fetch(query)
-            end
-        })
+    ---@param direction "in"|"out"
+    local fetch_action = function(direction)
+        local cur = self:get_cursor()
+        if cur > #self.list_items then return end
+        local item = self.list_items[cur]
+        if not item then return end
+        self:run_fetch(item.data)
     end
 
     do
         local lbuf_key_opts = key_opts_of(self.lbuf)
+        vim.keymap.set("n", "l", function() fetch_action("in") end, lbuf_key_opts)
+        vim.keymap.set("n", "h", function() fetch_action("out") end, lbuf_key_opts)
+        vim.keymap.set("n", "<CR>", confirm, lbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
     end
 
     if self.vbuf then
         local vbuf_key_opts = key_opts_of(self.vbuf)
+        vim.keymap.set("n", "<CR>", confirm, vbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
     end
 end
@@ -995,20 +769,15 @@ function Explorer:open()
     self._open_called = true
 
     self:setup_input()
-    self:run_fetch("")
+    self:run_fetch(nil)
 
-    vim.api.nvim_set_current_win(self.pwin)
-
-    vim.schedule(function()
-        vim.cmd("startinsert!")
-    end)
+    vim.api.nvim_set_current_win(self.lwin)
 end
 
----@param opts keystone.Explorer..opts
----@param callback keystone.Explorer..Callback
+---@param opts keystone.Explorer.opts
+---@param callback keystone.Explorer.Callback
 function M.open(opts, callback)
-    assert(opts.fetch or opts.async_fetch)
-
+    assert(opts.async_fetch)
     local picker = Explorer:new(opts, callback)
     picker:open()
 end
