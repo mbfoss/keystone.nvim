@@ -82,7 +82,6 @@ local function open()
                     end
                 end)
                 vim.api.nvim_del_augroup_by_id(augroup)
-                vim.notify("cleanup complete")
             end
         end,
     })
