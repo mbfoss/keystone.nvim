@@ -357,7 +357,7 @@ function Picker:setup_ui()
         vim.wo[self.vwin].wrap = true
     end
 
-    local winhl = "NormalFloat:Normal,FloatBorder:LoopTransparentBorder"
+    local winhl = "NormalFloat:Normal,FloatBorder:Normal"
     for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
         if w then
             vim.wo[w].winhighlight = winhl
