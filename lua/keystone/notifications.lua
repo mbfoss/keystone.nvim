@@ -1,98 +1,94 @@
----@class keystone.lspprogress.Notification
+---@class keystone.notifications.Notification
 ---@field win_id integer
 ---@field buf_id integer
+---@field height integer
 
----@class keystone.lspprogress.Config
+---@class keystone.notifications.Config
 ---@field enabled boolean
 ---@field width integer
 ---@field border string|table
 ---@field timeout integer
+---@field lsp_progress boolean
+
+---@class keystone.notifications.NotifyOpts
+---@field title? string
+---@field timeout? integer
+---@field id? string|integer
+---@field level? "info"|"warn"|"error"|"lsp"
 
 local M = {}
 
----@type table<string|integer, keystone.lspprogress.Notification>
-local _active_notifications = {}
-
+---@type table<string|integer, keystone.notifications.Notification>
+local _active = {}
+local _id_counter = 0
 local _initialized = false
 local _enabled = false
 
----@return keystone.lspprogress.Config
-local function _get_default_config()
+local _hl_map = { info = "NormalFloat", warn = "DiagnosticWarn", error = "DiagnosticError", lsp = "NormalFloat" }
+
+local function _get_defaults()
   return {
     enabled = true,
-    width = 40,
+    width = 36,
     border = "rounded",
-    timeout = 3000,
+    timeout = 1000,
+    lsp_progress = true,
   }
 end
 
----@type keystone.lspprogress.Config
-M.config = _get_default_config()
+M.config = _get_defaults()
 
 ---@return integer
-local function _bottom_offset()
-  local cmdheight = vim.o.cmdheight
-  local laststatus = vim.o.laststatus
-  local offset = cmdheight
-  if laststatus ~= 0 then
-    offset = offset + 1
-  end
-  return offset + 2
+local function _get_offset()
+  return vim.o.cmdheight + (vim.o.laststatus ~= 0 and 1 or 0) + 2
 end
 
-
----@param token string|integer
----@param index integer
----@param height integer
-local function _update_position(token, index, height)
-  local notification = _active_notifications[token]
-  if not notification then
-    return
+local function _layout()
+  local running_height = 0
+  for _, n in pairs(_active) do
+    if vim.api.nvim_win_is_valid(n.win_id) then
+      local row = vim.o.lines - _get_offset() - running_height - n.height
+      vim.api.nvim_win_set_config(n.win_id, {
+        relative = "editor",
+        row = row,
+        col = vim.o.columns - M.config.width - 2,
+      })
+      running_height = running_height + n.height + 2 -- Adjust for border margin
+    end
   end
-
-  if not vim.api.nvim_win_is_valid(notification.win_id) then
-    return
-  end
-
-  vim.api.nvim_win_set_config(notification.win_id, {
-    relative = "editor",
-    width = M.config.width,
-    height = height,
-    row = vim.o.lines - height - _bottom_offset() - (index * (height + 1)),
-    col = vim.o.columns - M.config.width - 2,
-  })
 end
 
----@param token string|integer
----@param data table
----@param is_done boolean
-local function _render_notification(token, data, is_done)
-  local client = data.client or "LSP"
-  local title = data.title or "Progress"
-  local message = data.message or ""
-  local percentage = data.percentage
+---@param id string|integer
+local function _close(id)
+  local n = _active[id]
+  if not n then return end
+  if vim.api.nvim_win_is_valid(n.win_id) then vim.api.nvim_win_close(n.win_id, true) end
+  if vim.api.nvim_buf_is_valid(n.buf_id) then vim.api.nvim_buf_delete(n.buf_id, { force = true }) end
+  _active[id] = nil
+  _layout()
+end
 
-  local lines = {
-    string.format(" %s [%s]", client, title),
-  }
-
-  if percentage then
-    table.insert(lines, string.format(" %d%%", percentage))
+---@param msg string|string[]
+---@param opts? keystone.notifications.NotifyOpts
+function M.notify(msg, opts)
+  if not _enabled then
+    local lines = type(msg) == "table" and msg or { msg }
+    vim.api.nvim_echo({ { table.concat(lines, '\n'), "" } }, false, {})
+    return
   end
+  opts = opts or {}
+  local id = opts.id or ("n_" .. _id_counter)
+  if not opts.id then _id_counter = _id_counter + 1 end
 
-  if message ~= "" then
-    table.insert(lines, " " .. message)
-  end
+  local lines = type(msg) == "table" and msg or { msg }
+  local level = opts.level or "info"
 
-  if is_done then
-    table.insert(lines, " Done")
-  end
+  -- Color mapping
+  local hl = _hl_map[level] or "Normal"
 
-  local notification = _active_notifications[token]
-
-  if not notification then
+  local n = _active[id]
+  if not n then
     local buf = vim.api.nvim_create_buf(false, true)
-
     local win = vim.api.nvim_open_win(buf, false, {
       relative = "editor",
       width = M.config.width,
@@ -101,141 +97,89 @@ local function _render_notification(token, data, is_done)
       col = 0,
       style = "minimal",
       border = M.config.border,
+      title = opts.title and { { " " .. opts.title .. " ", hl } } or "",
+      title_pos = "center",
       focusable = false,
-      noautocmd = true,
       zindex = 100,
     })
 
-    vim.api.nvim_set_option_value(
-      "winhl",
-      "NormalFloat:NormalFloat,FloatBorder:NormalFloat",
-      { win = win }
-    )
-
-    notification = {
-      win_id = win,
-      buf_id = buf,
-    }
-
-    _active_notifications[token] = notification
+    vim.api.nvim_set_option_value("winhl", "NormalFloat:NormalFloat,FloatBorder:NormalFloat", { win = win })
+    n = { win_id = win, buf_id = buf, height = #lines }
+    _active[id] = n
   end
 
-  if vim.api.nvim_buf_is_valid(notification.buf_id) then
-    vim.bo[notification.buf_id].modifiable = true
-    vim.api.nvim_buf_set_lines(notification.buf_id, 0, -1, false, lines)
-    vim.bo[notification.buf_id].modifiable = false
+  vim.bo[n.buf_id].modifiable = true
+  vim.api.nvim_buf_set_lines(n.buf_id, 0, -1, false, lines)
+  vim.bo[n.buf_id].modifiable = false
+
+  _layout()
+
+  local timeout = opts.timeout or M.config.timeout
+  if timeout > 0 then
+    vim.defer_fn(function() _close(id) end, timeout)
   end
-
-  local i = 0
-
-  for active_token, _ in pairs(_active_notifications) do
-    _update_position(active_token, i, #lines)
-    i = i + 1
-  end
-
-  if is_done then
-    vim.defer_fn(function()
-      local active = _active_notifications[token]
-
-      if not active then
-        return
-      end
-
-      if vim.api.nvim_win_is_valid(active.win_id) then
-        vim.api.nvim_win_close(active.win_id, true)
-      end
-
-      _active_notifications[token] = nil
-
-      local index = 0
-
-      for active_token, _ in pairs(_active_notifications) do
-        local buf_height = vim.api.nvim_buf_line_count(
-          _active_notifications[active_token].buf_id
-        )
-
-        _update_position(active_token, index, buf_height)
-
-        index = index + 1
-      end
-    end, M.config.timeout)
-  end
+  return id
 end
 
----@param err lsp.ResponseError|nil
+---@param msg string
+---@param level? vim.log.levels
+---@param opts? table
+function M.ui_notify(msg, level, opts)
+  opts = opts or {}
+  -- Map numeric vim.log.levels to your string levels
+  local log_levels = {
+    [1] = "info",
+    [2] = "warn",
+    [3] = "error",
+    [4] = "error", -- Generic/Debug
+    [5] = "info",  -- Trace
+  }
+  -- If the second argument is a table, it's the opts (standard vim.notify behavior)
+  if type(level) == "table" then
+    opts = level
+  elseif level then
+    opts.level = log_levels[level] or "info"
+  end
+  return M.notify(msg, opts)
+end
+
 ---@param progress lsp.ProgressParams
 ---@param ctx lsp.HandlerContext
-local function _lsp_handler(err, progress, ctx)
+local function _lsp_handler(_, progress, ctx)
   local client = vim.lsp.get_client_by_id(ctx.client_id)
+  local val = progress.value
+  if not client or not val then return end
 
-  if not client then
-    return
-  end
+  local display_title = val.title and (client.name .. ": " .. val.title) or client.name
+  local msg = (val.message or "") .. (val.percentage and (" [" .. val.percentage .. "%%]") or "")
+  if msg == "" and val.kind ~= "end" then msg = "..." end
 
-  local token = progress.token
-  local value = progress.value
-
-  if not value then
-    return
-  end
-
-  if value.kind == "begin" or value.kind == "report" then
-    _render_notification(token, {
-      client = client.name,
-      title = value.title,
-      message = value.message,
-      percentage = value.percentage,
-    }, false)
-  elseif value.kind == "end" then
-    _render_notification(token, {
-      client = client.name,
-      title = value.title,
-      message = value.message,
-    }, true)
+  if val.kind == "begin" or val.kind == "report" then
+    M.notify(msg, { id = progress.token, title = display_title, level = "lsp", timeout = 0 })
+  elseif val.kind == "end" then
+    M.notify(val.message or "Complete", { id = progress.token, title = display_title, level = "lsp", timeout = 1500 })
   end
 end
 
 function M.enable()
-  if _enabled then
-    return
-  end
-
+  if _enabled then return end
   _enabled = true
-
+  vim.notify = M.ui_notify
   if not _initialized then
     _initialized = true
-
-    local previous = vim.lsp.handlers["$/progress"]
-
-    vim.lsp.handlers["$/progress"] = function(err, progress, ctx)
-      if _enabled then
-        _lsp_handler(err, progress, ctx)
-      end
-
-      if previous then
-        previous(err, progress, ctx)
+    if M.config.lsp_progress then
+      local prev = vim.lsp.handlers["$/progress"]
+      vim.lsp.handlers["$/progress"] = function(err, prog, ctx)
+        if _enabled then _lsp_handler(err, prog, ctx) end
+        if prev then prev(err, prog, ctx) end
       end
     end
   end
 end
 
-function M.disable()
-  _enabled = false
-end
-
----@param opts keystone.lspprogress.Config|nil
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend(
-    "force",
-    _get_default_config(),
-    opts or {}
-  )
-
-  if M.config.enabled then
-    M.enable()
-  else
-    M.disable()
-  end
+  M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})
+  if M.config.enabled then M.enable() else M.disable() end
 end
 
 return M
