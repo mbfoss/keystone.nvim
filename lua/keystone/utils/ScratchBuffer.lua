@@ -25,7 +25,9 @@ function ScratchBuffer:init(opts)
     vim.validate("opts", opts, "table")
     self._bo = vim.deepcopy(opts.bo or {})
     self._buf = -1
-
+    if self._bo.bufhidden == nil then
+        self._bo.bufhidden = "wipe"
+    end
     self._trackers = Trackers:new()
 end
 
@@ -52,9 +54,9 @@ function ScratchBuffer:create()
         end
         return true
     end
-    local listed = self._bo.buflisted
-    if listed == nil then listed = true end
-    self._buf = vim.api.nvim_create_buf(listed, true)
+    local buflisted = self._bo.buflisted
+    if buflisted == nil then buflisted = false end
+    self._buf = vim.api.nvim_create_buf(buflisted, true)
     self._trackers:invoke("on_create")
     self:_on_loaded()
     return true

@@ -66,26 +66,26 @@ local function open()
     local augroup = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = augroup,
-        callback = apply_width,
+        callback = function()
+            vim.schedule(function()
+                apply_width(win)
+            end)
+        end,
     })
     vim.api.nvim_create_autocmd("WinClosed", {
         group = augroup,
         callback = function(args)
             local closedwin = tonumber(args.match)
             if closedwin ~= win then
-                apply_width(win)
+                vim.schedule(function()
+                    apply_width(win)
+                end)
             else
                 win = nil
-                vim.schedule(function()
-                    if _tree then
-                        _tree:delete_buffer()
-                    end
-                end)
                 vim.api.nvim_del_augroup_by_id(augroup)
             end
         end,
     })
-
     _tree:reveal(filename, true, true)
 end
 
