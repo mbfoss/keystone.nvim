@@ -67,9 +67,7 @@ local function open()
     vim.api.nvim_create_autocmd("VimResized", {
         group = augroup,
         callback = function()
-            vim.schedule(function()
-                apply_width(win)
-            end)
+            apply_width(win)
         end,
     })
     vim.api.nvim_create_autocmd("WinClosed", {
@@ -78,7 +76,9 @@ local function open()
             local closedwin = tonumber(args.match)
             if closedwin ~= win then
                 vim.schedule(function()
-                    apply_width(win)
+                    if win then
+                        apply_width(win)
+                    end
                 end)
             else
                 win = nil
