@@ -11,7 +11,14 @@ local notifications = require("keystone.notify")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 
-local level_hl = {
+local _icons = {
+    info = "ℹ",
+    warn = "⚠",
+    error = "✖",
+    lsp = "⚙",
+}
+
+local _level_hl = {
     info = "DiagnosticInfo",
     warn = "DiagnosticWarn",
     error = "DiagnosticError",
@@ -21,14 +28,13 @@ local level_hl = {
 function M.open()
     ---@type keystone.notifications.history.Item[]
     local history = notifications.history()
-
-    table.sort(history, function(a, b)
-        return a.timestamp > b.timestamp
-    end)
+    local reversed = {}
+    for i = #history, 1, -1 do reversed[#reversed + 1] = history[i] end
+    history = reversed
 
     picker.open({
         prompt = "Notification History",
-
+        enable_preview = true,
         fetch = function(query, fetch_opts)
             local items = {}
             for _, entry in ipairs(history) do
@@ -37,18 +43,9 @@ function M.open()
                 if res then
                     local timestamp = os.date("%H:%M:%S", math.floor(entry.timestamp / 1000))
                     local chunks = {
-                        {
-                            string.format("[%s] ", timestamp),
-                            "Comment",
-                        },
-                        {
-                            string.format("[%-5s] ", entry.level:upper()),
-                            level_hl[entry.level] or "Normal",
-                        },
-                        {
-                            string.format("%s: ", entry.title),
-                            "Title",
-                        },
+                        { string.format("[%s] ", timestamp), "Comment", },
+                        { _icons[entry.level] or "",         _level_hl[entry.level] or "Normal", },
+                        { " ",                               _level_hl[entry.level] or "Normal", },
                     }
                     vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
@@ -61,6 +58,12 @@ function M.open()
             end
             return items
         end,
+        async_preview = function(data, opts, callback)
+            callback({
+                content = data.message,
+            })
+            return function() end
+        end
     }, function(data)
         if not data then
             return

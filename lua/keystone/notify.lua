@@ -48,6 +48,13 @@ local _hl_map = {
   lsp = "Normal",
 }
 
+local _icon_map = {
+  info = "ℹ",
+  warn = "⚠",
+  error = "✖",
+  lsp = "⚙",
+}
+
 local _log_level_map = {
   [vim.log.levels.INFO] = "info",
   [vim.log.levels.WARN] = "warn",
@@ -144,8 +151,11 @@ function M.notify(msg, opts)
   end
 
   local level = opts.level or "info"
-  local title = opts.title or "Notification"
+  local icon = _icon_map[level]
+  local title = opts.title or icon or "Notification"
   local title_hl = _hl_map[level] or "DiagnosticInfo"
+
+  if title ~= icon then title = " " .. title .. " " end
 
   _push_history({
     id = id,
@@ -168,7 +178,7 @@ function M.notify(msg, opts)
       col = 0,
       style = "minimal",
       border = M.config.border,
-      title = { { " " .. title .. " ", title_hl } },
+      title = { { title, title_hl } },
       title_pos = "center",
       focusable = false,
       zindex = 100,
