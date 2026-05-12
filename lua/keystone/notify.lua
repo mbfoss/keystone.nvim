@@ -1,29 +1,40 @@
----@class keystone.notifications.Notification
+---@class keystone.notify.Notification
 ---@field win_id integer
 ---@field buf_id integer
 ---@field height integer
 
----@class keystone.notifications.Config
+---@class keystone.notify.Config
 ---@field enabled boolean
 ---@field width integer
 ---@field border string|table
 ---@field timeout integer
 ---@field lsp_progress boolean
 ---@field lsp_progress_delay integer
+---@field history_limit integer
 
----@class keystone.notifications.NotifyOpts
+---@class keystone.notify.NotifyOpts
 ---@field title? string
 ---@field timeout? integer
 ---@field id? string|integer
 ---@field level? "info"|"warn"|"error"|"lsp"
 
+---@class keystone.notify.HistoryEntry
+---@field id string|integer
+---@field title string
+---@field level "info"|"warn"|"error"|"lsp"
+---@field message string[]
+---@field timestamp integer
+
 local M = {}
 
----@type table<string|integer, keystone.notifications.Notification>
+---@type table<string|integer, keystone.notify.Notification>
 local _active = {}
 
 ---@type table<string|integer, boolean>
 local _pending = {}
+
+---@type keystone.notify.HistoryEntry[]
+local _history = {}
 
 local _id_counter = 0
 local _initialized = false
@@ -37,6 +48,12 @@ local _hl_map = {
   lsp = "Normal",
 }
 
+local _log_level_map = {
+  [vim.log.levels.INFO] = "info",
+  [vim.log.levels.WARN] = "warn",
+  [vim.log.levels.ERROR] = "error",
+}
+
 local function _get_defaults()
   return {
     enabled = true,
@@ -45,6 +62,7 @@ local function _get_defaults()
     timeout = 1000,
     lsp_progress = true,
     lsp_progress_delay = 1000,
+    history_limit = 100,
   }
 end
 
@@ -53,6 +71,19 @@ M.config = _get_defaults()
 ---@return integer
 local function _get_offset()
   return vim.o.cmdheight + (vim.o.laststatus ~= 0 and 1 or 0) + 2
+end
+
+---@param entry keystone.notify.HistoryEntry
+local function _push_history(entry)
+  if entry.level == "lsp" then
+    return
+  end
+
+  table.insert(_history, entry)
+  local limit = M.config.history_limit
+  if #_history > limit then
+    table.remove(_history, 1)
+  end
 end
 
 local function _layout()
@@ -95,29 +126,34 @@ local function _close(id)
 end
 
 ---@param msg string|string[]
----@param opts? keystone.notifications.NotifyOpts
+---@param opts? keystone.notify.NotifyOpts
 function M.notify(msg, opts)
+  ---@diagnostic disable-next-line: param-type-mismatch
+  local lines = type(msg) == "table" and msg or vim.split(msg, "\n")
+
   if not _enabled then
-    local lines = type(msg) == "table" and msg or { msg }
-
     vim.api.nvim_echo({ { table.concat(lines, "\n"), "" } }, false, {})
-
     return
   end
 
   opts = opts or {}
 
   local id = opts.id or ("n_" .. _id_counter)
-
   if not opts.id then
     _id_counter = _id_counter + 1
   end
 
-  local lines = type(msg) == "table" and msg or { msg }
   local level = opts.level or "info"
-
   local title = opts.title or "Notification"
   local title_hl = _hl_map[level] or "DiagnosticInfo"
+
+  _push_history({
+    id = id,
+    title = title,
+    level = level,
+    message = vim.deepcopy(lines),
+    timestamp = vim.uv.now(),
+  })
 
   local n = _active[id]
 
@@ -132,7 +168,7 @@ function M.notify(msg, opts)
       col = 0,
       style = "minimal",
       border = M.config.border,
-      title = {{ " " .. title .. " ", title_hl } },
+      title = { { " " .. title .. " ", title_hl } },
       title_pos = "center",
       focusable = false,
       zindex = 100,
@@ -172,32 +208,30 @@ function M.notify(msg, opts)
   return id
 end
 
+---@return keystone.notify.HistoryEntry[]
+function M.history()
+  return vim.deepcopy(_history)
+end
+
+function M.clear_history()
+  _history = {}
+end
+
 ---@param msg string
 ---@param level? vim.log.levels
 ---@param opts? table
-function M.ui_notify(msg, level, opts)
+local function _override(msg, level, opts)
   if not _enabled then
     assert(_original_vim_notify)
     _original_vim_notify(msg, level, opts)
     return
   end
-
   opts = opts or {}
-
-  local log_levels = {
-    [1] = "info",
-    [2] = "warn",
-    [3] = "error",
-    [4] = "error",
-    [5] = "info",
-  }
-
   if type(level) == "table" then
     opts = level
   elseif level then
-    opts.level = log_levels[level] or "info"
+    opts.level = _log_level_map[level] or "info"
   end
-
   return M.notify(msg, opts)
 end
 
@@ -274,7 +308,7 @@ function M.enable()
 
     assert(vim.notify)
     _original_vim_notify = vim.notify
-    vim.notify = M.ui_notify
+    vim.notify = _override
 
     if M.config.lsp_progress then
       local prev = vim.lsp.handlers["$/progress"]
