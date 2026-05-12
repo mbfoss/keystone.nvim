@@ -84,7 +84,7 @@ function M.notify(msg, opts)
   local level = opts.level or "info"
 
   -- Color mapping
-  local hl = _hl_map[level] or "Normal"
+  local title_hl = _hl_map[level] or "Normal"
 
   local n = _active[id]
   if not n then
@@ -97,13 +97,13 @@ function M.notify(msg, opts)
       col = 0,
       style = "minimal",
       border = M.config.border,
-      title = opts.title and { { " " .. opts.title .. " ", hl } } or "",
+      title = opts.title and { { " " .. opts.title .. " ", title_hl } } or "",
       title_pos = "center",
       focusable = false,
       zindex = 100,
     })
 
-    vim.api.nvim_set_option_value("winhl", "NormalFloat:NormalFloat,FloatBorder:NormalFloat", { win = win })
+    vim.api.nvim_set_option_value("winhl", "NormalFloat:Normal,FloatBorder:NonText", { win = win })
     n = { win_id = win, buf_id = buf, height = #lines }
     _active[id] = n
   end
@@ -151,7 +151,7 @@ local function _lsp_handler(_, progress, ctx)
   if not client or not val then return end
 
   local display_title = val.title and (client.name .. ": " .. val.title) or client.name
-  local msg = (val.message or "") .. (val.percentage and (" [" .. val.percentage .. "%%]") or "")
+  local msg = (val.message or "") .. (val.percentage and (" [" .. val.percentage .. "%]") or "")
   if msg == "" and val.kind ~= "end" then msg = "..." end
 
   if val.kind == "begin" or val.kind == "report" then
