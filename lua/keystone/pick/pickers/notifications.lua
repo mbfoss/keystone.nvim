@@ -12,10 +12,10 @@ local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 
 local _icons = {
-    info = "ℹ",
-    warn = "⚠",
-    error = "✖",
-    lsp = "⚙",
+    info = "󰋽",
+    warn = "󰀪",
+    error = "󰅚",
+    lsp = "󰒓",
 }
 
 local _level_hl = {

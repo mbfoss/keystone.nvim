@@ -50,10 +50,10 @@ local _hl_map = {
 }
 
 local _icon_map = {
-  info = "ℹ",
-  warn = "⚠",
-  error = "✖",
-  lsp = "⚙",
+  info = "󰋽",
+  warn = "󰀪",
+  error = "󰅚",
+  lsp = "󰒓",
 }
 
 local _log_level_map = {
