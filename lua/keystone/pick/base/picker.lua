@@ -789,7 +789,7 @@ function Picker:run_fetch(query)
         query,
         fetch_opts,
         function(new_items)
-            if self.closed or context ~= self.async_fetch_context then return end
+            if complete or self.closed or context ~= self.async_fetch_context then return end
             local saved_cursor = 1
             if not is_new_query and not waiting_first then
                 saved_cursor = self:get_cursor()

@@ -3,6 +3,7 @@ local M        = {}
 local uv       = vim.uv
 local explorer = require("keystone.explore.explorer")
 local fsutils  = require("keystone.utils.fsutils")
+local uitools  = require("keystone.utils.uitools")
 
 local function scandir(path)
     local handle = uv.fs_scandir(path)
@@ -34,32 +35,29 @@ end
 local function _explore_files()
     explorer.open({
         prompt = "Explore",
+        initial_path = vim.split(vim.fs.normalize(vim.fn.getcwd()), '/'),
         enable_preview = true,
-        async_fetch = function(current, fetch_opts, callback)
-            local path
-            if not current then
-                current = {
-                    path = uv.cwd()
-                }
+        async_fetch = function(path_parts, fetch_opts, callback)
+            if not path_parts then
+                callback({})
+                return function() end
             end
-            path = current.path
-
+            local path = table.concat(path_parts, '/')
             local entries = {}
             local cancel = fsutils.async_scan_dir(path, nil, nil,
                 function(name, type)
-                local full_path = vim.fs.joinpath(path, name)
-                local is_dir = type == "directory"
-                local prefix = is_dir and { " ", "Directory" } or { " " }
-                table.insert(entries, {
-                    label_chunks = {
-                        prefix,
-                        {name },
-                    },
-                    data = {
-                        path = full_path,
-                        is_dir = is_dir,
-                    },
-                })
+                    local full_path = vim.fs.joinpath(path, name)
+                    local is_dir = type == "directory"
+                    local prefix = is_dir and { " ", "Directory" } or { " " }
+                    table.insert(entries, {
+                        label_chunks = {
+                            prefix,
+                            { name },
+                        },
+                        path_part = name,
+                        supports_preview = not is_dir,
+                        selectable = not is_dir
+                    })
                 end,
                 function()
                     callback((entries))
@@ -67,7 +65,11 @@ local function _explore_files()
 
             return cancel
         end
-    }, function(data)
+    }, function(path)
+        if path then
+            local filepath = table.concat(path, '/')
+            uitools.smart_open_file(filepath)
+        end
     end)
 end
 

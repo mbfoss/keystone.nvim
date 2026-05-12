@@ -153,10 +153,8 @@ function M.notify(msg, opts)
 
   local level = opts.level or "info"
   local icon = _icon_map[level]
-  local title = opts.title or icon or "Notification"
+  local title = " " .. (opts.title or icon or "Notification") .. " "
   local title_hl = _hl_map[level] or "DiagnosticInfo"
-
-  if title ~= icon then title = " " .. title .. " " end
 
   _push_history({
     id = id,

@@ -8,7 +8,6 @@ local fsutils    = require("keystone.utils.fsutils")
 
 local M          = {}
 
-local NS_CURSOR  = vim.api.nvim_create_namespace("keystone_PickerCursor")
 local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
 local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
@@ -16,40 +15,37 @@ local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 local _antiflicker_delay = 200
 
----@class keystone.explorer.ItemData
----@field filepath string?
----@field lnum number?
----@field col number?
----@field [string] any
-
 ---@class keystone.Explorer.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
----@field score number?
----@field data keystone.explorer.ItemData
+---@field path_part string
+---@field supports_preview boolean?
+---@field selectable boolean?
 
 ---@class keystone.explorer.ListItem
 ---@field text string
----@field score number
----@field data keystone.explorer.ItemData
+---@field path_part string
+---@field supports_preview boolean?
+---@field selectable boolean?
 
----@alias keystone.Explorer.Callback fun(data:keystone.explorer.ItemData?)
+---@alias keystone.Explorer.Callback fun(path:string[]?)
 
 ---@class keystone.Explorer.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
----@alias keystone.Explorer.AsyncFetcher fun(data:keystone.explorer.ItemData?,opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
+---@alias keystone.Explorer.AsyncFetcher fun(path:string[],opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
 
 ---@class keystone.Explorer.AsyncPreviewOpts
 ---@field viewport_with number?
 ---@field viewport_height number?
 
 ---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
----@alias keystone.Explorer.AsyncPreviewLoader fun(data:keystone.explorer.ItemData, opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
+---@alias keystone.Explorer.AsyncPreviewLoader fun(path:string[], opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
----@class keystone.Explorer.opts
+---@class keystone.Explorer.Opts
 ---@field prompt string
+---@field initial_path string[]
 ---@field async_fetch keystone.Explorer.AsyncFetcher?
 ---@field enable_preview boolean?
 ---@field async_preview keystone.Explorer.AsyncPreviewLoader?
@@ -150,27 +146,9 @@ local function _center_for_previewer(msg, width, height)
     return lines
 end
 
----@param items keystone.explorer.ListItem[]
----@param new_score number
-local function _find_insert_index(items, new_score)
-    if not new_score then
-        return #items + 1
-    end
-    local low, high = 1, #items
-    while low <= high do
-        local mid = math.floor((low + high) / 2)
-        if (items[mid].score or 0) < (new_score or 0) then
-            high = mid - 1
-        else
-            low = mid + 1
-        end
-    end
-    return low
-end
-
 ---@type keystone.Explorer.AsyncPreviewLoader
-local function _default_preview(data, _, callback)
-    local filepath = data.filepath
+local function _default_preview(path, _, callback)
+    local filepath = table.concat(path, '/')
     if not filepath or filepath == "" then
         vim.schedule(function()
             callback({})
@@ -190,8 +168,6 @@ local function _default_preview(data, _, callback)
             callback({
                 content = content,
                 filepath = filepath,
-                lnum = data.lnum,
-                col = data.col,
                 error_msg = load_err,
             })
         end)
@@ -199,8 +175,8 @@ local function _default_preview(data, _, callback)
 end
 
 ---@class keystone.utils.Explorer
----@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer.opts,callback:keystone.Explorer.Callback) : keystone.utils.Explorer
----@field opts keystone.Explorer.opts
+---@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.utils.Explorer
+---@field opts keystone.Explorer.Opts
 ---@field callback keystone.Explorer.Callback
 ---@field has_preview boolean
 ---@field layout keystone.Explorer.Layout
@@ -219,17 +195,20 @@ end
 ---@field resize_augroup number?
 local Explorer = class()
 
----@param opts keystone.Explorer.opts
+---@param opts keystone.Explorer.Opts
 ---@param callback keystone.Explorer.Callback
 function Explorer:init(opts, callback)
     vim.validate("opts", opts, "table")
+    vim.validate("opts", opts.initial_path, "table")
     vim.validate("callback", callback, "function")
+    assert(#opts.initial_path > 0, "initial path path not be empty")
 
     self.opts = opts and vim.fn.copy(opts) or {}
     self.callback = callback
 
     self.has_preview = opts.enable_preview
 
+    self._path = opts.initial_path ---@type string[]
     self.list_items = {} ---@type keystone.explorer.ListItem[]
 
     self.closed = false
@@ -290,6 +269,21 @@ function Explorer:setup_ui()
             })
         end
     end
+
+    assert(self.lbuf)
+    vim.api.nvim_create_autocmd({ "CursorMoved" }, {
+        buffer = self.lbuf,
+        callback = function(ev)
+            if not self.closed then
+                local row = self:get_cursor()
+                if row == self.last_cursor then
+                    return
+                end
+                self.last_cursor = row
+                self:update_preview()
+            end
+        end,
+    })
 
     local base_cfg = {
         relative = "editor",
@@ -379,22 +373,12 @@ function Explorer:render_ui()
         return
     end
 
-    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
-
     local total = #self.list_items
     if total == 0 then
         return
     end
 
     local cur = self:get_cursor()
-
-    if total > 0 then
-        vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
-            virt_text = { { "> ", "Special" } },
-            virt_text_pos = "overlay",
-            priority = 200,
-        })
-    end
 end
 
 ---@return integer
@@ -435,8 +419,6 @@ function Explorer:update_preview()
     if self.closed then return end
     if not self.vbuf then return end
 
-    self:request_clear_preview()
-
     if self.async_preview_cancel then
         self.async_preview_cancel()
         self.async_preview_cancel = nil
@@ -444,6 +426,15 @@ function Explorer:update_preview()
 
     ---@type keystone.explorer.ListItem
     local item = self.list_items[self:get_cursor()]
+    if not item or item.supports_preview == false then
+        self:request_clear_preview(true)
+        return
+    end
+
+    self:request_clear_preview()
+
+    local path = vim.fn.copy(self._path)
+    table.insert(path, item.path_part)
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.prev_height - 2) -- -2 for borders
@@ -451,7 +442,7 @@ function Explorer:update_preview()
     local preview_fn = self.opts.async_preview or _default_preview
 
     self.async_preview_cancel = preview_fn(
-        item.data,
+        path,
         {
             viewport_with = preview_width,
             viewport_height = preview_height,
@@ -535,15 +526,23 @@ function Explorer:stop_spinner()
     vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
 end
 
-function Explorer:request_clear_preview()
-    if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-        self.preview_timer = vim.defer_fn(function()
-            self.preview_timer = nil
-            if self.closed then return end
+---@param immediate  boolean?
+function Explorer:request_clear_preview(immediate)
+    local clear = function()
+        if self.vbuf and self.vbuf > 0 and not self.closed then
             vim.bo[self.vbuf].modifiable = true
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
             vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
+        end
+    end
+    if immediate then
+        self:cancel_clear_preview_req()
+        clear()
+    elseif not self.preview_timer then
+        self.preview_timer = vim.defer_fn(function()
+            self.preview_timer = nil
+            clear()
         end, _antiflicker_delay)
     end
 end
@@ -589,10 +588,11 @@ function Explorer:add_new_lines(items)
         ---@type keystone.explorer.ListItem
         local list_item = {
             text = label,
-            score = item.score,
-            data = item.data,
+            path_part = item.path_part,
+            supports_preview = item.supports_preview,
+            selectable = item.selectable,
         }
-        local idx = _find_insert_index(self.list_items, item.score)
+        local idx = #self.list_items + 1
         table.insert(self.list_items, idx, list_item)
         -- insert in list buf
         local line_text = prefix .. label
@@ -642,8 +642,8 @@ function Explorer:add_new_lines(items)
     vim.wo[self.lwin].cursorline = #self.list_items > 0
 end
 
----@param item_data? keystone.explorer.ItemData
-function Explorer:run_fetch(item_data)
+---@param direction "in"|"out"|nil
+function Explorer:run_fetch(direction)
     if self.async_fetch_cancel then
         self.async_fetch_cancel()
         self.async_fetch_cancel = nil
@@ -660,39 +660,49 @@ function Explorer:run_fetch(item_data)
     self.async_fetch_context = self.async_fetch_context + 1
     local context = self.async_fetch_context
 
-    local waiting_first = true
     local complete = false
 
-    local is_new_query = true
+    local target_part = nil
+    local path = vim.fn.copy(self._path)
+    if direction == "in" then
+        local cur = self:get_cursor()
+        if cur > #self.list_items then return end
+        local item = self.list_items[cur]
+        local part = item and item.path_part or nil
+        if not part then
+            return
+        end
+        table.insert(path, part)
+    elseif direction == "out" then
+        if #path <= 1 then
+            return
+        end
+        target_part = path[#path]
+        table.remove(path)
+    end
 
     self.async_fetch_cancel = self.opts.async_fetch(
-        item_data,
+        path,
         fetch_opts,
         function(new_items)
-            if self.closed or context ~= self.async_fetch_context then return end
-            local saved_cursor = 1
-            if not is_new_query and not waiting_first then
-                saved_cursor = self:get_cursor()
-            end
-
-            if waiting_first then
-                waiting_first = false
+            if complete or self.closed or context ~= self.async_fetch_context then return end
+            self:stop_spinner()
+            if #new_items > 0 then
                 self:clear_list()
+                self:add_new_lines(new_items)
+                self._path = path
+                local row = 1
+                if target_part then
+                    for i, item in ipairs(self.list_items) do
+                        if item.path_part == target_part then
+                            row = i
+                            break
+                        end
+                    end
+                end
+                self:move_cursor(row, true, true)
             end
-
-            if new_items == nil then
-                complete = true
-                self:stop_spinner()
-                return
-            end
-
-            self:add_new_lines(new_items)
-            if is_new_query and #self.list_items > 0 then
-                self:move_cursor(1, true, true)
-                is_new_query = false -- Reset so subsequent async chunks don't snap to top
-            else
-                self:move_cursor(saved_cursor, true, true)
-            end
+            complete = true
         end
     )
     assert(type(self.async_fetch_cancel) == "function")
@@ -702,8 +712,8 @@ function Explorer:run_fetch(item_data)
     end
 end
 
----@param selected_data keystone.explorer.ItemData?
-function Explorer:close(selected_data)
+---@param path string[]?
+function Explorer:close(path)
     if self.closed then return end
     self.closed = true
 
@@ -724,35 +734,45 @@ function Explorer:close(selected_data)
         self.resize_augroup = nil
     end
 
+    for _, w in ipairs({ self.lwin, self.vwin }) do
+        if w and vim.api.nvim_win_is_valid(w) then
+            vim.api.nvim_win_close(w, true)
+        end
+    end
+
+    for _, b in ipairs({ self.lbuf, self.vbuf }) do
+        if b and vim.api.nvim_buf_is_valid(b) then
+            vim.api.nvim_buf_delete(b, { force = true })
+        end
+    end
+
     vim.schedule(function()
-        self.callback(selected_data)
+        self.callback(path)
     end)
 end
 
 function Explorer:setup_input()
     local confirm = function()
         ---@type keystone.explorer.ListItem
-        local list_item = self.list_items[self:get_cursor()]
-        self:close(list_item and list_item.data or nil)
+        local item = self.list_items[self:get_cursor()]
+        if not item then return end
+        if item.selectable == false then
+            self:run_fetch("in")
+            return
+        end
+        local path = vim.fn.copy(self._path)
+        table.insert(path, item.path_part)
+        self:close(path)
     end
 
     local function key_opts_of(buf)
         return { buffer = buf, nowait = true, silent = true }
     end
 
-    ---@param direction "in"|"out"
-    local fetch_action = function(direction)
-        local cur = self:get_cursor()
-        if cur > #self.list_items then return end
-        local item = self.list_items[cur]
-        if not item then return end
-        self:run_fetch(item.data)
-    end
-
     do
         local lbuf_key_opts = key_opts_of(self.lbuf)
-        vim.keymap.set("n", "l", function() fetch_action("in") end, lbuf_key_opts)
-        vim.keymap.set("n", "h", function() fetch_action("out") end, lbuf_key_opts)
+        vim.keymap.set("n", "l", function() self:run_fetch("in") end, lbuf_key_opts)
+        vim.keymap.set("n", "h", function() self:run_fetch("out") end, lbuf_key_opts)
         vim.keymap.set("n", "<CR>", confirm, lbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
     end
@@ -774,7 +794,7 @@ function Explorer:open()
     vim.api.nvim_set_current_win(self.lwin)
 end
 
----@param opts keystone.Explorer.opts
+---@param opts keystone.Explorer.Opts
 ---@param callback keystone.Explorer.Callback
 function M.open(opts, callback)
     assert(opts.async_fetch)
