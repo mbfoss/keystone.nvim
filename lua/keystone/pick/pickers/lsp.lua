@@ -29,7 +29,6 @@ function M.references()
     local action = "textDocument/references"
     vim.lsp.buf_request_all(0, action, params, function(results_per_client)
         local lsp_items = {}
-        local first_encoding
         local errors = {}
 
         for client_id, result_or_error in pairs(results_per_client) do
@@ -39,19 +38,12 @@ function M.references()
             else
                 if result ~= nil then
                     local locations = {}
-
                     if not vim.islist(result) then
                         vim.list_extend(locations, { result })
                     else
                         vim.list_extend(locations, result)
                     end
-
                     local offset_encoding = vim.lsp.get_client_by_id(client_id).offset_encoding
-
-                    if not vim.tbl_isempty(result) then
-                        first_encoding = offset_encoding
-                    end
-
                     vim.list_extend(lsp_items, vim.lsp.util.locations_to_items(locations, offset_encoding))
                 end
             end
