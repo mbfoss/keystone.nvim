@@ -9,7 +9,7 @@ end
 ---@param for_cmd_menu boolean?
 ---@return string[]
 function M.get_subcommands(cmd, rest, for_cmd_menu)
-    if cmd == "Filetree" then
+    if cmd == "FileTree" then
         if #rest == 0 then
             return { "open", "close", "toggle" }
         end
@@ -21,7 +21,7 @@ end
 ---@param args string[]
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.run_command(cmd, args, opts)
-    if cmd == "Filetree" then
+    if cmd == "FileTree" then
         local command = args[1]
         local name = args[2]
         if command == nil or command == "" or command == "toggle" then

@@ -246,7 +246,7 @@ function Picker:init(opts, callback)
     vim.validate("opts", opts, "table")
     vim.validate("callback", callback, "function")
 
-    self.opts = opts and vim.fn.copy(opts) or {}
+    self.opts = opts and vim.deepcopy(opts) or {}
     self.callback = callback
 
     self.has_preview = opts.enable_preview

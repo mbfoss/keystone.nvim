@@ -5,37 +5,17 @@ local explorer = require("keystone.explore.explorer")
 local fsutils  = require("keystone.utils.fsutils")
 local uitools  = require("keystone.utils.uitools")
 
-local function scandir(path)
-    local handle = uv.fs_scandir(path)
-    if not handle then return {} end
-
-    local items = {}
-    while true do
-        local name, type = uv.fs_scandir_next(handle)
-        if not name then break end
-
-        table.insert(items, {
-            name = name,
-            type = type, -- "file", "directory", etc.
-        })
-    end
-
-    table.sort(items, function(a, b)
-        -- directories first, then alphabetical
-        if a.type ~= b.type then
-            return a.type == "directory"
-        end
-        return a.name < b.name
-    end)
-
-    return items
-end
-
-
 local function _explore_files()
+    local bufname = vim.api.nvim_buf_get_name(0)
+    local base_dir = (bufname ~= "" and vim.fn.filereadable(bufname) == 1)
+        and vim.fn.fnamemodify(bufname, ":h")
+        or vim.fn.getcwd()
+
+    local initial = vim.fn.fnamemodify(bufname, ":t")
     explorer.open({
         prompt = "Explore",
-        initial_path = vim.split(vim.fs.normalize(vim.fn.getcwd()), '/'),
+        initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
+        initial_cursor = initial,
         enable_preview = true,
         async_fetch = function(path_parts, fetch_opts, callback)
             if not path_parts then
@@ -43,6 +23,7 @@ local function _explore_files()
                 return function() end
             end
             local path = table.concat(path_parts, '/')
+            if path == "" then path = "/" end
             local entries = {}
             local cancel = fsutils.async_scan_dir(path, nil, nil,
                 function(name, type)
@@ -85,7 +66,7 @@ end
 ---@param args string[]
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.run_command(cmd, args, opts)
-    if cmd == "KeystoneExplore" then
+    if cmd == "FileSelector" then
         _explore_files()
     end
 end

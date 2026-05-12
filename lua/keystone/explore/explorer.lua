@@ -46,6 +46,7 @@ local _antiflicker_delay = 200
 ---@class keystone.Explorer.Opts
 ---@field prompt string
 ---@field initial_path string[]
+---@field initial_cursor string?
 ---@field async_fetch keystone.Explorer.AsyncFetcher?
 ---@field enable_preview boolean?
 ---@field async_preview keystone.Explorer.AsyncPreviewLoader?
@@ -193,6 +194,7 @@ end
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
 ---@field resize_augroup number?
+---@field nav_history string[]
 local Explorer = class()
 
 ---@param opts keystone.Explorer.Opts
@@ -203,13 +205,21 @@ function Explorer:init(opts, callback)
     vim.validate("callback", callback, "function")
     assert(#opts.initial_path > 0, "initial path path not be empty")
 
-    self.opts = opts and vim.fn.copy(opts) or {}
+    self.opts = opts and vim.deepcopy(opts) or {}
     self.callback = callback
 
     self.has_preview = opts.enable_preview
 
     self._path = opts.initial_path ---@type string[]
     self.list_items = {} ---@type keystone.explorer.ListItem[]
+
+    self.nav_history = {}
+    for idx, part in ipairs(self._path) do
+        self.nav_history[idx] = part
+    end
+    if opts.initial_cursor then
+        self.nav_history[#self._path + 1] = opts.initial_cursor
+    end
 
     self.closed = false
 
@@ -280,6 +290,10 @@ function Explorer:setup_ui()
                     return
                 end
                 self.last_cursor = row
+                local item = self.list_items[self:get_cursor()]
+                if item then
+                    self.nav_history[#self._path + 1] = item.path_part
+                end
                 self:update_preview()
             end
         end,
@@ -317,9 +331,25 @@ function Explorer:setup_ui()
 
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
+    ---@type number?
+    assert(not self.focus_augroup)
+    self.focus_augroup = vim.api.nvim_create_augroup("keystone_explorer_focus_" .. self.lbuf, { clear = true })
+    vim.api.nvim_create_autocmd("WinEnter", {
+        group = self.focus_augroup,
+        callback = function(args)
+            local win = vim.api.nvim_get_current_win()
+            assert(not self.closed)
+            if win ~= self.lwin and win ~= self.vwin then
+                vim.schedule(function()
+                    self:close()
+                end)
+            end
+        end
+    })
+
 
     assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.lbuf, { clear = true })
+    self.resize_augroup = vim.api.nvim_create_augroup("keystone_explorer_resize_" .. self.lbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = self.resize_augroup,
         callback = function()
@@ -433,7 +463,7 @@ function Explorer:update_preview()
 
     self:request_clear_preview()
 
-    local path = vim.fn.copy(self._path)
+    local path = vim.list_extend({}, self._path)
     table.insert(path, item.path_part)
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
@@ -644,6 +674,13 @@ end
 
 ---@param direction "in"|"out"|nil
 function Explorer:run_fetch(direction)
+    local cur = self:get_cursor()
+    local cur_item = cur and self.list_items[cur] or nil
+
+    if direction == "in" and cur_item and cur_item.selectable then
+        return
+    end
+
     if self.async_fetch_cancel then
         self.async_fetch_cancel()
         self.async_fetch_cancel = nil
@@ -662,13 +699,9 @@ function Explorer:run_fetch(direction)
 
     local complete = false
 
-    local target_part = nil
-    local path = vim.fn.copy(self._path)
+    local path = vim.list_extend({}, self._path)
     if direction == "in" then
-        local cur = self:get_cursor()
-        if cur > #self.list_items then return end
-        local item = self.list_items[cur]
-        local part = item and item.path_part or nil
+        local part = cur_item and cur_item.path_part or nil
         if not part then
             return
         end
@@ -677,7 +710,6 @@ function Explorer:run_fetch(direction)
         if #path <= 1 then
             return
         end
-        target_part = path[#path]
         table.remove(path)
     end
 
@@ -687,11 +719,12 @@ function Explorer:run_fetch(direction)
         function(new_items)
             if complete or self.closed or context ~= self.async_fetch_context then return end
             self:stop_spinner()
-            if #new_items > 0 then
+            if #new_items > 0 or #path > 1 then
                 self:clear_list()
                 self:add_new_lines(new_items)
                 self._path = path
                 local row = 1
+                local target_part = self.nav_history[#path + 1]
                 if target_part then
                     for i, item in ipairs(self.list_items) do
                         if item.path_part == target_part then
@@ -701,6 +734,14 @@ function Explorer:run_fetch(direction)
                     end
                 end
                 self:move_cursor(row, true, true)
+                local display_path = table.concat(self._path, '/')
+                if display_path == "" then display_path = "/" end
+                if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
+                    vim.api.nvim_win_set_config(self.lwin, {
+                        title = fsutils.smart_crop_path(display_path, fetch_opts.list_width),
+                        title_pos = "left",
+                    })
+                end
             end
             complete = true
         end
@@ -756,11 +797,11 @@ function Explorer:setup_input()
         ---@type keystone.explorer.ListItem
         local item = self.list_items[self:get_cursor()]
         if not item then return end
-        if item.selectable == false then
+        if not item.selectable then
             self:run_fetch("in")
             return
         end
-        local path = vim.fn.copy(self._path)
+        local path = vim.list_extend({}, self._path)
         table.insert(path, item.path_part)
         self:close(path)
     end
