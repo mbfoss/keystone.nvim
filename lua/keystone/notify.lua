@@ -1,3 +1,4 @@
+local common = require "keystone.utils.common"
 ---@class keystone.notify.Notification
 ---@field win_id integer
 ---@field buf_id integer
@@ -30,8 +31,8 @@ local M = {}
 ---@type table<string|integer, keystone.notify.Notification>
 local _active = {}
 
----@type table<string|integer, boolean>
-local _pending = {}
+---@type table<string|integer,  {timer: uv.uv_timer_t?,msg: string, title: string}>
+local _pending_lsp_notify = {}
 
 ---@type keystone.notify.HistoryEntry[]
 local _history = {}
@@ -207,15 +208,23 @@ function M.notify(msg, opts)
 
   _layout()
 
-  local timeout = opts.timeout or M.config.timeout
-
+  local timeout = opts.timeout or M.config.timeout or 0
   if timeout > 0 then
     vim.defer_fn(function()
       _close(id)
     end, timeout)
   end
-
   return id
+end
+
+---@param id string|integer
+function M.close(id)
+  local state = _pending_lsp_notify[id]
+  if state then
+    common.stop_and_close_timer(state.timer)
+    _pending_lsp_notify[id] = nil
+  end
+  _close(id)
 end
 
 ---@return keystone.notify.HistoryEntry[]
@@ -261,29 +270,35 @@ local function _lsp_handler(_, progress, ctx)
       and (client.name .. ": " .. val.title)
       or client.name
 
-  local msg = (val.message or "")
-      .. (val.percentage and (" [" .. val.percentage .. "%]") or "")
+  local msg = (val.message or "") .. (val.percentage and (" [" .. val.percentage .. "%]") or "")
 
   if msg == "" and val.kind ~= "end" then
     msg = "..."
   end
 
   if val.kind == "begin" then
-    _pending[token] = true
-    vim.defer_fn(function()
-      if not _pending[token] then
-        return
-      end
-      _pending[token] = nil
-      M.notify(msg, {
+    local token_state = {
+      msg = msg,
+      title = display_title,
+    }
+    _pending_lsp_notify[token] = token_state
+    common.stop_and_close_timer(token_state.timer)
+    token_state.timer = vim.defer_fn(function()
+      local state = _pending_lsp_notify[token]
+      if not state then return end
+      _pending_lsp_notify[token] = nil
+      M.notify(state.msg, {
         id = token,
-        title = display_title,
+        title = state.title,
         level = "lsp",
         timeout = 0,
       })
     end, M.config.lsp_progress_delay)
   elseif val.kind == "report" then
-    if _pending[token] then
+    local state = _pending_lsp_notify[token]
+    if state then
+      state.msg = msg
+      state.title = display_title
       return
     end
     M.notify(msg, {
@@ -293,16 +308,21 @@ local function _lsp_handler(_, progress, ctx)
       timeout = 0,
     })
   elseif val.kind == "end" then
-    if _pending[token] then
-      _pending[token] = nil
-      return
+    local state = _pending_lsp_notify[token]
+    if state then
+      common.stop_and_close_timer(state.timer)
+      _pending_lsp_notify[token] = nil
     end
-    M.notify(val.message or "Complete", {
-      id = token,
-      title = display_title,
-      level = "lsp",
-      timeout = 1500,
-    })
+    if msg ~= "" then
+      M.notify(msg, {
+        id = token,
+        title = display_title,
+        level = "lsp",
+      })
+    else
+      _close(token)
+    end
+    return
   end
 end
 
