@@ -112,13 +112,13 @@ end
 
 ---@param path string
 ---@param opts { max_size: number?, timeout: number? }?
----@param callback fun(err:string|nil, data:string|nil)
+---@param callback fun(err:string|nil, data:string|nil,cropped:boolean?)
 ---@return fun() abort
 function M.async_load_text_file(path, opts, callback)
     opts = opts or {}
 
-    local max_size = (opts.max_size or 1024) * 1024 -- MB → bytes
-    local timeout_ms = opts.timeout or 3000
+    local max_size = opts.max_size
+    local timeout_ms = opts.timeout
     local uv = vim.uv or vim.loop
 
     local timer = uv.new_timer()
@@ -131,8 +131,8 @@ function M.async_load_text_file(path, opts, callback)
     local aborted = false
 
     ---@param err string|nil
-    ---@param data string|nil
-    local function finish(err, data)
+    ---@param cropped boolean?
+    local function finish(err, cropped)
         if finished then return end
         finished = true
         if timer then
@@ -149,68 +149,64 @@ function M.async_load_text_file(path, opts, callback)
         if err then chunks = {} end
         vim.schedule(function()
             if not aborted then
-                callback(err, data)
+                local final_data = table.concat(chunks)
+                callback(err, final_data)
+                chunks = {}
             end
         end)
     end
-    local timeout_timer = vim.defer_fn(function()
-        finish("Timeout", nil)
-    end, timeout_ms)
+    local timeout_timer
+    if timeout_ms then
+        timeout_timer = vim.defer_fn(function()
+            finish("Timeout", nil)
+        end, timeout_ms)
+    end
     uv.fs_open(path, "r", 438, function(open_err, opened_fd)
         if open_err or finished or aborted then
             if opened_fd then uv.fs_close(opened_fd) end
             if open_err and not (finished or aborted) then
-                return finish("Could not open file: " .. open_err, nil)
+                return finish("Could not open file: " .. open_err)
             end
             return
         end
 
         fd = opened_fd
-        uv.fs_fstat(fd, function(stat_err, stat)
-            if finished or aborted then return end
-            if stat_err then return finish("Stat error: " .. stat_err, nil) end
+        local function read_next()
+            if not fd or finished or aborted then return end
 
-            if stat and stat.size > max_size then
-                return finish("File exceeds max size limit (" .. max_size .. "MB)", nil)
-            end
+            uv.fs_read(fd, 8192, offset, function(read_err, data)
+                if finished or aborted then return end
 
-            local function read_next()
-                if not fd or finished or aborted then return end
+                if read_err then
+                    return finish("Read error: " .. read_err)
+                end
+                if not data or #data == 0 then
+                    return finish()
+                end
+                if data:find("\0", 1, true) then
+                    return finish("Binary file")
+                end
 
-                uv.fs_read(fd, 8192, offset, function(read_err, data)
-                    if finished or aborted then return end
+                total_read = total_read + #data
+                if max_size and total_read > max_size then
+                    table.insert(chunks, data:sub(1, total_read - max_size))
+                    return finish(nil, true)
+                end
 
-                    if read_err then
-                        return finish("Read error: " .. read_err, nil)
-                    end
-                    if not data or #data == 0 then
-                        local final_data = table.concat(chunks)
-                        chunks = {} -- Clear reference
-                        return finish(nil, final_data)
-                    end
-                    if data:find("\0", 1, true) then
-                        return finish("Binary file", nil)
-                    end
+                table.insert(chunks, data)
+                offset = offset + #data
 
-                    total_read = total_read + #data
-                    if total_read > max_size then
-                        return finish("File exceeds max size limit during read", nil)
-                    end
+                read_next()
+            end)
+        end
 
-                    table.insert(chunks, data)
-                    offset = offset + #data
-                    read_next()
-                end)
-            end
-
-            read_next()
-        end)
+        read_next()
     end)
     return function()
         if finished or aborted then return end
         aborted = true
         common.stop_and_close_timer(timeout_timer)
-        finish("Aborted", nil)
+        finish("Aborted")
     end
 end
 

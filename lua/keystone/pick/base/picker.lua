@@ -186,32 +186,46 @@ end
 
 ---@type keystone.Picker.AsyncPreviewLoader
 local function _default_preview(data, _, callback)
+    local max_preview_size = 10124 * 10124
+
     local filepath = data.filepath
     if not filepath or filepath == "" then
-        vim.schedule(function()
-            callback({})
-        end)
-        return function()
-        end
+        callback({})
+        return
     end
     if not fsutils.file_exists(filepath) then
-        vim.schedule(function()
-            callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
-        end)
-        return function()
-        end
+        callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
+        return
     end
-    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
-        function(load_err, content)
-            callback({
-                content = content,
-                filepath = filepath,
-                lnum = data.lnum,
-                col = data.col,
-                error_msg = load_err,
-            })
-        end)
-    return cancel_fn
+    local cancelled = false
+    local cancel_fn
+    vim.uv.fs_stat(filepath, vim.schedule_wrap(function(stat_err, stat)
+        if cancelled then
+            return
+        end
+        if stat_err or not stat then
+            callback({ error_msg = stat_err })
+            return
+        end
+        if stat.size > max_preview_size then
+            callback({ error_msg = "Maximum file size exceeded" })
+            return
+        end
+        cancel_fn = fsutils.async_load_text_file(filepath, { timeout = 3000 },
+            function(load_err, content)
+                callback({
+                    content = content,
+                    filepath = filepath,
+                    lnum = data.lnum,
+                    col = data.col,
+                    error_msg = load_err,
+                })
+            end)
+    end))
+    return function()
+        cancelled = true
+        if cancel_fn then cancel_fn() end
+    end
 end
 
 ---@class keystone.utils.Picker
@@ -612,7 +626,6 @@ function Picker:update_preview()
             end
         end
     )
-    assert(type(self.async_preview_cancel) == "function")
 end
 
 function Picker:start_spinner()

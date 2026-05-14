@@ -164,7 +164,7 @@ local function _default_preview(path, _, callback)
         return function()
         end
     end
-    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 50 * 1024 * 1024, timeout = 3000 },
+    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 1024, timeout = 3000 },
         function(load_err, content)
             callback({
                 content = content,
@@ -527,7 +527,6 @@ function Explorer:update_preview()
             end
         end
     )
-    assert(type(self.async_preview_cancel) == "function")
 end
 
 function Explorer:start_spinner()
