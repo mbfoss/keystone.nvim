@@ -107,8 +107,8 @@ local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
 
-    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.5, 0.1, 0.9))
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.8, 0.3, 0.95))
+    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.4, 0.1, 0.9))
+    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.6, 0.3, 0.95))
 
     local row = math.floor((lines - total_height) / 2)
     local col = math.floor((cols - width) / 2)
