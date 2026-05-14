@@ -2,6 +2,7 @@ local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
+local uitools    = require("keystone.utils.uitools")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -66,7 +67,6 @@ local _antiflicker_delay = 200
 ---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
 ---@field height_ratio number?
 ---@field width_ratio number?
----@field list_width number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
 
@@ -84,6 +84,30 @@ local _antiflicker_delay = 200
 ---@field prev_width number
 ---@field prev_height number
 
+local function _key_opts_of(buf)
+    return { buffer = buf, nowait = true, silent = true }
+end
+
+---@param modifiable boolean
+---@param on_delete fun()
+local function _create_buffer(modifiable, on_delete)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].modifiable = modifiable
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].buftype = "nofile"
+    vim.bo[buf].swapfile = false
+    vim.bo[buf].undolevels = -1
+    vim.bo[buf].modeline = false
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+        buffer = buf,
+        once = true,
+        callback = function()
+            on_delete()
+        end,
+    })
+    return buf
+end
+
 ---@param v number
 ---@param min number
 ---@param max number
@@ -92,60 +116,77 @@ local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
 end
 
----@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
+---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?}
 ---@return keystone.Picker.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
 
     local has_preview = opts.has_preview
-    local spacing = has_preview and 2 or 0
-    local half_spacing = math.floor(spacing / 2)
 
-    local list_width
-    local prev_width
-    if has_preview then
-        local width = math.ceil(cols * _clamp(opts.width_ratio or 0.8, 0.1, 0.8))
-        local half_width = math.floor(width / 2)
-        if opts.list_width then
-            list_width = _clamp(opts.list_width + 3, math.ceil(half_width / 2), half_width)
-        else
-            list_width = half_width
-        end
-        list_width = list_width - half_spacing
-        prev_width = _clamp(width - list_width - half_spacing, 1, width)
-    else
-        local max_width = math.ceil(cols * (opts.width_ratio or 0.8))
-        if opts.list_width then
-            local min_width = math.floor(cols * 0.3)
-            list_width = _clamp(opts.list_width + 3, min_width, max_width)
-        else
-            list_width = max_width
-        end
-        prev_width = 0
+    -- vertical layout defaults
+    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.5, 0.1, 0.9))
+    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.8, 0.3, 0.95))
+
+    local row = math.floor((lines - total_height) / 2)
+    local col = math.floor((cols - width) / 2)
+
+    -- layout:
+    -- prompt
+    -- gap
+    -- list
+    -- gap
+    -- preview (optional)
+
+    local prompt_height = 1
+    local gap = 2
+
+    if not has_preview then
+        local list_row = row + prompt_height + gap
+        local list_height = total_height - prompt_height - gap
+
+        return {
+            prompt_row = row,
+            prompt_col = col,
+            prompt_width = width,
+            prompt_height = prompt_height,
+
+            list_row = list_row,
+            list_col = col,
+            list_width = width,
+            list_height = list_height,
+
+            prev_row = list_row,
+            prev_col = col,
+            prev_width = 0,
+            prev_height = 0,
+        }
     end
 
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or .7, 0.3, 0.8))
-    local list_height = _clamp(total_height - 3, 1, lines)
+    local usable_height = total_height - prompt_height - (gap * 2)
 
-    local row = math.floor((lines - total_height - 1) / 2)
-    local col = math.floor((cols - (list_width + prev_width + spacing)) / 2)
+    -- split remaining space evenly
+    local list_height = math.floor(usable_height / 3)
+    local prev_height = usable_height - list_height
+
+    local list_row = row + prompt_height + gap
+    local prev_row = list_row + list_height + gap
 
     return {
         prompt_row = row,
         prompt_col = col,
-        prompt_width = list_width + prev_width + spacing,
-        prompt_height = 1,
+        prompt_width = width,
+        prompt_height = prompt_height,
 
-        list_row = row + 3,
+        list_row = list_row,
         list_col = col,
-        list_width = list_width,
+        list_width = width,
         list_height = list_height,
 
-        prev_row = row + 3,
-        prev_col = col + list_width + spacing,
-        prev_width = prev_width,
-        prev_height = list_height
+        prev_row = prev_row,
+        prev_col = col,
+        prev_width = width,
+        prev_height = prev_height,
     }
 end
 
@@ -232,7 +273,7 @@ end
 ---@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
 ---@field opts keystone.Picker.opts
 ---@field callback keystone.Picker.Callback
----@field has_preview boolean
+---@field preview_enabled boolean
 ---@field layout keystone.Picker.Layout
 ---@field pbuf integer
 ---@field lbuf integer
@@ -263,7 +304,7 @@ function Picker:init(opts, callback)
     self.opts = opts and vim.deepcopy(opts) or {}
     self.callback = callback
 
-    self.has_preview = opts.enable_preview
+    self.preview_enabled = opts.enable_preview
 
     self.list_items = {} ---@type keystone.picker.ListItem[]
 
@@ -296,10 +337,9 @@ function Picker:setup_ui()
     local opts = self.opts
 
     self.layout = _compute_layout {
-        has_preview = self.has_preview,
+        has_preview = false,
         height_ratio = opts.height_ratio,
         width_ratio = opts.width_ratio,
-        list_width = opts.list_width
     }
 
     local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
@@ -308,36 +348,18 @@ function Picker:setup_ui()
         self.list_sep_line = string.rep("─", self.layout.list_width)
     end
 
-    self.pbuf = vim.api.nvim_create_buf(false, true)
-    self.lbuf = vim.api.nvim_create_buf(false, true)
-    self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
-
-    vim.bo[self.lbuf].modifiable = false
-    if self.vbuf then
-        vim.bo[self.vbuf].modifiable = false
-    end
-
-    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
-        if b then
-            vim.bo[b].bufhidden = "wipe"
-            vim.bo[b].buftype = "nofile"
-            vim.bo[b].swapfile = false
-            vim.bo[b].undolevels = -1
-            vim.bo[b].modeline = false
-            vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-                buffer = b,
-                once = true,
-                callback = function(ev)
-                    if not self.closed then
-                        if (b == self.pbuf) then self.pbuf = -1 end
-                        if (b == self.lbuf) then self.lbuf = -1 end
-                        if (b == self.vbuf) then self.vbuf = -1 end
-                        vim.schedule(function() self:close() end)
-                    end
-                end,
-            })
+    self.pbuf = _create_buffer(true, function()
+        self.pbuf = nil
+        if not self.closed then
+            vim.schedule(function() self:close() end)
         end
-    end
+    end)
+    self.lbuf = _create_buffer(false, function()
+        self.pbuf = nil
+        if not self.closed then
+            vim.schedule(function() self:close() end)
+        end
+    end)
 
     local base_cfg = {
         relative = "editor",
@@ -345,31 +367,34 @@ function Picker:setup_ui()
         border = "rounded"
     }
 
-    self.pwin = vim.api.nvim_open_win(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
-        row = self.layout.prompt_row,
-        col = self.layout.prompt_col,
-        width = self.layout.prompt_width,
-        height = 1,
-        title = title,
-        title_pos = "center"
-    }))
+    local pwin_augroup
+    self.pwin, pwin_augroup = uitools.create_window(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
+            row = self.layout.prompt_row,
+            col = self.layout.prompt_col,
+            width = self.layout.prompt_width,
+            height = 1,
+            title = title,
+            title_pos = "center"
+        }),
+        function()
+            self.pwin = nil
+            if not self.closed then
+                vim.schedule(function() self:close() end)
+            end
+        end)
 
-    self.lwin = vim.api.nvim_open_win(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
-        row = self.layout.list_row,
-        col = self.layout.list_col,
-        width = self.layout.list_width,
-        height = self.layout.list_height
-    }))
-
-    if self.vbuf then
-        self.vwin = vim.api.nvim_open_win(self.vbuf, false, vim.tbl_extend("force", base_cfg, {
-            row = self.layout.prev_row,
-            col = self.layout.prev_col,
-            width = self.layout.prev_width,
-            height = self.layout.prev_height
-        }))
-        vim.wo[self.vwin].wrap = true
-    end
+    self.lwin = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+            row = self.layout.list_row,
+            col = self.layout.list_col,
+            width = self.layout.list_width,
+            height = self.layout.list_height
+        }),
+        function()
+            self.lwin = nil
+            if not self.closed then
+                vim.schedule(function() self:close() end)
+            end
+        end)
 
     local winhl = "NormalFloat:Normal,FloatBorder:Normal"
     for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
@@ -382,32 +407,26 @@ function Picker:setup_ui()
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
     ---@type number?
-    assert(not self.focus_augroup)
-    self.focus_augroup = vim.api.nvim_create_augroup("keystone_pickerfocus_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("WinEnter", {
-        group = self.focus_augroup,
+        group = pwin_augroup,
         callback = function(args)
             local win = vim.api.nvim_get_current_win()
             assert(not self.closed)
             if win ~= self.pwin and win ~= self.lwin and win ~= self.vwin then
                 local cfg = vim.api.nvim_win_get_config(win)
-                --if cfg.relative == "" then -- skip popups
                 vim.schedule(function()
                     self:close()
                 end)
-                --end
             end
         end
     })
 
-    assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("keystone_pickerresize_" .. self.pbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
-        group = self.resize_augroup,
+        group = pwin_augroup,
         callback = function()
             assert(not self.closed)
             vim.schedule(function()
-                self:on_resize()
+                self:relayout()
             end)
         end
     })
@@ -420,14 +439,62 @@ function Picker:setup_ui()
     end, { buffer = self.pbuf, desc = "Page original <cword>" })
 end
 
-function Picker:on_resize()
+function Picker:toggle_preview()
+    if not self.preview_enabled then return end
+    if self.vwin then
+        vim.api.nvim_win_close(self.vwin, true)
+        self.vwin = nil
+        if self.vbuf then
+            vim.api.nvim_buf_delete(self.vbuf, { force = true })
+            self.vbuf = nil
+        end
+        self:relayout()
+    else
+        if not self.vbuf then
+            self.vbuf = _create_buffer(false, function()
+                self.vbuf = nil
+            end)
+            local vbuf_key_opts = _key_opts_of(self.vbuf)
+            vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
+            vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
+        end
+        self.layout = _compute_layout {
+            has_preview = true,
+            height_ratio = self.opts.height_ratio,
+            width_ratio = self.opts.width_ratio,
+        }
+        self.vwin = uitools.create_window(self.vbuf, false, {
+                relative = "editor",
+                style = "minimal",
+                border = "rounded",
+                row = self.layout.prev_row,
+                col = self.layout.prev_col,
+                width = self.layout.prev_width,
+                height = self.layout.prev_height,
+            },
+            function()
+                self.vwin = nil
+                if self.vbuf then
+                    vim.api.nvim_buf_delete(self.vbuf, { force = true })
+                    self.vbuf = nil
+                end
+            end)
+
+        vim.wo[self.vwin].wrap = true
+        vim.wo[self.vwin].winhighlight = "NormalFloat:Normal,FloatBorder:Normal"
+
+        self:relayout()
+        self:update_preview()
+    end
+end
+
+function Picker:relayout()
     if self.closed then return end
 
     self.layout = _compute_layout {
-        has_preview = self.has_preview,
+        has_preview = self.vwin ~= nil,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
-        list_width = self.opts.list_width
     }
 
     if self.opts.enable_list_sep then
@@ -564,6 +631,7 @@ function Picker:update_preview()
 
     ---@type keystone.picker.ListItem
     local item = self.list_items[self:get_cursor()]
+    if not item then return end
 
     local preview_width = math.max(0, self.layout.prev_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.prev_height - 2) -- -2 for borders
@@ -577,7 +645,11 @@ function Picker:update_preview()
             viewport_height = preview_height,
         },
         function(preview)
-            if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then return end
+            if not preview or self.closed
+                or preview_context ~= self.async_preview_context
+                or fetch_context ~= self.async_fetch_context then
+                return
+            end
             local content = preview.content
             local lines ---@type string[]
             if content then
@@ -892,6 +964,12 @@ function Picker:send_to_qf()
     end
 end
 
+function Picker:confirm()
+    ---@type keystone.picker.ListItem
+    local list_item = self.list_items[self:get_cursor()]
+    self:close(list_item and list_item.data or nil)
+end
+
 ---@param selected_data keystone.picker.ItemData?
 function Picker:close(selected_data)
     if self.closed then return end
@@ -903,16 +981,6 @@ function Picker:close(selected_data)
 
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
-
-    if self.focus_augroup then
-        vim.api.nvim_del_augroup_by_id(self.focus_augroup)
-        self.focus_augroup = nil
-    end
-
-    if self.resize_augroup then
-        vim.api.nvim_del_augroup_by_id(self.resize_augroup)
-        self.resize_augroup = nil
-    end
 
     for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
         if w and vim.api.nvim_win_is_valid(w) then
@@ -942,19 +1010,9 @@ function Picker:close(selected_data)
 end
 
 function Picker:setup_input()
-    local confirm = function()
-        ---@type keystone.picker.ListItem
-        local list_item = self.list_items[self:get_cursor()]
-        self:close(list_item and list_item.data or nil)
-    end
-
-    local function key_opts_of(buf)
-        return { buffer = buf, nowait = true, silent = true }
-    end
-
     do
-        local pbuf_key_opts = key_opts_of(self.pbuf)
-        vim.keymap.set({ "i", "n" }, "<CR>", confirm, pbuf_key_opts)
+        local pbuf_key_opts = _key_opts_of(self.pbuf)
+        vim.keymap.set({ "i", "n" }, "<CR>", function() self:confirm() end, pbuf_key_opts)
 
         vim.keymap.set("n", "<Esc>", function() self:close() end, pbuf_key_opts)
         vim.keymap.set("i", "<C-c>", function() self:close() end, pbuf_key_opts)
@@ -982,6 +1040,8 @@ function Picker:setup_input()
 
         vim.keymap.set("i", "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
+        vim.keymap.set({ "n", "i" }, "<Tab>", function() self:toggle_preview() end, pbuf_key_opts)
+
         vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
             buffer = self.pbuf,
             callback = function()
@@ -993,13 +1053,8 @@ function Picker:setup_input()
     end
 
     do
-        local lbuf_key_opts = key_opts_of(self.lbuf)
+        local lbuf_key_opts = _key_opts_of(self.lbuf)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
-    end
-
-    if self.vbuf then
-        local vbuf_key_opts = key_opts_of(self.vbuf)
-        vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
     end
 end
 

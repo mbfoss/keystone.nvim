@@ -53,7 +53,6 @@ local _antiflicker_delay = 200
 ---@field async_preview keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
----@field list_width number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
 
@@ -256,7 +255,6 @@ function Explorer:setup_ui()
         has_preview = false, -- initially, no preview
         height_ratio = opts.height_ratio,
         width_ratio = opts.width_ratio,
-        list_width = opts.list_width
     }
 
     if self.opts.enable_list_sep then
@@ -333,30 +331,25 @@ function Explorer:setup_ui()
         callback = function()
             assert(not self.closed)
             vim.schedule(function()
-                self:on_resize()
+                self:relayout()
             end)
         end
     })
 end
 
-function Explorer:on_resize()
+function Explorer:relayout()
     if self.closed then return end
-
     self.layout = _compute_layout {
         has_preview = self.vwin ~= nil,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
-        list_width = self.opts.list_width
     }
-
     if self.opts.enable_list_sep then
         self.list_sep_line = string.rep("─", self.layout.list_width)
     end
-
     local base = {
         relative = "editor",
     }
-
     if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
         vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base, {
             row = self.layout.list_row,
@@ -365,7 +358,6 @@ function Explorer:on_resize()
             height = self.layout.list_height,
         }))
     end
-
     if self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
         vim.api.nvim_win_set_config(self.vwin, vim.tbl_extend("force", base, {
             row = self.layout.prev_row,
@@ -529,7 +521,7 @@ function Explorer:toggle_preview()
             vim.api.nvim_buf_delete(self.vbuf, { force = true })
             self.vbuf = nil
         end
-        self:on_resize()
+        self:relayout()
     else
         if not self.vbuf then
             self.vbuf = _create_buffer(function()
@@ -543,7 +535,6 @@ function Explorer:toggle_preview()
             has_preview = true,
             height_ratio = self.opts.height_ratio,
             width_ratio = self.opts.width_ratio,
-            list_width = self.opts.list_width
         }
         self.vwin = uitools.create_window(self.vbuf, false, {
                 relative = "editor",
@@ -565,7 +556,7 @@ function Explorer:toggle_preview()
         vim.wo[self.vwin].wrap = true
         vim.wo[self.vwin].winhighlight = "NormalFloat:Normal,FloatBorder:Normal"
 
-        self:on_resize()
+        self:relayout()
         self:update_preview()
     end
 end
