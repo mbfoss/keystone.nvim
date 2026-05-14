@@ -5,20 +5,21 @@
 ---@field message string[]
 ---@field timestamp integer
 
-local M = {}
+local M             = {}
 
 local notifications = require("keystone.notify")
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
+local picker        = require("keystone.pick.base.picker")
+local pickertools   = require("keystone.pick.base.pickertools")
+local strutils      = require("keystone.utils.strutils")
 
-local _icons = {
+local _icons        = {
     info = "󰋽",
     warn = "󰀪",
     error = "󰅚",
     lsp = "󰒓",
 }
 
-local _level_hl = {
+local _level_hl     = {
     info = "DiagnosticInfo",
     warn = "DiagnosticWarn",
     error = "DiagnosticError",
@@ -38,7 +39,7 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, entry in ipairs(history) do
-                local message = table.concat(entry.message, " ")
+                local message = strutils.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
                 local res = pickertools.match_label(message, query)
                 if res then
                     local timestamp = os.date("%H:%M:%S", math.floor(entry.timestamp / 1000))

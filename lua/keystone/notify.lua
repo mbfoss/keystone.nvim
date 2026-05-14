@@ -65,7 +65,7 @@ local _log_level_map = {
 local function _get_defaults()
   return {
     enabled = true,
-    width = 36,
+    width = 50,
     border = "rounded",
     timeout = 1000,
     lsp_progress = true,

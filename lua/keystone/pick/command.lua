@@ -22,6 +22,7 @@ local pickers = {
     git_hunks             = function() require("keystone.pick.pickers.git_hunks").open() end,
     buffers               = function() require("keystone.pick.pickers.buffers").open() end,
     all_buffers           = function() require("keystone.pick.pickers.buffers").open({ include_unloaded = true, included_unlised = true }) end,
+    windows               = function() require("keystone.pick.pickers.windows").open() end,
     spell_suggest         = function() require("keystone.pick.pickers.spell").open() end,
     highlights            = function() require("keystone.pick.pickers.highlights").open() end,
     autocommands          = function() require("keystone.pick.pickers.autocommands").open() end,
