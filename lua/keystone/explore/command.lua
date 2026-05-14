@@ -4,6 +4,22 @@ local uv       = vim.uv
 local explorer = require("keystone.explore.explorer")
 local fsutils  = require("keystone.utils.fsutils")
 local uitools  = require("keystone.utils.uitools")
+local icons    = require("keystone.icons")
+
+---@param name string The filename or directory name
+---@param is_dir boolean
+---@return string icon
+---@return string|nil hl_group
+local function _get_icon(name, is_dir)
+    local icon, icon_hl
+    if is_dir then
+        icon, icon_hl = "", "Directory"
+    else
+        local ext = name:match("%.([^.]+)$") or ""
+        icon, icon_hl = icons.get_icon(name, ext, { default = false })
+    end
+    return icon or "", icon_hl
+end
 
 local function _explore_files()
     local bufname = vim.api.nvim_buf_get_name(0)
@@ -29,10 +45,10 @@ local function _explore_files()
                 function(name, type)
                     local full_path = vim.fs.joinpath(path, name)
                     local is_dir = type == "directory"
-                    local prefix = is_dir and { " ", "Directory" } or { " " }
                     table.insert(entries, {
                         label_chunks = {
-                            prefix,
+                            { _get_icon(name, is_dir) },
+                            { " " },
                             { name },
                         },
                         path_part = name,

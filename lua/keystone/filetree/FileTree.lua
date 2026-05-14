@@ -7,6 +7,7 @@ local LRU            = require("keystone.utils.LRU")
 local floatwin       = require("keystone.utils.floatwin")
 local inputwin       = require("keystone.utils.inputwin")
 local common         = require("keystone.utils.common")
+local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
@@ -40,33 +41,6 @@ local common         = require("keystone.utils.common")
 ---@field loname string
 ---@field is_dir boolean
 ---@field is_link boolean?
-
----@type boolean,table?
-local _dev_icons_attempt, devicons
-
-local _file_icons    = {
-    txt      = "",
-    md       = "",
-    markdown = "",
-    json     = "",
-    lua      = "",
-    py       = "",
-    js       = "",
-    ts       = "",
-    html     = "",
-    css      = "",
-    c        = "",
-    cpp      = "",
-    h        = "",
-    hpp      = "",
-    sh       = "",
-    rb       = "",
-    go       = "",
-    rs       = "",
-    java     = "",
-    kt       = "𝙆",
-    default  = "",
-}
 
 local _error_node_id = {} -- unique id for the error node
 
@@ -552,24 +526,13 @@ end
 ---@return string icon
 ---@return string|nil hl_group
 function FileTree:_get_icon_for_node(name, is_dir, is_link)
-    if not _dev_icons_attempt then
-        _dev_icons_attempt = true
-        local loaded, res = pcall(require, "nvim-web-devicons")
-        if loaded then devicons = res end
-    end
-
     local icon, icon_hl
     if is_dir then
         icon, icon_hl = "", "Directory"
     elseif not is_link then
         local ext = name:match("%.([^.]+)$") or ""
-        if devicons then
-            icon, icon_hl = devicons.get_icon(name, ext, { default = false })
-        else
-            icon = _file_icons[ext]
-        end
+        icon, icon_hl = icons.get_icon(name, ext, { default = false })
     end
-
     return icon or "", icon_hl
 end
 
