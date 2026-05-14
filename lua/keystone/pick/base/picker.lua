@@ -1018,10 +1018,10 @@ function Picker:setup_input()
         vim.keymap.set("i", "<C-c>", function() self:close() end, pbuf_key_opts)
 
         vim.keymap.set("i", "<Down>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-n>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
+        vim.keymap.set({ "n", "i" }, "<C-n>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
 
         vim.keymap.set("i", "<Up>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
-        vim.keymap.set("i", "<C-p>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
+        vim.keymap.set({ "n", "i" }, "<C-p>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
 
         vim.keymap.set("i", "<C-d>", function()
             local cur = self:get_cursor()
