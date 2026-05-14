@@ -272,4 +272,25 @@ function M.is_win_full_height(winid)
     return win_height == total_height
 end
 
+--- @param buffer integer Buffer to display, or 0 for current buffer
+--- @param enter boolean Enter the window (make it the current window)
+--- @param config vim.api.keyset.win_config Map defining the window configuration
+--- @param on_close function
+--- @return integer winid, integer augroup
+function M.create_window(buffer, enter, config, on_close)
+    local win = vim.api.nvim_open_win(buffer, enter, config)
+    local augroup = vim.api.nvim_create_augroup("keystone_window_#" .. win, { clear = true })
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group = augroup,
+        callback = function(args)
+            local closedwin = tonumber(args.match)
+            if closedwin == win then
+                vim.api.nvim_del_augroup_by_id(augroup)
+                on_close()
+            end
+        end
+    })
+    return win, augroup
+end
+
 return M

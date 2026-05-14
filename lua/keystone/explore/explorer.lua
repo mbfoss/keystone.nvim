@@ -2,6 +2,7 @@ local Spinner    = require("keystone.utils.Spinner")
 local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
+local uitools    = require("keystone.utils.uitools")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -70,6 +71,29 @@ local _antiflicker_delay = 200
 ---@field prev_width number
 ---@field prev_height number
 
+local function _key_opts_of(buf)
+    return { buffer = buf, nowait = true, silent = true }
+end
+
+---@param on_delete fun()
+local function _create_buffer(on_delete)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].buftype = "nofile"
+    vim.bo[buf].swapfile = false
+    vim.bo[buf].undolevels = -1
+    vim.bo[buf].modeline = false
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+        buffer = buf,
+        once = true,
+        callback = function()
+            on_delete()
+        end,
+    })
+    return buf
+end
+
 ---@param v number
 ---@param min number
 ---@param max number
@@ -78,55 +102,47 @@ local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
 end
 
----@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
+---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?}
 ---@return keystone.Explorer.Layout
 local function _compute_layout(opts)
     local cols = vim.o.columns
     local lines = vim.o.lines
 
-    local has_preview = opts.has_preview
-    local spacing = has_preview and 2 or 0
-    local half_spacing = math.floor(spacing / 2)
+    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.5, 0.1, 0.9))
+    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.8, 0.3, 0.95))
 
-    local list_width
-    local prev_width
-    if has_preview then
-        local width = math.ceil(cols * _clamp(opts.width_ratio or 0.8, 0.1, 0.8))
-        local half_width = math.floor(width / 2)
-        if opts.list_width then
-            list_width = _clamp(opts.list_width + 3, math.ceil(half_width / 2), half_width)
-        else
-            list_width = half_width
-        end
-        list_width = list_width - half_spacing
-        prev_width = _clamp(width - list_width - half_spacing, 1, width)
-    else
-        local max_width = math.ceil(cols * (opts.width_ratio or 0.8))
-        if opts.list_width then
-            local min_width = math.floor(cols * 0.3)
-            list_width = _clamp(opts.list_width + 3, min_width, max_width)
-        else
-            list_width = max_width
-        end
-        prev_width = 0
+    local row = math.floor((lines - total_height) / 2)
+    local col = math.floor((cols - width) / 2)
+
+    if not opts.has_preview then
+        return {
+            list_row = row,
+            list_col = col,
+            list_width = width,
+            list_height = total_height,
+
+            prev_row = row,
+            prev_col = col,
+            prev_width = 0,
+            prev_height = 0,
+        }
     end
 
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or .7, 0.3, 0.8))
-    local list_height = _clamp(total_height - 3, 1, lines)
-
-    local row = math.floor((lines - total_height - 1) / 2)
-    local col = math.floor((cols - (list_width + prev_width + spacing)) / 2)
+    -- split vertically: top=list, bottom=preview
+    local spacing = 2
+    local list_height = math.floor((total_height - spacing) / 3)
+    local prev_height = total_height - list_height - spacing
 
     return {
         list_row = row,
         list_col = col,
-        list_width = list_width,
+        list_width = width,
         list_height = list_height,
 
-        prev_row = row,
-        prev_col = col + list_width + spacing,
-        prev_width = prev_width,
-        prev_height = list_height
+        prev_row = row + list_height + spacing,
+        prev_col = col,
+        prev_width = width,
+        prev_height = prev_height,
     }
 end
 
@@ -179,7 +195,6 @@ end
 ---@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.utils.Explorer
 ---@field opts keystone.Explorer.Opts
 ---@field callback keystone.Explorer.Callback
----@field has_preview boolean
 ---@field layout keystone.Explorer.Layout
 ---@field lbuf integer
 ---@field vbuf integer?
@@ -193,7 +208,6 @@ end
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
----@field resize_augroup number?
 ---@field nav_history string[]
 local Explorer = class()
 
@@ -208,7 +222,7 @@ function Explorer:init(opts, callback)
     self.opts = opts and vim.deepcopy(opts) or {}
     self.callback = callback
 
-    self.has_preview = opts.enable_preview
+    self.preview_enabled = opts.enable_preview
 
     self._path = opts.initial_path ---@type string[]
     self.list_items = {} ---@type keystone.explorer.ListItem[]
@@ -239,46 +253,19 @@ function Explorer:setup_ui()
     local opts = self.opts
 
     self.layout = _compute_layout {
-        has_preview = self.has_preview,
+        has_preview = false, -- initially, no preview
         height_ratio = opts.height_ratio,
         width_ratio = opts.width_ratio,
         list_width = opts.list_width
     }
 
-    local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
-
     if self.opts.enable_list_sep then
         self.list_sep_line = string.rep("─", self.layout.list_width)
     end
 
-    self.lbuf = vim.api.nvim_create_buf(false, true)
-    self.vbuf = self.has_preview and vim.api.nvim_create_buf(false, true) or nil
-
-    vim.bo[self.lbuf].modifiable = false
-    if self.vbuf then
-        vim.bo[self.vbuf].modifiable = false
-    end
-
-    for _, b in ipairs({ self.lbuf, self.vbuf }) do
-        if b then
-            vim.bo[b].bufhidden = "wipe"
-            vim.bo[b].buftype = "nofile"
-            vim.bo[b].swapfile = false
-            vim.bo[b].undolevels = -1
-            vim.bo[b].modeline = false
-            vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-                buffer = b,
-                once = true,
-                callback = function(ev)
-                    if not self.closed then
-                        if (b == self.lbuf) then self.lbuf = -1 end
-                        if (b == self.vbuf) then self.vbuf = -1 end
-                        vim.schedule(function() self:close() end)
-                    end
-                end,
-            })
-        end
-    end
+    self.lbuf = _create_buffer(function()
+        self.lbuf = nil
+    end)
 
     assert(self.lbuf)
     vim.api.nvim_create_autocmd({ "CursorMoved" }, {
@@ -305,22 +292,19 @@ function Explorer:setup_ui()
         border = "rounded"
     }
 
-    self.lwin = vim.api.nvim_open_win(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
-        row = self.layout.list_row,
-        col = self.layout.list_col,
-        width = self.layout.list_width,
-        height = self.layout.list_height
-    }))
-
-    if self.vbuf then
-        self.vwin = vim.api.nvim_open_win(self.vbuf, false, vim.tbl_extend("force", base_cfg, {
-            row = self.layout.prev_row,
-            col = self.layout.prev_col,
-            width = self.layout.prev_width,
-            height = self.layout.prev_height
-        }))
-        vim.wo[self.vwin].wrap = true
-    end
+    local lwin_augroup
+    self.lwin, lwin_augroup = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+            row = self.layout.list_row,
+            col = self.layout.list_col,
+            width = self.layout.list_width,
+            height = self.layout.list_height
+        }),
+        function()
+            self.lwin = nil
+            vim.schedule(function()
+                self:close()
+            end)
+        end)
 
     local winhl = "NormalFloat:Normal,FloatBorder:Normal"
     for _, w in ipairs({ self.lwin, self.vwin }) do
@@ -332,10 +316,8 @@ function Explorer:setup_ui()
     vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
 
     ---@type number?
-    assert(not self.focus_augroup)
-    self.focus_augroup = vim.api.nvim_create_augroup("keystone_explorer_focus_" .. self.lbuf, { clear = true })
     vim.api.nvim_create_autocmd("WinEnter", {
-        group = self.focus_augroup,
+        group = lwin_augroup,
         callback = function(args)
             local win = vim.api.nvim_get_current_win()
             assert(not self.closed)
@@ -346,12 +328,8 @@ function Explorer:setup_ui()
             end
         end
     })
-
-
-    assert(not self.resize_augroup)
-    self.resize_augroup = vim.api.nvim_create_augroup("keystone_explorer_resize_" .. self.lbuf, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
-        group = self.resize_augroup,
+        group = lwin_augroup,
         callback = function()
             assert(not self.closed)
             vim.schedule(function()
@@ -365,7 +343,7 @@ function Explorer:on_resize()
     if self.closed then return end
 
     self.layout = _compute_layout {
-        has_preview = self.has_preview,
+        has_preview = self.vwin ~= nil,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
         list_width = self.opts.list_width
@@ -493,7 +471,7 @@ function Explorer:update_preview()
                 lines = _center_for_previewer("No preview", preview_width, preview_height)
             end
             lines = lines or {}
-            if vim.api.nvim_buf_is_valid(self.vbuf) then
+            if self.vbuf then
                 self:cancel_clear_preview_req()
                 vim.bo[self.vbuf].modifiable = true
                 vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
@@ -529,6 +507,69 @@ function Explorer:update_preview()
     )
 end
 
+function Explorer:confirm()
+    ---@type keystone.explorer.ListItem
+    local item = self.list_items[self:get_cursor()]
+    if not item then return end
+    if not item.selectable then
+        self:run_fetch("in")
+        return
+    end
+    local path = vim.list_extend({}, self._path)
+    table.insert(path, item.path_part)
+    self:close(path)
+end
+
+function Explorer:toggle_preview()
+    if not self.preview_enabled then return end
+    if self.vwin then
+        vim.api.nvim_win_close(self.vwin, true)
+        self.vwin = nil
+        if self.vbuf then
+            vim.api.nvim_buf_delete(self.vbuf, { force = true })
+            self.vbuf = nil
+        end
+        self:on_resize()
+    else
+        if not self.vbuf then
+            self.vbuf = _create_buffer(function()
+                self.vbuf = nil
+            end)
+            local vbuf_key_opts = _key_opts_of(self.vbuf)
+            vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
+            vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
+        end
+        self.layout = _compute_layout {
+            has_preview = true,
+            height_ratio = self.opts.height_ratio,
+            width_ratio = self.opts.width_ratio,
+            list_width = self.opts.list_width
+        }
+        self.vwin = uitools.create_window(self.vbuf, false, {
+                relative = "editor",
+                style = "minimal",
+                border = "rounded",
+                row = self.layout.prev_row,
+                col = self.layout.prev_col,
+                width = self.layout.prev_width,
+                height = self.layout.prev_height,
+            },
+            function()
+                self.vwin = nil
+                if self.vbuf then
+                    vim.api.nvim_buf_delete(self.vbuf, { force = true })
+                    self.vbuf = nil
+                end
+            end)
+
+        vim.wo[self.vwin].wrap = true
+        vim.wo[self.vwin].winhighlight = "NormalFloat:Normal,FloatBorder:Normal"
+
+        self:on_resize()
+        self:update_preview()
+    end
+end
+
 function Explorer:start_spinner()
     if self.spinner then return end
 
@@ -558,7 +599,7 @@ end
 ---@param immediate  boolean?
 function Explorer:request_clear_preview(immediate)
     local clear = function()
-        if self.vbuf and self.vbuf > 0 and not self.closed then
+        if self.vbuf and not self.closed then
             vim.bo[self.vbuf].modifiable = true
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
@@ -764,16 +805,6 @@ function Explorer:close(path)
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
 
-    if self.focus_augroup then
-        vim.api.nvim_del_augroup_by_id(self.focus_augroup)
-        self.focus_augroup = nil
-    end
-
-    if self.resize_augroup then
-        vim.api.nvim_del_augroup_by_id(self.resize_augroup)
-        self.resize_augroup = nil
-    end
-
     for _, w in ipairs({ self.lwin, self.vwin }) do
         if w and vim.api.nvim_win_is_valid(w) then
             vim.api.nvim_win_close(w, true)
@@ -781,7 +812,7 @@ function Explorer:close(path)
     end
 
     for _, b in ipairs({ self.lbuf, self.vbuf }) do
-        if b and vim.api.nvim_buf_is_valid(b) then
+        if b then
             vim.api.nvim_buf_delete(b, { force = true })
         end
     end
@@ -792,35 +823,13 @@ function Explorer:close(path)
 end
 
 function Explorer:setup_input()
-    local confirm = function()
-        ---@type keystone.explorer.ListItem
-        local item = self.list_items[self:get_cursor()]
-        if not item then return end
-        if not item.selectable then
-            self:run_fetch("in")
-            return
-        end
-        local path = vim.list_extend({}, self._path)
-        table.insert(path, item.path_part)
-        self:close(path)
-    end
-
-    local function key_opts_of(buf)
-        return { buffer = buf, nowait = true, silent = true }
-    end
-
     do
-        local lbuf_key_opts = key_opts_of(self.lbuf)
+        local lbuf_key_opts = _key_opts_of(self.lbuf)
         vim.keymap.set("n", "l", function() self:run_fetch("in") end, lbuf_key_opts)
         vim.keymap.set("n", "h", function() self:run_fetch("out") end, lbuf_key_opts)
-        vim.keymap.set("n", "<CR>", confirm, lbuf_key_opts)
+        vim.keymap.set("n", "<CR>", function() self:confirm() end, lbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
-    end
-
-    if self.vbuf then
-        local vbuf_key_opts = key_opts_of(self.vbuf)
-        vim.keymap.set("n", "<CR>", confirm, vbuf_key_opts)
-        vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
+        vim.keymap.set("n", "<Tab>", function() self:toggle_preview() end, lbuf_key_opts)
     end
 end
 
