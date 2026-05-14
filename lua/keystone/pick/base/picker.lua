@@ -445,6 +445,38 @@ function Picker:relayout(action)
         }))
     end
 
+    if not self.lwin then
+        if not self.lbuf then
+            self.lbuf = _create_buffer(false, function()
+                self.lbuf = nil
+                if not self.closed then
+                    vim.schedule(function() self:close() end)
+                end
+            end)
+        end
+        self.lwin = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+                row = self.layout.list_row,
+                col = self.layout.list_col,
+                width = self.layout.list_width,
+                height = self.layout.list_height
+            }),
+            function()
+                self.lwin = nil
+                if not self.closed then
+                    vim.schedule(function() self:close() end)
+                end
+            end)
+        vim.wo[self.lwin].winhighlight = winhl
+        vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
+    else
+        vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base_cfg, {
+            row = self.layout.list_row,
+            col = self.layout.list_col,
+            width = self.layout.list_width,
+            height = self.layout.list_height,
+        }))
+    end
+
     if has_preview then
         if not self.vwin then
             if not self.vbuf then
@@ -491,39 +523,6 @@ function Picker:relayout(action)
             vim.api.nvim_buf_delete(self.vbuf, { force = true })
             self.vbuf = nil
         end
-    end
-
-    -- list window after preview window to avoid flicker on some envs
-    if not self.lwin then
-        if not self.lbuf then
-            self.lbuf = _create_buffer(false, function()
-                self.lbuf = nil
-                if not self.closed then
-                    vim.schedule(function() self:close() end)
-                end
-            end)
-        end
-        self.lwin = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
-                row = self.layout.list_row,
-                col = self.layout.list_col,
-                width = self.layout.list_width,
-                height = self.layout.list_height
-            }),
-            function()
-                self.lwin = nil
-                if not self.closed then
-                    vim.schedule(function() self:close() end)
-                end
-            end)
-        vim.wo[self.lwin].winhighlight = winhl
-        vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
-    else
-        vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base_cfg, {
-            row = self.layout.list_row,
-            col = self.layout.list_col,
-            width = self.layout.list_width,
-            height = self.layout.list_height,
-        }))
     end
 end
 

@@ -301,55 +301,6 @@ function Explorer:relayout(action)
 
     local winhl = "NormalFloat:Normal,FloatBorder:Normal"
 
-    if has_preview then
-        if not self.vwin then
-            if not self.vbuf then
-                self.vbuf = _create_buffer(function()
-                    self.vbuf = nil
-                end)
-                local vbuf_key_opts = _key_opts_of(self.vbuf)
-                vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
-                vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
-            end
-            self.vwin = uitools.create_window(self.vbuf, false, {
-                    relative = "editor",
-                    style = "minimal",
-                    border = "rounded",
-                    row = self.layout.preview_row,
-                    col = self.layout.preview_col,
-                    width = self.layout.preview_width,
-                    height = self.layout.preview_height,
-                },
-                function()
-                    self.vwin = nil
-                    if self.vbuf then
-                        vim.api.nvim_buf_delete(self.vbuf, { force = true })
-                        self.vbuf = nil
-                    end
-                end)
-            vim.wo[self.vwin].wrap = true
-            vim.wo[self.vwin].winhighlight = winhl
-        else
-            vim.api.nvim_win_set_config(self.vwin, vim.tbl_extend("force", base_cfg, {
-                row = self.layout.preview_row,
-                col = self.layout.preview_col,
-                width = self.layout.preview_width,
-                height = self.layout.preview_height,
-            }))
-        end
-        self:update_preview()
-    else
-        if self.vwin then
-            vim.api.nvim_win_close(self.vwin, true)
-            self.vwin = nil
-        end
-        if self.vbuf then
-            vim.api.nvim_buf_delete(self.vbuf, { force = true })
-            self.vbuf = nil
-        end
-    end
-
-    -- list window after preview window to avoid flicker on some envs
     if not self.lwin then
         if not self.lbuf then
             self.lbuf = _create_buffer(function()
@@ -406,6 +357,54 @@ function Explorer:relayout(action)
             width = self.layout.list_width,
             height = self.layout.list_height,
         }))
+    end
+
+    if has_preview then
+        if not self.vwin then
+            if not self.vbuf then
+                self.vbuf = _create_buffer(function()
+                    self.vbuf = nil
+                end)
+                local vbuf_key_opts = _key_opts_of(self.vbuf)
+                vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
+                vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
+            end
+            self.vwin = uitools.create_window(self.vbuf, false, {
+                    relative = "editor",
+                    style = "minimal",
+                    border = "rounded",
+                    row = self.layout.preview_row,
+                    col = self.layout.preview_col,
+                    width = self.layout.preview_width,
+                    height = self.layout.preview_height,
+                },
+                function()
+                    self.vwin = nil
+                    if self.vbuf then
+                        vim.api.nvim_buf_delete(self.vbuf, { force = true })
+                        self.vbuf = nil
+                    end
+                end)
+            vim.wo[self.vwin].wrap = true
+            vim.wo[self.vwin].winhighlight = winhl
+        else
+            vim.api.nvim_win_set_config(self.vwin, vim.tbl_extend("force", base_cfg, {
+                row = self.layout.preview_row,
+                col = self.layout.preview_col,
+                width = self.layout.preview_width,
+                height = self.layout.preview_height,
+            }))
+        end
+        self:update_preview()
+    else
+        if self.vwin then
+            vim.api.nvim_win_close(self.vwin, true)
+            self.vwin = nil
+        end
+        if self.vbuf then
+            vim.api.nvim_buf_delete(self.vbuf, { force = true })
+            self.vbuf = nil
+        end
     end
 end
 
