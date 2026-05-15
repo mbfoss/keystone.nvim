@@ -73,44 +73,43 @@ function M.open(opts)
     end
 
     picker.open({
-        prompt = "Quickfix Items",
-        enable_list_sep = true,
-        enable_preview = true,
-        fetch = function(query, fetch_opts)
-            local items = {}
-            for _, data in ipairs(entries) do
-                local text = vim.trim(data.text ~= "" and data.text or "[No description]")
-                local match = pickertools.match_label(text, query)
-                if match then
-                    local chunks = { _type_prefix[data.type] or _type_prefix.N }
-                    vim.list_extend(chunks, match.chunks)
-                    local virt_lines = nil
-                    if data.relpath and #data.relpath > 0 then
-                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
-                    end
-                    ---@type keystone.Picker.Item
-                    local item = {
-                        label_chunks = chunks,
-                        score = match.score,
-                        virt_lines = virt_lines,
-                        data = {
-                            filepath = data.filepath,
-                            lnum = data.lnum,
-                            col = data.col,
-                            data = data,
+            prompt = "Quickfix Items",
+            enable_list_sep = true,
+            enable_preview = true,
+            fetch = function(query, fetch_opts)
+                local items = {}
+                for _, data in ipairs(entries) do
+                    local text = vim.trim(data.text ~= "" and data.text or "[No description]")
+                    local match = pickertools.match_label(text, query)
+                    if match then
+                        local chunks = { _type_prefix[data.type] or _type_prefix.N }
+                        vim.list_extend(chunks, match.chunks)
+                        local virt_lines = nil
+                        if data.relpath and #data.relpath > 0 then
+                            virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
+                        end
+                        ---@type keystone.Picker.Item
+                        local item = {
+                            label_chunks = chunks,
+                            score = match.score,
+                            virt_lines = virt_lines,
+                            data = data
                         }
-                    }
-                    table.insert(items, item)
+                        table.insert(items, item)
+                    end
                 end
+                table.sort(items, function(a, b) return a.score > b.score end)
+                return items
+            end,
+            quickfix_formatter = function(data)
+                return data
             end
-            table.sort(items, function(a, b) return a.score > b.score end)
-            return items
-        end,
-    }, function(data)
-        if data then
-            uitools.smart_open_file(data.filepath, data.lnum, data.col)
-        end
-    end)
+        },
+        function(data)
+            if data then
+                uitools.smart_open_file(data.filepath, data.lnum, data.col)
+            end
+        end)
 end
 
 return M

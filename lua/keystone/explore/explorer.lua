@@ -812,7 +812,7 @@ function Explorer:setup_input()
         vim.keymap.set("n", "h", function() self:run_fetch("out") end, lbuf_key_opts)
         vim.keymap.set("n", "<CR>", function() self:confirm() end, lbuf_key_opts)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
-        vim.keymap.set("n", "<Tab>", function() self:toggle_preview() end, lbuf_key_opts)
+        vim.keymap.set("n", "<C-t>", function() self:toggle_preview() end, lbuf_key_opts)
     end
 end
 

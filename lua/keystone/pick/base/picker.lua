@@ -1043,7 +1043,7 @@ function Picker:setup_input()
 
         vim.keymap.set("i", "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
-        vim.keymap.set({ "n", "i" }, "<Tab>", function() self:toggle_preview() end, pbuf_key_opts)
+        vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
         vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
             buffer = self.pbuf,
