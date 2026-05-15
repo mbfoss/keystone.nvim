@@ -75,10 +75,19 @@ local function _explore_files()
                         label_chunks = chunks,
                         path_part = name,
                         supports_preview = not is_dir,
-                        selectable = not is_dir
+                        selectable = not is_dir,
+                        data = {
+                            priority = is_dir and 0 or 1
+                        }
                     })
                 end,
                 function()
+                    table.sort(entries, function(a, b)
+                        if a.data.priority ~= b.data.priority then
+                            return a.data.priority < b.data.priority
+                        end
+                        return a.path_part < b.path_part
+                    end)
                     callback((entries))
                 end)
 

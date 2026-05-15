@@ -22,12 +22,14 @@ local _antiflicker_delay = 200
 ---@field path_part string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
+---@field data any
 
 ---@class keystone.explorer.ListItem
 ---@field text string
 ---@field path_part string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
+---@field data any
 
 ---@alias keystone.Explorer.Callback fun(path:string[]?)
 
@@ -641,6 +643,7 @@ function Explorer:add_new_lines(items)
             path_part = item.path_part,
             supports_preview = item.supports_preview,
             selectable = item.selectable,
+            data = item.data,
         }
         local idx = #self.list_items + 1
         table.insert(self.list_items, idx, list_item)
