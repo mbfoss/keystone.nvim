@@ -45,12 +45,26 @@ local function _explore_files()
                 function(name, type)
                     local full_path = vim.fs.joinpath(path, name)
                     local is_dir = type == "directory"
+                    local is_link = false
+                    if type == "link" then
+                        is_link = true
+                        --local links_to //TODO
+                        local linkstat = vim.uv.fs_stat(full_path)
+                        if linkstat then
+                            if linkstat.type == "directory" then is_dir = true end
+                        end
+                    end
+                    local chunks = {
+                        { _get_icon(name, is_dir) },
+                        { " " },
+                        { name },
+                    }
+                    if is_link then
+                        table.insert(chunks, { " " })
+                        table.insert(chunks, { "↗", "Special" })
+                    end
                     table.insert(entries, {
-                        label_chunks = {
-                            { _get_icon(name, is_dir) },
-                            { " " },
-                            { name },
-                        },
+                        label_chunks = chunks,
                         path_part = name,
                         supports_preview = not is_dir,
                         selectable = not is_dir
