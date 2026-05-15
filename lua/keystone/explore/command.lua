@@ -46,9 +46,10 @@ local function _explore_files()
                     local full_path = vim.fs.joinpath(path, name)
                     local is_dir = type == "directory"
                     local is_link = false
+                    local link_target
                     if type == "link" then
                         is_link = true
-                        --local links_to //TODO
+                        link_target = vim.uv.fs_readlink(full_path)
                         local linkstat = vim.uv.fs_stat(full_path)
                         if linkstat then
                             if linkstat.type == "directory" then is_dir = true end
@@ -61,7 +62,14 @@ local function _explore_files()
                     }
                     if is_link then
                         table.insert(chunks, { " " })
-                        table.insert(chunks, { "↗", "Special" })
+                        if link_target then
+                            vim.list_extend(chunks, {
+                                { "→", "Special" },
+                                { " " },
+                                { link_target, "Special" } })
+                        else
+                            table.insert(chunks, { "↗", "Special" })
+                        end
                     end
                     table.insert(entries, {
                         label_chunks = chunks,
