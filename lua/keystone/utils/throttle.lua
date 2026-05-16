@@ -5,6 +5,21 @@ local uv = vim.uv
 local function _is_exiting()
     return vim.v.exiting ~= vim.NIL
 end
+
+---Create a throttled wrapper around a function.
+---
+---The wrapped function executes immediately on the first call, then
+---suppresses subsequent calls until the throttle window has elapsed.
+---If calls occur during the cooldown period, exactly one trailing
+---execution is scheduled.
+---
+---  - Leading execution: yes
+---  - Trailing execution: yes (single queued run)
+---  - Re-entrant calls during cooldown are ignored once a timer exists
+---
+---@param ms number Throttle interval in milliseconds.
+---@param fn function Function to throttle.
+---@return function wrapped Throttled wrapper function.
 function M.throttle_wrap(ms, fn)
     local timer = nil
     local last_exec = 0
@@ -39,8 +54,53 @@ function M.throttle_wrap(ms, fn)
     end
 end
 
----@param ms number The wait duration in milliseconds.
----@param fn function The function to run.
+---Create a leading-only throttle wrapper.
+---
+---The wrapped function executes immediately on the first call, then
+---ignores all subsequent calls until the cooldown window has elapsed.
+---
+---Unlike `throttle_wrap`, this variant does NOT schedule a trailing
+---execution after the cooldown period.
+---
+---Behavior:
+---  - Leading execution: yes
+---  - Trailing execution: no
+---  - Repeated calls during cooldown are ignored
+---
+---@param ms number Throttle interval in milliseconds.
+---@param fn function Function to throttle.
+---@return function wrapped Throttled wrapper function.
+function M.leading_throttle_wrap(ms, fn)
+    local last_exec = 0
+    return function(...)
+        local now = uv.now()
+        if last_exec ~= 0 and (now - last_exec) < ms then
+            return
+        end
+        last_exec = now
+        if not _is_exiting() then
+            fn(...)
+        end
+    end
+end
+
+---Create a fixed-delay trailing wrapper.
+---
+---The wrapped function executes once after `ms` milliseconds from the
+---first invocation. Additional calls during the waiting period are ignored.
+---
+---Unlike a debounce:
+---  - The timer is NOT reset by repeated calls.
+---  - Only one pending execution may exist at a time.
+---
+---Behavior:
+---  - Leading execution: no
+---  - Trailing execution: yes
+---  - Timer resets on repeated calls: no
+---
+---@param ms number Wait duration in milliseconds.
+---@param fn function Function to execute.
+---@return function wrapped Wrapped function.
 function M.trailing_fixed_wrap(ms, fn)
     local is_pending = false
 
@@ -58,27 +118,6 @@ function M.trailing_fixed_wrap(ms, fn)
                     if not timer:is_closing() then timer:close() end
                 end
                 is_pending = false
-                if not _is_exiting() then
-                    fn()
-                end
-            end)
-        end)
-    end
-end
-
-function M.leading_idle_debounce(ms, fn)
-    local timer = uv.new_timer()
-    assert(timer)
-    local cooling = false
-    return function()
-        if not cooling then
-            cooling = true
-            fn()
-        end
-        timer:stop()
-        timer:start(ms, 0, function()
-            vim.schedule(function()
-                cooling = false
                 if not _is_exiting() then
                     fn()
                 end

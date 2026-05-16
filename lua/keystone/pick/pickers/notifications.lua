@@ -11,6 +11,7 @@ local notifications = require("keystone.notify")
 local picker        = require("keystone.pick.base.picker")
 local pickertools   = require("keystone.pick.base.pickertools")
 local strutils      = require("keystone.utils.strutils")
+local uitools       = require("keystone.utils.uitools")
 
 local _icons        = {
     info = "󰋽",
@@ -39,8 +40,8 @@ function M.open()
         fetch = function(query, fetch_opts)
             local items = {}
             for _, entry in ipairs(history) do
-                local message = strutils.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
-                local res = pickertools.match_label(message, query)
+                local text = strutils.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
+                local res = pickertools.match_label(text, query)
                 if res then
                     local timestamp = os.date("%H:%M:%S", math.floor(entry.timestamp / 1000))
                     local chunks = {
@@ -52,7 +53,7 @@ function M.open()
                     table.insert(items, {
                         label_chunks = chunks,
                         data = {
-                            message = table.concat(entry.message, "\n"),
+                            message = entry.message,
                         },
                     })
                 end
@@ -70,8 +71,9 @@ function M.open()
             return
         end
 
-        vim.fn.setreg("+", data.message)
-        vim.fn.setreg('"', data.message)
+        local bufnr = uitools.create_sratch_buffer(true, {})
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, data.message)
+        vim.api.nvim_set_current_buf(bufnr)
     end)
 end
 

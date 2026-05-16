@@ -115,21 +115,17 @@ end
 ---@param modifiable boolean
 ---@param on_delete fun()
 local function _create_buffer(modifiable, on_delete)
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[buf].modifiable = modifiable
-    vim.bo[buf].bufhidden = "wipe"
-    vim.bo[buf].buftype = "nofile"
-    vim.bo[buf].swapfile = false
-    vim.bo[buf].undolevels = -1
-    vim.bo[buf].modeline = false
-    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-        buffer = buf,
-        once = true,
-        callback = function()
-            on_delete()
-        end,
-    })
-    return buf
+    return uitools.create_sratch_buffer(false, {
+            buftype = "nofile",
+            bufhidden = "wipe",
+            modifiable = modifiable,
+            swapfile = false,
+            undolevels = -1,
+            buflisted = false,
+            modeline = false,
+            spelloptions = "noplainbuffer",
+        },
+        on_delete)
 end
 
 ---@param v number
@@ -721,7 +717,7 @@ function Picker:start_spinner()
     if self.spinner then return end
 
     self.spinner = Spinner:new {
-        interval = 80,
+        interval = 100,
         on_update = function(frame)
             if not self.pbuf then return end
             vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
@@ -1066,7 +1062,7 @@ function Picker:setup_input()
         vim.keymap.set("n", "j", function() self:history_next() end, pbuf_key_opts)
         vim.keymap.set("n", "k", function() self:history_prev() end, pbuf_key_opts)
 
-        vim.keymap.set("i", "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
+        vim.keymap.set({ "i", "n" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
         vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
@@ -1083,6 +1079,7 @@ function Picker:setup_input()
     do
         local lbuf_key_opts = _key_opts_of(self.lbuf)
         vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
+        vim.keymap.set("n", "<CR>", function() self:confirm() end, lbuf_key_opts)
     end
 end
 

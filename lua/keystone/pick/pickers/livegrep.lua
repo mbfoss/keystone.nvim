@@ -6,6 +6,7 @@ local strutils = require("keystone.utils.strutils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local fsutils = require("keystone.utils.fsutils")
+local throttle = require("keystone.utils.throttle")
 
 ---@class keystone.livegrep.opts
 ---@field cwd string? Optional directory to start search (defaults to getcwd)
@@ -160,12 +161,40 @@ local function get_grep_cmd(query, opts)
     return "rg", args, cleaned_query
 end
 
+---@param ms number Throttle window in milliseconds.
+---@param title string
+---@return fun(msg: string)
+local function create_error_notifier(ms, title)
+    local pending = {}
+    local flush = throttle.trailing_fixed_wrap(ms, function()
+        if vim.tbl_isempty(pending) then
+            return
+        end
+        local lines = {}
+        for i, msg in ipairs(pending) do
+            lines[#lines + 1] = ("%d. %s"):format(i, msg)
+        end
+        vim.notify(
+            table.concat(lines, "\n"),
+            vim.log.levels.ERROR,
+            { title = (title .. " (%d)"):format(#pending) }
+        )
+        pending = {}
+    end)
+    return function(msg)
+        pending[#pending + 1] = tostring(msg)
+        flush()
+    end
+end
+
+
 ---@param query string
 ---@param grep_opts keystone.livegrep.opts
 ---@param fetch_opts keystone.Picker.FetcherOpts
+---@param on_error fun(msg:string)
 ---@param callback fun(items:table[]?)
 ---@return fun() cancel
-local function async_grep_search(query, grep_opts, fetch_opts, callback)
+local function async_grep_search(query, grep_opts, fetch_opts, on_error, callback)
     local cmd, args, cleaned_query = get_grep_cmd(query, grep_opts)
     if cleaned_query == "" then
         callback()
@@ -221,7 +250,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
             if read_stop then return end
             if not data then return end
             if is_stderr then
-                vim.notify_once(data, vim.log.levels.ERROR)
+                on_error(data)
                 return
             end
             buffered_feed(data)
@@ -234,7 +263,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, callback)
     local start_ok, start_err = process:start()
     if not start_ok and start_err and #start_err > 0 then
         callback(nil)
-        vim.notify_once(start_err, vim.log.levels.ERROR)
+        on_error(start_err)
     end
 
     return function()
@@ -249,6 +278,7 @@ end
 function M.open(opts)
     opts = opts or {}
     local cwd = opts.cwd or vim.fn.getcwd()
+    local error_notifier = create_error_notifier(1000, "rg errors")
     return picker.open({
         prompt = "Live Grep",
         highlight_query = get_query_highlights,
@@ -257,11 +287,16 @@ function M.open(opts)
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
         async_fetch = function(query, fetch_opts, callback)
             return async_grep_search(query, {
-                cwd = cwd,
-                include_globs = opts.include_globs or {},
-                exclude_globs = opts.exclude_globs or {},
-                max_results = opts.max_results or 10000,
-            }, fetch_opts, callback)
+                    cwd = cwd,
+                    include_globs = opts.include_globs or {},
+                    exclude_globs = opts.exclude_globs or {},
+                    max_results = opts.max_results or 10000,
+                },
+                fetch_opts,
+                function(msg)
+                    error_notifier(msg)
+                end,
+                callback)
         end,
     }, function(data)
         if data then

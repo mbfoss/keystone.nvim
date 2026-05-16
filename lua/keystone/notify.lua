@@ -41,6 +41,7 @@ local _id_counter = 0
 local _initialized = false
 local _enabled = false
 local _original_vim_notify = nil
+local _layout_scheduled = false
 
 local _hl_map = {
   info = "DiagnosticInfo",
@@ -95,8 +96,8 @@ local function _push_history(entry)
 end
 
 local function _layout()
+  if vim.v.exiting ~= vim.NIL then return end
   local running_height = 0
-
   for _, n in pairs(_active) do
     if vim.api.nvim_win_is_valid(n.win_id) then
       local row = vim.o.lines - _get_offset() - running_height - n.height
@@ -110,6 +111,18 @@ local function _layout()
       running_height = running_height + n.height + 2
     end
   end
+end
+
+local function _schedule_layout()
+  if vim.v.exiting ~= vim.NIL then return end
+  if _layout_scheduled then return end
+
+  _layout_scheduled = true
+
+  vim.schedule(function()
+    _layout_scheduled = false
+    _layout()
+  end)
 end
 
 ---@param id string|integer
@@ -130,12 +143,14 @@ local function _close(id)
 
   _active[id] = nil
 
-  _layout()
+  _schedule_layout()
 end
 
 ---@param msg string|string[]
 ---@param opts? keystone.notify.NotifyOpts
 function M.notify(msg, opts)
+  if vim.v.exiting ~= vim.NIL then return end
+
   ---@diagnostic disable-next-line: param-type-mismatch
   local lines = type(msg) == "table" and msg or vim.split(msg, "\n")
 
