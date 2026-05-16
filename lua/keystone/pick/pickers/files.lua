@@ -7,6 +7,7 @@ local strutils = require("keystone.utils.strutils")
 local fsutils = require("keystone.utils.fsutils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
+local icons = require("keystone.icons")
 
 ---@class keystone.filepicker.Opts
 ---@field prompt string?
@@ -21,6 +22,14 @@ local pickertools = require("keystone.pick.base.pickertools")
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
+
+---@param filepath  string
+---@return string? filename, string? extension
+local function extract_filename_ext(filepath)
+    local name = filepath:match("^.+/(.+)$")
+    local ext = name and name:match("^.*%.([^%.]+)$") or nil
+    return name, ext
+end
 
 ---@param query string User input
 ---@param opts keystone.filepicker.SearchOpts
@@ -53,7 +62,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 cancel_fn()
                 return
             end
-            local chunks = {{ relative_path:sub(1, #relative_path - #filename) }}
+            local filedir = relative_path:sub(1, #relative_path - #filename)
+            local icon, icon_hl = icons.get_icon(filename)
+            local chunks = { { icon, icon_hl }, { " " }, { filedir } }
             vim.list_extend(chunks, res.chunks)
             table.insert(items, {
                 label_chunks = chunks,
@@ -115,9 +126,13 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
                     local res = pickertools.match_label(relpath, query)
                     if res then
                         local filepath = vim.fs.joinpath(fd_opts.cwd, relpath)
+                        local filename, extension = extract_filename_ext(relpath)
+                        local icon, icon_hl = icons.get_icon(filename, extension)
+                        local chunks = { { icon, icon_hl }, { " " } }
+                        vim.list_extend(chunks, res.chunks)
                         ---@type keystone.Picker.Item
                         local item = {
-                            label_chunks = res.chunks,
+                            label_chunks = chunks,
                             score = res.score,
                             data = {
                                 filepath = filepath,
