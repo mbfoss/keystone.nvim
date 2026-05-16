@@ -1,7 +1,5 @@
 local M = {}
 
-local fsutils = require("keystone.utils.fsutils")
-
 ---@param winid number?
 function M.get_window_text_width(winid)
     if not winid or winid == 0 then winid = vim.api.nvim_get_current_win() end
@@ -129,19 +127,6 @@ function M.smart_open_file(filepath, line, col)
 
     M.set_cursor_pos(winid, line, col)
     return winid, bufnr
-end
-
----@param filepath  string
----@return boolean success
----@return string content or error
-function M.read_file_or_buffer(filepath)
-    local full_path = vim.fn.fnamemodify(filepath, ":p")
-    local bufnr = vim.fn.bufnr(full_path, false) -- false = don't create
-
-    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
-        return true, table.concat(vim.api.nvim_buf_get_lines(bufnr, 0, -1, false), '\n')
-    end
-    return fsutils.read_content(full_path)
 end
 
 ---@param bufnr number

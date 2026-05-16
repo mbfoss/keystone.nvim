@@ -95,7 +95,7 @@ OTHER
     }
 
     floatwin.open(table.concat(help_text, "\n"), {
-        title = " File Tree Help ",
+        title = "File Tree",
         is_markdown = true,
     })
 end

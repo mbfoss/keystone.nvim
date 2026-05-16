@@ -1,3 +1,4 @@
+local uitools = require "keystone.utils.uitools"
 local M = {}
 
 ---@class keystone.utils.inputwin.Opts
@@ -34,7 +35,8 @@ function M.open(opts, on_confirm)
     local max_height = math.floor(vim.o.lines * 0.8)
     local current_height = 1
 
-    local win = vim.api.nvim_open_win(buf, true, {
+    local win, win_augroup
+    win, win_augroup = uitools.create_window(buf, true, {
         relative = "cursor",
         row = opts.row_offset or 1,
         col = opts.col_offset or 0,
@@ -43,15 +45,17 @@ function M.open(opts, on_confirm)
         style = "minimal",
         border = "rounded",
         title = opts.prompt and (" %s "):format(opts.prompt) or nil
-    })
+    }, function()
+        win, win_augroup = nil, nil
+    end)
 
     vim.wo[win].wrap = true
     vim.wo[win].winfixbuf = true
     vim.wo[win].winhighlight = "Normal:Normal,NormalNC:Normal,EndOfBuffer:Normal,FloatBorder:Normal"
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { initial_text })
 
-    local col = #initial_text
-    vim.api.nvim_win_set_cursor(win, { 1, col })
+    local initial_col = #initial_text
+    vim.api.nvim_win_set_cursor(win, { 1, initial_col })
     vim.schedule(function()
         if vim.api.nvim_get_current_win() == win then
             vim.api.nvim_win_call(win, function()
@@ -106,7 +110,7 @@ function M.open(opts, on_confirm)
     local closed = false
     ---@param value string|nil
     local function close(value)
-        if closed then return end
+        if closed or not win then return end
         if value and opts.validate then
             local validated, err_msg = opts.validate(value)
             if not validated and err_msg then
@@ -116,9 +120,7 @@ function M.open(opts, on_confirm)
         end
         closed = true
         vim.cmd("stopinsert")
-        if vim.api.nvim_win_is_valid(win) then
-            vim.api.nvim_win_close(win, true)
-        end
+        vim.api.nvim_win_close(win, true)
         if vim.api.nvim_win_is_valid(prev_win) then
             vim.api.nvim_set_current_win(prev_win)
         end
@@ -134,9 +136,11 @@ function M.open(opts, on_confirm)
         end, kopts)
     end
 
+    assert(win_augroup)
     vim.api.nvim_create_autocmd("WinLeave", {
+        group = win_augroup,
         once = true,
-        callback = function() close(nil) end,
+        callback = close,
     })
 end
 

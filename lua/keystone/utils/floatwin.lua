@@ -1,11 +1,8 @@
+local uitools = require "keystone.utils.uitools"
 ---@class keystone.utils.floatwin
 ---@field _complete_cache? string[]
 ---@field _complete_buf? integer
 local M = {}
-
-local debug_win_augroup = vim.api.nvim_create_augroup("keystone_modalwin", { clear = true })
-local _current_win = nil
-
 
 ---@class keystone.floatwin.FloatwinOpts
 ---@field title? string
@@ -36,7 +33,7 @@ local function _open_hoverwindow(text)
         once     = true,
         callback = function()
             if vim.api.nvim_win_is_valid(winnr) then
-                vim.api.nvim_win_close(winnr, true)
+                vim.api.nvim_win_close(winnr, false)
             end
         end,
     })
@@ -49,10 +46,6 @@ function M.open(text, opts)
     if opts.is_hover then
         _open_hoverwindow(text)
         return
-    end
-
-    if _current_win and vim.api.nvim_win_is_valid(_current_win) then
-        vim.api.nvim_win_close(_current_win, true)
     end
 
     local lines = vim.split(text, "\n", { trimempty = false })
@@ -89,10 +82,25 @@ function M.open(text, opts)
 
     vim.bo[buf].modifiable = false
     vim.bo[buf].bufhidden = "wipe"
-    local win = vim.api.nvim_open_win(buf, true, win_opts)
-    _current_win = win
+
+    local win, win_augroup
+    win, win_augroup = uitools.create_window(buf, true, win_opts, function()
+        win, win_augroup = nil, nil
+    end)
+    local function close()
+        if win then
+            vim.api.nvim_win_close(win, true)
+        end
+    end
+    vim.api.nvim_create_autocmd("WinLeave", {
+        group = win_augroup,
+        once = true,
+        callback = close,
+    })
+
     vim.wo[win].wrap = false
     vim.wo[win].winfixbuf = true
+    vim.wo[win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
 
     if opts.is_markdown then
         vim.bo[buf].filetype = "markdown"
@@ -103,22 +111,10 @@ function M.open(text, opts)
         vim.wo[win].conceallevel = 3
         vim.wo[win].concealcursor = "nv"
     end
-    local function close_modal()
-        if vim.api.nvim_win_is_valid(win) then
-            vim.api.nvim_win_close(win, true)
-        end
-        _current_win = nil
-    end
 
     local key_opts = { buffer = buf, silent = true }
-    vim.keymap.set("n", "q", close_modal, key_opts)
-    vim.keymap.set("n", "<Esc>", close_modal, key_opts)
-
-    vim.api.nvim_create_autocmd("WinLeave", {
-        group = debug_win_augroup,
-        once = true,
-        callback = close_modal,
-    })
+    vim.keymap.set("n", "q", close, key_opts)
+    vim.keymap.set("n", "<Esc>", close, key_opts)
 
     if opts.move_to_bot then
         vim.api.nvim_win_call(win, function()

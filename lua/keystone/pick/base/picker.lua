@@ -3,6 +3,7 @@ local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
 local uitools    = require("keystone.utils.uitools")
+local floatwin   = require("keystone.utils.floatwin")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -83,6 +84,28 @@ local _antiflicker_delay = 200
 ---@field preview_col number
 ---@field preview_width number
 ---@field preview_height number
+
+
+local function _show_help()
+    local help_text = [[
+`<CR>`        Confirm
+`<Esc>`       Close picker
+`<C-n>`       Next item
+`<C-p>`       Previous item
+`<C-d>`       Scroll down half page
+`<C-u>`       Scroll up half page
+`<C-j>`       Next search history entry
+`<C-k>`       Previous search history entry
+`<C-t>`       Toggle preview window
+`<C-q>`       Send results to quickfix list
+`<C-r><C-w>`  Insert original <cword>
+`g?`          Show help
+]]
+    floatwin.open(help_text, {
+        title = "Picker",
+        is_markdown = true,
+    })
+end
 
 local function _key_opts_of(buf)
     assert(buf and vim.api.nvim_buf_is_valid(buf))
@@ -1006,6 +1029,8 @@ end
 function Picker:setup_input()
     do
         local pbuf_key_opts = _key_opts_of(self.pbuf)
+        vim.keymap.set("n", "g?", _show_help, pbuf_key_opts)
+
         vim.keymap.set({ "i", "n" }, "<CR>", function() self:confirm() end, pbuf_key_opts)
 
         vim.keymap.set("n", "<Esc>", function() self:close() end, pbuf_key_opts)
