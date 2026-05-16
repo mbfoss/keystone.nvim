@@ -3,17 +3,18 @@ local class = require("keystone.utils.class")
 ---@class keystone.TrackerRef
 ---@field cancel fun()
 
----@class keystone.utils.Trackers
----@field new fun(self: keystone.utils.Trackers) : keystone.utils.Trackers
+---@generic T : table<string, function>
+---@class keystone.utils.Trackers<T>
+---@field new fun(self: keystone.utils.Trackers<T>) : keystone.utils.Trackers<T>
 ---@field private _next_id integer
----@field private _items table<integer, table>
+---@field private _items table<integer, T>
 local Trackers = class()
 
-local function _pcall_async_report(fn, ...)
+local function _safe_call(fn, ...)
     local ok, err = xpcall(fn, debug.traceback, ...)
     if not ok then
         vim.schedule(function()
-            vim.api.nvim_echo({ { "[Error] " .. tostring(err), "ErrorMsg" } }, true, {})
+            vim.api.nvim_echo({ { "[Error] " .. tostring(err), "ErrorMsg" } }, true, { err = true })
         end)
     end
 
@@ -25,7 +26,7 @@ function Trackers:init()
     self._items = {}
 end
 
----@param callbacks table
+---@param callbacks T
 ---@return keystone.TrackerRef
 function Trackers:add_tracker(callbacks)
     local id = self._next_id + 1
@@ -47,7 +48,7 @@ function Trackers:_invoke(callback_name, ...)
         local t = self._items[k]
         local fn = t and t[callback_name]
         if fn then
-            _pcall_async_report(fn, ...)
+            _safe_call(fn, ...)
         end
     end
 end

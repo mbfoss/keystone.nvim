@@ -7,7 +7,6 @@ local M = {}
 ---@field default_width? number
 ---@field row_offset? number
 ---@field col_offset? number
----@field completions? string[]
 ---@field validate? fun(content:string):boolean,string?
 ---@
 ---@param opts keystone.utils.inputwin.Opts
@@ -63,11 +62,6 @@ function M.open(opts, on_confirm)
             end)
         end
     end)
-    if opts.completions and #opts.completions > 0 then
-        vim.bo[buf].omnifunc = 'v:lua.require("keystone.utils.inputwin")._complete'
-        M._complete_cache = opts.completions
-        M._complete_buf = buf
-    end
     vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
         buffer = buf,
         callback = function()
@@ -89,20 +83,6 @@ function M.open(opts, on_confirm)
                 if new_height ~= current_height then
                     current_height = new_height
                     vim.api.nvim_win_set_config(win, { height = current_height })
-                end
-            end
-        end
-    })
-    vim.api.nvim_create_autocmd("TextChangedI", {
-        buffer = buf,
-        callback = function()
-            if opts.completions and #opts.completions > 0 then
-                local line = vim.api.nvim_get_current_line()
-                local col = vim.fn.col(".")
-                local base = line:sub(1, col - 1)
-                local matches = M._complete(1, base)
-                if matches and #matches > 0 then
-                    vim.fn.complete(col, matches)
                 end
             end
         end
@@ -130,11 +110,6 @@ function M.open(opts, on_confirm)
     vim.keymap.set({ "i", "n" }, "<CR>", function() close(vim.api.nvim_get_current_line()) end, kopts)
     vim.keymap.set("i", "<C-c>", function() close(nil) end, kopts)
     vim.keymap.set("n", "<Esc>", function() close(nil) end, kopts)
-    if opts.completions and #opts.completions > 0 then
-        vim.keymap.set("i", "<C-x><C-o>", function()
-            vim.fn.feedkeys(vim.api.nvim_replace_termcodes("<C-x><C-o>", true, true, true), "n")
-        end, kopts)
-    end
 
     assert(win_augroup)
     vim.api.nvim_create_autocmd("WinLeave", {
@@ -142,20 +117,6 @@ function M.open(opts, on_confirm)
         once = true,
         callback = close,
     })
-end
-
----@param findstart integer
----@param base string
----@return string[]
-function M._complete(findstart, base)
-    local completions = M._complete_cache or {}
-    local matches = {}
-    for _, item in ipairs(completions) do
-        if vim.startswith(item, base) then
-            table.insert(matches, item)
-        end
-    end
-    return matches
 end
 
 return M

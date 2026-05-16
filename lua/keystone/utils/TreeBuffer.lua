@@ -1,6 +1,7 @@
 local class = require('keystone.utils.class')
-local ScratchBuffer = require('keystone.utils.ScratchBuffer')
 local Tree = require("keystone.utils.Tree")
+local uitools = require("keystone.utils.uitools")
+local Trackers = require("keystone.utils.Trackers")
 
 ---@class keystone.TreeBuffer.Item
 ---@field id any
@@ -39,15 +40,15 @@ local Tree = require("keystone.utils.Tree")
 ---@field collapse_char string?
 ---@field indent_string string?
 
----@class keystone.TreeBuffer.Tracker : keystone.Tracker
+---@class keystone.TreeBuffer.Tracker
 ---@field on_selection? fun(id:any,data:any)
 ---@field on_toggle? fun(id:any,data:any,expanded:boolean)
 
 local _ns_id = vim.api.nvim_create_namespace('keystoneTreeBuffer')
 
----@class keystone.TreeBuffer:keystone.ScratchBuffer
+---@class keystone.TreeBuffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBuffer.Opts): keystone.TreeBuffer
-local TreeBuffer = class(ScratchBuffer)
+local TreeBuffer = class()
 
 ---@param item keystone.TreeBuffer.ItemDef
 ---@return keystone.TreeBuffer.ItemData
@@ -100,21 +101,8 @@ end
 
 ---@param opts keystone.TreeBuffer.Opts
 function TreeBuffer:init(opts)
-    ScratchBuffer.init(self, {
-        bo = {
-            buftype = "nofile",
-            bufhidden = "wipe",
-            filetype = opts.filetype or "keystone-tree",
-            modifiable = false,
-            swapfile = false,
-            undolevels = -1,
-            buflisted = false,
-            modeline = false,
-            spelloptions = "noplainbuffer",
-        }
-    })
-    ---@type keystone.TreeBuffer.FormatterFn
-    self._formatter = opts.formatter
+    self._filetype = opts.filetype
+    self._formatter = opts.formatter ---@type keystone.TreeBuffer.FormatterFn
     self._expand_char = opts.expand_char or "▶"
     self._collapse_char = opts.collapse_char or "▼"
     self._indent_string = opts.indent_string or "  "
@@ -124,24 +112,45 @@ function TreeBuffer:init(opts)
         self._indent_cache[i] = string.rep(opts.indent_string or "  ", i)
     end
 
+    self._trackers = Trackers:new() ---@type keystone.utils.Trackers<keystone.TreeBuffer.Tracker>
+
+    self._bufnr = -1
     self._tree = Tree:new()
 
     ---@type number[]
     self._flat_ids = {}
     ---@type table<any, number>
     self._id_to_idx = {}
-
-    self:add_tracker({
-        on_loaded = function()
-            self:_setup_tree_buf()
-        end
-    })
 end
 
----@private
-function TreeBuffer:_setup_tree_buf()
-    local buf = self:get_bufnr()
-    if buf == -1 then return end
+---@return integer
+function TreeBuffer:get_bufnr()
+    return self._bufnr
+end
+
+---@param on_deleted function
+---@return integer bufnr, boolean created
+function TreeBuffer:create_buffer(on_deleted)
+    if self._bufnr and self._bufnr ~= -1 then
+        return self._bufnr, false
+    end
+
+    self._bufnr = uitools.create_sratch_buffer(false, {
+            buftype = "nofile",
+            bufhidden = "wipe",
+            filetype = self._filetype or "keystone-tree",
+            modifiable = false,
+            swapfile = false,
+            undolevels = -1,
+            buflisted = false,
+            modeline = false,
+            spelloptions = "noplainbuffer",
+        }
+        ,
+        function()
+            self._bufnr = -1
+            on_deleted()
+        end)
 
     self:_full_render()
 
@@ -198,9 +207,12 @@ function TreeBuffer:_setup_tree_buf()
         ["zO"] = { callbacks.expand_recursive, "Expand all nodes under cursor" },
         ["zC"] = { callbacks.collapse_recursive, "Collapse all nodes under cursor" },
     }
+    assert(self._bufnr > 0)
     for key, map in pairs(keymaps) do
-        self:set_keymap("n", key, map[1], { desc = map[2] })
+        vim.keymap.set("n", key, map[1], { buffer = self._bufnr, desc = map[2] })
     end
+
+    return self._bufnr, true
 end
 
 ---@param callbacks keystone.TreeBuffer.Tracker

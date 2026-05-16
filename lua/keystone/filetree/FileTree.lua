@@ -132,22 +132,16 @@ function FileTree:init(opts)
 end
 
 function FileTree:_setup_tree()
-    assert(not self._tree)
+    assert(not self._treebuf)
 
-    self._tree = TreeBuffer:new({
+    self._treebuf = TreeBuffer:new({
         formatter = function(id, data)
             return _file_formatter(id, data)
         end,
         --header_enabled = true,
     })
 
-    self._tree:add_tracker({
-        on_create = function()
-            self:_on_buffer_create()
-        end,
-        on_delete = function()
-            self:_on_buffer_delete()
-        end,
+    self._treebuf:add_tracker({
         on_selection = function(id, data)
             if not data.is_dir and fsutils.file_exists(data.path) then
                 uitools.smart_open_file(data.path)
@@ -163,13 +157,10 @@ function FileTree:_setup_tree()
                 end
             end
         end,
-        on_loaded = function()
-            self:_setup_keymaps()
-        end
     })
 end
 
-function FileTree:_on_buffer_create()
+function FileTree:_on_buffer_created()
     assert(not self._bufenter_autocmd_id)
     assert(not self._dirchanged_autocmd_id)
     assert(not self._cancel_viewport_timer)
@@ -177,7 +168,7 @@ function FileTree:_on_buffer_create()
     local track_config = self._opts.track_current_file or {}
     local track_collapse_others = track_config.auto_collapse_others ~= false
     local on_buffer_enter = function()
-        if self._tree:get_bufnr() == -1 then
+        if self._treebuf:get_bufnr() == -1 then
             return
         end
         local buf = vim.api.nvim_get_current_buf()
@@ -213,7 +204,7 @@ function FileTree:_on_buffer_create()
     self:_set_root(self._opts.dir or vim.fn.getcwd())
 end
 
-function FileTree:_on_buffer_delete()
+function FileTree:_on_buffer_deleted()
     if self._bufenter_autocmd_id then
         vim.api.nvim_del_autocmd(self._bufenter_autocmd_id)
         self._bufenter_autocmd_id = nil
@@ -235,7 +226,7 @@ end
 function FileTree:_get_viewport_monitor_fn()
     local lastwinid, topline, botline, toggle_counter
     return function()
-        local buf = self._tree:get_bufnr()
+        local buf = self._treebuf:get_bufnr()
         if buf <= 0 then return end
 
         local winid = vim.fn.bufwinid(buf)
@@ -246,10 +237,10 @@ function FileTree:_get_viewport_monitor_fn()
         if winid ~= lastwinid or info.topline ~= topline or info.botline ~= botline or toggle_counter ~= self._toggle_counter then
             lastwinid, topline, botline, toggle_counter = winid, info.topline, info.botline, self._toggle_counter
 
-            local visible_items = self._tree:get_visible_items(winid)
+            local visible_items = self._treebuf:get_visible_items(winid)
             local active_folders = {}
             for _, item in ipairs(visible_items) do
-                local parent = self._tree:get_parent_item(item.id)
+                local parent = self._treebuf:get_parent_item(item.id)
                 if parent then
                     active_folders[parent.data.path] = true
                 end
@@ -271,10 +262,16 @@ function FileTree:_get_viewport_monitor_fn()
     end
 end
 
----@private
-function FileTree:_setup_keymaps()
+---@return integer bufr
+function FileTree:create_buffer()
+    local bufnr, created = self._treebuf:create_buffer(function()
+        self:_on_buffer_deleted()
+    end)
+
+    if not created then return bufnr end
+
     local function with_item(fn)
-        local item = self._tree:get_cursor_item()
+        local item = self._treebuf:get_cursor_item()
         if item then fn(item) end
     end
 
@@ -335,22 +332,18 @@ function FileTree:_setup_keymaps()
         },
     }
 
+    assert(bufnr > 0)
     for key, map in pairs(keymaps) do
-        self._tree:set_keymap("n", key, map[1], { desc = map[2] })
+        vim.api.nvim_buf_set_keymap(bufnr, "n", key, "", { callback = map[1], desc = map[2] })
     end
-end
 
----@return boolean
-function FileTree:create_buffer()
-    return self._tree:create()
-end
+    self:_on_buffer_created()
 
-function FileTree:delete_buffer()
-    self._tree:delete()
+    return bufnr
 end
 
 function FileTree:get_bufnr()
-    return self._tree:get_bufnr()
+    return self._treebuf:get_bufnr()
 end
 
 ---@param rel string
@@ -377,7 +370,7 @@ function FileTree:_start_dir_monitor(path)
         local reload_counter = self._reload_counter
         ---@type keystone.FileTree.ProcessDirEntry[]
         if reload_counter ~= self._reload_counter then return end
-        if self._tree:get_bufnr() ~= -1 then
+        if self._treebuf:get_bufnr() ~= -1 then
             self:_read_dir(path, reload_counter, false)
         end
     end)
@@ -417,7 +410,7 @@ end
 
 function FileTree:_clear()
     self:_clear_all_monitors()
-    self._tree:clear_items()
+    self._treebuf:clear_items()
 end
 
 function FileTree:_reload()
@@ -432,15 +425,15 @@ function FileTree:_reload()
             id = _error_node_id,
             data = { path = "", name = error_msg, is_dir = false, icon = "⚠", icon_hl = "WarningMsg" }
         }
-        self._tree:add_item(nil, root_item)
+        self._treebuf:add_item(nil, root_item)
         return
     end
 
-    self._tree:remove_item(_error_node_id)
+    self._treebuf:remove_item(_error_node_id)
 
-    --self._tree:set_header({{path, "Winbar"}})
+    --self._treebuf:set_header({{path, "Winbar"}})
 
-    if not self._tree:have_item(path) then
+    if not self._treebuf:have_item(path) then
         local icon, iconhl = self:_get_icon_for_node(path, true, false)
         local root_item = {
             id = path,
@@ -454,7 +447,7 @@ function FileTree:_reload()
                 icon_hl = iconhl
             }
         }
-        self._tree:add_item(nil, root_item)
+        self._treebuf:add_item(nil, root_item)
     end
 
     self:_read_dir(path, self._reload_counter, true)
@@ -483,20 +476,20 @@ function FileTree:_upsert_single_item(parent_id, item)
     if not root then return end
     local data = item.data ---@type keystone.FileTree.ItemData
     do
-        local existing = self._tree:get_item(item.id)
+        local existing = self._treebuf:get_item(item.id)
         if existing then
             local type_changed = (data.is_dir ~= existing.data.is_dir)
             if not type_changed then
                 if data.is_link ~= existing.data.is_link then
                     existing.data.is_link = data.is_link
-                    self._tree:refresh_item(item.id)
+                    self._treebuf:refresh_item(item.id)
                 end
                 return -- nothing to do if name did not change
             end
-            self._tree:remove_item(item.id)
+            self._treebuf:remove_item(item.id)
         end
     end
-    local siblings = self._tree:get_children(parent_id)
+    local siblings = self._treebuf:get_children(parent_id)
     local insert_target_id = nil
     local insert_before = false
     for _, sibling in ipairs(siblings) do
@@ -515,9 +508,9 @@ function FileTree:_upsert_single_item(parent_id, item)
         end
     end
     if insert_target_id then
-        self._tree:add_sibling(insert_target_id, item, insert_before)
+        self._treebuf:add_sibling(insert_target_id, item, insert_before)
     else
-        self._tree:add_item(parent_id, item)
+        self._treebuf:add_item(parent_id, item)
     end
 end
 
@@ -590,7 +583,7 @@ function FileTree:_read_dir(path, reload_counter, recursive)
     if reload_counter ~= self._reload_counter then return end
 
 
-    local item = self._tree:get_item(path)
+    local item = self._treebuf:get_item(path)
     if not item then return end
     ---@type keystone.FileTree.ItemData
     local data = item.data
@@ -598,10 +591,10 @@ function FileTree:_read_dir(path, reload_counter, recursive)
         local realpath = vim.uv.fs_realpath(path)
         if realpath then
             local normalized = vim.fs.normalize(realpath)
-            if normalized ~= path and self._tree:have_item(normalized) then
+            if normalized ~= path and self._treebuf:have_item(normalized) then
                 data.error_flag = true
                 data.error_icon = "↺"
-                self._tree:refresh_item(path)
+                self._treebuf:refresh_item(path)
                 return -- do not scan to avoid infinite recursion
             end
         end
@@ -634,7 +627,7 @@ function FileTree:_read_dir(path, reload_counter, recursive)
                     end)
                 end
                 if recursive then
-                    for _, child in ipairs(self._tree:get_children(path)) do
+                    for _, child in ipairs(self._treebuf:get_children(path)) do
                         ---@type keystone.FileTree.ItemData
                         local child_data = child.data
                         local child_path = child_data.path
@@ -656,12 +649,12 @@ end
 function FileTree:_process_dir(path, entries, error_flag)
     local root = self._root
     if not root then return end
-    local parent_item = self._tree:get_item(path)
+    local parent_item = self._treebuf:get_item(path)
     if not parent_item then return end
 
     if error_flag then
         parent_item.data.error_flag = true
-        self._tree:refresh_item(path)
+        self._treebuf:refresh_item(path)
     end
     local new_entries_map = {} ---@type table<string, keystone.FileTree.UpsetSingleItemArgs>
     for _, entry in ipairs(entries) do
@@ -675,10 +668,10 @@ function FileTree:_process_dir(path, entries, error_flag)
             is_link = entry.is_link,
         }
     end
-    local current_children = self._tree:get_children(path)
+    local current_children = self._treebuf:get_children(path)
     for _, child in ipairs(current_children) do
         if not new_entries_map[child.id] then
-            self._tree:remove_item(child.id)
+            self._treebuf:remove_item(child.id)
         end
     end
 
@@ -718,7 +711,7 @@ function FileTree:_process_dir(path, entries, error_flag)
             if a.data.is_dir ~= b.data.is_dir then return a.data.is_dir end
             return a.data.loname < b.data.loname
         end)
-        self._tree:set_children(path, children)
+        self._treebuf:set_children(path, children)
     end
 end
 
@@ -742,19 +735,19 @@ function FileTree:_reveal(path, collapse_others, set_current)
     if not rel then return end
 
     if collapse_others then
-        for _, item in ipairs(self._tree:get_items()) do
+        for _, item in ipairs(self._treebuf:get_items()) do
             if item.id ~= root and item.expanded then
                 if not vim.startswith(path, item.id) then
-                    self._tree:collapse(item.id)
+                    self._treebuf:collapse(item.id)
                 end
             end
         end
     end
     if self._last_revealed_id then
-        local old = self._tree:get_item(self._last_revealed_id)
+        local old = self._treebuf:get_item(self._last_revealed_id)
         if old then
             old.data.is_current = false
-            self._tree:refresh_item(old.id)
+            self._treebuf:refresh_item(old.id)
         end
         self._last_revealed_id = nil
     end
@@ -779,13 +772,13 @@ function FileTree:_reveal_step()
         local idx = state.idx
 
         if idx > #state.parts then
-            self._tree:set_cursor_by_id(parent)
+            self._treebuf:set_cursor_by_id(parent)
 
             if state.set_current then
-                local item = self._tree:get_item(parent)
+                local item = self._treebuf:get_item(parent)
                 if item then
                     item.data.is_current = true
-                    self._tree:refresh_item(parent)
+                    self._treebuf:refresh_item(parent)
                     self._last_revealed_id = parent
                 end
             end
@@ -794,18 +787,18 @@ function FileTree:_reveal_step()
         end
 
         local next_path = vim.fs.joinpath(parent, state.parts[idx])
-        local parent_item = self._tree:get_item(parent)
+        local parent_item = self._treebuf:get_item(parent)
         if not parent_item then
             self._pending_reveal = nil
             return
         end
         if not parent_item.expanded then
-            self._tree:expand(parent)
+            self._treebuf:expand(parent)
         end
         if parent_item.data.children_loading then
             return -- just stop, will resume later
         end
-        if not self._tree:have_item(next_path) then
+        if not self._treebuf:have_item(next_path) then
             self._pending_reveal = nil
             return
         end
@@ -865,7 +858,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
         function(name)
             if not name or name == "" then return end
             if reload_counter ~= self._reload_counter then return end
-            if not self._tree:get_item(path) then return end
+            if not self._treebuf:get_item(path) then return end
 
             local new_path = vim.fs.joinpath(base_dir, name)
             if as_dir then
@@ -917,7 +910,7 @@ function FileTree:_rename_node(item)
         function(new_name)
             if not new_name or new_name == "" then return end
             if reload_counter ~= self._reload_counter then return end
-            if not self._tree:get_item(old_path) then return end
+            if not self._treebuf:get_item(old_path) then return end
             local new_path = vim.fs.joinpath(parent_dir, new_name)
             local ok, err = fsutils.rename_file(old_path, new_path)
             if ok then
@@ -943,7 +936,7 @@ function FileTree:_delete_node(item)
     uitools.confirm_action(("Permanently delete %s?\n%s"):format(type_str, path), false, function(confirmed)
         if not confirmed then return end
         if reload_counter ~= self._reload_counter then return end
-        if not self._tree:get_item(path) then return end
+        if not self._treebuf:get_item(path) then return end
         local success, err_msg = os.remove(path)
         self:_read_dir(parent_dir, self._reload_counter, false)
         if not success then
@@ -967,7 +960,7 @@ function FileTree:_delete_dir_recursive(item)
     local reload_counter = self._reload_counter
     uitools.confirm_action("Permanently delete directory and all its contents?\n" .. path, false, function(confirmed)
         if not confirmed or reload_counter ~= self._reload_counter then return end
-        if not self._tree:get_item(path) then return end
+        if not self._treebuf:get_item(path) then return end
         local success = vim.fn.delete(path, "rf")
         if success == 0 then
             self:_read_dir(parent_dir, self._reload_counter, false)
@@ -992,7 +985,7 @@ function FileTree:set_persistent_state(state)
         end
     end
     if type(state.current) == "string" then
-        if not self._tree:set_cursor_by_id(state.current) then
+        if not self._treebuf:set_cursor_by_id(state.current) then
             self._pending_selection = state.current
         end
     end
@@ -1013,13 +1006,13 @@ function FileTree:get_persistent_state()
             expanded_map[parent.id] = true
             expanded_count = expanded_count + 1
             if expanded_count > 200 then return end -- limit persistence stored data
-            for _, child in ipairs(self._tree:get_children(parent.id)) do
+            for _, child in ipairs(self._treebuf:get_children(parent.id)) do
                 walk(child)
             end
         end
     end
     do
-        local root_item = self._tree:get_item(root)
+        local root_item = self._treebuf:get_item(root)
         if root_item then walk(root_item) end
     end
 
@@ -1030,7 +1023,7 @@ function FileTree:get_persistent_state()
             table.insert(expanded, rel)
         end
     end
-    local cursor_item = self._tree:get_cursor_item()
+    local cursor_item = self._treebuf:get_cursor_item()
     if cursor_item and cursor_item.id then
         self._last_saved_cursor = cursor_item.id
     end

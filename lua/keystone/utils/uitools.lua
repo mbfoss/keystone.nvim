@@ -278,4 +278,27 @@ function M.create_window(buffer, enter, config, on_close)
     return win, augroup
 end
 
+---@param listed boolean
+---@param bo vim.bo?
+---@param on_delete function
+function M.create_sratch_buffer(listed, bo, on_delete)
+    local buf = vim.api.nvim_create_buf(listed, true)
+    if bo then
+        for k, v in pairs(bo) do
+            vim.bo[buf][k] = v
+        end
+    end
+    if not bo or not bo.bufhidden then
+        vim.bo[buf].bufhidden = 'wipe'
+    end
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+        buffer = buf,
+        once = true,
+        callback = function(ev)
+            on_delete()
+        end,
+    })
+    return buf
+end
+
 return M
