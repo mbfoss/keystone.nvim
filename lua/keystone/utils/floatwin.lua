@@ -100,7 +100,7 @@ function M.open(text, opts)
 
     vim.wo[win].wrap = false
     vim.wo[win].winfixbuf = true
-    vim.wo[win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
+    vim.wo[win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder,FloatTitle:FloatTitle"
 
     if opts.is_markdown then
         vim.bo[buf].filetype = "markdown"
