@@ -2,6 +2,7 @@
 
 ---@class GitStatusEntry
 ---@field path string
+---@field modified string
 ---@field staged boolean
 ---@field unstaged boolean
 ---@field untracked boolean
@@ -40,25 +41,60 @@ local function parse_porcelain_z(entries)
     while i <= #entries do
         local entry = entries[i]
 
-        if #entry >= 4 then
-            local staged_char = entry:sub(1, 1)
-            local unstaged_char = entry:sub(2, 2)
+        if #entry >= 3 then
+            local index_status = entry:sub(1, 1)
+            local worktree_status = entry:sub(2, 2)
+
             local path = entry:sub(4)
 
-            if staged_char == "R" or staged_char == "C" or unstaged_char == "R" or unstaged_char == "C" then
-                i = i + 1
-                path = entries[i]
+            local is_rename_or_copy =
+                index_status == "R"
+                or index_status == "C"
+                or worktree_status == "R"
+                or worktree_status == "C"
+
+            if is_rename_or_copy then
+                local dst = entries[i + 1]
+
+                if dst then
+                    path = dst
+                    i = i + 1
+                end
             end
 
             table.insert(parsed, {
                 path = path,
-                staged = staged_char ~= " " and staged_char ~= "?" and staged_char ~= "!",
-                unstaged = unstaged_char ~= " " and unstaged_char ~= "?",
-                untracked = staged_char == "?" and unstaged_char == "?",
-                ignored = staged_char == "!" and unstaged_char == "!",
+
+                index_status = index_status,
+                worktree_status = worktree_status,
+
+                staged = index_status ~= " "
+                    and index_status ~= "?"
+                    and index_status ~= "!",
+
+                unstaged = worktree_status ~= " "
+                    and worktree_status ~= "?"
+                    and worktree_status ~= "!",
+
+                modified =
+                    (index_status == "M" or worktree_status == "M")
+                    and not (
+                        index_status == "?"
+                        or worktree_status == "?"
+                        or index_status == "!"
+                        or worktree_status == "!"
+                    ),
+
+                untracked = index_status == "?"
+                    and worktree_status == "?",
+
+                ignored = index_status == "!"
+                    and worktree_status == "!",
+
                 raw = entry,
             })
         end
+
         i = i + 1
     end
 
@@ -71,7 +107,7 @@ function M.open()
 
     local result = vim.system(
         { "git", "status", "--porcelain=v1", "-z" },
-        { text = true }
+        { true }
     ):wait()
 
     if result.code ~= 0 then
@@ -88,7 +124,19 @@ function M.open()
         return
     end
 
-    local raw_entries = vim.split(result.stdout or "", "\0", { trimempty = true })
+    local raw_output = result.stdout or ""
+    local raw_entries = {}
+
+    local start = 1
+    while true do
+        local nxt = raw_output:find("\0", start, true)
+        if not nxt then break end
+
+        local entry = raw_output:sub(start, nxt - 1)
+        table.insert(raw_entries, entry)
+        start = nxt + 1
+    end
+
     local parsed = parse_porcelain_z(raw_entries)
 
     if #parsed == 0 then
@@ -99,6 +147,7 @@ function M.open()
     local max_flags = 1
     for _, entry in ipairs(parsed) do
         local count = 0
+        if entry.modified then count = count + 1 end
         if entry.staged then count = count + 1 end
         if entry.unstaged then count = count + 1 end
         if entry.untracked then count = count + 1 end
@@ -126,17 +175,20 @@ function M.open()
                     local chunks = {}
                     local active_flags = {}
 
+                    if entry.modified then
+                        table.insert(active_flags, { "[M]", "DiagnosticHint" })
+                    end
                     if entry.staged then
-                        table.insert(active_flags, { text = "[S]", hl = "DiagnosticOk" })
+                        table.insert(active_flags, { "[S]", "DiagnosticOk" })
                     end
                     if entry.unstaged then
-                        table.insert(active_flags, { text = "[U]", hl = "DiagnosticWarn" })
+                        table.insert(active_flags, { "[U]", "DiagnosticWarn" })
                     end
                     if entry.untracked then
-                        table.insert(active_flags, { text = "[?]", hl = "DiagnosticInfo" })
+                        table.insert(active_flags, { "[?]", "DiagnosticInfo" })
                     end
                     if entry.ignored then
-                        table.insert(active_flags, { text = "[I]", hl = "Comment" })
+                        table.insert(active_flags, { "[I]", "Comment" })
                     end
 
                     for _, flag in ipairs(active_flags) do
@@ -145,10 +197,10 @@ function M.open()
 
                     local padding = max_flags - #active_flags
                     if padding > 0 then
-                        table.insert(chunks, { text = string.rep("   ", padding), hl = "Normal" })
+                        table.insert(chunks, { string.rep("   ", padding), "Normal" })
                     end
 
-                    table.insert(chunks, { text = " ", hl = "Normal" })
+                    table.insert(chunks, { " ", "Normal" })
 
                     vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
