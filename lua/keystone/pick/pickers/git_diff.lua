@@ -68,28 +68,28 @@ function M.open()
                 local res = pickertools.match_label(path, query)
 
                 if res then
-                    local prefix = {}
+                    local chunks = {}
                     if entry.staged then
-                        table.insert(prefix, {
+                        table.insert(chunks, {
                             text = "[S] ",
                             hl = "DiagnosticOk",
                         })
                     end
                     if entry.unstaged then
-                        table.insert(prefix, {
+                        table.insert(chunks, {
                             text = "[U] ",
                             hl = "DiagnosticWarn",
                         })
                     end
                     if entry.untracked then
-                        table.insert(prefix, {
+                        table.insert(chunks, {
                             text = "[?] ",
                             hl = "DiagnosticInfo",
                         })
                     end
+                    vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
-                        prefix_chunks = prefix,
-                        label_chunks = res.chunks,
+                        label_chunks = chunks,
                         score = res.score,
                         data = entry,
                     })
