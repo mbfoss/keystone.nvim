@@ -54,10 +54,9 @@ function M.open()
             end,
 
             async_preview = function(data, opts, callback)
-                local viewport_height = opts.viewport_height or 20
                 local hunk = data.hunk
                 -- amount of surrounding context to show
-                local context = math.max(math.floor((viewport_height - #hunk.lines) / 2), 2)
+                local context = math.max(math.floor((opts.viewport_height - #hunk.lines) / 2), 2)
                 local start_line = hunk.added.start
                 local end_line = start_line + math.max(hunk.added.count - 1, 0)
                 -- fetch surrounding buffer lines

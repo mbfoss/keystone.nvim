@@ -40,8 +40,8 @@ local _antiflicker_delay = 200
 ---@alias keystone.Explorer.AsyncFetcher fun(path:string[],opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
 
 ---@class keystone.Explorer.AsyncPreviewOpts
----@field viewport_width number?
----@field viewport_height number?
+---@field viewport_width number
+---@field viewport_height number
 
 ---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
 ---@alias keystone.Explorer.AsyncPreviewLoader fun(path:string[], opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
@@ -165,7 +165,7 @@ local function _center_for_previewer(msg, width, height)
 end
 
 ---@type keystone.Explorer.AsyncPreviewLoader
-local function _default_preview(path, _, callback)
+local function _default_preview(path, preview_opts, callback)
     local filepath = table.concat(path, '/')
     if not filepath or filepath == "" then
         vim.schedule(function()
@@ -181,7 +181,8 @@ local function _default_preview(path, _, callback)
         return function()
         end
     end
-    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = 1024, timeout = 3000 },
+    local max_size = preview_opts.viewport_height * preview_opts.viewport_width
+    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },
         function(load_err, content)
             callback({
                 content = content,

@@ -50,9 +50,8 @@ local _antiflicker_delay = 200
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@class keystone.Picker.AsyncPreviewOpts
----@field viewport_width number?
----@field viewport_height number?
-
+---@field viewport_width number
+---@field viewport_height number
 
 ---@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
 ---@alias keystone.Picker.AsyncPreviewLoader fun(data:keystone.picker.ItemData, opts:keystone.Picker.AsyncPreviewOpts, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
@@ -245,7 +244,7 @@ local function _find_insert_index(items, new_score)
 end
 
 ---@type keystone.Picker.AsyncPreviewLoader
-local function _default_preview(data, _, callback)
+local function _default_preview(data, preview_opts, callback)
     local max_preview_size = 10124 * 10124
 
     local filepath = data.filepath
@@ -271,7 +270,8 @@ local function _default_preview(data, _, callback)
             callback({ error_msg = "Maximum file size exceeded" })
             return
         end
-        cancel_fn = fsutils.async_load_text_file(filepath, { timeout = 3000 },
+        local max_size = preview_opts.viewport_height * preview_opts.viewport_width
+        cancel_fn = fsutils.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },
             function(load_err, content)
                 callback({
                     content = content,
