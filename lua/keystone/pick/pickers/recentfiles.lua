@@ -8,14 +8,15 @@ function M.open()
     local cwd = vim.fn.getcwd()
 
     local recent_files = {}
-    local seen = {}
     local curbuf = vim.api.nvim_get_current_buf()
+    local seen = {}
+    seen[vim.fn.fnamemodify(vim.api.nvim_buf_get_name(curbuf), ":p")] = true
     local bufs = vim.fn.getbufinfo({ buflisted = 1 })
     table.sort(bufs, function(a, b) return a.lastused > b.lastused end)
     for _, info in ipairs(bufs) do
-        if info.bufnr ~= curbuf then
+        if info.bufnr ~= curbuf and vim.bo[info.bufnr].buflisted then
             local full_path = vim.fn.fnamemodify(info.name, ":p")
-            if full_path ~= "" and vim.fn.filereadable(full_path) == 1 then
+            if full_path ~= "" and not seen[full_path] and vim.fn.filereadable(full_path) == 1 then
                 seen[full_path] = true
                 local match_path = (full_path:find(cwd, 1, true) == 1)
                     and vim.fn.fnamemodify(full_path, ":.")

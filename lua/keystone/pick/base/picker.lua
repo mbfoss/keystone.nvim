@@ -698,7 +698,8 @@ function Picker:set_items(items)
 
     local prefix = "  "
 
-    table.sort(items, function(a, b)
+    -- vim.fn.sort is stable, table.sort is not
+    vim.fn.sort(items, function(a, b)
         return (a.score or 0) > (b.score or 0)
     end)
 

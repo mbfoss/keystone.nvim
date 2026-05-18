@@ -68,7 +68,7 @@ local function _get_defaults()
     enabled = true,
     width = 50,
     border = "rounded",
-    timeout = 1000,
+    timeout = 3000,
     lsp_progress = true,
     lsp_progress_delay = 1000,
     history_limit = 100,

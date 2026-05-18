@@ -45,26 +45,26 @@ local function darken(hex, pct)
     return string.format("#%s", rgb_to_hex(r, g, b))
 end
 
-
 local default_palette = {
-    base00 = '#212226',
-    base01 = '#3e4451',
-    base02 = '#2c313c',
-    base03 = '#565c64',
-    base04 =
-    '#6c7891',
-    base05 = '#abb2bf',
-    base06 = '#9a9bb3',
-    base07 = '#c5c8e6',
-    base08 = '#e06c75',
-    base09 = '#d19a66',
-    base0A =
-    '#e5c07b',
-    base0B = '#98c379',
-    base0C = '#56b6c2',
-    base0D = '#0184bc',
-    base0E = '#c678dd',
-    base0F = '#a06949',
+    -- neutrals
+    base00 = '#2e2f33', -- background
+    base01 = '#3a3b40', -- panels / statusline
+    base02 = '#505157', -- selection / visual bg
+    base03 = '#6e6f77', -- comments / muted text
+    base04 = '#a0a2ad', -- subtle ui highlights
+    base05 = '#dcdce4', -- primary foreground
+    base06 = '#f2f2f5', -- bright foreground
+    base07 = '#fafafd', -- soft white
+
+    -- accents
+    base08 = '#e79c9c', -- red
+    base09 = '#f2c38f', -- orange
+    base0A = '#f5e6a6', -- yellow
+    base0B = '#b1d7b4', -- green
+    base0C = '#a8d8e1', -- cyan
+    base0D = '#aabbe0', -- blue
+    base0E = '#cbb0e3', -- purple
+    base0F = '#e5c1c5', -- rose
 }
 
 ---@param hlgroup string
@@ -454,7 +454,7 @@ function M.setup(config)
         { guifg = M.colors.base0D, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
 
     hl('Identifier',
-        { guifg = M.colors.base08, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
+        { guifg = M.colors.base0C, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
 
     hl('Include',
         { guifg = M.colors.base0D, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
@@ -484,7 +484,7 @@ function M.setup(config)
         { guifg = M.colors.base0F, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0F, ctermbg = nil })
 
     hl('Statement',
-        { guifg = M.colors.base08, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
+        { guifg = M.colors.base09, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
 
     hl('StorageClass',
         { guifg = M.colors.base0A, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
@@ -509,7 +509,7 @@ function M.setup(config)
         })
 
     hl('Type',
-        { guifg = M.colors.base0A, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
+        { guifg = M.colors.base0D, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
 
     hl('Typedef',
         { guifg = M.colors.base0A, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
@@ -815,7 +815,7 @@ function M.setup(config)
         { guifg = M.colors.base08, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
 
     hl('DiagnosticWarn',
-        { guifg = M.colors.base0E, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0E, ctermbg = nil })
+        { guifg = M.colors.base0A, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0E, ctermbg = nil })
 
     hl('DiagnosticInfo',
         { guifg = M.colors.base0D, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
