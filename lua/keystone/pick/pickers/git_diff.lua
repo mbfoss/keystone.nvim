@@ -2,7 +2,6 @@
 
 ---@class GitStatusEntry
 ---@field path string
----@field modified string
 ---@field staged boolean
 ---@field unstaged boolean
 ---@field untracked boolean
@@ -76,15 +75,6 @@ local function parse_porcelain_z(entries)
                     and worktree_status ~= "?"
                     and worktree_status ~= "!",
 
-                modified =
-                    (index_status == "M" or worktree_status == "M")
-                    and not (
-                        index_status == "?"
-                        or worktree_status == "?"
-                        or index_status == "!"
-                        or worktree_status == "!"
-                    ),
-
                 untracked = index_status == "?"
                     and worktree_status == "?",
 
@@ -147,7 +137,6 @@ function M.open()
     local max_flags = 1
     for _, entry in ipairs(parsed) do
         local count = 0
-        if entry.modified then count = count + 1 end
         if entry.staged then count = count + 1 end
         if entry.unstaged then count = count + 1 end
         if entry.untracked then count = count + 1 end
@@ -174,10 +163,6 @@ function M.open()
                 if res then
                     local chunks = {}
                     local active_flags = {}
-
-                    if entry.modified then
-                        table.insert(active_flags, { "[M]", "DiagnosticHint" })
-                    end
                     if entry.staged then
                         table.insert(active_flags, { "[S]", "DiagnosticOk" })
                     end
