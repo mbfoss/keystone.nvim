@@ -1,9 +1,30 @@
 local M = {}
 local hex_re = vim.regex('#\\x\\x\\x\\x\\x\\x')
 
-local HEX_DIGITS = { ['0'] = 0, ['1'] = 1, ['2'] = 2, ['3'] = 3, ['4'] = 4, ['5'] = 5, ['6'] = 6, ['7'] = 7, ['8'] = 8,
-    ['9'] = 9, ['a'] = 10, ['b'] = 11, ['c'] = 12, ['d'] = 13, ['e'] = 14, ['f'] = 15, ['A'] = 10, ['B'] = 11, ['C'] = 12,
-    ['D'] = 13, ['E'] = 14, ['F'] = 15, }
+local HEX_DIGITS = {
+    ['0'] = 0,
+    ['1'] = 1,
+    ['2'] = 2,
+    ['3'] = 3,
+    ['4'] = 4,
+    ['5'] = 5,
+    ['6'] = 6,
+    ['7'] = 7,
+    ['8'] = 8,
+    ['9'] = 9,
+    ['a'] = 10,
+    ['b'] = 11,
+    ['c'] = 12,
+    ['d'] = 13,
+    ['e'] = 14,
+    ['f'] = 15,
+    ['A'] = 10,
+    ['B'] = 11,
+    ['C'] = 12,
+    ['D'] = 13,
+    ['E'] = 14,
+    ['F'] = 15,
+}
 
 local function hex_to_rgb(hex)
     return HEX_DIGITS[string.sub(hex, 1, 1)] * 16 + HEX_DIGITS[string.sub(hex, 2, 2)],
@@ -25,9 +46,26 @@ local function darken(hex, pct)
 end
 
 
-local default_palette = { base00 = '#212226', base01 = '#3e4451', base02 = '#2c313c', base03 = '#565c64', base04 =
-'#6c7891', base05 = '#abb2bf', base06 = '#9a9bb3', base07 = '#c5c8e6', base08 = '#e06c75', base09 = '#d19a66', base0A =
-'#e5c07b', base0B = '#98c379', base0C = '#56b6c2', base0D = '#0184bc', base0E = '#c678dd', base0F = '#a06949', }
+local default_palette = {
+    base00 = '#212226',
+    base01 = '#3e4451',
+    base02 = '#2c313c',
+    base03 = '#565c64',
+    base04 =
+    '#6c7891',
+    base05 = '#abb2bf',
+    base06 = '#9a9bb3',
+    base07 = '#c5c8e6',
+    base08 = '#e06c75',
+    base09 = '#d19a66',
+    base0A =
+    '#e5c07b',
+    base0B = '#98c379',
+    base0C = '#56b6c2',
+    base0D = '#0184bc',
+    base0E = '#c678dd',
+    base0F = '#a06949',
+}
 
 ---@param hlgroup string
 ---@param args string|{guifg:string?,guibg:string?,gui:string?,guisp:string?,ctermfg:string?,ctermbg:string?}
@@ -75,8 +113,15 @@ function M.setup(config)
     local hl = _highlight
 
     hl('Normal',
-        { guifg = M.colors.base05, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('Bold', { guifg = nil, guibg = nil, gui = 'bold', guisp = nil, ctermfg = nil, ctermbg = nil })
 
@@ -87,27 +132,62 @@ function M.setup(config)
         { guifg = M.colors.base0D, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
 
     hl('Error',
-        { guifg = M.colors.base08, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('ErrorMsg',
-        { guifg = M.colors.base08, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('Exception',
         { guifg = M.colors.base08, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
 
     hl('FoldColumn',
-        { guifg = M.colors.base0C, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0C, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0C,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0C,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('Folded',
-        { guifg = M.colors.base03, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = M.colors.cterm03, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base03,
+            guibg = M.colors.base01,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm03,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('IncSearch',
-        { guifg = M.colors.base01, guibg = M.colors.base09, gui = 'none', guisp = nil, ctermfg = M.colors.cterm01, ctermbg =
-        M.colors.cterm09 })
+        {
+            guifg = M.colors.base01,
+            guibg = M.colors.base09,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm01,
+            ctermbg =
+                M.colors.cterm09
+        })
 
     hl('Italic', { guifg = nil, guibg = nil, gui = 'italic', guisp = nil, ctermfg = nil, ctermbg = nil })
 
@@ -127,13 +207,27 @@ function M.setup(config)
         { guifg = M.colors.base0D, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
 
     hl('Search',
-        { guifg = M.colors.base01, guibg = M.colors.base0A, gui = nil, guisp = nil, ctermfg = M.colors.cterm01, ctermbg =
-        M.colors.cterm0A })
+        {
+            guifg = M.colors.base01,
+            guibg = M.colors.base0A,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm01,
+            ctermbg =
+                M.colors.cterm0A
+        })
 
 
     hl('Substitute',
-        { guifg = M.colors.base01, guibg = M.colors.base0A, gui = 'none', guisp = nil, ctermfg = M.colors.cterm01, ctermbg =
-        M.colors.cterm0A })
+        {
+            guifg = M.colors.base01,
+            guibg = M.colors.base0A,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm01,
+            ctermbg =
+                M.colors.cterm0A
+        })
 
     hl('SpecialKey',
         { guifg = M.colors.base03, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm03, ctermbg = nil })
@@ -154,38 +248,87 @@ function M.setup(config)
         { guifg = M.colors.base08, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg = nil })
 
     hl('WildMenu',
-        { guifg = M.colors.base08, guibg = M.colors.base0A, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm0A })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base0A,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm0A
+        })
 
     hl('Title',
         { guifg = M.colors.base0D, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
 
     hl('Conceal',
-        { guifg = M.colors.base0D, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0D,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0D,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('Cursor',
-        { guifg = M.colors.base00, guibg = M.colors.base05, gui = nil, guisp = nil, ctermfg = M.colors.cterm00, ctermbg =
-        M.colors.cterm05 })
+        {
+            guifg = M.colors.base00,
+            guibg = M.colors.base05,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm00,
+            ctermbg =
+                M.colors.cterm05
+        })
 
     hl('NonText',
         { guifg = M.colors.base03, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm03, ctermbg = nil })
 
     hl('LineNr',
-        { guifg = M.colors.base04, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm04, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base04,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm04,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('SignColumn',
-        { guifg = M.colors.base04, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm04, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base04,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm04,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('StatusLine',
-        { guifg = M.colors.base05, guibg = M.colors.base02, gui = 'none', guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm02 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base02,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm02
+        })
 
     hl('StatusLineNC',
-        { guifg = M.colors.base04, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm04, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base04,
+            guibg = M.colors.base01,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm04,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('WinBar',
         { guifg = M.colors.base05, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm05, ctermbg = nil })
@@ -194,8 +337,15 @@ function M.setup(config)
         { guifg = M.colors.base04, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm04, ctermbg = nil })
 
     hl('VertSplit',
-        { guifg = M.colors.base05, guibg = M.colors.base00, gui = 'none', guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base00,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('ColorColumn',
         { guifg = nil, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = nil, ctermbg = M.colors.cterm01 })
@@ -207,31 +357,73 @@ function M.setup(config)
         { guifg = nil, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = nil, ctermbg = M.colors.cterm01 })
 
     hl('CursorLineNr',
-        { guifg = M.colors.base04, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = M.colors.cterm04, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base04,
+            guibg = M.colors.base01,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm04,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('QuickFixLine',
         { guifg = nil, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = nil, ctermbg = M.colors.cterm01 })
 
     hl('PMenu',
-        { guifg = M.colors.base05, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base01,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('PMenuSel',
-        { guifg = M.colors.base01, guibg = M.colors.base05, gui = nil, guisp = nil, ctermfg = M.colors.cterm01, ctermbg =
-        M.colors.cterm05 })
+        {
+            guifg = M.colors.base01,
+            guibg = M.colors.base05,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm01,
+            ctermbg =
+                M.colors.cterm05
+        })
 
     hl('TabLine',
-        { guifg = M.colors.base03, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm03, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base03,
+            guibg = M.colors.base01,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm03,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('TabLineFill',
-        { guifg = M.colors.base03, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm03, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base03,
+            guibg = M.colors.base01,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm03,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('TabLineSel',
-        { guifg = M.colors.base0B, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0B, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base0B,
+            guibg = M.colors.base01,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm0B,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     -- Standard syntax highlighting
     hl('Boolean',
@@ -306,8 +498,15 @@ function M.setup(config)
     hl('Tag', { guifg = M.colors.base0A, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
 
     hl('Todo',
-        { guifg = M.colors.base0A, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = M.colors.cterm0A, ctermbg =
-        M.colors.cterm01 })
+        {
+            guifg = M.colors.base0A,
+            guibg = M.colors.base01,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0A,
+            ctermbg =
+                M.colors.cterm01
+        })
 
     hl('Type',
         { guifg = M.colors.base0A, guibg = nil, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0A, ctermbg = nil })
@@ -341,37 +540,86 @@ function M.setup(config)
         { guifg = nil, guibg = diff_text_bg, gui = 'bold', guisp = nil, ctermfg = nil, ctermbg = M.colors.cterm01 })
 
     hl('DiffAdded',
-        { guifg = M.colors.base0B, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0B, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0B,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0B,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('DiffFile',
-        { guifg = M.colors.base08, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('DiffNewFile',
-        { guifg = M.colors.base0B, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0B, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0B,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0B,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('DiffLine',
-        { guifg = M.colors.base0D, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0D,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0D,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('DiffRemoved',
-        { guifg = M.colors.base08, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     -- Diffview.nvim highlighting
     if M.config.diffview then
         hl('DiffviewNormal',
-            { guifg = M.colors.base05, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-            M.colors.cterm00 })
+            {
+                guifg = M.colors.base05,
+                guibg = M.colors.base00,
+                gui = nil,
+                guisp = nil,
+                ctermfg = M.colors.cterm05,
+                ctermbg =
+                    M.colors.cterm00
+            })
 
         hl('DiffviewCursorLine',
             { guifg = nil, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = nil, ctermbg = M.colors.cterm01 })
 
         hl('DiffviewSignColumn',
-            { guifg = M.colors.base04, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm04, ctermbg =
-            M.colors.cterm00 })
+            {
+                guifg = M.colors.base04,
+                guibg = M.colors.base00,
+                gui = nil,
+                guisp = nil,
+                ctermfg = M.colors.cterm04,
+                ctermbg =
+                    M.colors.cterm00
+            })
 
         hl('DiffviewEndOfBuffer',
             { guifg = M.colors.base03, guibg = nil, gui = nil, guisp = nil, ctermfg = M.colors.cterm03, ctermbg = nil })
@@ -437,12 +685,26 @@ function M.setup(config)
 
         -- Reference highlighting
         hl('DiffviewDiffAddAsDelete',
-            { guifg = M.colors.base08, guibg = diff_delete_bg, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-            M.colors.cterm00 })
+            {
+                guifg = M.colors.base08,
+                guibg = diff_delete_bg,
+                gui = nil,
+                guisp = nil,
+                ctermfg = M.colors.cterm08,
+                ctermbg =
+                    M.colors.cterm00
+            })
 
         hl('DiffviewDiffDelete',
-            { guifg = M.colors.base03, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm03, ctermbg =
-            M.colors.cterm00 })
+            {
+                guifg = M.colors.base03,
+                guibg = M.colors.base00,
+                gui = nil,
+                guisp = nil,
+                ctermfg = M.colors.cterm03,
+                ctermbg =
+                    M.colors.cterm00
+            })
     end
 
 
@@ -494,20 +756,48 @@ function M.setup(config)
 
     -- GitGutter highlighting
     hl('GitGutterAdd',
-        { guifg = M.colors.base0B, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0B, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0B,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0B,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('GitGutterChange',
-        { guifg = M.colors.base0D, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0D, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0D,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0D,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('GitGutterDelete',
-        { guifg = M.colors.base08, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm08, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base08,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm08,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('GitGutterChangeDelete',
-        { guifg = M.colors.base0E, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm0E, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base0E,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm0E,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     -- Spelling highlighting
     hl('SpellBad', { guifg = nil, guibg = nil, gui = 'undercurl', guisp = M.colors.base08, ctermfg = nil, ctermbg = nil })
@@ -725,36 +1015,78 @@ function M.setup(config)
     hl('TSCurrentScope', { guifg = nil, guibg = nil, gui = 'bold', guisp = nil, ctermfg = nil, ctermbg = nil })
 
     -- LSP inlay hints
-    hl('LspInlayHint',
-        { guifg = M.colors.base03, guibg = nil, gui = 'italic', guisp = nil, ctermfg = M.colors.cterm03, ctermbg = nil })
+    -- hl('LspInlayHint',
+    --     { guifg = M.colors.base03, guibg = nil, gui = 'italic', guisp = nil, ctermfg = M.colors.cterm03, ctermbg = nil })
 
     hl('NvimInternalError',
-        { guifg = M.colors.base00, guibg = M.colors.base08, gui = 'none', guisp = nil, ctermfg = M.colors.cterm00, ctermbg =
-        M.colors.cterm08 })
+        {
+            guifg = M.colors.base00,
+            guibg = M.colors.base08,
+            gui = 'none',
+            guisp = nil,
+            ctermfg = M.colors.cterm00,
+            ctermbg =
+                M.colors.cterm08
+        })
 
     hl('NormalFloat',
-        { guifg = M.colors.base05, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base01,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('FloatBorder',
-        { guifg = M.colors.base05, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base01,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('FloatTitle',
         { guifg = M.colors.base0D, guibg = M.colors.base01, gui = 'none', guisp = nil, ctermfg = M.colors.cterm0D, ctermbg = nil })
 
 
     hl('NormalNC',
-        { guifg = M.colors.base05, guibg = M.colors.base00, gui = nil, guisp = nil, ctermfg = M.colors.cterm05, ctermbg =
-        M.colors.cterm00 })
+        {
+            guifg = M.colors.base05,
+            guibg = M.colors.base00,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm05,
+            ctermbg =
+                M.colors.cterm00
+        })
 
     hl('TermCursor',
-        { guifg = M.colors.base00, guibg = M.colors.base05, gui = nil, guisp = nil, ctermfg = M.colors.cterm00, ctermbg =
-        M.colors.cterm05 })
+        {
+            guifg = M.colors.base00,
+            guibg = M.colors.base05,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm00,
+            ctermbg =
+                M.colors.cterm05
+        })
 
     hl('TermCursorNC',
-        { guifg = M.colors.base00, guibg = M.colors.base05, gui = nil, guisp = nil, ctermfg = M.colors.cterm00, ctermbg =
-        M.colors.cterm05 })
+        {
+            guifg = M.colors.base00,
+            guibg = M.colors.base05,
+            gui = nil,
+            guisp = nil,
+            ctermfg = M.colors.cterm00,
+            ctermbg =
+                M.colors.cterm05
+        })
 
 
     if M.config.which_key then
@@ -764,8 +1096,15 @@ function M.setup(config)
             { guifg = M.colors.base05, guibg = nil, gui = nil, guisp = nil, ctermfg = nil, ctermbg = nil, })
 
         hl('WhichKeyFloat',
-            { guifg = M.colors.base05, guibg = M.colors.base01, gui = nil, guisp = nil, ctermfg = nil, ctermbg = M
-            .colors.cterm01, })
+            {
+                guifg = M.colors.base05,
+                guibg = M.colors.base01,
+                gui = nil,
+                guisp = nil,
+                ctermfg = nil,
+                ctermbg = M
+                    .colors.cterm01,
+            })
 
         hl('WhichKeyGroup',
             { guifg = M.colors.base0E, guibg = nil, gui = nil, guisp = nil, ctermfg = nil, ctermbg = nil, })

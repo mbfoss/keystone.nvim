@@ -779,7 +779,7 @@ function Picker:set_items(items)
     local prefix = "  "
 
     table.sort(items, function(a, b)
-        return (a.score or math.huge) > (b.score or math.huge)
+        return (a.score or 0) > (b.score or 0)
     end)
 
     self.list_items = {}
