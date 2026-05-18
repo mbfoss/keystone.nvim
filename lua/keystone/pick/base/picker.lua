@@ -695,12 +695,21 @@ end
 ---@param items keystone.Picker.Item[]?
 function Picker:set_items(items)
     items = items or {}
-
     local prefix = "  "
 
-    -- vim.fn.sort is stable, table.sort is not
-    vim.fn.sort(items, function(a, b)
-        return (a.score or 0) > (b.score or 0)
+    -- dirty hack: inject the original index as a tie-breaker
+    for i, item in ipairs(items) do
+        ---@diagnostic disable-next-line: inject-field
+        item.idx__ = i
+    end
+    table.sort(items, function(a, b)
+        local s1 = a.score or 0
+        local s2 = b.score or 0
+        if s1 ~= s2 then
+            return s1 > s2
+        end
+        ---@diagnostic disable-next-line: undefined-field
+        return a.idx__ < b.idx__
     end)
 
     self.list_items = {}
