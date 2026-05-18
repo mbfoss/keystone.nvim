@@ -96,6 +96,18 @@ function M.open()
         return
     end
 
+    local max_flags = 1
+    for _, entry in ipairs(parsed) do
+        local count = 0
+        if entry.staged then count = count + 1 end
+        if entry.unstaged then count = count + 1 end
+        if entry.untracked then count = count + 1 end
+        if entry.ignored then count = count + 1 end
+        if count > max_flags then
+            max_flags = count
+        end
+    end
+
     picker.open({
         prompt = "Git Status",
         enable_preview = true,
@@ -112,24 +124,32 @@ function M.open()
 
                 if res then
                     local chunks = {}
+                    local active_flags = {}
+
                     if entry.staged then
-                        table.insert(chunks, {
-                            "[S] ",
-                            "DiagnosticOk",
-                        })
+                        table.insert(active_flags, { text = "[S]", hl = "DiagnosticOk" })
                     end
                     if entry.unstaged then
-                        table.insert(chunks, {
-                            "[U] ",
-                            "DiagnosticWarn",
-                        })
+                        table.insert(active_flags, { text = "[U]", hl = "DiagnosticWarn" })
                     end
                     if entry.untracked then
-                        table.insert(chunks, {
-                            "[?] ",
-                            "DiagnosticInfo",
-                        })
+                        table.insert(active_flags, { text = "[?]", hl = "DiagnosticInfo" })
                     end
+                    if entry.ignored then
+                        table.insert(active_flags, { text = "[I]", hl = "Comment" })
+                    end
+
+                    for _, flag in ipairs(active_flags) do
+                        table.insert(chunks, flag)
+                    end
+
+                    local padding = max_flags - #active_flags
+                    if padding > 0 then
+                        table.insert(chunks, { text = string.rep("   ", padding), hl = "Normal" })
+                    end
+
+                    table.insert(chunks, { text = " ", hl = "Normal" })
+
                     vim.list_extend(chunks, res.chunks)
                     table.insert(items, {
                         label_chunks = chunks,
