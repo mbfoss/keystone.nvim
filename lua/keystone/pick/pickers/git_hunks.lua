@@ -29,7 +29,7 @@ function M.open()
     picker.open({
             prompt = "Gitsigns Hunks",
             enable_preview = true,
-
+            preview_default = "visible",
             fetch = function(query, fetch_opts)
                 local items = {}
                 for _, h in ipairs(hunks) do

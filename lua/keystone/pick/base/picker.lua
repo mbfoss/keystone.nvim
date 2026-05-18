@@ -4,6 +4,7 @@ local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
 local uitools    = require("keystone.utils.uitools")
 local floatwin   = require("keystone.utils.floatwin")
+local layouts    = require("keystone.pick.base.layouts")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -62,6 +63,7 @@ local _antiflicker_delay = 200
 ---@field fetch keystone.Picker.Fetcher?
 ---@field async_fetch keystone.Picker.AsyncFetcher?
 ---@field enable_preview boolean?
+---@field preview_default "visible"|"hidden"|?
 ---@field async_preview keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
@@ -106,6 +108,11 @@ local function _show_help()
     })
 end
 
+---@type fun(v:number,min:number,max:number):number
+local function _clamp(v, min, max)
+    return math.max(min, math.min(max, v))
+end
+
 local function _key_opts_of(buf)
     assert(buf and vim.api.nvim_buf_is_valid(buf))
     return { buffer = buf, nowait = true, silent = true }
@@ -127,87 +134,6 @@ local function _create_buffer(modifiable, on_delete)
         on_delete)
 end
 
----@param v number
----@param min number
----@param max number
----@return number
-local function _clamp(v, min, max)
-    return math.max(min, math.min(max, v))
-end
-
----@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?}
----@return keystone.Picker.Layout
-local function _compute_layout(opts)
-    local cols = vim.o.columns
-    local lines = vim.o.lines
-
-    local has_preview = opts.has_preview
-
-    -- vertical layout defaults
-    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.4, 0.1, 0.9))
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.6, 0.3, 0.95))
-
-    local row = math.floor((lines - total_height) / 2)
-    local col = math.floor((cols - width) / 2)
-
-    -- layout:
-    -- prompt
-    -- gap
-    -- list
-    -- gap
-    -- preview (optional)
-
-    local prompt_height = 1
-    local gap = 2
-
-    if not has_preview then
-        local list_row = row + prompt_height + gap
-        local list_height = total_height - prompt_height - gap
-
-        return {
-            prompt_row = row,
-            prompt_col = col,
-            prompt_width = width,
-            prompt_height = prompt_height,
-
-            list_row = list_row,
-            list_col = col,
-            list_width = width,
-            list_height = list_height,
-
-            preview_row = list_row,
-            preview_col = col,
-            preview_width = 0,
-            preview_height = 0,
-        }
-    end
-
-    local usable_height = total_height - prompt_height - (gap * 2)
-
-    local list_height = math.max(1, math.floor(usable_height / 3))
-    local preview_height = math.max(1, usable_height - list_height)
-
-    local list_row = row + prompt_height + gap
-    local preview_row = list_row + list_height + gap
-
-    return {
-        prompt_row = row,
-        prompt_col = col,
-        prompt_width = width,
-        prompt_height = prompt_height,
-
-        list_row = list_row,
-        list_col = col,
-        list_width = width,
-        list_height = list_height,
-
-        preview_row = preview_row,
-        preview_col = col,
-        preview_width = width,
-        preview_height = preview_height,
-    }
-end
-
 ---@param msg string
 ---@param width number
 ---@param height number
@@ -223,24 +149,6 @@ local function _center_for_previewer(msg, width, height)
     end
     table.insert(lines, centered)
     return lines
-end
-
----@param items keystone.picker.ListItem[]
----@param new_score number
-local function _find_insert_index(items, new_score)
-    if not new_score then
-        return #items + 1
-    end
-    local low, high = 1, #items
-    while low <= high do
-        local mid = math.floor((low + high) / 2)
-        if (items[mid].score or 0) < (new_score or 0) then
-            high = mid - 1
-        else
-            low = mid + 1
-        end
-    end
-    return low
 end
 
 ---@type keystone.Picker.AsyncPreviewLoader
@@ -323,6 +231,7 @@ function Picker:init(opts, callback)
     self.callback = callback
 
     self.preview_enabled = opts.enable_preview
+    self.preview_default = opts.preview_default
 
     self.list_items = {} ---@type keystone.picker.ListItem[]
 
@@ -361,7 +270,11 @@ end
 
 ---@return nil
 function Picker:setup_ui()
-    self:relayout()
+    local preview_action
+    if self.preview_enabled and self.preview_default == "visible" then
+        preview_action = "show_preview"
+    end
+    self:relayout(preview_action)
 
     assert(self.pbuf ~= nil)
     vim.keymap.set("i", "<C-r><C-w>", function()
@@ -385,7 +298,7 @@ function Picker:relayout(action)
 
     local has_preview = (self.vwin ~= nil and action ~= "hide_preview") or action == "show_preview"
 
-    self.layout = _compute_layout {
+    self.layout = layouts.get_horizontal_layout {
         has_preview = has_preview,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
@@ -741,15 +654,23 @@ function Picker:stop_spinner()
     end
 end
 
-function Picker:request_clear_preview()
-    if self.vbuf and self.vbuf > 0 and not self.preview_timer then
-        self.preview_timer = vim.defer_fn(function()
-            self.preview_timer = nil
-            if self.closed then return end
+---@param immediate  boolean?
+function Picker:request_clear_preview(immediate)
+    local clear = function()
+        if self.vbuf and not self.closed then
             vim.bo[self.vbuf].modifiable = true
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
             vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
+        end
+    end
+    if immediate then
+        self:cancel_clear_preview_req()
+        clear()
+    elseif not self.preview_timer then
+        self.preview_timer = vim.defer_fn(function()
+            self.preview_timer = nil
+            clear()
         end, _antiflicker_delay)
     end
 end

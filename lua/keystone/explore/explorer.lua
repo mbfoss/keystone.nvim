@@ -3,6 +3,7 @@ local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
 local uitools    = require("keystone.utils.uitools")
+local layouts    = require("keystone.explore.layouts")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -101,50 +102,6 @@ end
 ---@return number
 local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
-end
-
----@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?}
----@return keystone.Explorer.Layout
-local function _compute_layout(opts)
-    local cols = vim.o.columns
-    local lines = vim.o.lines
-
-    local width = math.ceil(cols * _clamp(opts.width_ratio or 0.4, 0.1, 0.9))
-    local total_height = math.ceil(lines * _clamp(opts.height_ratio or 0.6, 0.3, 0.95))
-
-    local row = math.floor((lines - total_height) / 2)
-    local col = math.floor((cols - width) / 2)
-
-    if not opts.has_preview then
-        return {
-            list_row = row,
-            list_col = col,
-            list_width = width,
-            list_height = total_height,
-
-            preview_row = row,
-            preview_col = col,
-            preview_width = 0,
-            preview_height = 0,
-        }
-    end
-
-    -- split vertically: top=list, bottom=preview
-    local spacing = 2
-    local list_height = math.floor((total_height - spacing) / 3)
-    local preview_height = total_height - list_height - spacing
-
-    return {
-        list_row = row,
-        list_col = col,
-        list_width = width,
-        list_height = list_height,
-
-        preview_row = row + list_height + spacing,
-        preview_col = col,
-        preview_width = width,
-        preview_height = preview_height,
-    }
 end
 
 ---@param msg string
@@ -286,7 +243,7 @@ function Explorer:relayout(action)
 
     local has_preview = (self.vwin ~= nil and action ~= "hide_preview") or action == "show_preview"
 
-    self.layout = _compute_layout {
+    self.layout = layouts.get_horizontal_layout {
         has_preview = has_preview,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
