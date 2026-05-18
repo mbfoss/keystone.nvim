@@ -1,3 +1,26 @@
+---@meta
+
+---@class GitStatusEntry
+---@field path string
+---@field staged boolean
+---@field unstaged boolean
+---@field untracked boolean
+---@field ignored boolean
+---@field raw string
+
+---@class PickerItemChunk
+---@field text string
+---@field hl string
+
+---@class PickerItem
+---@field label_chunks PickerItemChunk[]
+---@field score number
+---@field data GitStatusEntry
+
+---@class PreviewCallbackResult
+---@field content string
+---@field filetype string
+
 local M = {}
 
 local picker = require("keystone.pick.base.picker")
@@ -7,11 +30,47 @@ local uitools = require("keystone.utils.uitools")
 local fsutils = require("keystone.utils.fsutils")
 local strutils = require("keystone.utils.strutils")
 
+---@local
+---@param entries string[]
+---@return GitStatusEntry[]
+local function parse_porcelain_z(entries)
+    local parsed = {}
+    local i = 1
+
+    while i <= #entries do
+        local entry = entries[i]
+
+        if #entry >= 4 then
+            local staged_char = entry:sub(1, 1)
+            local unstaged_char = entry:sub(2, 2)
+            local path = entry:sub(4)
+
+            if staged_char == "R" or staged_char == "C" or unstaged_char == "R" or unstaged_char == "C" then
+                i = i + 1
+                path = entries[i]
+            end
+
+            table.insert(parsed, {
+                path = path,
+                staged = staged_char ~= " " and staged_char ~= "?" and staged_char ~= "!",
+                unstaged = unstaged_char ~= " " and unstaged_char ~= "?",
+                untracked = staged_char == "?" and unstaged_char == "?",
+                ignored = staged_char == "!" and unstaged_char == "!",
+                raw = entry,
+            })
+        end
+        i = i + 1
+    end
+
+    return parsed
+end
+
+---@public
 function M.open()
     local cwd = vim.fn.getcwd()
 
     local result = vim.system(
-        { "git", "status", "--porcelain" },
+        { "git", "status", "--porcelain=v1", "-z" },
         { text = true }
     ):wait()
 
@@ -29,27 +88,8 @@ function M.open()
         return
     end
 
-    local parsed = {}
-
-    for _, line in ipairs(vim.split(result.stdout or "", "\n", { trimempty = true })) do
-        local staged_char = line:sub(1, 1)
-        local unstaged_char = line:sub(2, 2)
-
-        local path = vim.trim(line:sub(4))
-
-        -- handle rename format: "old -> new"
-        if path:find(" -> ", 1, true) then
-            path = vim.split(path, " -> ")[2]
-        end
-
-        table.insert(parsed, {
-            path = path,
-            staged = staged_char ~= " " and staged_char ~= "?",
-            unstaged = unstaged_char ~= " ",
-            untracked = staged_char == "?" and unstaged_char == "?",
-            raw = line,
-        })
-    end
+    local raw_entries = vim.split(result.stdout or "", "\0", { trimempty = true })
+    local parsed = parse_porcelain_z(raw_entries)
 
     if #parsed == 0 then
         vim.notify("No changed files", vim.log.levels.INFO)
@@ -60,6 +100,9 @@ function M.open()
         prompt = "Git Status",
         enable_preview = true,
 
+        ---@param query string
+        ---@param fetch_opts table
+        ---@return PickerItem[]
         fetch = function(query, fetch_opts)
             local items = {}
 
@@ -71,20 +114,20 @@ function M.open()
                     local chunks = {}
                     if entry.staged then
                         table.insert(chunks, {
-                            text = "[S] ",
-                            hl = "DiagnosticOk",
+                            "[S] ",
+                            "DiagnosticOk",
                         })
                     end
                     if entry.unstaged then
                         table.insert(chunks, {
-                            text = "[U] ",
-                            hl = "DiagnosticWarn",
+                            "[U] ",
+                            "DiagnosticWarn",
                         })
                     end
                     if entry.untracked then
                         table.insert(chunks, {
-                            text = "[?] ",
-                            hl = "DiagnosticInfo",
+                            "[?] ",
+                            "DiagnosticInfo",
                         })
                     end
                     vim.list_extend(chunks, res.chunks)
@@ -99,9 +142,12 @@ function M.open()
             return items
         end,
 
-        async_preview = function(data, _, callback)
+        ---@param data GitStatusEntry
+        ---@param opts table
+        ---@param callback fun(result: PreviewCallbackResult)
+        ---@return fun() cancel_fn
+        async_preview = function(data, opts, callback)
             local filepath = data.path
-            -- untracked files cannot be diffed
             if data.untracked then
                 vim.schedule(function()
                     callback({
@@ -118,7 +164,6 @@ function M.open()
             elseif data.unstaged and not data.staged then
                 args = { "diff", "--", filepath }
             else
-                -- both staged + unstaged
                 args = { "diff", "HEAD", "--", filepath }
             end
             local process = Process:new("git", {
