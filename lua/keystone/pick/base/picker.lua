@@ -195,6 +195,27 @@ local function _default_preview(data, preview_opts, callback)
     end
 end
 
+---@param items keystone.picker.ListItem[]
+local function _sort_by_score(items)
+    local with_score = {}
+    local no_score = {}
+    for _, item in ipairs(items) do
+        if item.score ~= nil then
+            table.insert(with_score, item)
+        else
+            table.insert(no_score, item)
+        end
+    end
+    if #with_score == 0 then
+        return no_score
+    end
+    table.sort(with_score, function(a, b)
+        return a.score > b.score
+    end)
+    vim.list_extend(with_score, no_score)
+    return with_score
+end
+
 ---@class keystone.utils.Picker
 ---@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
 ---@field opts keystone.Picker.opts
@@ -695,22 +716,9 @@ end
 ---@param items keystone.Picker.Item[]?
 function Picker:set_items(items)
     items = items or {}
-    local prefix = "  "
+    _sort_by_score(items)
 
-    -- dirty hack: inject the original index as a tie-breaker
-    for i, item in ipairs(items) do
-        ---@diagnostic disable-next-line: inject-field
-        item.idx__ = i
-    end
-    table.sort(items, function(a, b)
-        local s1 = a.score or 0
-        local s2 = b.score or 0
-        if s1 ~= s2 then
-            return s1 > s2
-        end
-        ---@diagnostic disable-next-line: undefined-field
-        return a.idx__ < b.idx__
-    end)
+    local prefix = "  "
 
     self.list_items = {}
 
