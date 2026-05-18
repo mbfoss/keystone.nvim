@@ -270,8 +270,7 @@ local function _default_preview(data, preview_opts, callback)
             callback({ error_msg = "Maximum file size exceeded" })
             return
         end
-        local max_size = preview_opts.viewport_height * preview_opts.viewport_width
-        cancel_fn = fsutils.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },
+        cancel_fn = fsutils.async_load_text_file(filepath, { timeout = 3000 },
             function(load_err, content)
                 callback({
                     content = content,
