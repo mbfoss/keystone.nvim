@@ -41,7 +41,7 @@ end
 ---@param query string User input
 ---@return {score:number,chunks:string[][]}?
 function M.match_label(text, query)
-    local is_match, score, positions = strutils.fuzzy_match_path(text, query)
+    local is_match, score, positions = strutils.fuzzy_match(text, query)
     if not is_match then return nil end
     return {
         score = score or 0,
