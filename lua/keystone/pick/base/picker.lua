@@ -715,8 +715,7 @@ end
 
 ---@param items keystone.Picker.Item[]?
 function Picker:set_items(items)
-    items = items or {}
-    _sort_by_score(items)
+    items = _sort_by_score(items or {})
 
     local prefix = "  "
 
