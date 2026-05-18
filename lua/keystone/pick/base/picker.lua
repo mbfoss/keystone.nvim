@@ -46,7 +46,7 @@ local _antiflicker_delay = 200
 ---@field store fun(hist:string[])?
 
 ---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
+---@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@class keystone.Picker.AsyncPreviewOpts
@@ -772,61 +772,72 @@ function Picker:clear_list()
     self:render_ui()
 end
 
----@param items keystone.Picker.Item[]
-function Picker:add_new_lines(items)
-    local prefix = "  "
-    local is_fresh = #self.list_items == 0 and
-        vim.api.nvim_buf_line_count(self.lbuf) == 1 and
-        vim.api.nvim_buf_get_lines(self.lbuf, 0, 1, false)[1] == ""
+---@param items keystone.Picker.Item[]?
+function Picker:set_items(items)
+    items = items or {}
 
-    vim.bo[self.lbuf].modifiable = true
-    for _, item in ipairs(items) do
-        -- build label
-        local label
+    local prefix = "  "
+
+    table.sort(items, function(a, b)
+        return (a.score or math.huge) > (b.score or math.huge)
+    end)
+
+    self.list_items = {}
+
+    local lines = {}
+    local extmarks = {}
+
+    for row_idx, item in ipairs(items) do
+        local label = ""
+
         if item.label_chunks then
             local parts = {}
             for _, chunk in ipairs(item.label_chunks) do
                 table.insert(parts, chunk[1] or "")
             end
             label = table.concat(parts)
-        else
-            label = ""
         end
+
         label = label:gsub("\n", "")
-        -- insert in list data
+
         ---@type keystone.picker.ListItem
         local list_item = {
             text = label,
             score = item.score,
             data = item.data,
         }
-        local idx = _find_insert_index(self.list_items, item.score)
-        table.insert(self.list_items, idx, list_item)
-        -- insert in list buf
-        local line_text = prefix .. label
-        local row = idx - 1
-        if is_fresh and idx == 1 then
-            vim.api.nvim_buf_set_lines(self.lbuf, 0, 1, false, { line_text })
-            is_fresh = false -- No longer fresh after first insertion
-        else
-            vim.api.nvim_buf_set_lines(self.lbuf, row, row, false, { line_text })
-        end
+
+        table.insert(self.list_items, list_item)
+
+        local row = row_idx - 1
+        table.insert(lines, prefix .. label)
+
         if item.label_chunks then
             local col = #prefix
+
             for _, chunk in ipairs(item.label_chunks) do
                 local text, hl = chunk[1], chunk[2]
+
                 if text and #text > 0 then
                     if hl then
-                        vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, col, {
-                            end_col = col + #text,
-                            hl_group = hl,
+                        table.insert(extmarks, {
+                            ns = NS_CONTENT,
+                            row = row,
+                            col = col,
+                            opts = {
+                                end_col = col + #text,
+                                hl_group = hl,
+                            },
                         })
                     end
+
                     col = col + #text
                 end
             end
         end
+
         local vlines = {}
+
         if item.virt_lines and #item.virt_lines > 0 then
             for _, line in ipairs(item.virt_lines) do
                 local vl = { { prefix } }
@@ -834,15 +845,38 @@ function Picker:add_new_lines(items)
                 table.insert(vlines, vl)
             end
         end
+
         if self.opts.enable_list_sep then
-            table.insert(vlines, { { self.list_sep_line, "Nontext" } })
+            table.insert(vlines, { { self.list_sep_line, "NonText" } })
         end
+
         if #vlines > 0 then
-            vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, 0, {
-                virt_lines = vlines,
-                hl_mode = "blend"
+            table.insert(extmarks, {
+                ns = NS_CONTENT,
+                row = row,
+                col = 0,
+                opts = {
+                    virt_lines = vlines,
+                    hl_mode = "blend",
+                },
             })
         end
+    end
+
+    vim.bo[self.lbuf].modifiable = true
+
+    vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, lines)
+
+    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
+
+    for _, mark in ipairs(extmarks) do
+        vim.api.nvim_buf_set_extmark(
+            self.lbuf,
+            mark.ns,
+            mark.row,
+            mark.col,
+            mark.opts
+        )
     end
     vim.bo[self.lbuf].modifiable = false
     vim.wo[self.lwin].cursorline = #self.list_items > 0
@@ -850,7 +884,6 @@ end
 
 ---@param query string
 function Picker:run_fetch(query)
-    local is_new_query = (query ~= self.current_query)
     self.current_query = query
 
     if self.async_fetch_cancel then
@@ -867,11 +900,12 @@ function Picker:run_fetch(query)
     }
 
     if self.opts.fetch then
-        self:clear_list()
         local items, initial = self.opts.fetch(query, fetch_opts)
-        if items then
-            self:add_new_lines(items)
+        if items and #items > 0 then
+            self:set_items(items)
             self:move_cursor(initial or 1, true, true)
+        else
+            self:clear_list()
         end
         return
     end
@@ -879,36 +913,20 @@ function Picker:run_fetch(query)
     self.async_fetch_context = self.async_fetch_context + 1
     local context = self.async_fetch_context
 
-    local waiting_first = true
     local complete = false
 
     self.async_fetch_cancel = self.opts.async_fetch(
         query,
         fetch_opts,
-        function(new_items)
+        function(new_items, initial)
             if complete or self.closed or context ~= self.async_fetch_context then return end
-            local saved_cursor = 1 ---@type integer
-            if not is_new_query and not waiting_first then
-                saved_cursor = self:get_cursor() or saved_cursor
-            end
-
-            if waiting_first then
-                waiting_first = false
-                self:clear_list()
-            end
-
-            if new_items == nil then
-                complete = true
-                self:stop_spinner()
-                return
-            end
-
-            self:add_new_lines(new_items)
-            if is_new_query and #self.list_items > 0 then
-                self:move_cursor(1, true, true)
-                is_new_query = false -- Reset so subsequent async chunks don't snap to top
+            complete = true
+            self:stop_spinner()
+            if new_items and #new_items > 0 then
+                self:set_items(new_items)
+                self:move_cursor(initial or 1, true, true)
             else
-                self:move_cursor(saved_cursor, true, true)
+                self:clear_list()
             end
         end
     )

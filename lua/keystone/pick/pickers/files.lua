@@ -74,21 +74,12 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 },
             })
             count = count + 1
-            if #items >= 20 then
-                local batch = items
-                items = {}
-                vim.schedule(function() callback(batch) end)
-            end
         end,
         function()
-            if #items > 0 then
-                vim.schedule(function()
-                    callback(items)
-                    callback(nil)
-                end)
-            else
-                vim.schedule(function() callback(nil) end)
-            end
+            vim.schedule(function()
+                callback(items)
+                callback(nil)
+            end)
         end
     )
     return cancel_fn
@@ -116,8 +107,8 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
 
     local include_regex_list = fd_opts.include_globs and strutils.compile_globs(fd_opts.include_globs) or nil
 
+    local items = {}
     local buffered_feed = strutils.create_line_buffered_feed(function(lines)
-        local items = {}
         for _, line in ipairs(lines) do
             if read_stop then return end
             local relpath = line:gsub("^%.[/]", "")
@@ -148,10 +139,6 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
                 end
             end
         end
-
-        if #items > 0 then
-            vim.schedule(function() callback(items) end)
-        end
     end)
 
     process = Process:new("fd", {
@@ -162,7 +149,9 @@ local function async_fd_search(query, fd_opts, fetch_opts, callback)
             if is_stderr then return end
             buffered_feed(data)
         end,
-        on_exit = function() callback(nil) end,
+        on_exit = function()
+            vim.schedule(function() callback(items) end)
+        end,
     })
 
     process:start()
@@ -179,7 +168,7 @@ function M.open(opts)
         async_fetch = function(query, fetch_opts, callback)
             if not query or query == "" then
                 callback()
-                return function() end
+                return
             end
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {

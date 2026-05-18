@@ -36,7 +36,7 @@ local function _explore_files()
         async_fetch = function(path_parts, fetch_opts, callback)
             if not path_parts then
                 callback({})
-                return function() end
+                return
             end
             local path = table.concat(path_parts, '/')
             if path == "" then path = "/" end

@@ -193,23 +193,23 @@ end
 ---@param fetch_opts keystone.Picker.FetcherOpts
 ---@param on_error fun(msg:string)
 ---@param callback fun(items:table[]?)
----@return fun() cancel
+---@return fun()? cancel
 local function async_grep_search(query, grep_opts, fetch_opts, on_error, callback)
     local cmd, args, cleaned_query = get_grep_cmd(query, grep_opts)
     if cleaned_query == "" then
         callback()
-        return function() end
+        return
     end
 
     local count = 0
     local process
     local max_results = grep_opts.max_results or 10000
-    local read_stop = false
+    local stop_read = false
+    local items = {}
 
     local buffered_feed = strutils.create_line_buffered_feed(function(lines)
-        local items = {}
         for _, line in ipairs(lines) do
-            if read_stop then return end
+            if stop_read then return end
             local file, lnum, col, chunks = parse_rg_json(line)
             if chunks then
                 local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
@@ -232,14 +232,10 @@ local function async_grep_search(query, grep_opts, fetch_opts, on_error, callbac
                     process:kill({
                         stop_read = true
                     })
-                    read_stop = true
+                    stop_read = true
                     break
                 end
             end
-        end
-
-        if #items > 0 then
-            vim.schedule(function() callback(items) end)
         end
     end)
 
@@ -247,7 +243,7 @@ local function async_grep_search(query, grep_opts, fetch_opts, on_error, callbac
         cwd = grep_opts.cwd,
         args = args,
         on_output = function(data, is_stderr)
-            if read_stop then return end
+            if stop_read then return end
             if not data then return end
             if is_stderr then
                 on_error(data)
@@ -256,14 +252,14 @@ local function async_grep_search(query, grep_opts, fetch_opts, on_error, callbac
             buffered_feed(data)
         end,
         on_exit = function()
-            callback(nil)
+            vim.schedule(function() callback(items) end)
         end,
     })
 
     local start_ok, start_err = process:start()
-    if not start_ok and start_err and #start_err > 0 then
-        callback(nil)
-        on_error(start_err)
+    if not start_ok then
+        callback({})
+        on_error(start_err or "failed to launch ripgrep")
     end
 
     return function()
