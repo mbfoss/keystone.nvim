@@ -297,13 +297,17 @@ function M.async_scan_dir(dir, include_regex_list, exclude_regex_list, on_file, 
     return cancel_fn
 end
 
+---@class keystone.utils.walk_dir_opts
+---@field include_regex_list vim.regex[]?
+---@field exclude_regex_list vim.regex[]?
+---@field on_dir_enter fun(path:string)?
+---@field on_file fun(filepath:string,filename:string,relative_path:string)
+---@field on_done fun()
+
 ---@param dir string
----@param include_regex_list vim.regex[]?
----@param exclude_regex_list vim.regex[]?
----@param on_file fun(path:string,name:string,rel_path:string)
----@param on_done fun()
+---@param opts keystone.utils.walk_dir_opts
 ---@return function # cancel function
-function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, on_done)
+function M.async_walk_dir(dir, opts)
     local pending_dirs = { dir }
     local is_cancelled = false
 
@@ -311,7 +315,7 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
     local call_on_done = function()
         if not on_done_called then
             vim.schedule(function()
-                on_done()
+                opts.on_done()
             end)
             on_done_called = true
         end
@@ -328,6 +332,9 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
         end
 
         local path = table.remove(pending_dirs, 1)
+        if opts.on_dir_enter then
+            opts.on_dir_enter(path)
+        end
         --TODO: need to close fd?
         local fd = uv.fs_scandir(path)
         if not fd then
@@ -342,12 +349,12 @@ function M.async_walk_dir(dir, include_regex_list, exclude_regex_list, on_file, 
             local rel_path = vim.fs.relpath(dir, full_path)
             if rel_path then
                 if type_ == "directory" then
-                    if strutils.check_path_pattern(rel_path, true, nil, exclude_regex_list) then
+                    if strutils.check_path_pattern(rel_path, true, nil, opts.exclude_regex_list) then
                         table.insert(pending_dirs, full_path)
                     end
                 elseif type_ == "file" then
-                    if strutils.check_path_pattern(rel_path, false, include_regex_list, exclude_regex_list) then
-                        on_file(full_path, name, rel_path)
+                    if strutils.check_path_pattern(rel_path, false, opts.include_regex_list, exclude_regex_list) then
+                        opts.on_file(full_path, name, rel_path)
                     end
                 end
             end

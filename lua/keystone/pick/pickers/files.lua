@@ -52,110 +52,40 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local cancel_fn
     cancel_fn = fsutils.async_walk_dir(
         opts.cwd,
-        include_regex_list,
-        exclude_regex_list,
-        function(filepath, filename, relative_path)
-            local res = pickertools.match_label(filename, query)
-
-            if not res then return end
-            if count >= max_results then
-                cancel_fn()
-                return
-            end
-            local filedir = relative_path:sub(1, #relative_path - #filename)
-            local icon, icon_hl = icons.get_icon(filename)
-            local chunks = { { icon, icon_hl }, { " " }, { filedir } }
-            vim.list_extend(chunks, res.chunks)
-            table.insert(items, {
-                label_chunks = chunks,
-                score = res.score,
-                data = {
-                    filepath = filepath
-                },
-            })
-            count = count + 1
-        end,
-        function()
-            vim.schedule(function()
-                callback(items)
-                callback(nil)
-            end)
-        end
-    )
-    return cancel_fn
-end
-
----@param query string
----@param fd_opts keystone.filepicker.SearchOpts
----@param fetch_opts keystone.Picker.FetcherOpts
----@param callback fun(items:keystone.Picker.Item[]?)
-local function async_fd_search(query, fd_opts, fetch_opts, callback)
-    local args = { "--type", "f", "--fixed-strings", "--color", "never" }
-    if fd_opts.exclude_globs then
-        for _, glob in ipairs(fd_opts.exclude_globs) do
-            table.insert(args, "--exclude")
-            table.insert(args, glob)
-        end
-    end
-    table.insert(args, "--")
-    table.insert(args, query)
-
-    local process
-    local read_stop = false
-    local count = 0
-    local max_results = fd_opts.max_results or 10000
-
-    local include_regex_list = fd_opts.include_globs and strutils.compile_globs(fd_opts.include_globs) or nil
-
-    local items = {}
-    local buffered_feed = strutils.create_line_buffered_feed(function(lines)
-        for _, line in ipairs(lines) do
-            if read_stop then return end
-            local relpath = line:gsub("^%.[/]", "")
-            if strutils.check_path_pattern(line, false, include_regex_list, nil) then
-                if count < max_results then
-                    local res = pickertools.match_label(relpath, query)
-                    if res then
-                        local filepath = vim.fs.joinpath(fd_opts.cwd, relpath)
-                        local filename, extension = extract_filename_ext(relpath)
-                        local icon, icon_hl = icons.get_icon(filename, extension)
-                        local chunks = { { icon, icon_hl }, { " " } }
-                        vim.list_extend(chunks, res.chunks)
-                        ---@type keystone.Picker.Item
-                        local item = {
-                            label_chunks = chunks,
-                            score = res.score,
-                            data = {
-                                filepath = filepath,
-                            },
-                        }
-                        table.insert(items, item)
-                        count = count + 1
-                    end
-                else
-                    process:kill({ stop_read = true })
-                    read_stop = true
-                    break
+        {
+            include_regex_list = include_regex_list,
+            exclude_regex_list = exclude_regex_list,
+            on_dir_enter = function(path)
+                vim.cmd("redraw")
+            end,
+            on_file = function(filepath, filename, relative_path)
+                local res = pickertools.match_label(filename, query)
+                if not res then return end
+                if count >= max_results then
+                    cancel_fn()
+                    return
                 end
+                local filedir = relative_path:sub(1, #relative_path - #filename)
+                local icon, icon_hl = icons.get_icon(filename)
+                local chunks = { { icon, icon_hl }, { " " }, { filedir } }
+                vim.list_extend(chunks, res.chunks)
+                table.insert(items, {
+                    label_chunks = chunks,
+                    score = res.score,
+                    data = {
+                        filepath = filepath
+                    },
+                })
+                count = count + 1
+            end,
+            on_done = function()
+                vim.schedule(function()
+                    callback(items)
+                    callback(nil)
+                end)
             end
-        end
-    end)
-
-    process = Process:new("fd", {
-        cwd = fd_opts.cwd,
-        args = args,
-        on_output = function(data, is_stderr)
-            if read_stop or not data then return end
-            if is_stderr then return end
-            buffered_feed(data)
-        end,
-        on_exit = function()
-            vim.schedule(function() callback(items) end)
-        end,
-    })
-
-    process:start()
-    return function() if process then process:kill({ stop_read = true }) end end
+        })
+    return cancel_fn
 end
 
 ---@param opts keystone.filepicker.Opts?
@@ -177,11 +107,7 @@ function M.open(opts)
                 exclude_globs = opts.exclude_globs,
                 max_results = opts.max_results or 10000,
             }
-            if ksconfig.use_fd_find then
-                return async_fd_search(query, search_opts, fetch_opts, callback)
-            else
-                return async_lua_search(query, search_opts, fetch_opts, callback)
-            end
+            return async_lua_search(query, search_opts, fetch_opts, callback)
         end,
 
     }, function(data)

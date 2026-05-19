@@ -2,13 +2,11 @@ local M = {}
 
 ---@class keystone.pick.Config
 ---@field override_ui_select boolean?
----@field use_fd_find boolean
 
 local function _get_default_config()
     ---@type keystone.pick.Config
     return {
         override_ui_select = true,
-        use_fd_find = false,
     }
 end
 
