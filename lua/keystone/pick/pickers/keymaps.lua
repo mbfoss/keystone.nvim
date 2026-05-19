@@ -96,7 +96,7 @@ function M.open()
     picker.open({
             prompt = "Keymaps",
             enable_preview = true,
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local items = {}
 
                 for _, km in ipairs(entries) do
@@ -120,9 +120,9 @@ function M.open()
                     return a.score > b.score
                 end)
 
-                return items
+                callback(items)
             end,
-            async_preview = function(data, opts, callback)
+            previewer = function(data, opts, callback)
                 callback({
                     content = format_preview(data.km),
                 })

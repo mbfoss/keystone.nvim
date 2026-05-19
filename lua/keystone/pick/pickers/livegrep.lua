@@ -281,7 +281,7 @@ function M.open(opts)
         enable_preview = true,
         enable_list_sep = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
-        async_fetch = function(query, fetch_opts, callback)
+        finder = function(query, fetch_opts, callback)
             return async_grep_search(query, {
                     cwd = cwd,
                     include_globs = opts.include_globs or {},

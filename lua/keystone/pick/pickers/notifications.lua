@@ -37,7 +37,7 @@ function M.open()
     picker.open({
         prompt = "Notification History",
         enable_preview = true,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(history) do
                 local text = strutils.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
@@ -58,9 +58,9 @@ function M.open()
                     })
                 end
             end
-            return items
+            callback(items)
         end,
-        async_preview = function(data, opts, callback)
+        previewer = function(data, opts, callback)
             callback({
                 content = data.message,
             })

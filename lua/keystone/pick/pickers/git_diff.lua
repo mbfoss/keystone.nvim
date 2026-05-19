@@ -153,7 +153,7 @@ function M.open()
         ---@param query string
         ---@param fetch_opts table
         ---@return PickerItem[]
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
 
             for _, entry in ipairs(parsed) do
@@ -196,14 +196,14 @@ function M.open()
                 end
             end
 
-            return items
+            callback(items)
         end,
 
         ---@param data GitStatusEntry
         ---@param opts table
         ---@param callback fun(result: PreviewCallbackResult)
         ---@return fun() cancel_fn
-        async_preview = function(data, opts, callback)
+        previewer = function(data, opts, callback)
             local filepath = data.path
             if data.untracked then
                 vim.schedule(function()

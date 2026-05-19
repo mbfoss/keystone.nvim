@@ -39,7 +39,7 @@ function M.open()
     picker.open({
         prompt = "Jumplist",
         enable_preview = true,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for _, data in ipairs(entries) do
                 local label = data.relpath or ""
@@ -61,7 +61,7 @@ function M.open()
                     table.insert(items, item)
                 end
             end
-            return items
+            callback(items)
         end,
     }, function(data)
         if data then

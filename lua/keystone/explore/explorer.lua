@@ -38,7 +38,7 @@ local _antiflicker_delay = 200
 ---@field list_width number
 ---@field list_height number
 
----@alias keystone.Explorer.AsyncFetcher fun(path:string[],opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
+---@alias keystone.Explorer.Finder fun(path:string[],opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
 
 ---@class keystone.Explorer.AsyncPreviewOpts
 ---@field viewport_width number
@@ -51,9 +51,9 @@ local _antiflicker_delay = 200
 ---@field prompt string
 ---@field initial_path string[]
 ---@field initial_cursor string?
----@field async_fetch keystone.Explorer.AsyncFetcher?
+---@field finder keystone.Explorer.Finder?
 ---@field enable_preview boolean?
----@field async_preview keystone.Explorer.AsyncPreviewLoader?
+---@field previewer keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
@@ -428,7 +428,7 @@ function Explorer:update_preview()
     local preview_width = math.max(0, self.layout.preview_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.preview_height - 2) -- -2 for borders
 
-    local preview_fn = self.opts.async_preview or _default_preview
+    local preview_fn = self.opts.previewer or _default_preview
 
     self.async_preview_cancel = preview_fn(
         path,
@@ -692,7 +692,7 @@ function Explorer:run_fetch(direction)
         table.remove(path)
     end
 
-    self.async_fetch_cancel = self.opts.async_fetch(
+    self.async_fetch_cancel = self.opts.finder(
         path,
         fetch_opts,
         function(new_items)
@@ -729,7 +729,7 @@ function Explorer:run_fetch(direction)
 
     if not complete then
         assert(type(self.async_fetch_cancel) == "function",
-            "async fetch should with deferred result should return a function")
+            "finder deferred result should return a function")
         self:start_spinner()
     end
 end
@@ -777,7 +777,7 @@ end
 ---@param opts keystone.Explorer.Opts
 ---@param callback keystone.Explorer.Callback
 function M.open(opts, callback)
-    assert(opts.async_fetch)
+    assert(opts.finder)
     Explorer:new(opts, callback)
 end
 

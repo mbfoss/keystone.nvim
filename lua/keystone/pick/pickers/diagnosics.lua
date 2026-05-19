@@ -64,7 +64,7 @@ function M.open(opts)
     picker.open({
         prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
         enable_preview = true,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
                 local res = pickertools.match_label(entry.message, query)
@@ -85,7 +85,7 @@ function M.open(opts)
                     })
                 end
             end
-            return items
+            callback(items)
         end,
         quickfix_formatter = function(data)
             ---@type vim.quickfix.entry

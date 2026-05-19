@@ -50,7 +50,7 @@ function M.open(opts)
     picker.open({
         prompt = "Switch Window",
         enable_preview = true,
-        fetch = function(query)
+        finder = function(query, _, callback)
             local items = {}
             for _, winid in ipairs(windows) do
                 local config = vim.api.nvim_win_get_config(winid)
@@ -61,9 +61,9 @@ function M.open(opts)
                     end
                 end
             end
-            return items
+            callback(items)
         end,
-        async_preview = function(data, _, callback)
+        previewer = function(data, _, callback)
             local bufnr = data.bufnr
             local cancelled = false
             vim.schedule(function()

@@ -20,7 +20,7 @@ function M.open(opts)
 
     picker.open({
         prompt = "Spell Checker: " .. cursor_word,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for i, word in ipairs(suggestions) do
                 local item = {
@@ -37,7 +37,7 @@ function M.open(opts)
                     table.insert(items, item)
                 end
             end
-            return items
+            callback(items)
         end,
     }, function(data)
         if data then

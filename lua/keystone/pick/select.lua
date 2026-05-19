@@ -60,7 +60,7 @@ function M.select(items, opts, on_choice)
         prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
         list_width   = list_width,
         height_ratio = height_ratio,
-        fetch        = function(query, fetch_opts)
+        finder       = function(query, fetch_opts, callback)
             local results = {}
 
             for _, entry in ipairs(cached) do
@@ -73,7 +73,7 @@ function M.select(items, opts, on_choice)
                 end
             end
 
-            return results
+            callback(results)
         end,
     }, function(choice)
         if choice then

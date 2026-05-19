@@ -76,7 +76,7 @@ function M.open(opts)
             prompt = "Quickfix Items",
             enable_list_sep = true,
             enable_preview = true,
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local items = {}
                 for _, data in ipairs(entries) do
                     local text = vim.trim(data.text ~= "" and data.text or "[No description]")
@@ -99,7 +99,7 @@ function M.open(opts)
                     end
                 end
                 table.sort(items, function(a, b) return a.score > b.score end)
-                return items
+                callback(items)
             end,
             quickfix_formatter = function(data)
                 return data

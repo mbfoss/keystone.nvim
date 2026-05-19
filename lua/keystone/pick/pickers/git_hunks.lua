@@ -30,7 +30,7 @@ function M.open()
             prompt = "Gitsigns Hunks",
             enable_preview = true,
             preview_default = "visible",
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local items = {}
                 for _, h in ipairs(hunks) do
                     -- Gitsigns hunk structure: { added = { count, start }, removed = { count, start }, lines = { ... } }
@@ -50,16 +50,16 @@ function M.open()
                         })
                     end
                 end
-                return items
+                callback(items)
             end,
 
-            async_preview = function(data, opts, callback)
+            previewer = function(data, opts, callback)
                 local hunk = data.hunk
                 -- amount of surrounding context to show
                 local context = math.max(math.floor((opts.viewport_height - #hunk.lines) / 2), 2)
                 local start_line = hunk.added.start
                 local end_line = start_line + math.max(hunk.added.count - 1, 0)
-                -- fetch surrounding buffer lines
+                -- get surrounding buffer lines
                 local before_start = math.max(start_line - context, 1)
                 local before =
                     vim.api.nvim_buf_get_lines(bufnr, before_start - 1, start_line - 1, false)

@@ -165,7 +165,7 @@ function M.open(opts)
         prompt = opts.prompt or "Files",
         enable_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
-        async_fetch = function(query, fetch_opts, callback)
+        finder = function(query, fetch_opts, callback)
             if not query or query == "" then
                 callback()
                 return

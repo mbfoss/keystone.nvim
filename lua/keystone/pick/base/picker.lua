@@ -47,7 +47,7 @@ local _antiflicker_delay = 200
 ---@field store fun(hist:string[])?
 
 ---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.AsyncFetcher fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
+---@alias keystone.Picker.Finder fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@class keystone.Picker.AsyncPreviewOpts
@@ -60,11 +60,10 @@ local _antiflicker_delay = 200
 ---@class keystone.Picker.opts
 ---@field prompt string
 ---@field highlight_query keystone.Picker.QueryHighlighter?
----@field fetch keystone.Picker.Fetcher?
----@field async_fetch keystone.Picker.AsyncFetcher?
+---@field finder keystone.Picker.Finder?
 ---@field enable_preview boolean?
 ---@field preview_default "visible"|"hidden"|?
----@field async_preview keystone.Picker.AsyncPreviewLoader?
+---@field previewer keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
 ---@field height_ratio number?
@@ -583,7 +582,7 @@ function Picker:update_preview()
     local preview_width = math.max(0, self.layout.preview_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.preview_height - 2) -- -2 for borders
 
-    local preview_fn = self.opts.async_preview or _default_preview
+    local preview_fn = self.opts.previewer or _default_preview
 
     self.async_preview_cancel = preview_fn(
         item.data,
@@ -836,23 +835,12 @@ function Picker:run_fetch(query)
         list_height = math.max(1, self.layout.list_height - 2),
     }
 
-    if self.opts.fetch then
-        local items, initial = self.opts.fetch(query, fetch_opts)
-        if items and #items > 0 then
-            self:set_items(items)
-            self:move_cursor(initial or 1, true, true)
-        else
-            self:clear_list()
-        end
-        return
-    end
-
     self.async_fetch_context = self.async_fetch_context + 1
     local context = self.async_fetch_context
 
     local complete = false
 
-    self.async_fetch_cancel = self.opts.async_fetch(
+    self.async_fetch_cancel = self.opts.finder(
         query,
         fetch_opts,
         function(new_items, initial)
@@ -869,7 +857,7 @@ function Picker:run_fetch(query)
     )
     if not complete then
         assert(type(self.async_fetch_cancel) == "function",
-            "async fetch should with deferred result should return a function")
+            "finder with deferred result should return a function")
         self:start_spinner()
     end
 end
@@ -1041,8 +1029,7 @@ end
 ---@param opts keystone.Picker.opts
 ---@param callback keystone.Picker.Callback
 function M.open(opts, callback)
-    assert(opts.fetch or opts.async_fetch)
-
+    assert(opts.finder, "finder missing in opts")
     Picker:new(opts, callback)
 end
 

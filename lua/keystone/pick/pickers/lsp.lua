@@ -63,7 +63,7 @@ function M.references()
             enable_list_sep = true,
             enable_preview = true,
             preview_default = "visible",
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
                     local text = ref.text and vim.fn.trim(ref.text) or ""
@@ -86,7 +86,7 @@ function M.references()
                         table.insert(picker_items, item)
                     end
                 end
-                return picker_items
+                callback(picker_items)
             end,
         }, function(data)
             if data then
@@ -139,7 +139,7 @@ function M.document_symbols(opts)
             prompt = opts.prompt or "Document Symbols",
             enable_preview = true,
             preview_default = "visible",
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local filtered = {}
                 for _, item in ipairs(items) do
                     local match = pickertools.match_label(item.data.name, query)
@@ -152,7 +152,7 @@ function M.document_symbols(opts)
                     end
                 end
                 table.sort(filtered, function(a, b) return a.score > b.score end)
-                return filtered
+                callback(filtered)
             end,
         }, function(data)
             if data then

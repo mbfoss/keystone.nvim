@@ -69,7 +69,7 @@ function M.open()
             prompt = "Autocommands",
             enable_preview = true,
             enable_list_sep = true,
-            fetch = function(query, fetch_opts)
+            finder = function(query, fetch_opts, callback)
                 local items = {}
 
                 for _, ac in ipairs(entries) do
@@ -101,9 +101,9 @@ function M.open()
                     return a.score > b.score
                 end)
 
-                return items
+                callback(items)
             end,
-            async_preview = function(data, opts, callback)
+            previewer = function(data, opts, callback)
                 callback({
                     content = format_preview(data.ac),
                 })

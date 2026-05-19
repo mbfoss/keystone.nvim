@@ -52,7 +52,7 @@ function M.open(opts)
     picker.open({
         prompt = "Open Buffers",
         enable_preview = true,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for _, bufnr in ipairs(buffers) do
                 if (opts.include_unloaded or vim.api.nvim_buf_is_loaded(bufnr)) and (opts.included_unlised or vim.bo[bufnr].buflisted) then
@@ -62,9 +62,9 @@ function M.open(opts)
                     end
                 end
             end
-            return items
+            callback(items)
         end,
-        async_preview = function(data, _, callback)
+        previewer = function(data, _, callback)
             local bufnr = data.bufnr
             local cancelled = false
             vim.schedule(function()

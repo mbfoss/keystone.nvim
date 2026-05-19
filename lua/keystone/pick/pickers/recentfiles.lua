@@ -48,7 +48,7 @@ function M.open()
     picker.open({
         prompt = "Recent Files",
         enable_preview = true,
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
             for _, file in ipairs(recent_files) do
                 local res = pickertools.match_label(file.match_path, query)
@@ -59,7 +59,7 @@ function M.open()
                     })
                 end
             end
-            return items
+            callback(items)
         end,
 
     }, function(data)

@@ -33,7 +33,7 @@ local function _explore_files()
         initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
         initial_cursor = initial,
         enable_preview = true,
-        async_fetch = function(path_parts, fetch_opts, callback)
+        finder = function(path_parts, fetch_opts, callback)
             if not path_parts then
                 callback({})
                 return

@@ -38,7 +38,7 @@ function M.open()
         prompt = "Highlights",
         enable_preview = false,
 
-        fetch = function(query, fetch_opts)
+        finder = function(query, fetch_opts, callback)
             local items = {}
 
             for name, hl in pairs(highlights) do
@@ -48,7 +48,7 @@ function M.open()
                 end
             end
 
-            return items
+            callback(items)
         end,
     }, function(data)
         if data then
