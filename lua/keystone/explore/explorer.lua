@@ -593,7 +593,7 @@ function Explorer:add_new_lines(items)
         else
             label = ""
         end
-        label = label:gsub("\n", "")
+        label = label:gsub("\n", " ")
         -- insert in list data
         ---@type keystone.explorer.ListItem
         local list_item = {

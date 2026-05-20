@@ -734,7 +734,7 @@ function Picker:set_items(items)
             label = table.concat(parts)
         end
 
-        label = label:gsub("\n", "")
+        label = label:gsub("\n", " ")
 
         ---@type keystone.picker.ListItem
         local list_item = {

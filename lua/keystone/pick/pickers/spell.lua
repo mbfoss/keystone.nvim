@@ -33,7 +33,6 @@ function M.open(opts)
 
                 if match then
                     item.label_chunks = match.chunks
-                    item.score = match.score - (i * 0.01)
                     table.insert(items, item)
                 end
             end
