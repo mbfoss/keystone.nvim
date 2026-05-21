@@ -20,14 +20,14 @@ local _antiflicker_delay = 200
 ---@class keystone.Explorer.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
----@field path_part string
+---@field name string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
 ---@field data any
 
 ---@class keystone.explorer.ListItem
 ---@field text string
----@field path_part string
+---@field name string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
 ---@field data any
@@ -47,6 +47,16 @@ local _antiflicker_delay = 200
 ---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
 ---@alias keystone.Explorer.AsyncPreviewLoader fun(path:string[], opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
+---@class keystone.Explorer.ActionArgs
+---@field path string[]?
+---@field data any
+---@field is_dir boolean?
+---@field recursive boolean?
+
+---@alias keystone.Explorer.CreateHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun(name:string))
+---@alias keystone.Explorer.DeleteHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun())
+---@alias keystone.Explorer.RenameHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun(name:string))
+
 ---@class keystone.Explorer.Opts
 ---@field prompt string
 ---@field initial_path string[]
@@ -58,6 +68,9 @@ local _antiflicker_delay = 200
 ---@field width_ratio number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
+---@field on_create keystone.Explorer.CreateHandler?
+---@field on_rename keystone.Explorer.RenameHandler?
+---@field on_delete keystone.Explorer.DeleteHandler?
 
 ---@class keystone.Explorer.Layout
 ---@field prompt_row number
@@ -228,7 +241,7 @@ function Explorer:setup_ui()
                 self.last_cursor = row
                 local item = self.list_items[row]
                 if item then
-                    self.nav_history[#self._path + 1] = item.path_part
+                    self.nav_history[#self._path + 1] = item.name
                 end
                 self:update_preview()
             end
@@ -326,7 +339,7 @@ function Explorer:relayout(action)
                     self.vbuf = nil
                 end)
                 local vbuf_key_opts = _key_opts_of(self.vbuf)
-                vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
+                vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, vbuf_key_opts)
                 vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
             end
             self.vwin = uitools.create_window(self.vbuf, false, {
@@ -423,7 +436,7 @@ function Explorer:update_preview()
     self:request_clear_preview()
 
     local path = vim.list_extend({}, self._path)
-    table.insert(path, item.path_part)
+    table.insert(path, item.name)
 
     local preview_width = math.max(0, self.layout.preview_width - 2)   -- -2 for borders
     local preview_height = math.max(0, self.layout.preview_height - 2) -- -2 for borders
@@ -489,17 +502,24 @@ function Explorer:update_preview()
     )
 end
 
-function Explorer:confirm()
-    local cursor = self:get_cursor()
-    ---@type keystone.explorer.ListItem?
-    local item = cursor and self.list_items[cursor] or nil
+---@return string[]?, keystone.explorer.ListItem?
+function Explorer:_get_current()
+    if self.closed then return end
+    local row = self:get_cursor()
+    local item = row and self.list_items[row] or nil
+    if not item then return end
+    local path = vim.list_extend({}, self._path)
+    table.insert(path, item.name)
+    return path, item
+end
+
+function Explorer:confirm_choice()
+    local path, item = self:_get_current()
     if not item then return end
     if not item.selectable then
         self:run_fetch("in")
         return
     end
-    local path = vim.list_extend({}, self._path)
-    table.insert(path, item.path_part)
     self:close(path)
 end
 
@@ -598,7 +618,7 @@ function Explorer:add_new_lines(items)
         ---@type keystone.explorer.ListItem
         local list_item = {
             text = label,
-            path_part = item.path_part,
+            name = item.name,
             supports_preview = item.supports_preview,
             selectable = item.selectable,
             data = item.data,
@@ -652,7 +672,8 @@ function Explorer:add_new_lines(items)
 end
 
 ---@param direction "in"|"out"|nil
-function Explorer:run_fetch(direction)
+---@param on_complete fun()?
+function Explorer:run_fetch(direction, on_complete)
     local cur = self:get_cursor()
     local cur_item = cur and self.list_items[cur] or nil
 
@@ -680,7 +701,7 @@ function Explorer:run_fetch(direction)
 
     local path = vim.list_extend({}, self._path)
     if direction == "in" then
-        local part = cur_item and cur_item.path_part or nil
+        local part = cur_item and cur_item.name or nil
         if not part then
             return
         end
@@ -699,31 +720,32 @@ function Explorer:run_fetch(direction)
             if complete or self.closed or context ~= self.async_fetch_context then return end
             self:stop_spinner()
             new_items = new_items or {}
-            if #new_items > 0 or #path > 1 then
-                self:clear_list()
-                self:add_new_lines(new_items)
-                self._path = path
-                local row = 1
-                local target_part = self.nav_history[#path + 1]
-                if target_part then
-                    for i, item in ipairs(self.list_items) do
-                        if item.path_part == target_part then
-                            row = i
-                            break
-                        end
+            self:clear_list()
+            self:add_new_lines(new_items)
+            self._path = path
+            local row = 1
+            local target_part = self.nav_history[#path + 1]
+            if target_part then
+                for i, item in ipairs(self.list_items) do
+                    if item.name == target_part then
+                        row = i
+                        break
                     end
                 end
-                self:move_cursor(row, true, true)
-                local display_path = table.concat(self._path, '/')
-                if display_path == "" then display_path = "/" end
-                if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
-                    vim.api.nvim_win_set_config(self.lwin, {
-                        title = fsutils.smart_crop_path(display_path, fetch_opts.list_width),
-                        title_pos = "left",
-                    })
-                end
+            end
+            self:move_cursor(row, true, true)
+            local display_path = table.concat(self._path, '/')
+            if display_path == "" then display_path = "/" end
+            if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
+                vim.api.nvim_win_set_config(self.lwin, {
+                    title = fsutils.smart_crop_path(display_path, fetch_opts.list_width),
+                    title_pos = "left",
+                })
             end
             complete = true
+            if on_complete then
+                on_complete()
+            end
         end
     )
 
@@ -764,14 +786,87 @@ function Explorer:close(path)
 end
 
 function Explorer:setup_input()
-    do
-        local lbuf_key_opts = _key_opts_of(self.lbuf)
-        vim.keymap.set("n", "l", function() self:run_fetch("in") end, lbuf_key_opts)
-        vim.keymap.set("n", "h", function() self:run_fetch("out") end, lbuf_key_opts)
-        vim.keymap.set("n", "<CR>", function() self:confirm() end, lbuf_key_opts)
-        vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
-        vim.keymap.set("n", "<C-t>", function() self:toggle_preview() end, lbuf_key_opts)
+    local opts = _key_opts_of(self.lbuf)
+
+    vim.keymap.set("n", "l", function() self:run_fetch("in") end, opts)
+    vim.keymap.set("n", "h", function() self:run_fetch("out") end, opts)
+    vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, opts)
+    vim.keymap.set("n", "<Esc>", function() self:close() end, opts)
+    vim.keymap.set("n", "<C-t>", function() self:toggle_preview() end, opts)
+    vim.keymap.set("n", "a", function() self:_action_create(false) end, opts)
+    vim.keymap.set("n", "A", function() self:_action_create(true) end, opts)
+    vim.keymap.set("n", "r", function() self:_action_rename() end, opts)
+    vim.keymap.set("n", "d", function() self:_action_delete(false) end, opts)
+    vim.keymap.set("n", "D", function() self:_action_delete(true) end, opts)
+end
+
+---@param name string
+function Explorer:_get_item_row(name)
+    for i, item in ipairs(self.list_items) do
+        if item.name == name then
+            return i
+        end
     end
+    return nil
+end
+
+---@private
+---@param as_dir boolean
+function Explorer:_action_create(as_dir)
+    if not self.opts.on_create then return end
+    local path_str = vim.inspect(self._path)
+    ---@param name string
+    local on_done = function(name)
+        if path_str ~= vim.inspect(self._path) then return end
+        self:run_fetch(nil, function()
+            local row = self:_get_item_row(name)
+            if row then self:move_cursor(row, false, false) end
+        end)
+    end
+    ---@type keystone.Explorer.ActionArgs
+    local args = {
+        path = vim.list_extend({}, self._path),
+        is_dir = as_dir
+    }
+    self.opts.on_create(args, on_done)
+end
+
+function Explorer:_action_rename()
+    if not self.opts.on_rename then return end
+    local path_str = vim.inspect(self._path)
+    ---@param name string
+    local on_done = function(name)
+        if path_str ~= vim.inspect(self._path) then return end
+        self:run_fetch(nil, function()
+            local row = self:_get_item_row(name)
+            if row then self:move_cursor(row, false, false) end
+        end)
+    end
+    ---@type keystone.Explorer.ActionArgs
+    local args = {
+        path = self:_get_current(),
+    }
+    self.opts.on_rename(args, on_done)
+end
+
+---@private
+---@param recursive boolean
+function Explorer:_action_delete(recursive)
+    if not self.opts.on_delete then return end
+    local path_str = vim.inspect(self._path)
+    local on_done = function()
+        if path_str ~= vim.inspect(self._path) then return end
+        local row = self:get_cursor()
+        self:run_fetch(nil, function()
+            if row then self:move_cursor(row, false, false) end
+        end)
+    end
+    ---@type keystone.Explorer.ActionArgs
+    local args = {
+        path = self:_get_current(),
+        recursive = recursive,
+    }
+    self.opts.on_delete(args, on_done)
 end
 
 ---@param opts keystone.Explorer.Opts

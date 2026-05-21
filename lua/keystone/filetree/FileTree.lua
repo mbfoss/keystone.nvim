@@ -85,8 +85,7 @@ MANAGEMENT
 `A`       Create directory in parent directory
 `I`       Create directory inside selected directory
 `r`       Rename file or directory
-`d!`      **Permanently** delete file or empty directory
-`D!`      **Permanently** delete directory and **all** its contents
+`d`      **Permanently** delete file or empty directory
 
 OTHER
 =====
@@ -306,17 +305,11 @@ function FileTree:create_buffer()
             end,
             "Rename file or directory",
         },
-        ["d!"] = {
+        ["d"] = {
             function()
                 with_item(function(i) self:_delete_node(i) end)
             end,
             "Permanently delete file or empty directory",
-        },
-        ["D!"] = {
-            function()
-                with_item(function(i) self:_delete_dir_recursive(i) end)
-            end,
-            "Permanently delete folder and ALL its content",
         },
         ["R"] = {
             function()
@@ -838,29 +831,31 @@ function FileTree:_create_node(item, as_dir, force_parent)
     local type_label = as_dir and "directory" or "file"
 
     local reload_counter = self._reload_counter
+
+    ---@return boolean,string?,string?
+    local function check_name(name)
+        local root = self._root
+        if not root or reload_counter ~= self._reload_counter then
+            return false, ("Cannot create %s, tree was reloaded"):format(type_label)
+        end
+        if not name or name == "" then return false, "Name cannot be empty" end
+        local new_path = vim.fn.fnamemodify(vim.fs.joinpath(base_dir, name), ":p")
+        if vim.fn.fnamemodify(new_path, ":h") ~= base_dir then return false, "Invalid name" end
+        return true, nil, new_path
+    end
+
     inputwin.open({
             prompt = "New " .. type_label .. " name",
             validate = function(name)
-                local root = self._root
-                if not root or reload_counter ~= self._reload_counter then
-                    return false, ("Cannot create %s, tree was reloaded"):format(type_label)
-                end
-                if not name or name == "" then return false, "Name cannot be empty" end
-                local new_path = vim.fs.joinpath(base_dir, name)
-                local rel = vim.fs.relpath(root, new_path)
-                if not rel then return false, "Invalid name" end
-                if not self:_should_include(rel, as_dir) then
-                    return false, "Name incompatible with worspace file patterns"
-                end
-                return true
+                return check_name(name)
             end
         },
         function(name)
-            if not name or name == "" then return end
-            if reload_counter ~= self._reload_counter then return end
-            if not self._treebuf:get_item(path) then return end
-
-            local new_path = vim.fs.joinpath(base_dir, name)
+            local name_ok, name_err, new_path = check_name(name)
+            if not name_ok or not new_path then
+                vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
+                return
+            end
             if as_dir then
                 local ok, err = vim.uv.fs_mkdir(new_path, 493) -- 493 is octal 0755
                 if ok then
@@ -889,35 +884,49 @@ function FileTree:_rename_node(item)
     local parent_dir = vim.fn.fnamemodify(old_path, ":h")
 
     local reload_counter = self._reload_counter
+
+    ---@param name string
+    ---@return boolean, string|nil, string|nil
+    local function check_name(name)
+        local root = self._root
+        if not root or reload_counter ~= self._reload_counter then
+            return false, "Cannot change name, tree was reloaded"
+        end
+        if not name or name == "" then return false, "Name cannot be empty" end
+        local new_path = vim.fn.fnamemodify(vim.fs.joinpath(parent_dir, name), ":p")
+        local new_parent = vim.fn.fnamemodify(new_path, ":h")
+        if new_parent ~= parent_dir then return false, "Invalid name" end
+        return true, nil, new_path
+    end
     inputwin.open({
-            prompt = ("Rename `%s`"):format(old_name),
+            prompt = ("Rename`%s`"):format(old_name),
             default_text = old_name,
             validate = function(name)
-                local root = self._root
-                if not root or reload_counter ~= self._reload_counter then
-                    return false, "Cannot change name, tree was reloaded"
-                end
-                if not name or name == "" then return false, "Name cannot be empty" end
-                local new_path = vim.fs.joinpath(parent_dir, name)
-                local rel = vim.fs.relpath(root, new_path)
-                if not rel then return false, "Invalid name" end
-                if not self:_should_include(rel, is_dir) then
-                    return false, "Name incompatible with worspace file patterns"
-                end
-                return true
+                return check_name(name)
             end
         },
+        ---@param new_name string
         function(new_name)
-            if not new_name or new_name == "" then return end
-            if reload_counter ~= self._reload_counter then return end
+            local name_ok, name_err, final_path = check_name(new_name)
+            if not name_ok or not final_path then
+                vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
+                return
+            end
             if not self._treebuf:get_item(old_path) then return end
-            local new_path = vim.fs.joinpath(parent_dir, new_name)
-            local ok, err = fsutils.rename_file(old_path, new_path)
+            if old_path == final_path then return end
+
+            local ok, err = fsutils.rename_file(old_path, final_path)
             if ok then
                 self:_read_dir(parent_dir, self._reload_counter, false)
-                self:_reveal(new_path)
+
+                local final_dir = vim.fn.fnamemodify(final_path, ":h")
+                if final_dir ~= parent_dir then
+                    self:_read_dir(final_dir, self._reload_counter, false)
+                end
+
+                self:_reveal(final_path)
             else
-                vim.notify("Rename failed: " .. err, vim.log.levels.ERROR)
+                vim.notify("Operation failed: " .. err, vim.log.levels.ERROR)
             end
         end)
 end
@@ -941,31 +950,6 @@ function FileTree:_delete_node(item)
         self:_read_dir(parent_dir, self._reload_counter, false)
         if not success then
             vim.notify(("Failed to delete %s\n%s"):format(type_str, err_msg), vim.log.levels.ERROR)
-        end
-    end)
-end
-
----@param item table The TreeBuffer item
-function FileTree:_delete_dir_recursive(item)
-    if not item.data.is_dir or item.data.is_link then
-        vim.notify("Selected item is not a directory", vim.log.levels.WARN)
-        return
-    end
-    local path = item.data.path
-    if path == self._root then
-        vim.notify("Cannot delete root item", vim.log.levels.WARN)
-        return
-    end
-    local parent_dir = vim.fn.fnamemodify(path, ":h")
-    local reload_counter = self._reload_counter
-    uitools.confirm_action("Permanently delete directory and all its contents?\n" .. path, false, function(confirmed)
-        if not confirmed or reload_counter ~= self._reload_counter then return end
-        if not self._treebuf:get_item(path) then return end
-        local success = vim.fn.delete(path, "rf")
-        if success == 0 then
-            self:_read_dir(parent_dir, self._reload_counter, false)
-        else
-            vim.notify("Failed to delete directory: " .. path, vim.log.levels.ERROR)
         end
     end)
 end

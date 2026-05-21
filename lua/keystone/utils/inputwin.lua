@@ -93,8 +93,8 @@ function M.open(opts, on_confirm)
         if closed or not win then return end
         if value and opts.validate then
             local validated, err_msg = opts.validate(value)
-            if not validated and err_msg then
-                vim.notify(err_msg)
+            if not validated then
+                vim.notify(err_msg or "Invalid input", vim.log.levels.ERROR)
                 return
             end
         end

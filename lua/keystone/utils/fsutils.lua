@@ -10,9 +10,10 @@ function M.file_exists(path)
 end
 
 ---@param path string
+---@return boolean
 function M.dir_exists(path)
     local stat = vim.loop.fs_stat(path)
-    return stat and stat.type == "directory"
+    return stat and stat.type == "directory" or false
 end
 
 ---@param path string
