@@ -26,6 +26,7 @@ end
 ---@param location string
 ---@param on_done fun(name:string)
 local function _fs_create(type, location, on_done)
+    location = vim.fn.fnamemodify(location, ":p:h")
     local function check_name(name)
         if not name or name == "" then return false, "Name cannot be empty" end
         local new_path = vim.fn.fnamemodify(vim.fs.joinpath(location, name), ":p")
@@ -101,7 +102,8 @@ local function _fs_delete(path, recursive, on_done)
     local is_folder = fsutils.dir_exists(path)
     local msg
     if is_folder then
-        msg = recursive and "Permanently directory and ALL it's content\n%s?" or "Permanently delete directory\n%s?"
+        msg = recursive and "Permanently delete directory and ALL its content\n%s?" or
+            "Permanently delete directory\n%s?"
     else
         msg = "Permanently delete file\n%s?"
     end
@@ -144,56 +146,68 @@ local function _explore_files()
             end
             local path = table.concat(path_parts, '/')
             if path == "" then path = "/" end
-            local entries = {}
+            local raw_entries = {}
             local cancel = fsutils.async_scan_dir(path, nil, nil,
-                function(name, type)
-                    local full_path = vim.fs.joinpath(path, name)
-                    local is_dir = type == "directory"
-                    local is_link = false
-                    local link_target
-                    if type == "link" then
-                        is_link = true
-                        link_target = vim.uv.fs_readlink(full_path)
-                        local linkstat = vim.uv.fs_stat(full_path)
-                        if linkstat then
-                            if linkstat.type == "directory" then is_dir = true end
-                        end
-                    end
-                    local chunks = {
-                        { _get_icon(name, is_dir) },
-                        { " " },
-                        { name },
-                    }
-                    if is_link then
-                        table.insert(chunks, { " " })
-                        if link_target then
-                            vim.list_extend(chunks, {
-                                { "→", "Special" },
-                                { " " },
-                                { link_target, "Special" } })
-                        else
-                            table.insert(chunks, { "↗", "Special" })
-                        end
-                    end
-                    table.insert(entries, {
-                        label_chunks = chunks,
-                        name = name,
-                        supports_preview = not is_dir,
-                        selectable = not is_dir,
-                        data = {
-                            priority = is_dir and 0 or 1
-                        }
-                    })
+                function(name, ftype)
+                    table.insert(raw_entries, { name = name, ftype = ftype, full_path = vim.fs.joinpath(path, name) })
                 end,
-                function()
-                    table.sort(entries, function(a, b)
-                        if a.data.priority ~= b.data.priority then
-                            return a.data.priority < b.data.priority
+                vim.schedule_wrap(function()
+                    local entries = {}
+                    local pending = 0
+
+                    local function make_entry(name, is_dir, is_link, link_target)
+                        local chunks = {
+                            { _get_icon(name, is_dir) },
+                            { " " },
+                            { name },
+                        }
+                        if is_link then
+                            table.insert(chunks, { " " })
+                            if link_target then
+                                vim.list_extend(chunks, { { "→", "Special" }, { " " }, { link_target, "Special" } })
+                            else
+                                table.insert(chunks, { "↗", "Special" })
+                            end
                         end
-                        return a.name < b.name
-                    end)
-                    callback((entries))
-                end)
+                        return {
+                            label_chunks = chunks,
+                            name = name,
+                            supports_preview = not is_dir,
+                            selectable = not is_dir,
+                            data = { priority = is_dir and 0 or 1 },
+                        }
+                    end
+
+                    local function finish()
+                        table.sort(entries, function(a, b)
+                            if a.data.priority ~= b.data.priority then
+                                return a.data.priority < b.data.priority
+                            end
+                            return a.name < b.name
+                        end)
+                        vim.schedule(function()
+                            callback(entries)
+                        end)
+                    end
+
+                    for _, raw in ipairs(raw_entries) do
+                        if raw.ftype == "link" then
+                            pending = pending + 1
+                            vim.uv.fs_readlink(raw.full_path, function(_, link_target)
+                                vim.uv.fs_stat(raw.full_path, function(_, stat)
+                                    local is_dir = stat ~= nil and stat.type == "directory"
+                                    table.insert(entries, make_entry(raw.name, is_dir, true, link_target))
+                                    pending = pending - 1
+                                    if pending == 0 then finish() end
+                                end)
+                            end)
+                        else
+                            table.insert(entries, make_entry(raw.name, raw.ftype == "directory", false, nil))
+                        end
+                    end
+
+                    if pending == 0 then finish() end
+                end))
 
             return cancel
         end,

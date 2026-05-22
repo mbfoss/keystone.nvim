@@ -193,7 +193,7 @@ function Explorer:init(opts, callback)
     })
     assert(#opts.initial_path > 0, "initial path path not be empty")
 
-    self.opts = opts and vim.deepcopy(opts) or {}
+    self.opts = vim.deepcopy(opts)
     self.callback = callback
 
     self.preview_enabled = opts.enable_preview
@@ -217,6 +217,7 @@ function Explorer:init(opts, callback)
     self.async_preview_context = 0
     self.async_preview_cancel = nil
 
+    self._list_fresh = false
     self.spinner = nil
 
     self:setup_ui()
@@ -252,7 +253,6 @@ end
 ---@param action "show_preview"|"hide_preview"|nil
 function Explorer:relayout(action)
     if self.closed then return end
-    local opts = self.opts
 
     local has_preview = (self.vwin ~= nil and action ~= "hide_preview") or action == "show_preview"
 
@@ -304,7 +304,7 @@ function Explorer:relayout(action)
             group = pwin_augroup,
             callback = function(args)
                 local win = vim.api.nvim_get_current_win()
-                assert(not self.closed)
+                if self.closed then return end
                 local cfg = vim.api.nvim_win_get_config(win)
                 local is_float = cfg.relative and cfg.relative ~= ""
                 if not is_float and win ~= self.lwin and win ~= self.vwin then
@@ -591,14 +591,13 @@ function Explorer:clear_list()
     vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
     self:request_clear_preview()
     vim.wo[self.lwin].cursorline = false
+    self._list_fresh = true
 end
 
 ---@param items keystone.Explorer.Item[]
 function Explorer:add_new_lines(items)
     local prefix = "  "
-    local is_fresh = #self.list_items == 0 and
-        vim.api.nvim_buf_line_count(self.lbuf) == 1 and
-        vim.api.nvim_buf_get_lines(self.lbuf, 0, 1, false)[1] == ""
+    local is_fresh = self._list_fresh
 
     vim.bo[self.lbuf].modifiable = true
     for _, item in ipairs(items) do
@@ -630,7 +629,8 @@ function Explorer:add_new_lines(items)
         local row = idx - 1
         if is_fresh and idx == 1 then
             vim.api.nvim_buf_set_lines(self.lbuf, 0, 1, false, { line_text })
-            is_fresh = false -- No longer fresh after first insertion
+            is_fresh = false
+            self._list_fresh = false
         else
             vim.api.nvim_buf_set_lines(self.lbuf, row, row, false, { line_text })
         end
