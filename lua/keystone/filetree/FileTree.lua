@@ -899,7 +899,7 @@ function FileTree:_rename_node(item)
         return true, nil, new_path
     end
     inputwin.open({
-            prompt = ("Rename`%s`"):format(old_name),
+            prompt = ("Rename `%s`"):format(old_name),
             default_text = old_name,
             validate = function(name)
                 return check_name(name)
@@ -926,7 +926,7 @@ function FileTree:_rename_node(item)
 
                 self:_reveal(final_path)
             else
-                vim.notify("Operation failed: " .. err, vim.log.levels.ERROR)
+                vim.notify("Operation failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
             end
         end)
 end
