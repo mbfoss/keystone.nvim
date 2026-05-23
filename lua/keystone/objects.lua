@@ -69,7 +69,10 @@ local function select_node(node, inner)
       last = child
     end
   end
-  if not first or not last then return end
+  if not first or not last then
+    set_visual(node_range(node))
+    return
+  end
   local sr, sc = first:range()
   local _, _, er, ec = last:range()
   set_visual({ sr, sc, er, ec })
