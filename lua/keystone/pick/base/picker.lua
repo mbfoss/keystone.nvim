@@ -1,21 +1,21 @@
-local Spinner    = require("keystone.utils.Spinner")
-local class      = require("keystone.utils.class")
-local common     = require("keystone.utils.common")
-local fsutils    = require("keystone.utils.fsutils")
-local uitools    = require("keystone.utils.uitools")
-local floatwin   = require("keystone.utils.floatwin")
-local layouts    = require("keystone.pick.base.layouts")
+local Spinner            = require("keystone.utils.Spinner")
+local class              = require("keystone.utils.class")
+local common             = require("keystone.utils.common")
+local fsutils            = require("keystone.utils.fsutils")
+local uitools            = require("keystone.utils.uitools")
+local floatwin           = require("keystone.utils.floatwin")
+local layouts            = require("keystone.pick.base.layouts")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
-local M          = {}
+local M                  = {}
 
-local NS_CURSOR  = vim.api.nvim_create_namespace("keystone_PickerCursor")
-local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
-local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
-local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
-local NS_PREFIX  = vim.api.nvim_create_namespace("keystone_PickerPrefix")
+local NS_CURSOR          = vim.api.nvim_create_namespace("keystone_PickerCursor")
+local NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent")
+local NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
+local NS_PREFIX          = vim.api.nvim_create_namespace("keystone_PickerPrefix")
 
 local _antiflicker_delay = 200
 
@@ -262,30 +262,30 @@ function Picker:init(opts, callback)
     vim.validate("opts", opts, "table")
     vim.validate("callback", callback, "function")
 
-    self.opts = opts and vim.deepcopy(opts) or {}
-    self.callback = callback
+    self.opts                  = opts and vim.deepcopy(opts) or {}
+    self.callback              = callback
 
-    self.preview_enabled = opts.enable_preview
-    self.preview_default = opts.preview_default
+    self.preview_enabled       = opts.enable_preview
+    self.preview_default       = opts.preview_default
 
-    self.list_items = {} ---@type keystone.picker.ListItem[]
+    self.list_items            = {} ---@type keystone.picker.ListItem[]
 
-    self.closed = false
+    self.closed                = false
 
-    self.async_fetch_context = 0
-    self.async_fetch_cancel = nil
+    self.async_fetch_context   = 0
+    self.async_fetch_cancel    = nil
 
     self.async_preview_context = 0
-    self.async_preview_cancel = nil
+    self.async_preview_cancel  = nil
 
-    self.spinner = nil
+    self.spinner               = nil
 
-    self.query_text  = ""
-    self.filter_text = ""
-    self.prompt_mode = "query"
+    self.query_text            = ""
+    self.filter_text           = ""
+    self.prompt_mode           = "query"
 
-    self.history = {}
-    self.history_idx = 0
+    self.history               = {}
+    self.history_idx           = 0
 
     if self.opts.history_provider then
         self.history = self.opts.history_provider.load() or {}
@@ -1039,6 +1039,27 @@ function Picker:close(selected_data)
     end)
 end
 
+function Picker:toggle_opts_mode()
+    local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+    if self.prompt_mode == "query" then
+        self.query_text  = current
+        self.prompt_mode = "filter"
+        local display    = self.filter_text
+        vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
+        vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+        self:render_prompt_highlight(display)
+        self:trigger_flag_completion(display)
+    else
+        self.filter_text = current
+        self.prompt_mode = "query"
+        local display    = self.query_text
+        vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
+        vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+        self:render_prompt_highlight(display)
+    end
+    self:render_mode_prefix()
+end
+
 function Picker:setup_input()
     do
         local pbuf_key_opts = _key_opts_of(self.pbuf)
@@ -1098,31 +1119,11 @@ function Picker:setup_input()
         vim.keymap.set("n", "j", function() self:history_next() end, pbuf_key_opts)
         vim.keymap.set("n", "k", function() self:history_prev() end, pbuf_key_opts)
 
-        vim.keymap.set({ "i", "n" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
+        vim.keymap.set({ "n", "i" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
         vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
-        vim.keymap.set("i", "<Tab>", function()
-            if not self.opts.flags then return end
-            local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-            if self.prompt_mode == "query" then
-                self.query_text  = current
-                self.prompt_mode = "filter"
-                local display    = self.filter_text
-                vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
-                vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
-                self:render_prompt_highlight(display)
-                self:trigger_flag_completion(display)
-            else
-                self.filter_text = current
-                self.prompt_mode = "query"
-                local display    = self.query_text
-                vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
-                vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
-                self:render_prompt_highlight(display)
-            end
-            self:render_mode_prefix()
-        end, pbuf_key_opts)
+        vim.keymap.set({ "n", "i" }, "<C-f>", function() self:toggle_opts_mode() end, pbuf_key_opts)
 
         vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
             buffer = self.pbuf,
