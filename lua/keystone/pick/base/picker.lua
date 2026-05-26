@@ -1031,15 +1031,6 @@ function Picker:setup_input()
             return ""
         end, expr_opts)
 
-        vim.keymap.set("i", "<Esc>", function()
-            if vim.fn.pumvisible() == 1 then
-                vim.api.nvim_feedkeys(
-                    vim.api.nvim_replace_termcodes("<C-e>", true, false, true), "n", false)
-                return
-            end
-            self:close()
-        end, pbuf_key_opts)
-
         vim.keymap.set("i", "<C-d>", function()
             local cur = self:get_cursor()
             if cur then
