@@ -299,7 +299,6 @@ function Picker:init(opts, callback)
 
     self:setup_ui()
     self:setup_input()
-    self:render_mode_prefix()
 
     assert(self.pwin)
     vim.api.nvim_set_current_win(self.pwin)
@@ -388,7 +387,7 @@ function Picker:relayout(action)
         assert(type(pwin_augroup) == "number")
         vim.api.nvim_create_autocmd("WinEnter", {
             group = pwin_augroup,
-            callback = vim.schedule_wrap(function(args)
+            callback = function(args)
                 local win = vim.api.nvim_get_current_win()
                 assert(not self.closed)
                 local cfg = vim.api.nvim_win_get_config(win)
@@ -398,7 +397,7 @@ function Picker:relayout(action)
                         self:close()
                     end)
                 end
-            end)
+            end
         })
         vim.api.nvim_create_autocmd("VimResized", {
             group = pwin_augroup,
@@ -519,7 +518,7 @@ function Picker:render_mode_prefix()
                 { self.query_text, "Comment" },
                 { " " }
             },
-            virt_text_pos = "eol_right_align",
+            virt_text_pos = "right_align",
             priority      = 100,
         })
     else
@@ -530,7 +529,7 @@ function Picker:render_mode_prefix()
                     { self.filter_text, "Comment" },
                     { " " }
                 },
-                virt_text_pos = "eol_right_align",
+                virt_text_pos = "right_align",
                 priority      = 100,
             })
         end
@@ -592,18 +591,17 @@ function Picker:render_ui()
         vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
             virt_text = { { "❯ ", "Special" } },
             virt_text_pos = "overlay",
-            priority = 200,
+            priority = 100,
         })
     end
 
     if total > 0 and self.pbuf then
         local text = string.format("%d/%d", cur, total)
-
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
             virt_text = { { text, "Comment" } },
             virt_text_pos = "right_align",
             hl_mode = "blend",
-            priority = 1,
+            priority = 50,
         })
     end
 end
@@ -735,7 +733,8 @@ function Picker:start_spinner()
             vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
             vim.api.nvim_buf_set_extmark(self.pbuf, NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
-                virt_text_pos = "right_align"
+                virt_text_pos = "right_align",
+                priority = 1,
             })
         end
     }
