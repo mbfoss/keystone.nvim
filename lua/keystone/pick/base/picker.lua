@@ -5,7 +5,6 @@ local fsutils            = require("keystone.utils.fsutils")
 local uitools            = require("keystone.utils.uitools")
 local floatwin           = require("keystone.utils.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
-local strutils           = require("keystone.utils.strutils")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -168,7 +167,7 @@ local function _center_for_previewer(msg, width, height)
 end
 
 ---@type keystone.Picker.AsyncPreviewLoader
-local function _default_preview(data, preview_opts, callback)
+local function _default_preview(data, _, callback)
     local max_preview_size = 10124 * 10124
 
     local filepath = data.filepath
@@ -387,7 +386,7 @@ function Picker:relayout(action)
         assert(type(pwin_augroup) == "number")
         vim.api.nvim_create_autocmd("WinEnter", {
             group = pwin_augroup,
-            callback = function(args)
+            callback = function(_)
                 local win = vim.api.nvim_get_current_win()
                 assert(not self.closed)
                 local cfg = vim.api.nvim_win_get_config(win)
@@ -1038,14 +1037,14 @@ function Picker:close(selected_data)
     if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
 
-    for _, w in ipairs({ self.pwin, self.lwin, self.vwin }) do
-        if w and vim.api.nvim_win_is_valid(w) then
+    for _, w in pairs({ self.pwin, self.lwin, self.vwin }) do
+        if vim.api.nvim_win_is_valid(w) then
             vim.api.nvim_win_close(w, true)
         end
     end
 
-    for _, b in ipairs({ self.pbuf, self.lbuf, self.vbuf }) do
-        if b then
+    for _, b in pairs({ self.pbuf, self.lbuf, self.vbuf }) do
+        if vim.api.nvim_buf_is_valid(b) then
             vim.api.nvim_buf_delete(b, { force = true })
         end
     end
@@ -1079,6 +1078,11 @@ function Picker:toggle_opts_mode()
         self:render_prompt_highlight(display)
         self:trigger_flag_completion(display)
     else
+        if vim.fn.pumvisible() == 1 then
+            vim.api.nvim_feedkeys(
+                vim.api.nvim_replace_termcodes("<C-e>", true, false, true), "n", false
+            )
+        end
         self.filter_text = current
         self.prompt_mode = "query"
         local display    = self.query_text
