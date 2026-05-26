@@ -611,7 +611,7 @@ function Picker:update_preview()
             viewport_width = preview_width,
             viewport_height = preview_height,
         },
-        function(preview)
+        vim.schedule_wrap(function(preview)
             if self.closed or preview_context ~= self.async_preview_context or fetch_context ~= self.async_fetch_context then
                 return
             end
@@ -662,7 +662,7 @@ function Picker:update_preview()
                     vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
                 end
             end
-        end
+        end)
     )
 end
 
@@ -861,14 +861,14 @@ function Picker:run_fetch(query)
     end
 
     self.async_fetch_context = self.async_fetch_context + 1
-    local context = self.async_fetch_context
+    local context            = self.async_fetch_context
 
-    local complete = false
+    local complete           = false
 
-    local clean_query = fetch_opts.parsed and fetch_opts.parsed.query or query
-    local flags       = fetch_opts.parsed and fetch_opts.parsed.flags or {}
+    local clean_query        = fetch_opts.parsed and fetch_opts.parsed.query or query
+    local flags              = fetch_opts.parsed and fetch_opts.parsed.flags or {}
 
-    self.async_fetch_cancel = self.opts.finder(
+    self.async_fetch_cancel  = self.opts.finder(
         clean_query,
         flags,
         fetch_opts,

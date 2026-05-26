@@ -5,13 +5,20 @@ local fsutils = require("keystone.utils.fsutils")
 
 local M = {}
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "ft",       type = "value",   multi = true, desc = "filter by filetype"          },
+    { name = "modified", type = "boolean",               desc = "only modified buffers"        },
+    { name = "unloaded", type = "boolean",               desc = "include unloaded buffers"     },
+    { name = "unlisted", type = "boolean",               desc = "include unlisted buffers"     },
+}
+
 ---@param bufnr number
 ---@param query string
----@param list_width number
+---@param flags table
 ---@return keystone.Picker.Item?
-local function buffer_to_picker_item(bufnr, query, list_width)
+local function buffer_to_picker_item(bufnr, query, flags)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
-    local filepath = vim.bo[bufnr].buftype == "" and vim.fn.fnamemodify(bufname, ":t") or ""
     local label
     if bufname ~= "" then
         label = fsutils.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
@@ -19,11 +26,21 @@ local function buffer_to_picker_item(bufnr, query, list_width)
         label = "[No Name]"
     end
     local modified = vim.bo[bufnr].modified
+    local ft = vim.bo[bufnr].filetype
+
+    if flags.modified and not modified then return nil end
+    for _, v in ipairs(flags.ft or {}) do
+        if not ft:find(v:lower(), 1, true) then return nil end
+    end
+
     local match = pickertools.match_label(label, query)
     if not match then return nil end
 
     local label_chunks = { { string.format("%3d", bufnr), "Comment" }, { ": ", "Nontext" } }
     vim.list_extend(label_chunks, match.chunks)
+    if ft ~= "" then
+        table.insert(label_chunks, { "  " .. ft, "Comment" })
+    end
     if modified then
         table.insert(label_chunks, { " [+]", "Special" })
     end
@@ -51,12 +68,17 @@ function M.open(opts)
     local buffers = vim.api.nvim_list_bufs()
     picker.open({
         prompt = "Open Buffers",
+        flags = FLAGS,
         enable_preview = true,
-        finder = function(query, _, fetch_opts, callback)
+        finder = function(query, flags, _, callback)
+            local include_unloaded = opts.include_unloaded or flags.unloaded
+            local include_unlisted = opts.included_unlised or flags.unlisted
             local items = {}
             for _, bufnr in ipairs(buffers) do
-                if (opts.include_unloaded or vim.api.nvim_buf_is_loaded(bufnr)) and (opts.included_unlised or vim.bo[bufnr].buflisted) then
-                    local item = buffer_to_picker_item(bufnr, query, fetch_opts.list_width)
+                if (include_unloaded or vim.api.nvim_buf_is_loaded(bufnr))
+                    and (include_unlisted or vim.bo[bufnr].buflisted)
+                then
+                    local item = buffer_to_picker_item(bufnr, query, flags)
                     if item then
                         table.insert(items, item)
                     end

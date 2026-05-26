@@ -3,6 +3,13 @@ local pickertools = require("keystone.pick.base.pickertools")
 
 local M = {}
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "event", type = "value", multi = true, desc = "filter by event name"  },
+    { name = "group", type = "value", multi = true, desc = "filter by augroup"     },
+    { name = "pat",   type = "value", multi = true, desc = "filter by pattern"     },
+}
+
 ---@param ac vim.api.keyset.get_autocmds.ret
 local function format_preview(ac)
     local function fmt(val)
@@ -67,12 +74,33 @@ function M.open()
 
     picker.open({
             prompt = "Autocommands",
+            flags = FLAGS,
             enable_preview = true,
             enable_list_sep = true,
-            finder = function(query, _, fetch_opts, callback)
+            finder = function(query, flags, _, callback)
                 local items = {}
 
                 for _, ac in ipairs(entries) do
+                    local group   = (ac.group_name or ac.group or ""):lower()
+                    local event   = (ac.event or ""):lower()
+                    local pattern = (ac.pattern and ac.pattern ~= "" and ac.pattern or "*"):lower()
+
+                    local skip = false
+                    for _, v in ipairs(flags.event or {}) do
+                        if not event:find(v:lower(), 1, true) then skip = true; break end
+                    end
+                    if not skip then
+                        for _, v in ipairs(flags.group or {}) do
+                            if not group:find(v:lower(), 1, true) then skip = true; break end
+                        end
+                    end
+                    if not skip then
+                        for _, v in ipairs(flags.pat or {}) do
+                            if not pattern:find(v:lower(), 1, true) then skip = true; break end
+                        end
+                    end
+                    if skip then goto continue end
+
                     local label = string.format(
                         "%s │ %s │ %s",
                         ac.group_name or ac.group or "",
@@ -80,7 +108,7 @@ function M.open()
                         (ac.pattern and ac.pattern ~= "") and ac.pattern or "*"
                     )
 
-                    local match = pickertools.match_label(label, query)
+                    local match = query ~= "" and pickertools.match_label(label, query) or { score = 0, chunks = { { label } } }
                     local virt_lines = (ac.desc and ac.desc ~= "") and {
                         { { ac.desc, "Comment" } }
                     } or {}
@@ -90,11 +118,11 @@ function M.open()
                             label_chunks = match.chunks,
                             virt_lines = virt_lines,
                             score = match.score,
-                            data = {
-                                ac = ac
-                            },
+                            data = { ac = ac },
                         })
                     end
+
+                    ::continue::
                 end
 
                 table.sort(items, function(a, b)

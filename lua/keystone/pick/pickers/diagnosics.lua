@@ -4,6 +4,20 @@ local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local uitools = require("keystone.utils.uitools")
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "sev",  type = "value", multi = true, desc = "filter by severity: error, warn, info, hint" },
+    { name = "src",  type = "value", multi = true, desc = "filter by diagnostic source"                 },
+    { name = "file", type = "value", multi = true, desc = "filter by filename"                          },
+}
+
+local SEV_MAP = {
+    error = vim.diagnostic.severity.ERROR,
+    warn  = vim.diagnostic.severity.WARN,
+    info  = vim.diagnostic.severity.INFO,
+    hint  = vim.diagnostic.severity.HINT,
+}
+
 ---@param severity vim.diagnostic.Severity LSP DiagnosticSeverity
 ---@return string, string (Text, HighlightGroup)
 local function get_severity_info(severity)
@@ -40,33 +54,55 @@ function M.open(opts)
         return
     end
 
-    local filepath = vim.api.nvim_buf_get_name(opts.bufnr or 0)
-
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
     local entries = {}
     for _, d in ipairs(diagnostics) do
         local sev_text, sev_hl = get_severity_info(d.severity)
-
+        local bufname = vim.api.nvim_buf_get_name(d.bufnr)
         table.insert(entries, {
             message = d.message:gsub("\n", " "),
             severity = d.severity,
+            source = (d.source or ""):lower(),
+            filename = vim.fn.fnamemodify(bufname, ":t"):lower(),
             prefix_chunks = {
                 { sev_text,                          sev_hl },
                 { string.format(" %3d", d.lnum + 1), "Number" },
                 { ": ",                              "Comment" }
             },
             bufnr = d.bufnr,
+            filepath = bufname,
             lnum = d.lnum + 1,
             col = d.col,
         })
     end
 
     picker.open({
-        prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
+        prompt = opts.bufnr and "Document Diagnostics" or "Workspace Diagnostics",
+        flags = FLAGS,
         enable_preview = true,
-        finder = function(query, _, fetch_opts, callback)
+        finder = function(query, flags, _, callback)
+            local sev_filter = {}
+            for _, v in ipairs(flags.sev or {}) do
+                local s = SEV_MAP[v:lower()]
+                if s then sev_filter[s] = true end
+            end
+            local has_sev_filter = next(sev_filter) ~= nil
+
             local items = {}
             for _, entry in ipairs(entries) do
+                if has_sev_filter and not sev_filter[entry.severity] then goto continue end
+
+                local skip = false
+                for _, v in ipairs(flags.src or {}) do
+                    if not entry.source:find(v:lower(), 1, true) then skip = true; break end
+                end
+                if not skip then
+                    for _, v in ipairs(flags.file or {}) do
+                        if not entry.filename:find(v:lower(), 1, true) then skip = true; break end
+                    end
+                end
+                if skip then goto continue end
+
                 local res = pickertools.match_label(entry.message, query)
                 if res then
                     local chunks = vim.deepcopy(entry.prefix_chunks)
@@ -75,15 +111,16 @@ function M.open(opts)
                         label_chunks = chunks,
                         score = res.score,
                         data = {
-                            message = entry.message,
+                            message  = entry.message,
                             severity = entry.severity,
-                            bufnr = entry.bufnr,
-                            filepath = filepath,
-                            lnum = entry.lnum,
-                            col = entry.col,
+                            bufnr    = entry.bufnr,
+                            filepath = entry.filepath,
+                            lnum     = entry.lnum,
+                            col      = entry.col,
                         },
                     })
                 end
+                ::continue::
             end
             callback(items)
         end,
