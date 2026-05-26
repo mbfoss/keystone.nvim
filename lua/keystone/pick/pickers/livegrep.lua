@@ -17,10 +17,11 @@ local throttle   = require("keystone.utils.throttle")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "glob",  type = "value",   multi = true, desc = "include glob pattern" },
-    { name = "in",    type = "value",   multi = true, desc = "restrict to path"     },
-    { name = "regex", type = "boolean",               desc = "enable regex mode"    },
-    { name = "case",  type = "boolean",               desc = "case-sensitive"       },
+    { name = "glob",  type = "value",   multi = true, desc = "raw glob pattern"    },
+    { name = "file",  type = "value",   multi = true, desc = "filter by filename"  },
+    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
+    { name = "regex", type = "boolean",               desc = "enable regex mode"   },
+    { name = "case",  type = "boolean",               desc = "case-sensitive"      },
 }
 
 ---@param line string
@@ -63,17 +64,27 @@ local function build_rg_cmd(parsed, opts)
     local query = parsed.query
     local flags = parsed.flags
 
-    -- merge caller-provided globs with inline glob: and in: flags
+    -- merge caller-provided globs with inline flag values
     local include_globs = vim.deepcopy(opts.include_globs or {})
+
     for _, g in ipairs(flags.glob or {}) do
         table.insert(include_globs, g)
     end
-    for _, path in ipairs(flags["in"] or {}) do
-        local p = path:gsub("^!", "\\!")
-                      :gsub("^%*+", ""):gsub("%*+$", "")
-                      :gsub("^%/+", ""):gsub("%/+$", "")
+
+    -- file: filename-only filter — strip slashes and stars so rg keeps it as a
+    -- filename-component glob (rg only matches the filename when there's no /)
+    for _, val in ipairs(flags.file or {}) do
+        local p = val:gsub("[/*]", "")
         if p ~= "" then
             table.insert(include_globs, "*" .. p .. "*")
+        end
+    end
+
+    -- dir: directory filter — strip stars and surrounding slashes, then wrap in
+    -- a **/<dir>/** pattern so it matches anywhere in the path hierarchy
+    for _, val in ipairs(flags.dir or {}) do
+        local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
+        if p ~= "" then
             table.insert(include_globs, "**/" .. p .. "/**")
         end
     end
