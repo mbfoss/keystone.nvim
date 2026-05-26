@@ -8,24 +8,22 @@ local M = {}
 ---@field desc   string?    -- shown in the completion menu
 
 ---@class keystone.queryflags.ParseResult
----@field query       string   -- text before --
----@field flags       table    -- {[name] = true | string | string[]}
----@field sep_start_0 integer? -- 0-indexed byte col of the first '-' of '--', nil when absent
+---@field query       string    -- text before the first --flag token
+---@field flags       table     -- {[name] = true | string | string[]}
+---@field sep_start_0 integer?  -- 0-indexed byte col of the first '--' token, nil when absent
 
--- Returns sep_start_0 (0-indexed), flags_start_1 (1-indexed start of flag tokens).
--- The '--' must be at position 1 or preceded by whitespace to avoid matching foo--bar.
-local function find_sep(raw)
+-- Returns the 1-indexed byte position of the first '--word' token (at line start or after whitespace).
+local function find_flag_start(raw)
     local p = 1
-    while true do
+    while p <= #raw do
         local i = raw:find("%-%-", p)
-        if not i then return nil, nil end
+        if not i then return nil end
         if i == 1 or raw:sub(i - 1, i - 1):match("%s") then
-            local after = i + 2
-            local ws    = raw:sub(after):match("^%s*")
-            return i - 1, after + #ws
+            return i
         end
         p = i + 1
     end
+    return nil
 end
 
 local function build_map(schema)
@@ -38,76 +36,95 @@ end
 ---@param raw    string
 ---@return keystone.queryflags.ParseResult
 function M.parse(schema, raw)
-    local sep_start_0, flags_start_1 = find_sep(raw)
-    if not sep_start_0 then
+    local flag_start = find_flag_start(raw)
+    if not flag_start then
         return { query = raw, flags = {}, sep_start_0 = nil }
     end
-    ---@cast sep_start_0  integer
-    ---@cast flags_start_1 integer
 
-    local query     = raw:sub(1, sep_start_0):gsub("%s+$", "")
-    local flags_str = raw:sub(flags_start_1)
+    local query     = raw:sub(1, flag_start - 1):gsub("%s+$", "")
+    local flags_str = raw:sub(flag_start)
     local defs      = build_map(schema)
     local flags     = {}
 
-    for token in flags_str:gmatch("%S+") do
-        local name, value = token:match("^([%w_%-]+):(.*)$")
-        if name then
-            local def = defs[name]
-            if def and def.type == "value" then
-                if def.multi then
-                    flags[name] = flags[name] or {}
-                    table.insert(flags[name], value)
+    local tokens = {}
+    for tok in flags_str:gmatch("%S+") do
+        table.insert(tokens, tok)
+    end
+
+    local i = 1
+    while i <= #tokens do
+        local tok = tokens[i]
+        if tok:sub(1, 2) == "--" then
+            local name = tok:sub(3)
+            local def  = defs[name]
+            if def then
+                if def.type == "boolean" then
+                    flags[name] = true
+                    i = i + 1
+                elseif def.type == "value" then
+                    local next = tokens[i + 1]
+                    if next and next:sub(1, 2) ~= "--" then
+                        if def.multi then
+                            flags[name] = flags[name] or {}
+                            table.insert(flags[name], next)
+                        else
+                            flags[name] = next
+                        end
+                        i = i + 2
+                    else
+                        i = i + 1
+                    end
                 else
-                    flags[name] = value
+                    i = i + 1
                 end
+            else
+                i = i + 1
             end
         else
-            local def = defs[token]
-            if def and def.type == "boolean" then
-                flags[token] = true
-            end
+            i = i + 1
         end
     end
 
-    return { query = query, flags = flags, sep_start_0 = sep_start_0 }
+    return { query = query, flags = flags, sep_start_0 = flag_start - 1 }
 end
 
 ---@param schema keystone.queryflags.FlagDef[]
 ---@param raw    string
 ---@return {start:integer, finish:integer, hl:string}[]
 function M.highlight(schema, raw)
-    local sep_start_0, flags_start_1 = find_sep(raw)
-    if not sep_start_0 then return {} end
-    ---@cast sep_start_0  integer
-    ---@cast flags_start_1 integer
+    local flag_start = find_flag_start(raw)
+    if not flag_start then return {} end
 
-    local hls  = {}
-    local defs = build_map(schema)
-
-    table.insert(hls, { start = sep_start_0, finish = sep_start_0 + 2, hl = "Comment" })
-
-    local flags_str = raw:sub(flags_start_1)
-    local base_0    = flags_start_1 - 1  -- convert flags-relative positions to line-absolute 0-indexed
+    local hls    = {}
+    local defs   = build_map(schema)
+    local flags_str = raw:sub(flag_start)
+    local base_0 = flag_start - 1
 
     local p = 1
+    local pending_value_flag = nil  -- name of last --key flag, expecting a value token next
+
     while p <= #flags_str do
-        local ts, te, token = flags_str:find("(%S+)", p)
+        local ts, te, tok = flags_str:find("(%S+)", p)
         if not ts then break end
 
-        local tok_start = base_0 + ts - 1
-        local tok_end   = base_0 + te
+        local tok_s = base_0 + ts - 1
+        local tok_e = base_0 + te
 
-        local name, value = token:match("^([%w_%-]+):(.*)$")
-        if name and defs[name] and defs[name].type == "value" then
-            local name_end = tok_start + #name
-            table.insert(hls, { start = tok_start,  finish = name_end,     hl = "Keyword" })
-            table.insert(hls, { start = name_end,   finish = name_end + 1, hl = "Comment" })
-            if #value > 0 then
-                table.insert(hls, { start = name_end + 1, finish = tok_end, hl = "String" })
+        if tok:sub(1, 2) == "--" then
+            local name = tok:sub(3)
+            local def  = defs[name]
+            if def then
+                table.insert(hls, { start = tok_s, finish = tok_e, hl = "Keyword" })
+                pending_value_flag = def.type == "value" and name or nil
+            else
+                table.insert(hls, { start = tok_s, finish = tok_e, hl = "Comment" })
+                pending_value_flag = nil
             end
-        elseif not name and defs[token] and defs[token].type == "boolean" then
-            table.insert(hls, { start = tok_start, finish = tok_end, hl = "Keyword" })
+        else
+            if pending_value_flag then
+                table.insert(hls, { start = tok_s, finish = tok_e, hl = "String" })
+            end
+            pending_value_flag = nil
         end
 
         p = te + 1
@@ -120,56 +137,53 @@ end
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
 ---@field items    table[]
 
--- cursor_byte is the 0-indexed byte offset from nvim_win_get_cursor.
--- In insert mode at the end of "abc", cursor_byte == 3, so line:sub(1, cursor_byte) == "abc".
 ---@param schema      keystone.queryflags.FlagDef[]
 ---@param line        string
----@param cursor_byte integer
+---@param cursor_byte integer  -- 0-indexed byte offset from nvim_win_get_cursor
 ---@return keystone.queryflags.Completions?
 function M.get_completions(schema, line, cursor_byte)
-    local _, flags_start_1 = find_sep(line)
-    if not flags_start_1 then return nil end
-    if cursor_byte + 1 < flags_start_1 then return nil end
-    -- require at least one space after -- before offering completions
-    if not line:sub(flags_start_1 - 1, flags_start_1 - 1):match("%s") then return nil end
+    local before = line:sub(1, cursor_byte)
 
-    -- text from flags zone start up to (not including) the cursor character
-    local flags_before = line:sub(flags_start_1, cursor_byte)
-
-    local word_start_rel, current_word = flags_before:match(".*%s()(%S*)$")
-    if not word_start_rel then
-        word_start_rel, current_word = 1, flags_before
+    local word_start_1, current_word = before:match(".*%s()(%S*)$")
+    if not word_start_1 then
+        word_start_1  = 1
+        current_word = before
     end
 
-    -- 1-indexed column in the full line where the current word starts
-    local word_col_1 = flags_start_1 + word_start_rel - 1
-
-    local name, partial_value = current_word:match("^([%w_%-]+):(.*)$")
     local defs = build_map(schema)
 
-    if name then
-        local def = defs[name]
-        if not def or def.type ~= "value" or not def.values then return nil end
-        local items = {}
-        for _, v in ipairs(def.values) do
-            if vim.startswith(v, partial_value) then
-                table.insert(items, { word = name .. ":" .. v, abbr = v, menu = def.desc or "" })
-            end
-        end
-        return #items > 0 and { startcol = word_col_1, items = items } or nil
-    else
-        local items = {}
+    -- current word starts with -- → complete flag names
+    if current_word:sub(1, 2) == "--" then
+        local partial = current_word:sub(3)
+        local items   = {}
         for _, def in ipairs(schema) do
-            if vim.startswith(def.name, current_word) then
-                local word = def.type == "boolean" and def.name or (def.name .. ":")
+            if vim.startswith(def.name, partial) then
                 table.insert(items, {
-                    word = word,
+                    word = "--" .. def.name,
+                    abbr = "--" .. def.name,
                     menu = def.desc or (def.type == "boolean" and "[flag]" or "[value]"),
                 })
             end
         end
-        return #items > 0 and { startcol = word_col_1, items = items } or nil
+        return #items > 0 and { startcol = word_start_1, items = items } or nil
     end
+
+    -- previous word was --key → complete values
+    local prev_flag = before:match("%-%-(%S+)%s+%S*$")
+    if prev_flag then
+        local def = defs[prev_flag]
+        if def and def.type == "value" and def.values then
+            local items = {}
+            for _, v in ipairs(def.values) do
+                if vim.startswith(v, current_word) then
+                    table.insert(items, { word = v, menu = def.desc or "" })
+                end
+            end
+            return #items > 0 and { startcol = word_start_1, items = items } or nil
+        end
+    end
+
+    return nil
 end
 
 return M
