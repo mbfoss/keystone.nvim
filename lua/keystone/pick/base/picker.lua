@@ -41,6 +41,7 @@ local _antiflicker_delay = 200
 ---@class keystone.Picker.FetcherOpts
 ---@field list_width number
 ---@field list_height number
+---@field parsed keystone.queryflags.ParseResult?
 
 ---@class keystone.Picker.QueryHistoryProvider
 ---@field load fun():string[]
@@ -59,6 +60,7 @@ local _antiflicker_delay = 200
 
 ---@class keystone.Picker.opts
 ---@field prompt string
+---@field flags keystone.queryflags.FlagDef[]?
 ---@field highlight_query keystone.Picker.QueryHighlighter?
 ---@field finder keystone.Picker.Finder?
 ---@field enable_preview boolean?
@@ -478,18 +480,37 @@ function Picker:relayout(action)
 end
 
 function Picker:render_prompt_highlight(query)
-    if not self.opts.highlight_query then return end
     if not self.pbuf then return end
 
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
 
-    local hls = self.opts.highlight_query(query) or {}
+    local hls
+    if self.opts.flags then
+        hls = require("keystone.pick.base.queryflags").highlight(self.opts.flags, query)
+    elseif self.opts.highlight_query then
+        hls = self.opts.highlight_query(query) or {}
+    else
+        return
+    end
 
     for _, h in ipairs(hls) do
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
             end_col = h.finish,
             hl_group = h.hl,
         })
+    end
+end
+
+function Picker:trigger_flag_completion(query)
+    if not self.opts.flags then return end
+    if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
+    if vim.fn.mode() ~= "i" then return end
+    if vim.fn.pumvisible() == 1 then return end
+
+    local col         = vim.api.nvim_win_get_cursor(self.pwin)[2]
+    local completions = require("keystone.pick.base.queryflags").get_completions(self.opts.flags, query, col)
+    if completions and #completions.items > 0 then
+        vim.fn.complete(completions.startcol, completions.items)
     end
 end
 
@@ -835,6 +856,10 @@ function Picker:run_fetch(query)
         list_height = math.max(1, self.layout.list_height - 2),
     }
 
+    if self.opts.flags then
+        fetch_opts.parsed = require("keystone.pick.base.queryflags").parse(self.opts.flags, query)
+    end
+
     self.async_fetch_context = self.async_fetch_context + 1
     local context = self.async_fetch_context
 
@@ -975,13 +1000,38 @@ function Picker:setup_input()
         vim.keymap.set("n", "<Esc>", function() self:close() end, pbuf_key_opts)
         vim.keymap.set("i", "<C-c>", function() self:close() end, pbuf_key_opts)
 
-        vim.keymap.set("i", "<Down>", function() self:move_cursor(self:get_cursor() + 1) end, pbuf_key_opts)
-        vim.keymap.set({ "n", "i" }, "<C-n>", function() self:move_cursor((self:get_cursor() or 0) + 1) end,
-            pbuf_key_opts)
+        local expr_opts = vim.tbl_extend("force", pbuf_key_opts, { expr = true })
 
-        vim.keymap.set("i", "<Up>", function() self:move_cursor(self:get_cursor() - 1) end, pbuf_key_opts)
-        vim.keymap.set({ "n", "i" }, "<C-p>", function() self:move_cursor((self:get_cursor() or 1) - 1) end,
-            pbuf_key_opts)
+        vim.keymap.set("n", "<C-n>", function() self:move_cursor((self:get_cursor() or 0) + 1) end, pbuf_key_opts)
+        vim.keymap.set("n", "<C-p>", function() self:move_cursor((self:get_cursor() or 1) - 1) end, pbuf_key_opts)
+
+        vim.keymap.set("i", "<C-n>", function()
+            if vim.fn.pumvisible() == 1 then return "<C-n>" end
+            self:move_cursor((self:get_cursor() or 0) + 1)
+            return ""
+        end, expr_opts)
+        vim.keymap.set("i", "<C-p>", function()
+            if vim.fn.pumvisible() == 1 then return "<C-p>" end
+            self:move_cursor((self:get_cursor() or 1) - 1)
+            return ""
+        end, expr_opts)
+
+        vim.keymap.set("i", "<Down>", function()
+            if vim.fn.pumvisible() == 1 then return "<Down>" end
+            self:move_cursor((self:get_cursor() or 0) + 1)
+            return ""
+        end, expr_opts)
+        vim.keymap.set("i", "<Up>", function()
+            if vim.fn.pumvisible() == 1 then return "<Up>" end
+            self:move_cursor((self:get_cursor() or 1) - 1)
+            return ""
+        end, expr_opts)
+
+        vim.keymap.set("i", "<Esc>", function()
+            if vim.fn.pumvisible() == 1 then return "<C-e>" end
+            self:close()
+            return ""
+        end, expr_opts)
 
         vim.keymap.set("i", "<C-d>", function()
             local cur = self:get_cursor()
@@ -1015,6 +1065,7 @@ function Picker:setup_input()
                 local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
                 self:render_prompt_highlight(query)
                 self:run_fetch(query)
+                self:trigger_flag_completion(query)
             end
         })
     end
