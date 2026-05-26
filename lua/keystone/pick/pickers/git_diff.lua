@@ -153,7 +153,7 @@ function M.open()
         ---@param query string
         ---@param fetch_opts table
         ---@return PickerItem[]
-        finder = function(query, fetch_opts, callback)
+        finder = function(query, _, fetch_opts, callback)
             local items = {}
 
             for _, entry in ipairs(parsed) do

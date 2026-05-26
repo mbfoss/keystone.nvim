@@ -222,9 +222,8 @@ function M.open(opts)
         enable_preview  = true,
         enable_list_sep = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
-        finder = function(_, fetch_opts, callback)
-            local parsed = fetch_opts.parsed
-                or require("keystone.pick.base.queryflags").parse(FLAGS, "")
+        finder = function(query, flags, fetch_opts, callback)
+            local parsed = { query = query, flags = flags }
             return async_grep(parsed, {
                 cwd           = cwd,
                 include_globs = opts.include_globs or {},

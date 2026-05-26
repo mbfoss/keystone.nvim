@@ -69,7 +69,7 @@ function M.open()
             prompt = "Autocommands",
             enable_preview = true,
             enable_list_sep = true,
-            finder = function(query, fetch_opts, callback)
+            finder = function(query, _, fetch_opts, callback)
                 local items = {}
 
                 for _, ac in ipairs(entries) do

@@ -76,7 +76,7 @@ function M.open(opts)
             prompt = "Quickfix Items",
             enable_list_sep = true,
             enable_preview = true,
-            finder = function(query, fetch_opts, callback)
+            finder = function(query, _, fetch_opts, callback)
                 local items = {}
                 for _, data in ipairs(entries) do
                     local text = vim.trim(data.text ~= "" and data.text or "[No description]")

@@ -20,7 +20,7 @@ function M.open(opts)
 
     picker.open({
         prompt = "Spell Checker: " .. cursor_word,
-        finder = function(query, fetch_opts, callback)
+        finder = function(query, _, fetch_opts, callback)
             local items = {}
             for i, word in ipairs(suggestions) do
                 local item = {

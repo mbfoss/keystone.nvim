@@ -52,7 +52,7 @@ function M.open(opts)
     picker.open({
         prompt = "Open Buffers",
         enable_preview = true,
-        finder = function(query, fetch_opts, callback)
+        finder = function(query, _, fetch_opts, callback)
             local items = {}
             for _, bufnr in ipairs(buffers) do
                 if (opts.include_unloaded or vim.api.nvim_buf_is_loaded(bufnr)) and (opts.included_unlised or vim.bo[bufnr].buflisted) then

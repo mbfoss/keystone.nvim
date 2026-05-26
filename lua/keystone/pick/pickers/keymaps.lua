@@ -96,7 +96,7 @@ function M.open()
     picker.open({
             prompt = "Keymaps",
             enable_preview = true,
-            finder = function(query, fetch_opts, callback)
+            finder = function(query, _, fetch_opts, callback)
                 local items = {}
 
                 for _, km in ipairs(entries) do

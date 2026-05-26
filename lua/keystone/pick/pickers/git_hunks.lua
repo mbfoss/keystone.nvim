@@ -30,7 +30,7 @@ function M.open()
             prompt = "Gitsigns Hunks",
             enable_preview = true,
             preview_default = "visible",
-            finder = function(query, fetch_opts, callback)
+            finder = function(query, _, fetch_opts, callback)
                 local items = {}
                 for _, h in ipairs(hunks) do
                     -- Gitsigns hunk structure: { added = { count, start }, removed = { count, start }, lines = { ... } }

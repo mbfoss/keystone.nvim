@@ -64,7 +64,7 @@ function M.open(opts)
     picker.open({
         prompt = opts.bufnr and "Document Diagnostics" or "Worskpace Diagnostics",
         enable_preview = true,
-        finder = function(query, fetch_opts, callback)
+        finder = function(query, _, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
                 local res = pickertools.match_label(entry.message, query)

@@ -48,7 +48,7 @@ local _antiflicker_delay = 200
 ---@field store fun(hist:string[])?
 
 ---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.Finder fun(query:string,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
+---@alias keystone.Picker.Finder fun(query:string,flags:table,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@class keystone.Picker.AsyncPreviewOpts
@@ -865,8 +865,12 @@ function Picker:run_fetch(query)
 
     local complete = false
 
+    local clean_query = fetch_opts.parsed and fetch_opts.parsed.query or query
+    local flags       = fetch_opts.parsed and fetch_opts.parsed.flags or {}
+
     self.async_fetch_cancel = self.opts.finder(
-        query,
+        clean_query,
+        flags,
         fetch_opts,
         function(new_items, initial)
             if complete or self.closed or context ~= self.async_fetch_context then return end

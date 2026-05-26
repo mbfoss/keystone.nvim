@@ -50,7 +50,7 @@ function M.open(opts)
     picker.open({
         prompt = "Switch Window",
         enable_preview = true,
-        finder = function(query, _, callback)
+        finder = function(query, _, _, callback)
             local items = {}
             for _, winid in ipairs(windows) do
                 local config = vim.api.nvim_win_get_config(winid)

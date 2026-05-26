@@ -122,13 +122,8 @@ function M.open(opts)
         flags  = FLAGS,
         enable_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
-        finder = function(_, fetch_opts, callback)
-            local parsed = fetch_opts.parsed
-                or require("keystone.pick.base.queryflags").parse(FLAGS, "")
-            local clean_query = parsed.query
-            local flags = parsed.flags
-
-            if not clean_query or clean_query == "" then
+        finder = function(query, flags, fetch_opts, callback)
+            if not query or query == "" then
                 callback()
                 return
             end
@@ -151,7 +146,7 @@ function M.open(opts)
                 use_regex      = flags.regex,
                 case_sensitive = flags.case,
             }
-            return async_lua_search(clean_query, search_opts, fetch_opts, callback)
+            return async_lua_search(query, search_opts, fetch_opts, callback)
         end,
 
     }, function(data)
