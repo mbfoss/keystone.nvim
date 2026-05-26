@@ -15,9 +15,22 @@ local NS_CURSOR  = vim.api.nvim_create_namespace("keystone_PickerCursor")
 local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
 local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
-
+local NS_PREFIX  = vim.api.nvim_create_namespace("keystone_PickerPrefix")
 
 local _antiflicker_delay = 200
+
+local function _encode_history(query_text, filter_text)
+    if filter_text == "" then return query_text end
+    return vim.json.encode({ q = query_text, f = filter_text })
+end
+
+local function _decode_history(entry)
+    local ok, decoded = pcall(vim.json.decode, entry)
+    if ok and type(decoded) == "table" then
+        return decoded.q or "", decoded.f or ""
+    end
+    return entry, ""
+end
 
 ---@class keystone.picker.ItemData
 ---@field filepath string?
@@ -267,6 +280,10 @@ function Picker:init(opts, callback)
 
     self.spinner = nil
 
+    self.query_text  = ""
+    self.filter_text = ""
+    self.prompt_mode = "query"
+
     self.history = {}
     self.history_idx = 0
 
@@ -479,15 +496,27 @@ function Picker:relayout(action)
     end
 end
 
+function Picker:render_mode_prefix()
+    if not self.pbuf then return end
+    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_PREFIX, 0, -1)
+    if not self.opts.flags or self.prompt_mode ~= "filter" then return end
+    vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
+        virt_text     = { { "opts ❯ ", "Special" } },
+        virt_text_pos = "inline",
+        right_gravity = false,
+        priority      = 100,
+    })
+end
+
 function Picker:render_prompt_highlight(query)
     if not self.pbuf then return end
 
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
 
     local hls
-    if self.opts.flags then
+    if self.opts.flags and self.prompt_mode == "filter" then
         hls = require("keystone.pick.base.queryflags").highlight(self.opts.flags, query)
-    elseif self.opts.highlight_query then
+    elseif self.opts.highlight_query and self.prompt_mode == "query" then
         hls = self.opts.highlight_query(query) or {}
     else
         return
@@ -495,7 +524,7 @@ function Picker:render_prompt_highlight(query)
 
     for _, h in ipairs(hls) do
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
-            end_col = h.finish,
+            end_col  = h.finish,
             hl_group = h.hl,
         })
     end
@@ -503,6 +532,7 @@ end
 
 function Picker:trigger_flag_completion(query)
     if not self.opts.flags then return end
+    if self.prompt_mode ~= "filter" then return end
     if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
     if vim.fn.mode() ~= "i" then return end
     if vim.fn.pumvisible() == 1 then return end
@@ -852,21 +882,25 @@ function Picker:run_fetch(query)
     self:request_clear_preview()
 
     local fetch_opts = {
-        list_width = math.max(1, self.layout.list_width - 2), -- -2 for borders
+        list_width  = math.max(1, self.layout.list_width - 2),
         list_height = math.max(1, self.layout.list_height - 2),
     }
 
+    local clean_query, flags
     if self.opts.flags then
-        fetch_opts.parsed = require("keystone.pick.base.queryflags").parse(self.opts.flags, query)
+        clean_query = self.query_text
+        local parsed = require("keystone.pick.base.queryflags").parse(self.opts.flags, self.filter_text)
+        flags = parsed.flags
+        fetch_opts.parsed = parsed
+    else
+        clean_query = query
+        flags = {}
     end
 
     self.async_fetch_context = self.async_fetch_context + 1
     local context            = self.async_fetch_context
 
     local complete           = false
-
-    local clean_query        = fetch_opts.parsed and fetch_opts.parsed.query or query
-    local flags              = fetch_opts.parsed and fetch_opts.parsed.flags or {}
 
     self.async_fetch_cancel  = self.opts.finder(
         clean_query,
@@ -915,8 +949,16 @@ function Picker:history_next()
 end
 
 function Picker:set_prompt_text(text)
-    vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
-    vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
+    if self.opts.flags then
+        self.query_text, self.filter_text = _decode_history(text)
+        local display = self.prompt_mode == "filter" and self.filter_text or self.query_text
+        vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
+        vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+    else
+        vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
+        vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
+    end
+    self:run_fetch(text)
 end
 
 function Picker:send_to_qf()
@@ -980,8 +1022,11 @@ function Picker:close(selected_data)
     end
 
     if self.opts.history_provider then
-        if self.current_query and self.current_query ~= "" and self.current_query ~= self.history[#self.history] then
-            table.insert(self.history, self.current_query)
+        local entry = self.opts.flags
+            and _encode_history(self.query_text, self.filter_text)
+            or self.current_query
+        if entry and entry ~= "" and entry ~= self.history[#self.history] then
+            table.insert(self.history, entry)
             if self.opts.history_provider.store then
                 self.opts.history_provider.store(self.history)
             end
@@ -1057,13 +1102,42 @@ function Picker:setup_input()
 
         vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
+        vim.keymap.set("i", "<Tab>", function()
+            if not self.opts.flags then return end
+            local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+            if self.prompt_mode == "query" then
+                self.query_text  = current
+                self.prompt_mode = "filter"
+                local display    = self.filter_text
+                vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
+                vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+                self:render_prompt_highlight(display)
+                self:trigger_flag_completion(display)
+            else
+                self.filter_text = current
+                self.prompt_mode = "query"
+                local display    = self.query_text
+                vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
+                vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+                self:render_prompt_highlight(display)
+            end
+            self:render_mode_prefix()
+        end, pbuf_key_opts)
+
         vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
             buffer = self.pbuf,
             callback = function()
-                local query = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-                self:render_prompt_highlight(query)
-                self:run_fetch(query)
-                self:trigger_flag_completion(query)
+                local text = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+                if self.opts.flags then
+                    if self.prompt_mode == "query" then
+                        self.query_text = text
+                    else
+                        self.filter_text = text
+                    end
+                end
+                self:render_prompt_highlight(text)
+                self:run_fetch(text)
+                self:trigger_flag_completion(text)
             end
         })
     end
