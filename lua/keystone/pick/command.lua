@@ -28,6 +28,7 @@ local pickers = {
     autocommands          = function() require("keystone.pick.pickers.autocommands").open() end,
     keymaps               = function() require("keystone.pick.pickers.keymaps").open() end,
     notifications         = function() require("keystone.pick.pickers.notifications").open() end,
+    commands              = function() require("keystone.pick.pickers.commands").open() end,
 }
 
 local function _pick(picker_type)
