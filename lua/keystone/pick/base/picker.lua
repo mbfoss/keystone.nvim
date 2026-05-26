@@ -5,6 +5,7 @@ local fsutils            = require("keystone.utils.fsutils")
 local uitools            = require("keystone.utils.uitools")
 local floatwin           = require("keystone.utils.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
+local strutils           = require("keystone.utils.strutils")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -16,6 +17,7 @@ local NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent
 local NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
 local NS_PREFIX          = vim.api.nvim_create_namespace("keystone_PickerPrefix")
+local NS_OTHER           = vim.api.nvim_create_namespace("keystone_PickerOther")
 
 local _antiflicker_delay = 200
 
@@ -297,6 +299,7 @@ function Picker:init(opts, callback)
 
     self:setup_ui()
     self:setup_input()
+    self:render_mode_prefix()
 
     assert(self.pwin)
     vim.api.nvim_set_current_win(self.pwin)
@@ -499,13 +502,39 @@ end
 function Picker:render_mode_prefix()
     if not self.pbuf then return end
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_PREFIX, 0, -1)
-    if not self.opts.flags or self.prompt_mode ~= "filter" then return end
-    vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
-        virt_text     = { { "opts ❯ ", "Special" } },
-        virt_text_pos = "inline",
-        right_gravity = false,
-        priority      = 100,
-    })
+    vim.api.nvim_buf_clear_namespace(self.pbuf, NS_OTHER, 0, -1)
+    if not self.opts.flags then return end
+    if self.prompt_mode == "filter" then
+        vim.api.nvim_buf_set_extmark(self.pbuf, NS_OTHER, 0, 0, {
+            virt_text     = {
+                { "Opts❯ ", "Special" },
+            },
+            virt_text_pos = "inline",
+            right_gravity = false,
+            priority      = 100,
+        })
+        vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
+            virt_text     = {
+                { "query❯ ", "Comment" },
+                { self.query_text, "Comment" },
+                { " " }
+            },
+            virt_text_pos = "eol_right_align",
+            priority      = 100,
+        })
+    else
+        if self.filter_text ~= "" then
+            vim.api.nvim_buf_set_extmark(self.pbuf, NS_OTHER, 0, 0, {
+                virt_text     = {
+                    { " opts❯ ", "Comment" },
+                    { self.filter_text, "Comment" },
+                    { " " }
+                },
+                virt_text_pos = "eol_right_align",
+                priority      = 100,
+            })
+        end
+    end
 end
 
 function Picker:render_prompt_highlight(query)
@@ -561,7 +590,7 @@ function Picker:render_ui()
 
     if total > 0 then
         vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
-            virt_text = { { "> ", "Special" } },
+            virt_text = { { "❯ ", "Special" } },
             virt_text_pos = "overlay",
             priority = 200,
         })
@@ -954,6 +983,7 @@ function Picker:set_prompt_text(text)
         local display = self.prompt_mode == "filter" and self.filter_text or self.query_text
         vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
         vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
+        self:render_mode_prefix()
     else
         vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
         vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
