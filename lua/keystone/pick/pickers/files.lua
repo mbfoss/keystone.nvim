@@ -22,6 +22,15 @@ local icons = require("keystone.icons")
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
+---@field use_regex boolean?
+---@field case_sensitive boolean?
+
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
+    { name = "regex", type = "boolean",               desc = "enable regex mode"   },
+    { name = "case",  type = "boolean",               desc = "case-sensitive"      },
+}
 
 ---@param filepath  string
 ---@return string? filename, string? extension
@@ -29,6 +38,23 @@ local function extract_filename_ext(filepath)
     local name = filepath:match("^.+/(.+)$")
     local ext = name and name:match("^.*%.([^%.]+)$") or nil
     return name, ext
+end
+
+---@param filename string
+---@param query string
+---@param use_regex boolean?
+---@param case_sensitive boolean?
+---@return {score:number, chunks:table[]}?
+local function do_match(filename, query, use_regex, case_sensitive)
+    if use_regex then
+        local pattern = case_sensitive and query or ("\\c" .. query)
+        local ok, re = pcall(vim.regex, pattern)
+        if not ok then return nil end
+        if not re:match_str(filename) then return nil end
+        return { score = 0, chunks = { { filename } } }
+    else
+        return pickertools.match_label(filename, query)
+    end
 end
 
 ---@param query string User input
@@ -59,7 +85,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 vim.cmd("redraw")
             end,
             on_file = function(filepath, filename, relative_path)
-                local res = pickertools.match_label(filename, query)
+                local res = do_match(filename, query, opts.use_regex, opts.case_sensitive)
                 if not res then return end
                 if count >= max_results then
                     cancel_fn()
@@ -93,21 +119,39 @@ function M.open(opts)
     opts = opts or {}
     return picker.open({
         prompt = opts.prompt or "Files",
+        flags  = FLAGS,
         enable_preview = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
-        finder = function(query, fetch_opts, callback)
-            if not query or query == "" then
+        finder = function(_, fetch_opts, callback)
+            local parsed = fetch_opts.parsed
+                or require("keystone.pick.base.queryflags").parse(FLAGS, "")
+            local clean_query = parsed.query
+            local flags = parsed.flags
+
+            if not clean_query or clean_query == "" then
                 callback()
                 return
             end
+
+            -- dir: directory filter — strip stars and surrounding slashes
+            local include_globs = vim.deepcopy(opts.include_globs or {})
+            for _, val in ipairs(flags.dir or {}) do
+                local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
+                if p ~= "" then
+                    table.insert(include_globs, "**/" .. p .. "/**")
+                end
+            end
+
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
-                cwd = opts.cwd or vim.fn.getcwd(),
-                include_globs = opts.include_globs,
-                exclude_globs = opts.exclude_globs,
-                max_results = opts.max_results or 10000,
+                cwd            = opts.cwd or vim.fn.getcwd(),
+                include_globs  = include_globs,
+                exclude_globs  = opts.exclude_globs,
+                max_results    = opts.max_results or 10000,
+                use_regex      = flags.regex,
+                case_sensitive = flags.case,
             }
-            return async_lua_search(query, search_opts, fetch_opts, callback)
+            return async_lua_search(clean_query, search_opts, fetch_opts, callback)
         end,
 
     }, function(data)
