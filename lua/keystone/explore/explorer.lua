@@ -538,7 +538,7 @@ function Explorer:start_spinner()
             vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
             vim.api.nvim_buf_set_extmark(self.lbuf, NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
-                virt_text_pos = "right_align"
+                virt_text_pos = "eol_right_align"
             })
         end
     }

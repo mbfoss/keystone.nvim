@@ -517,24 +517,14 @@ function Picker:render_mode_prefix()
             right_gravity = false,
             priority      = 100,
         })
-        vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
-            virt_text     = {
-                { "query❯ ", "Comment" },
-                { self.query_text, "Comment" },
-                { " " }
-            },
-            virt_text_pos = "right_align",
-            priority      = 100,
-        })
     else
         if self.filter_text ~= "" then
             vim.api.nvim_buf_set_extmark(self.pbuf, NS_OTHER, 0, 0, {
                 virt_text     = {
-                    { " opts❯ ", "Comment" },
-                    { self.filter_text, "Comment" },
-                    { " " }
+                    { " ", "Normal" },
+                    { self.filter_text, "DiagnosticInfo" },
                 },
-                virt_text_pos = "right_align",
+                virt_text_pos = "eol_right_align",
                 priority      = 100,
             })
         end
@@ -604,7 +594,7 @@ function Picker:render_ui()
         local text = string.format("%d/%d", cur, total)
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
             virt_text = { { text, "Comment" } },
-            virt_text_pos = "right_align",
+            virt_text_pos = "eol_right_align",
             hl_mode = "blend",
             priority = 50,
         })
@@ -738,7 +728,7 @@ function Picker:start_spinner()
             vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
             vim.api.nvim_buf_set_extmark(self.pbuf, NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
-                virt_text_pos = "right_align",
+                virt_text_pos = "eol_right_align",
                 priority = 1,
             })
         end
