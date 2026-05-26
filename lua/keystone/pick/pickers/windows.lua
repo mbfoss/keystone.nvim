@@ -3,10 +3,17 @@ local pickertools = require("keystone.pick.base.pickertools")
 
 local M = {}
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "float",  type = "boolean", desc = "include floating windows" },
+    { name = "hidden", type = "boolean", desc = "include hidden buffers"   },
+}
+
 ---@param winid number
 ---@param query string
+---@param is_float boolean
 ---@return keystone.Picker.Item?
-local function window_to_picker_item(winid, query)
+local function window_to_picker_item(winid, query, is_float)
     if not vim.api.nvim_win_is_valid(winid) then return nil end
 
     local bufnr = vim.api.nvim_win_get_buf(winid)
@@ -18,13 +25,19 @@ local function window_to_picker_item(winid, query)
 
     local label_chunks = {
         { string.format("%2d ", winid),                               "Comment" },
-        { string.format("[%d] ", vim.api.nvim_win_get_number(winid)), "Constant" }
+        { string.format("[%d] ", vim.api.nvim_win_get_number(winid)), "Constant" },
     }
     vim.list_extend(label_chunks, match.chunks)
 
     local filetype = vim.bo[bufnr].filetype
     if filetype ~= "" then
-        table.insert(label_chunks, { " <" .. filetype .. ">", "Type" })
+        table.insert(label_chunks, { "  " .. filetype, "Comment" })
+    end
+    if is_float then
+        table.insert(label_chunks, { " [float]", "Special" })
+    end
+    if not vim.bo[bufnr].buflisted then
+        table.insert(label_chunks, { " [hidden]", "Special" })
     end
 
     local cursor = vim.api.nvim_win_get_cursor(winid)
@@ -49,17 +62,21 @@ function M.open(opts)
 
     picker.open({
         prompt = "Switch Window",
+        flags = FLAGS,
         enable_preview = true,
-        finder = function(query, _, _, callback)
+        finder = function(query, flags, _, callback)
             local items = {}
             for _, winid in ipairs(windows) do
                 local config = vim.api.nvim_win_get_config(winid)
-                if config.relative == "" then
-                    local item = window_to_picker_item(winid, query)
-                    if item then
-                        table.insert(items, item)
-                    end
-                end
+                local is_float = config.relative ~= ""
+                if is_float and not flags.float then goto continue end
+
+                local bufnr = vim.api.nvim_win_get_buf(winid)
+                if not vim.bo[bufnr].buflisted and not flags.hidden then goto continue end
+
+                local item = window_to_picker_item(winid, query, is_float)
+                if item then table.insert(items, item) end
+                ::continue::
             end
             callback(items)
         end,

@@ -3,6 +3,14 @@ local pickertools = require("keystone.pick.base.pickertools")
 
 local M = {}
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "mode", type = "value",   multi = true, desc = "filter by mode: n, i, v, x, s, o, c, t" },
+    { name = "key",  type = "value",   multi = true, desc = "filter by key (lhs)"                     },
+    { name = "src",  type = "value",   multi = true, desc = "filter by source file"                   },
+    { name = "buf",  type = "boolean",               desc = "only buffer-local keymaps"               },
+}
+
 local modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
 local function format_lhs(lhs)
@@ -77,6 +85,8 @@ function M.open()
         local global = vim.api.nvim_get_keymap(mode)
         for _, km in ipairs(global) do
             km.mode = mode
+            ---@diagnostic disable-next-line: inject-field
+            km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
             table.insert(entries, km)
         end
         local buf = vim.api.nvim_get_current_buf()
@@ -84,6 +94,8 @@ function M.open()
         for _, km in ipairs(bufmaps) do
             km.mode = mode
             km.buffer = buf
+            ---@diagnostic disable-next-line: inject-field
+            km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
             table.insert(entries, km)
         end
     end
@@ -95,25 +107,46 @@ function M.open()
 
     picker.open({
             prompt = "Keymaps",
+            flags = FLAGS,
             enable_preview = true,
-            finder = function(query, _, fetch_opts, callback)
+            finder = function(query, flags, _, callback)
                 local items = {}
 
                 for _, km in ipairs(entries) do
-                    local label = string.format(
-                        "%s │ %-9s │ %s",
-                        km.mode or "",
-                        format_lhs(km.lhs or ""),
-                        (km.desc and km.desc ~= "") and km.desc or (km.rhs or "")
-                    )
+                    if flags.buf and not km["buffer"] then goto continue end
+
+                    local skip = false
+                    for _, v in ipairs(flags.mode or {}) do
+                        if km.mode ~= v then
+                            skip = true; break
+                        end
+                    end
+                    if not skip then
+                        local lhs = format_lhs(km.lhs or ""):lower()
+                        for _, v in ipairs(flags.key or {}) do
+                            if not lhs:find(v:lower(), 1, true) then skip = true; break end
+                        end
+                    end
+                    if not skip then
+                        local src = (km["source"] or ""):lower()
+                        for _, v in ipairs(flags.src or {}) do
+                            if not src:find(v:lower(), 1, true) then skip = true; break end
+                        end
+                    end
+                    if skip then goto continue end
+
+                    local label = (km.desc and km.desc ~= "") and km.desc or (km.rhs or "")
                     local match = pickertools.match_label(label, query)
                     if match then
+                        local chunks = { { string.format("%-10s │ %s │ ", format_lhs(km.lhs or ""), km.mode or " ") } }
+                        vim.list_extend(chunks, match.chunks)
                         table.insert(items, {
-                            label_chunks = match.chunks,
+                            label_chunks = chunks,
                             score = match.score,
                             data = { km = km },
                         })
                     end
+                    ::continue::
                 end
 
                 table.sort(items, function(a, b)

@@ -21,6 +21,11 @@ local function kind_to_string(kind)
     return _kind_to_str_cache[kind] or ""
 end
 
+---@type keystone.queryflags.FlagDef[]
+local REF_FLAGS = {
+    { name = "file", type = "value", multi = true, desc = "filter by filename" },
+}
+
 function M.references()
     local params = vim.lsp.util.make_position_params(0, 'utf-8')
     ---@diagnostic disable-next-line: inject-field
@@ -60,20 +65,30 @@ function M.references()
 
         picker.open({
             prompt = "LSP References",
+            flags = REF_FLAGS,
             enable_list_sep = true,
             enable_preview = true,
             preview_default = "visible",
-            finder = function(query, _, fetch_opts, callback)
+            finder = function(query, flags, fetch_opts, callback)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
+                    local display_path = fsutils.get_relative_path(ref.filename) or ref.filename or ""
+                    local filename = vim.fn.fnamemodify(display_path, ":t"):lower()
+                    local skip = false
+                    for _, v in ipairs(flags.file or {}) do
+                        if not filename:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
+                    end
+                    if skip then goto continue end
+
                     local text = ref.text and vim.fn.trim(ref.text) or ""
                     local match = pickertools.match_label(text, query)
                     if match then
-                        local display_path = fsutils.get_relative_path(ref.filename) or ref.filename or ""
                         local loc = ref.lnum and string.format("%s:%d", display_path, ref.lnum) or display_path
                         loc = fsutils.smart_crop_path(loc, fetch_opts.list_width)
                         ---@type keystone.Picker.Item
-                        local item = {
+                        table.insert(picker_items, {
                             label_chunks = match.chunks,
                             virt_lines = { { { loc, "Special" } } },
                             score = match.score,
@@ -82,9 +97,9 @@ function M.references()
                                 lnum = ref.lnum,
                                 col = ref.col - 1,
                             }
-                        }
-                        table.insert(picker_items, item)
+                        })
                     end
+                    ::continue::
                 end
                 callback(picker_items)
             end,
@@ -96,6 +111,11 @@ function M.references()
     end)
 end
 
+---@type keystone.queryflags.FlagDef[]
+local SYMBOL_FLAGS = {
+    { name = "kind", type = "value", multi = true, desc = "filter by symbol kind: Function, Method, Class, ..." },
+}
+
 ---@param opts {kinds:string[]?,prompt:string?}?
 function M.document_symbols(opts)
     opts = opts or {}
@@ -105,26 +125,18 @@ function M.document_symbols(opts)
     vim.lsp.buf_request(0, "textDocument/documentSymbol", params, function(err, result, _)
         if err or not result then return end
 
-        local kind_filter
-        if opts.kinds then
-            kind_filter = {}
-            for _, k in ipairs(opts.kinds) do kind_filter[k] = true end
-        end
-
         local items = {}
         local function flatten(symbols)
             for _, s in ipairs(symbols) do
-                local kind_str = kind_to_string(s.kind)
-                if not kind_filter or kind_filter[kind_str] then
-                    table.insert(items, {
-                        data = {
-                            name = s.name,
-                            filepath = filepath,
-                            lnum = s.selectionRange.start.line + 1,
-                            col = s.selectionRange.start.character
-                        }
-                    })
-                end
+                table.insert(items, {
+                    kind = kind_to_string(s.kind),
+                    data = {
+                        name     = s.name,
+                        filepath = filepath,
+                        lnum     = s.selectionRange.start.line + 1,
+                        col      = s.selectionRange.start.character,
+                    }
+                })
                 if s.children then flatten(s.children) end
             end
         end
@@ -135,21 +147,41 @@ function M.document_symbols(opts)
             return
         end
 
+        -- opts.kinds seeds the flag default; inline --kind= flags extend it
+        local opts_kind_filter = {}
+        for _, k in ipairs(opts.kinds or {}) do opts_kind_filter[k:lower()] = true end
+
         picker.open({
             prompt = opts.prompt or "Document Symbols",
+            flags = SYMBOL_FLAGS,
             enable_preview = true,
             preview_default = "visible",
-            finder = function(query, _, fetch_opts, callback)
+            finder = function(query, flags, _, callback)
+                local flag_kinds = flags.kind or {}
                 local filtered = {}
                 for _, item in ipairs(items) do
+                    local kind_lower = item.kind:lower()
+                    if next(opts_kind_filter) ~= nil then
+                        if not opts_kind_filter[kind_lower] then goto continue end
+                    end
+                    local skip = false
+                    for _, v in ipairs(flag_kinds) do
+                        if not kind_lower:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
+                    end
+                    if skip then goto continue end
+
                     local match = pickertools.match_label(item.data.name, query)
                     if match then
+                        vim.list_extend(match.chunks, {{ (' (%s)'):format(item.kind), "Comment" } })
                         table.insert(filtered, {
                             label_chunks = match.chunks,
-                            score = match.score,
-                            data = item.data,
+                            score        = match.score,
+                            data         = item.data,
                         })
                     end
+                    ::continue::
                 end
                 table.sort(filtered, function(a, b) return a.score > b.score end)
                 callback(filtered)

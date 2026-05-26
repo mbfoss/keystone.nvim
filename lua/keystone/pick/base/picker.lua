@@ -1031,7 +1031,7 @@ function Picker:setup_input()
             return ""
         end, expr_opts)
 
-        vim.keymap.set("i", "<C-d>", function()
+        vim.keymap.set({ "i", "n" }, "<C-d>", function()
             local cur = self:get_cursor()
             if cur then
                 local step = math.floor(self.layout.list_height / 2)
@@ -1039,7 +1039,7 @@ function Picker:setup_input()
             end
         end, pbuf_key_opts)
 
-        vim.keymap.set("i", "<C-u>", function()
+        vim.keymap.set({ "i", "n" }, "<C-u>", function()
             local cur = self:get_cursor()
             if cur then
                 local step = math.floor(self.layout.list_height / 2)

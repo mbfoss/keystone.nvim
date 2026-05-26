@@ -37,6 +37,7 @@ function M.open()
     picker.open({
         prompt = "Notification History",
         enable_preview = true,
+        preview_default = "visible",
         finder = function(query, _, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(history) do

@@ -5,6 +5,12 @@ local fsutils = require("keystone.utils.fsutils")
 
 local M = {}
 
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "type", type = "value", multi = true, desc = "filter by type: E, W, I, N" },
+    { name = "file", type = "value", multi = true, desc = "filter by filename"          },
+}
+
 ---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
 
 local _type_prefix = {
@@ -74,11 +80,29 @@ function M.open(opts)
 
     picker.open({
             prompt = "Quickfix Items",
+            flags = FLAGS,
             enable_list_sep = true,
             enable_preview = true,
-            finder = function(query, _, fetch_opts, callback)
+            finder = function(query, flags, _, callback)
                 local items = {}
                 for _, data in ipairs(entries) do
+                    local skip = false
+                    local type_flags = flags.type or {}
+                    if #type_flags > 0 then
+                        local matched = false
+                        for _, v in ipairs(type_flags) do
+                            if data.type == v:upper() then matched = true; break end
+                        end
+                        if not matched then skip = true end
+                    end
+                    if not skip then
+                        local filename = vim.fn.fnamemodify(data.relpath, ":t"):lower()
+                        for _, v in ipairs(flags.file or {}) do
+                            if not filename:find(v:lower(), 1, true) then skip = true; break end
+                        end
+                    end
+                    if skip then goto continue end
+
                     local text = vim.trim(data.text ~= "" and data.text or "[No description]")
                     local match = pickertools.match_label(text, query)
                     if match then
@@ -97,6 +121,7 @@ function M.open(opts)
                         }
                         table.insert(items, item)
                     end
+                    ::continue::
                 end
                 table.sort(items, function(a, b) return a.score > b.score end)
                 callback(items)
