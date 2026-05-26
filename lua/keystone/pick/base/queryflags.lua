@@ -21,8 +21,8 @@ local function find_sep(raw)
         if not i then return nil, nil end
         if i == 1 or raw:sub(i - 1, i - 1):match("%s") then
             local after = i + 2
-            local ws    = raw:sub(after):match("^%s+")
-            if ws then return i - 1, after + #ws end
+            local ws    = raw:sub(after):match("^%s*")
+            return i - 1, after + #ws
         end
         p = i + 1
     end
@@ -130,6 +130,8 @@ function M.get_completions(schema, line, cursor_byte)
     local _, flags_start_1 = find_sep(line)
     if not flags_start_1 then return nil end
     if cursor_byte + 1 < flags_start_1 then return nil end
+    -- require at least one space after -- before offering completions
+    if not line:sub(flags_start_1 - 1, flags_start_1 - 1):match("%s") then return nil end
 
     -- text from flags zone start up to (not including) the cursor character
     local flags_before = line:sub(flags_start_1, cursor_byte)

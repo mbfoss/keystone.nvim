@@ -1,7 +1,5 @@
 local M = {}
 
-local ksconfig = require('keystone.pick').config
-local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local strutils = require("keystone.utils.strutils")
 local fsutils = require("keystone.utils.fsutils")
@@ -21,6 +19,7 @@ local icons = require("keystone.icons")
 ---@field cwd string The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
+---@field dir_filters string[]? Plain substrings matched against the relative path
 ---@field max_results number?
 ---@field use_regex boolean?
 ---@field case_sensitive boolean?
@@ -31,14 +30,6 @@ local FLAGS = {
     { name = "regex", type = "boolean",               desc = "enable regex mode"   },
     { name = "case",  type = "boolean",               desc = "case-sensitive"      },
 }
-
----@param filepath  string
----@return string? filename, string? extension
-local function extract_filename_ext(filepath)
-    local name = filepath:match("^.+/(.+)$")
-    local ext = name and name:match("^.*%.([^%.]+)$") or nil
-    return name, ext
-end
 
 ---@param filename string
 ---@param query string
@@ -67,12 +58,10 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results = opts.max_results or 10000
     local items = {}
 
-    local exclude_globs = opts.exclude_globs or {}
-    -- ignore hidden
-    table.insert(exclude_globs, ".*")
-    table.insert(exclude_globs, "**/.*")
+    local exclude_globs = vim.list_extend({ ".*", "**/.*" }, opts.exclude_globs or {})
 
-    local include_regex_list = opts.include_globs and strutils.compile_globs(opts.include_globs) or nil
+    local include_regex_list = (opts.include_globs and #opts.include_globs > 0)
+        and strutils.compile_globs(opts.include_globs) or nil
     local exclude_regex_list = strutils.compile_globs(exclude_globs)
 
     local cancel_fn
@@ -85,6 +74,14 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 vim.cmd("redraw")
             end,
             on_file = function(filepath, filename, relative_path)
+                if opts.dir_filters then
+                    local ldir = relative_path:sub(1, #relative_path - #filename):lower()
+                    local ok = false
+                    for _, d in ipairs(opts.dir_filters) do
+                        if ldir:find(d:lower(), 1, true) then ok = true; break end
+                    end
+                    if not ok then return end
+                end
                 local res = do_match(filename, query, opts.use_regex, opts.case_sensitive)
                 if not res then return end
                 if count >= max_results then
@@ -128,19 +125,18 @@ function M.open(opts)
                 return
             end
 
-            -- dir: directory filter — strip stars and surrounding slashes
-            local include_globs = vim.deepcopy(opts.include_globs or {})
+            -- dir: plain substring filters against the relative path
+            local dir_filters = {}
             for _, val in ipairs(flags.dir or {}) do
                 local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
-                if p ~= "" then
-                    table.insert(include_globs, "**/" .. p .. "/**")
-                end
+                if p ~= "" then table.insert(dir_filters, p) end
             end
 
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
                 cwd            = opts.cwd or vim.fn.getcwd(),
-                include_globs  = include_globs,
+                include_globs  = (opts.include_globs and #opts.include_globs > 0) and opts.include_globs or nil,
+                dir_filters    = #dir_filters > 0 and dir_filters or nil,
                 exclude_globs  = opts.exclude_globs,
                 max_results    = opts.max_results or 10000,
                 use_regex      = flags.regex,
