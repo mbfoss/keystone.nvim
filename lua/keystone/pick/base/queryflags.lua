@@ -21,8 +21,8 @@ local function find_sep(raw)
         if not i then return nil, nil end
         if i == 1 or raw:sub(i - 1, i - 1):match("%s") then
             local after = i + 2
-            local ws    = raw:sub(after):match("^%s*") or ""
-            return i - 1, after + #ws
+            local ws    = raw:sub(after):match("^%s+")
+            if ws then return i - 1, after + #ws end
         end
         p = i + 1
     end
@@ -42,6 +42,8 @@ function M.parse(schema, raw)
     if not sep_start_0 then
         return { query = raw, flags = {}, sep_start_0 = nil }
     end
+    ---@cast sep_start_0  integer
+    ---@cast flags_start_1 integer
 
     local query     = raw:sub(1, sep_start_0):gsub("%s+$", "")
     local flags_str = raw:sub(flags_start_1)
@@ -77,6 +79,8 @@ end
 function M.highlight(schema, raw)
     local sep_start_0, flags_start_1 = find_sep(raw)
     if not sep_start_0 then return {} end
+    ---@cast sep_start_0  integer
+    ---@cast flags_start_1 integer
 
     local hls  = {}
     local defs = build_map(schema)

@@ -368,7 +368,7 @@ function Picker:relayout(action)
         assert(type(pwin_augroup) == "number")
         vim.api.nvim_create_autocmd("WinEnter", {
             group = pwin_augroup,
-            callback = function(args)
+            callback = vim.schedule_wrap(function(args)
                 local win = vim.api.nvim_get_current_win()
                 assert(not self.closed)
                 local cfg = vim.api.nvim_win_get_config(win)
@@ -378,7 +378,7 @@ function Picker:relayout(action)
                         self:close()
                     end)
                 end
-            end
+            end)
         })
         vim.api.nvim_create_autocmd("VimResized", {
             group = pwin_augroup,
@@ -1028,10 +1028,13 @@ function Picker:setup_input()
         end, expr_opts)
 
         vim.keymap.set("i", "<Esc>", function()
-            if vim.fn.pumvisible() == 1 then return "<C-e>" end
+            if vim.fn.pumvisible() == 1 then
+                vim.api.nvim_feedkeys(
+                    vim.api.nvim_replace_termcodes("<C-e>", true, false, true), "n", false)
+                return
+            end
             self:close()
-            return ""
-        end, expr_opts)
+        end, pbuf_key_opts)
 
         vim.keymap.set("i", "<C-d>", function()
             local cur = self:get_cursor()
