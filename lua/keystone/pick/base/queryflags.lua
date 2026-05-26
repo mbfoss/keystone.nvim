@@ -62,10 +62,11 @@ end
 ---@param raw    string
 ---@return {start:integer, finish:integer, hl:string}[]
 function M.highlight(schema, raw)
-    local defs = build_map(schema)
-    local hls  = {}
+    local defs    = build_map(schema)
+    local hls     = {}
+    local bad_opt = "ErrorMsg"
 
-    local p = 1
+    local p       = 1
     while p <= #raw do
         local ts, te, tok = raw:find("(%S+)", p)
         if not ts then break end
@@ -86,14 +87,14 @@ function M.highlight(schema, raw)
                     table.insert(hls, { start = s0 + colon, finish = e0, hl = "String" })
                 end
             else
-                table.insert(hls, { start = s0, finish = e0, hl = "Comment" })
+                table.insert(hls, { start = s0, finish = e0, hl = bad_opt })
             end
         else
             local def = defs[tok]
             if def and def.type == "boolean" then
-                table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
+                table.insert(hls, { start = s0, finish = e0, hl = bad_opt })
             else
-                table.insert(hls, { start = s0, finish = e0, hl = "Comment" })
+                table.insert(hls, { start = s0, finish = e0, hl = Bad_opt })
             end
         end
 

@@ -336,6 +336,12 @@ function Picker:relayout(action)
     local opts = self.opts
     local title = opts.prompt and (" " .. opts.prompt .. " ") or ""
 
+    if vim.fn.pumvisible() == 1 then
+        vim.api.nvim_feedkeys(
+            vim.api.nvim_replace_termcodes("<C-e>", true, false, true), "n", false
+        )
+    end
+
     local has_preview = (self.vwin ~= nil and action ~= "hide_preview") or action == "show_preview"
 
     self.layout = layouts.get_horizontal_layout {
