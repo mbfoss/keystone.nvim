@@ -1,6 +1,5 @@
 local M = {}
 
-local strutils = require("keystone.utils.strutils")
 local fsutils = require("keystone.utils.fsutils")
 
 ---@param text string The final string to be shown
@@ -41,10 +40,18 @@ end
 ---@param query string User input
 ---@return {score:number,chunks:string[][]}?
 function M.match_label(text, query)
-    local is_match, score, positions = strutils.fuzzy_match(text, query)
-    if not is_match then return nil end
+    if query == "" then
+        return { score = 0, chunks = build_highlight_chunks(text, {}) }
+    end
+    local result = vim.fn.matchfuzzypos({ text }, query)
+    if #result[1] == 0 then return nil end
+    local raw_positions = result[2][1]
+    local positions = {}
+    for _, p in ipairs(raw_positions) do
+        positions[#positions + 1] = p + 1  -- matchfuzzypos is 0-based; build_highlight_chunks expects 1-based
+    end
     return {
-        score = score or 0,
+        score = result[3][1],
         chunks = build_highlight_chunks(text, positions)
     }
 end
