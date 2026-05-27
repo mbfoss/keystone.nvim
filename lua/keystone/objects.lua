@@ -1,11 +1,11 @@
 local M = {}
 
--- Substring patterns matched against node:type() to identify semantic groups
-local GROUPS = {
-  f = { "function", "method", "arrow", "func_literal" },
-  c = { "class", "struct", "interface", "impl" },
-  a = { "parameter", "argument" },
-  b = { "block", "body" },
+-- Maps group key → textobject capture prefix (e.g. "function" → @function.outer / @function.inner)
+local CAPTURE_PREFIXES = {
+  f = "function",
+  c = "class",
+  a = "parameter",
+  b = "block",
 }
 
 local KEYMAPS = {
@@ -19,73 +19,56 @@ local KEYMAPS = {
   { { "o", "x" }, "ab", function() M.select("b", false) end, "around block" },
 }
 
----@param node TSNode
----@param patterns string[]
----@return boolean
-local function matches(node, patterns)
-  local t = node:type()
-  for _, p in ipairs(patterns) do
-    if t:find(p, 1, true) then return true end
-  end
-  return false
+-- Returns cursor position as 0-indexed (row, col)
+local function cursor_pos()
+  local pos = vim.api.nvim_win_get_cursor(0)
+  return pos[1] - 1, pos[2]
 end
 
----@param node TSNode|nil
----@param patterns string[]
----@return TSNode|nil
-local function find_ancestor(node, patterns)
-  while node do
-    if matches(node, patterns) then return node end
-    node = node:parent()
-  end
+-- True if the 0-indexed range [sr,sc)..(er,ec) contains (row, col)
+local function range_contains(sr, sc, er, ec, row, col)
+  if row < sr or row > er then return false end
+  if row == sr and col < sc then return false end
+  if row == er and col >= ec then return false end
+  return true
 end
 
--- Returns the child of the first ancestor matching patterns (i.e. a single item in a list)
----@param node TSNode|nil
----@param patterns string[]
----@return TSNode|nil
-local function find_in_container(node, patterns)
-  while node do
-    local parent = node:parent()
-    if parent and matches(parent, patterns) then return node end
-    node = parent
-  end
-end
+-- Returns the smallest captured range that contains the cursor, or nil (all nils on miss)
+---@return integer|nil sr
+---@return integer|nil sc
+---@return integer|nil er
+---@return integer|nil ec
+local function find_capture(bufnr, lang, capture_name, crow, ccol)
+  local ok, query = pcall(vim.treesitter.query.get, lang, "textobjects")
+  if not ok or not query then return nil, nil, nil, nil end
 
-local BODY_PATTERNS = { "block", "body", "statement" }
+  local parser = vim.treesitter.get_parser(bufnr, lang)
+  if not parser then return nil, nil, nil, nil end
+  local tree = parser:parse()[1]
+  if not tree then return nil, nil, nil, nil end
 
----@param node TSNode|nil
----@param inner boolean
-local function apply_visual(node, inner)
-  if not node then return end
-  local sr, sc, er, ec
+  local best_sr, best_sc, best_er, best_ec
+  local best_size = math.huge
 
-  if inner then
-    for child in node:iter_children() do
-      if matches(child, BODY_PATTERNS) then
-        sr, sc, er, ec = child:range()
-        break
-      end
-    end
-    if not sr then
-      local first, last
-      for child in node:iter_children() do
-        if child:named() then
-          first = first or child
-          last = child
+  for id, node in query:iter_captures(tree:root(), bufnr, 0, -1) do
+    if query.captures[id] == capture_name then
+      local sr, sc, er, ec = node:range()
+      if range_contains(sr, sc, er, ec, crow, ccol) then
+        local size = (er - sr) * 1000000 + (ec - sc)
+        if size < best_size then
+          best_size = size
+          best_sr, best_sc, best_er, best_ec = sr, sc, er, ec
         end
       end
-      if first then
-        sr, sc = first:range()
-        _, _, er, ec = last:range()
-      end
     end
   end
 
-  if not sr then
-    sr, sc, er, ec = node:range()
-  end
+  return best_sr, best_sc, best_er, best_ec
+end
 
+-- ec from treesitter is an exclusive 0-indexed col; setpos '> wants the last inclusive 1-indexed col,
+-- which is ec (since exclusive-0 == inclusive-1 when nonzero, i.e. ec-1+1 = ec).
+local function apply_visual(sr, sc, er, ec)
   vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
   vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
   vim.cmd("normal! gv")
@@ -94,14 +77,24 @@ end
 ---@param group string
 ---@param inner boolean
 function M.select(group, inner)
-  local patterns = GROUPS[group]
-  if not patterns then return end
-  local node = vim.treesitter.get_node()
-  if not node then return end
-  local target = group == "a"
-    and find_in_container(node, patterns)
-    or find_ancestor(node, patterns)
-  apply_visual(target, inner)
+  local prefix = CAPTURE_PREFIXES[group]
+  if not prefix then return end
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  local ft = vim.bo[bufnr].filetype
+  local lang = vim.treesitter.language.get_lang(ft) or ft
+  local crow, ccol = cursor_pos()
+
+  local suffix = inner and "inner" or "outer"
+  local sr, sc, er, ec = find_capture(bufnr, lang, prefix .. "." .. suffix, crow, ccol)
+
+  -- some languages omit .inner captures; fall back to .outer
+  if not sr and inner then
+    sr, sc, er, ec = find_capture(bufnr, lang, prefix .. ".outer", crow, ccol)
+  end
+
+  if not sr then return end
+  apply_visual(sr, sc, er, ec)
 end
 
 ---@class keystone.textobjects.Config
