@@ -17,7 +17,7 @@ local FLAGS = {
 ---@param query string
 ---@param flags table
 ---@return keystone.Picker.Item?
-local function buffer_to_picker_item(bufnr, query, flags)
+local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
     local label
     if bufname ~= "" then
@@ -56,8 +56,9 @@ local function buffer_to_picker_item(bufnr, query, flags)
     ---@type keystone.Picker.Item
     return {
         label_chunks = label_chunks,
-        score = match.score,
-        data = { bufnr = bufnr, lnum = lnum, col = col, },
+        score        = match.score,
+        data         = { bufnr = bufnr, lnum = lnum, col = col },
+        initial      = bufnr == current_buf or nil,
     }
 end
 
@@ -65,7 +66,8 @@ end
 function M.open(opts)
     opts = opts or {}
     local max_preview_size = 1024 * 1024
-    local buffers = vim.api.nvim_list_bufs()
+    local buffers     = vim.api.nvim_list_bufs()
+    local current_buf = vim.api.nvim_get_current_buf()
     picker.open({
         prompt = "Open Buffers",
         flags = FLAGS,
@@ -78,7 +80,7 @@ function M.open(opts)
                 if (include_unloaded or vim.api.nvim_buf_is_loaded(bufnr))
                     and (include_unlisted or vim.bo[bufnr].buflisted)
                 then
-                    local item = buffer_to_picker_item(bufnr, query, flags)
+                    local item = buffer_to_picker_item(bufnr, query, flags, current_buf)
                     if item then
                         table.insert(items, item)
                     end

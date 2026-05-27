@@ -44,6 +44,7 @@ end
 ---@field virt_lines? {[1]:string,[2]:string?}[][]
 ---@field score number?
 ---@field data keystone.picker.ItemData
+---@field initial boolean?
 
 ---@class keystone.picker.ListItem
 ---@field text string
@@ -62,7 +63,7 @@ end
 ---@field store fun(hist:string[])?
 
 ---@alias keystone.Picker.Fetcher fun(query:string,opts:keystone.Picker.FetcherOpts):keystone.Picker.Item[]?,number?
----@alias keystone.Picker.Finder fun(query:string,flags:table,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?, initial:number?)):fun()?
+---@alias keystone.Picker.Finder fun(query:string,flags:table,opts:keystone.Picker.FetcherOpts,callback:fun(new_items:keystone.Picker.Item[]?)):fun()?
 ---@alias keystone.Picker.QueryHighlighter fun(query:string): {start:integer, finish:integer, hl:string}[]
 
 ---@class keystone.Picker.AsyncPreviewOpts
@@ -947,12 +948,18 @@ function Picker:run_fetch(query)
         clean_query,
         flags,
         fetch_opts,
-        function(new_items, initial)
+        function(new_items)
             if complete or self.closed or context ~= self.async_fetch_context then return end
             complete = true
             self:stop_spinner()
             if new_items and #new_items > 0 then
-                local initial_data = initial and new_items[initial] and new_items[initial].data or nil
+                local initial_data
+                for _, item in ipairs(new_items) do
+                    if item.initial then
+                        initial_data = item.data
+                        break
+                    end
+                end
                 self:set_items(new_items)
                 local target_row = 1
                 if initial_data then
@@ -1244,17 +1251,16 @@ function M.repeat_last()
         finder        = function(query, flags, fetch_opts, callback)
             if first_call then
                 first_call = false
-                return session.opts.finder(query, flags, fetch_opts, function(items, _)
-                    local target = 1
+                return session.opts.finder(query, flags, fetch_opts, function(items)
                     if items and session.cursor_text then
-                        for i, item in ipairs(items) do
+                        for _, item in ipairs(items) do
                             if _item_label(item) == session.cursor_text then
-                                target = i
+                                item.initial = true
                                 break
                             end
                         end
                     end
-                    callback(items, target)
+                    callback(items)
                 end)
             end
             return session.opts.finder(query, flags, fetch_opts, callback)

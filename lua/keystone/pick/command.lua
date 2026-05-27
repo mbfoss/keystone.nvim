@@ -11,6 +11,7 @@ local pickers = {
             "Config files"
         })
     end,
+    repeat_last           = function() require("keystone.pick.base.picker").repeat_last() end,
     quickfix              = function() require("keystone.pick.pickers.quickfix").open() end,
     jumplist              = function() require("keystone.pick.pickers.jumplist").open() end,
     lsp_references        = function() require("keystone.pick.pickers.lsp").references() end,

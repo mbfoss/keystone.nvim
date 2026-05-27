@@ -122,6 +122,8 @@ function M.document_symbols(opts)
     local params = { textDocument = vim.lsp.util.make_text_document_params() }
     local filepath = vim.api.nvim_buf_get_name(0)
 
+    local cursor_lnum = vim.api.nvim_win_get_cursor(0)[1]
+
     vim.lsp.buf_request(0, "textDocument/documentSymbol", params, function(err, result, _)
         if err or not result then return end
 
@@ -141,6 +143,16 @@ function M.document_symbols(opts)
             end
         end
         flatten(result)
+
+        local best, best_lnum = nil, 0
+        for _, item in ipairs(items) do
+            local lnum = item.data.lnum
+            if lnum <= cursor_lnum and lnum > best_lnum then
+                best      = item
+                best_lnum = lnum
+            end
+        end
+        if best then best.initial = true end
 
         if #items == 0 then
             vim.notify("No symbols found")
