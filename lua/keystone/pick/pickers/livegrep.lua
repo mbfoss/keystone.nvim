@@ -1,12 +1,12 @@
-local M = {}
+local M           = {}
 
-local Process    = require("keystone.utils.Process")
-local uitools    = require("keystone.utils.uitools")
-local strutils   = require("keystone.utils.strutils")
-local picker     = require("keystone.pick.base.picker")
+local uitools     = require("keystone.utils.uitools")
+local strutils    = require("keystone.utils.strutils")
+local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutils    = require("keystone.utils.fsutils")
-local throttle   = require("keystone.utils.throttle")
+local fsutils     = require("keystone.utils.fsutils")
+local throttle    = require("keystone.utils.throttle")
+local spawn       = require("keystone.utils.spawn")
 
 ---@class keystone.livegrep.opts
 ---@field cwd           string?   -- defaults to getcwd
@@ -16,12 +16,12 @@ local throttle   = require("keystone.utils.throttle")
 ---@field max_results   number?
 
 ---@type keystone.queryflags.FlagDef[]
-local FLAGS = {
-    { name = "glob",  type = "value",   multi = true, desc = "raw glob pattern"    },
-    { name = "file",  type = "value",   multi = true, desc = "filter by filename"  },
-    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
-    { name = "regex", type = "boolean",               desc = "enable regex mode"   },
-    { name = "case",  type = "boolean",               desc = "case-sensitive"      },
+local FLAGS       = {
+    { name = "glob",  type = "value",   multi = true,              desc = "raw glob pattern" },
+    { name = "file",  type = "value",   multi = true,              desc = "filter by filename" },
+    { name = "dir",   type = "value",   multi = true,              desc = "filter by directory" },
+    { name = "regex", type = "boolean", desc = "enable regex mode" },
+    { name = "case",  type = "boolean", desc = "case-sensitive" },
 }
 
 ---@param line string
@@ -153,11 +153,13 @@ local function async_grep(parsed, grep_opts, fetch_opts, on_error, callback)
         return
     end
 
-    local max_results = grep_opts.max_results or 10000
-    local stop_read   = false
-    local items       = {}
-    local count       = 0
-    local process
+    local max_results   = grep_opts.max_results or 10000
+    local stop_read     = false
+    local items         = {}
+    local count         = 0
+    local sys_obj
+
+    local cwd           = vim.fn.getcwd()
 
     local buffered_feed = strutils.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
@@ -165,7 +167,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, on_error, callback)
             local file, lnum, col, chunks = parse_rg_json(line)
             if chunks then
                 local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
-                local rel_path = fsutils.get_relative_path(abs_path)
+                local rel_path = fsutils.get_relative_path(abs_path, cwd)
                 local location = fsutils.smart_crop_path(
                     string.format("%s:%s", rel_path, lnum),
                     fetch_opts.list_width
@@ -178,51 +180,56 @@ local function async_grep(parsed, grep_opts, fetch_opts, on_error, callback)
                 })
                 count = count + 1
                 if count >= max_results then
-                    process:kill({ stop_read = true })
                     stop_read = true
+                    if sys_obj then sys_obj.kill() end
                     break
                 end
             end
         end
     end)
 
-    process = Process:new(cmd, {
-        cwd       = grep_opts.cwd,
-        args      = args,
-        on_output = function(data, is_stderr)
-            if stop_read or not data then return end
-            if is_stderr then on_error(data) return end
-            buffered_feed(data)
-        end,
-        on_exit = function()
-            vim.schedule(function() callback(items) end)
-        end,
-    })
+    local ok, err       = pcall(function()
+        sys_obj = spawn(
+            { cmd, unpack(args) },
+            {
+                cwd    = grep_opts.cwd,
+                stdout = function(data)
+                    if stop_read then return end
+                    buffered_feed(data)
+                end,
+                stderr = function(data)
+                    on_error(data)
+                end,
+            },
+            function() callback(items) end
+        )
+    end)
 
-    local ok, err = process:start()
     if not ok then
         callback({})
         on_error(err or "failed to launch ripgrep")
+        return
     end
 
     return function()
-        if process then process:kill({ stop_read = true }) end
+        stop_read = true
+        if sys_obj then sys_obj.kill() end
     end
 end
 
 ---@param opts keystone.livegrep.opts?
 function M.open(opts)
-    opts = opts or {}
-    local cwd           = opts.cwd or vim.fn.getcwd()
+    opts                 = opts or {}
+    local cwd            = opts.cwd or vim.fn.getcwd()
     local error_notifier = create_error_notifier(1000, "rg errors")
 
     picker.open({
-        prompt          = "Live Grep",
-        flags           = FLAGS,
-        enable_preview  = true,
-        enable_list_sep = true,
+        prompt           = "Live Grep",
+        flags            = FLAGS,
+        enable_preview   = true,
+        enable_list_sep  = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
-        finder = function(query, flags, fetch_opts, callback)
+        finder           = function(query, flags, fetch_opts, callback)
             local parsed = { query = query, flags = flags }
             return async_grep(parsed, {
                 cwd           = cwd,

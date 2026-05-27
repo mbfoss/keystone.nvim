@@ -14,7 +14,6 @@ local M = {}
 
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local fsutils = require("keystone.utils.fsutils")
 local strutils = require("keystone.utils.strutils")
@@ -184,7 +183,6 @@ function M.open()
                 return function() end
             end
 
-            local diff_output = {}
             local args
             if data.staged and not data.unstaged then
                 args = { "diff", "--cached", "--", data.path }
@@ -194,24 +192,18 @@ function M.open()
                 args = { "diff", "HEAD", "--", data.path }
             end
 
-            local process = Process:new("git", {
-                cwd       = cwd,
-                args      = args,
-                on_output = function(chunk, is_stderr)
-                    if chunk and not is_stderr then
-                        table.insert(diff_output, chunk)
-                    end
-                end,
-                on_exit   = function()
-                    local content = table.concat(diff_output, "")
+            local sys_obj = vim.system(
+                { "git", table.unpack(args) },
+                { cwd = cwd },
+                function(out)
+                    local content = out.stdout or ""
                     if content == "" then content = "No diff available" end
                     vim.schedule(function()
                         callback({ content = content, filetype = "diff" })
                     end)
-                end,
-            })
-            process:start()
-            return function() process:kill() end
+                end
+            )
+            return function() sys_obj:kill("sigterm") end
         end,
     }, function(data)
         if data then

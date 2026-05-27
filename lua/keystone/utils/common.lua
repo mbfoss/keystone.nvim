@@ -34,3 +34,4 @@ function M.stop_and_close_timer(timer)
     return nil
 end
 
+return M
