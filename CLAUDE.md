@@ -32,7 +32,7 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `animate` | — | Scroll/cursor animation |
 | `focus` | — | Float preview of current buffer |
 | `objects` | — | Treesitter text objects (`ia`/`aa`, `if`/`af`, `ic`/`ac`, `ib`/`ab`) |
-| `base16` | — | Base16 color utilities (hex ↔ RGB, highlight blending) |
+| `colors` | — | Semantic pastel colorscheme (palette, highlight blending) |
 
 Each feature's `setup(opts)` merges opts with defaults and registers its user command via `utils/usercmd.register_user_cmd`.
 
