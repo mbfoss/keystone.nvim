@@ -1106,7 +1106,7 @@ function Picker:close(selected_data)
     local cursor      = self:get_cursor()
     local cursor_item = cursor and self.list_items[cursor]
     _last_session = {
-        cursor_text = cursor_item and cursor_item.text or nil,
+        cursor_text = cursor_item and _item_label(cursor_item) or nil,
         query       = #self.opts.flags > 0
                         and _encode_history(self.query_text, self.filter_text)
                         or self.current_query or "",
