@@ -1,165 +1,107 @@
 local M = {}
 
----@alias keystone.objects.Range { [1]:integer, [2]:integer, [3]:integer, [4]:integer }
-
-local KEYMAPS = {
-  { { "o", "x" }, "ia", function() M.select_argument(true) end,  "inner argument" },
-  { { "o", "x" }, "aa", function() M.select_argument(false) end, "around argument" },
-  { { "o", "x" }, "if", function() M.select_function(true) end,  "inner function" },
-  { { "o", "x" }, "af", function() M.select_function(false) end, "around function" },
-  { { "o", "x" }, "ic", function() M.select_class(true) end,     "inner class" },
-  { { "o", "x" }, "ac", function() M.select_class(false) end,    "around class" },
-  { { "o", "x" }, "ib", function() M.select_block(true) end,     "inner block" },
-  { { "o", "x" }, "ab", function() M.select_block(false) end,    "around block" },
+-- Substring patterns matched against node:type() to identify semantic groups
+local GROUPS = {
+  f = { "function", "method", "arrow", "func_literal" },
+  c = { "class", "struct", "interface", "impl" },
+  a = { "parameter", "argument" },
+  b = { "block", "body" },
 }
 
----@param bufnr integer
----@return vim.treesitter.LanguageTree|nil
-local function get_parser(bufnr)
-  local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
-  if not ok then return nil end
-  return parser
-end
+local KEYMAPS = {
+  { { "o", "x" }, "ia", function() M.select("a", true) end,  "inner argument" },
+  { { "o", "x" }, "aa", function() M.select("a", false) end, "around argument" },
+  { { "o", "x" }, "if", function() M.select("f", true) end,  "inner function" },
+  { { "o", "x" }, "af", function() M.select("f", false) end, "around function" },
+  { { "o", "x" }, "ic", function() M.select("c", true) end,  "inner class" },
+  { { "o", "x" }, "ac", function() M.select("c", false) end, "around class" },
+  { { "o", "x" }, "ib", function() M.select("b", true) end,  "inner block" },
+  { { "o", "x" }, "ab", function() M.select("b", false) end, "around block" },
+}
 
----@return TSNode|nil
-local function get_node_at_cursor()
-  local cursor = vim.api.nvim_win_get_cursor(0)
-  local row, col = cursor[1] - 1, cursor[2]
-
-  local parser = get_parser(0)
-  if not parser then return nil end
-
-  local tree = parser:parse()[1]
-  if not tree then return nil end
-
-  return tree:root():named_descendant_for_range(row, col, row, col)
+---@param node TSNode
+---@param patterns string[]
+---@return boolean
+local function matches(node, patterns)
+  local t = node:type()
+  for _, p in ipairs(patterns) do
+    if t:find(p, 1, true) then return true end
+  end
+  return false
 end
 
 ---@param node TSNode|nil
----@param types string[]
+---@param patterns string[]
 ---@return TSNode|nil
-local function find_parent(node, types)
+local function find_ancestor(node, patterns)
   while node do
-    for _, t in ipairs(types) do
-      if node:type() == t then
-        return node
-      end
-    end
+    if matches(node, patterns) then return node end
     node = node:parent()
   end
-  return nil
 end
 
----@param node TSNode
----@return keystone.objects.Range
-local function node_range(node)
-  local sr, sc, er, ec = node:range()
-  return { sr, sc, er, ec }
+-- Returns the child of the first ancestor matching patterns (i.e. a single item in a list)
+---@param node TSNode|nil
+---@param patterns string[]
+---@return TSNode|nil
+local function find_in_container(node, patterns)
+  while node do
+    local parent = node:parent()
+    if parent and matches(parent, patterns) then return node end
+    node = parent
+  end
 end
 
----@param range keystone.objects.Range
-local function set_visual(range)
-  vim.fn.setpos("'<", { 0, range[1] + 1, range[2] + 1, 0 })
-  vim.fn.setpos("'>", { 0, range[3] + 1, range[4], 0 })
-  vim.cmd("normal! gv")
-end
-
-local BODY_TYPES = { body = true, block = true, statement_block = true, field_declaration_list = true }
+local BODY_PATTERNS = { "block", "body", "statement" }
 
 ---@param node TSNode|nil
 ---@param inner boolean
-local function select_node(node, inner)
+local function apply_visual(node, inner)
   if not node then return end
-  if not inner then
-    set_visual(node_range(node))
-    return
-  end
-  -- For inner: prefer a dedicated body/block child (more accurate for functions/classes)
-  for child in node:iter_children() do
-    if BODY_TYPES[child:type()] then
-      set_visual(node_range(child))
-      return
+  local sr, sc, er, ec
+
+  if inner then
+    for child in node:iter_children() do
+      if matches(child, BODY_PATTERNS) then
+        sr, sc, er, ec = child:range()
+        break
+      end
+    end
+    if not sr then
+      local first, last
+      for child in node:iter_children() do
+        if child:named() then
+          first = first or child
+          last = child
+        end
+      end
+      if first then
+        sr, sc = first:range()
+        _, _, er, ec = last:range()
+      end
     end
   end
-  -- Fallback: span from first to last named child
-  local first, last
-  for child in node:iter_children() do
-    if child:named() then
-      first = first or child
-      last = child
-    end
+
+  if not sr then
+    sr, sc, er, ec = node:range()
   end
-  if not first or not last then
-    set_visual(node_range(node))
-    return
-  end
-  local sr, sc = first:range()
-  local _, _, er, ec = last:range()
-  set_visual({ sr, sc, er, ec })
+
+  vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
+  vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
+  vim.cmd("normal! gv")
 end
 
----@param types string[]
----@return TSNode|nil
-local function get_node(types)
-  local node = get_node_at_cursor()
-  if not node then return nil end
-  return find_parent(node, types)
-end
-
-function M.select_argument(inner)
-  local node = get_node(
-    {
-      "parameters",
-      "parameter_list",
-      "arguments",
-      "argument_list",
-      "identifier",
-    }
-  )
-  if node then
-    select_node(node, inner)
-  end
-end
-
-function M.select_function(inner)
-  local node = get_node({
-    "function_definition",
-    "function_declaration",
-    "method_definition",
-    "method_declaration",
-    "arrow_function",
-    "func_literal",
-    "function",
-  })
-  if node then
-    select_node(node, inner)
-  end
-end
-
-function M.select_class(inner)
-  local node = get_node(
-    {
-      "class_definition",
-      "class_declaration",
-      "class_specifier",
-      "struct_specifier"
-    }
-  )
-  if node then
-    select_node(node, inner)
-  end
-end
-
-function M.select_block(inner)
-  local node = get_node(
-    {
-      "block",
-      "statement_block",
-    }
-  )
-  if node then
-    select_node(node, inner)
-  end
+---@param group string
+---@param inner boolean
+function M.select(group, inner)
+  local patterns = GROUPS[group]
+  if not patterns then return end
+  local node = vim.treesitter.get_node()
+  if not node then return end
+  local target = group == "a"
+    and find_in_container(node, patterns)
+    or find_ancestor(node, patterns)
+  apply_visual(target, inner)
 end
 
 ---@class keystone.textobjects.Config

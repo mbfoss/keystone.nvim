@@ -37,36 +37,39 @@ end
   hue family so highlights can distinguish "the thing" from "the built-in
   variant of the thing" without relying on italic alone.
 ]]
+
+
+
 local default_palette = {
     -- neutrals (dark → bright)
-    bg       = '#272932',   -- editor background
-    bg_alt   = '#31333f',   -- panels, floats, statusline
-    surface  = '#3d4055',   -- selection, visual highlight
-    overlay  = '#565a72',   -- borders, separators
-    muted    = '#7b7f98',   -- comments, deemphasised text
-    subtle   = '#9498b3',   -- line numbers, subtle UI
-    fg       = '#d4d7e9',   -- primary foreground
-    fg_alt   = '#eaecf5',   -- bright foreground (titles, panels)
+    bg       = '#2e2f33',   -- editor background
+    bg_alt   = '#3a3b40',   -- panels, floats, statusline
+    surface  = '#505157',   -- selection, visual highlight
+    overlay  = '#6e6f77',   -- borders, separators
+    muted    = '#a0a2ad',   -- comments, deemphasised text
+    subtle   = '#dcdce4',   -- line numbers, subtle UI
+    fg       = '#f2f2f5',   -- primary foreground
+    fg_alt   = '#fafafd',   -- bright foreground (titles, panels)
     bright   = '#f5f6fb',   -- maximum brightness / soft white
 
     -- pastel core
-    red      = '#e8a0a0',   -- errors, exceptions, delete
-    orange   = '#e8b88a',   -- constants, numbers, branches
-    yellow   = '#e8d99a',   -- types, warnings, labels, storage
-    green    = '#a8d4a8',   -- strings, success, additions
-    teal     = '#8ecec8',   -- special chars, regex, hints
-    sky      = '#a0cce0',   -- identifiers, properties, info
-    blue     = '#9ab8e0',   -- functions, directories, includes
-    lavender = '#b8a8e8',   -- keywords, operators, conditionals
-    pink     = '#e0a8c8',   -- delimiters, punctuation
+    red      = '#eebbbb',   -- errors, exceptions, delete
+    orange   = '#eec8a2',   -- constants, numbers, branches
+    yellow   = '#eee0ae',   -- types, warnings, labels, storage
+    green    = '#b8dab8',   -- strings, success, additions
+    teal     = '#a2d4d0',   -- special chars, regex, hints
+    sky      = '#b2d6e6',   -- identifiers, properties, info
+    blue     = '#acc4e6',   -- functions, directories, includes
+    lavender = '#c8baec',   -- keywords, operators, conditionals
+    pink     = '#e8bcd4',   -- delimiters, punctuation
 
     -- vivid extensions
-    flame    = '#e07878',   -- macros, func-macros, critical errors
-    amber    = '#d4a868',   -- attributes, annotations, warnings-vivid
-    lime     = '#b8d888',   -- constructors, enum members, gutter-add
-    cyan     = '#78ccd8',   -- builtins (func/const/var), special funcs
-    indigo   = '#8898d8',   -- namespaces, modules, import, type-builtins
-    mauve    = '#c098c8',   -- operators, punctuation-special, markup-em
+    flame    = '#e89090',   -- macros, func-macros, critical errors
+    amber    = '#dcb87e',   -- attributes, annotations, warnings-vivid
+    lime     = '#c4de94',   -- constructors, enum members, gutter-add
+    cyan     = '#8cd6de',   -- builtins (func/const/var), special funcs
+    indigo   = '#98a8dc',   -- namespaces, modules, import, type-builtins
+    mauve    = '#caaad0',   -- operators, punctuation-special, markup-em
 }
 
 local function hl(group, opts)
@@ -88,7 +91,7 @@ end
 
 function M.with_config(config)
     M.config = vim.tbl_extend('force',
-        { notify = true, cmp = true, lsp_semantic = true, mini_completion = true, diffview = true, which_key = true },
+        { notify = true, cmp = true, lsp_semantic = true, diffview = true, which_key = true },
         config or M.config or {})
 end
 
@@ -266,63 +269,6 @@ function M.setup(config)
     hl('LspReferenceWrite', { gui = 'underline', sp = c.amber })
     hl('LspInlayHint',      { fg = c.muted,      gui = 'italic' })
 
-    -- ── Treesitter (legacy TS* names) ─────────────────────────────────
-    hl('TSAnnotation',          { fg = c.mauve,    gui = 'none' })
-    hl('TSAttribute',           { fg = c.amber,    gui = 'none' })
-    hl('TSBoolean',             { fg = c.orange,   gui = 'none' })
-    hl('TSCharacter',           { fg = c.green,    gui = 'none' })
-    hl('TSComment',             { fg = c.muted,    gui = 'italic' })
-    hl('TSConstructor',         { fg = c.lime,     gui = 'none' })
-    hl('TSConditional',         { fg = c.lavender, gui = 'none' })
-    hl('TSConstant',            { fg = c.orange,   gui = 'none' })
-    hl('TSConstBuiltin',        { fg = c.cyan,     gui = 'italic' })
-    hl('TSConstMacro',          { fg = c.flame,    gui = 'none' })
-    hl('TSError',               { fg = c.red,      gui = 'none' })
-    hl('TSException',           { fg = c.red,      gui = 'none' })
-    hl('TSField',               { fg = c.sky,      gui = 'none' })
-    hl('TSFloat',               { fg = c.orange,   gui = 'none' })
-    hl('TSFunction',            { fg = c.blue,     gui = 'none' })
-    hl('TSFuncBuiltin',         { fg = c.cyan,     gui = 'italic' })
-    hl('TSFuncMacro',           { fg = c.flame,    gui = 'none' })
-    hl('TSInclude',             { fg = c.indigo,   gui = 'none' })
-    hl('TSKeyword',             { fg = c.lavender, gui = 'none' })
-    hl('TSKeywordFunction',     { fg = c.lavender, gui = 'none' })
-    hl('TSKeywordOperator',     { fg = c.mauve,    gui = 'none' })
-    hl('TSLabel',               { fg = c.yellow,   gui = 'none' })
-    hl('TSMethod',              { fg = c.sky,      gui = 'none' })
-    hl('TSNamespace',           { fg = c.indigo,   gui = 'none' })
-    hl('TSNone',                { fg = c.fg,       gui = 'none' })
-    hl('TSNumber',              { fg = c.orange,   gui = 'none' })
-    hl('TSOperator',            { fg = c.mauve,    gui = 'none' })
-    hl('TSParameter',           { fg = c.fg,       gui = 'none' })
-    hl('TSParameterReference',  { fg = c.fg,       gui = 'none' })
-    hl('TSProperty',            { fg = c.sky,      gui = 'none' })
-    hl('TSPunctDelimiter',      { fg = c.pink,     gui = 'none' })
-    hl('TSPunctBracket',        { fg = c.subtle,   gui = 'none' })
-    hl('TSPunctSpecial',        { fg = c.mauve,    gui = 'none' })
-    hl('TSRepeat',              { fg = c.lavender, gui = 'none' })
-    hl('TSString',              { fg = c.green,    gui = 'none' })
-    hl('TSStringRegex',         { fg = c.teal,     gui = 'none' })
-    hl('TSStringEscape',        { fg = c.cyan,     gui = 'none' })
-    hl('TSSymbol',              { fg = c.lime,     gui = 'none' })
-    hl('TSTag',                 { fg = c.amber,    gui = 'none' })
-    hl('TSTagDelimiter',        { fg = c.pink,     gui = 'none' })
-    hl('TSText',                { fg = c.fg,       gui = 'none' })
-    hl('TSStrong',              { gui = 'bold' })
-    hl('TSEmphasis',            { fg = c.mauve,    gui = 'italic' })
-    hl('TSUnderline',           { gui = 'underline' })
-    hl('TSStrike',              { gui = 'strikethrough' })
-    hl('TSTitle',               { fg = c.blue,     gui = 'bold' })
-    hl('TSLiteral',             { fg = c.teal,     gui = 'none' })
-    hl('TSURI',                 { fg = c.sky,      gui = 'underline' })
-    hl('TSType',                { fg = c.yellow,   gui = 'none' })
-    hl('TSTypeBuiltin',         { fg = c.indigo,   gui = 'italic' })
-    hl('TSVariable',            { fg = c.fg,       gui = 'none' })
-    hl('TSVariableBuiltin',     { fg = c.cyan,     gui = 'italic' })
-    hl('TSDefinition',          { gui = 'underline', sp = c.subtle })
-    hl('TSDefinitionUsage',     { gui = 'underline', sp = c.subtle })
-    hl('TSCurrentScope',        { gui = 'bold' })
-
     -- ── Treesitter (@-namespace, Neovim 0.9+) ─────────────────────────
     hl('@variable',              { fg = c.fg })
     hl('@variable.builtin',      { fg = c.cyan,     gui = 'italic' })
@@ -465,9 +411,6 @@ function M.setup(config)
         hl('WhichKeyValue',     { fg = c.muted })
     end
 
-    if M.config.mini_completion then
-        hl('MiniCompletionActiveParameter', 'CursorLine')
-    end
 
     -- ── Terminal colors ───────────────────────────────────────────────
     -- normal:  0=black  1=red    2=green  3=yellow  4=blue  5=magenta  6=cyan  7=white

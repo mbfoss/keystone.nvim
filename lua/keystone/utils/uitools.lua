@@ -118,7 +118,7 @@ function M.smart_open_file(filepath, line, col)
 
     local bufnr = vim.fn.bufnr(full_path)
     if bufnr ~= -1 then
-        vim.api.nvim_win_set_buf(winid, bufnr)
+        vim.fn.win_execute(winid, "buffer " .. bufnr)
         vim.bo[bufnr].buflisted = true
     else
         vim.cmd.edit(vim.fn.fnameescape(filepath))
@@ -145,7 +145,7 @@ function M.smart_open_buffer(bufnr, lnum, col)
     if not target_win then
         target_win = M.get_regular_window()
         vim.api.nvim_set_current_win(target_win)
-        vim.api.nvim_win_set_buf(target_win, bufnr)
+         vim.fn.win_execute(target_win, "buffer " .. bufnr)
     end
     if lnum then
         local line_count = vim.api.nvim_buf_line_count(bufnr)
