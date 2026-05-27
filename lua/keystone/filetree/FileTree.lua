@@ -146,7 +146,7 @@ function FileTree:_setup_tree()
         --header_enabled = true,
     })
 
-    self._treebuf:add_tracker({
+    self._treebuf:subscribe({
         on_selection = function(id, data)
             if not data.is_dir and fsutils.file_exists(data.path) then
                 uitools.smart_open_file(data.path)

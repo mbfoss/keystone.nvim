@@ -1,6 +1,6 @@
 local Tree = require("keystone.utils.Tree")
 local uitools = require("keystone.utils.uitools")
-local Trackers = require("keystone.utils.Trackers")
+local Signal = require("keystone.utils.Signal")
 
 ---@class keystone.TreeBuffer.Item
 ---@field id any
@@ -118,7 +118,8 @@ function TreeBuffer:init(opts)
         self._indent_cache[i] = string.rep(opts.indent_string or "  ", i)
     end
 
-    self._trackers = Trackers:new() ---@type keystone.utils.Trackers<keystone.TreeBuffer.Tracker>
+    self._on_selection = Signal.new() ---@type keystone.util.Signal<fun(id:any,data:any)>
+    self._on_toggle = Signal.new()    ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
 
     self._bufnr = -1
     self._tree = Tree:new()
@@ -169,7 +170,7 @@ function TreeBuffer:create_buffer(on_deleted)
                 if data.expandable or self._tree:have_children(id) then
                     self:toggle_expand(id)
                 else
-                    self._trackers:invoke("on_selection", id, data.userdata)
+                    self._on_selection:emit(id, data.userdata)
                 end
             end
         end,
@@ -223,8 +224,15 @@ end
 
 ---@param callbacks keystone.TreeBuffer.Tracker
 ---@return keystone.TrackerRef
-function TreeBuffer:add_tracker(callbacks)
-    return self._trackers:add_tracker(callbacks)
+function TreeBuffer:subscribe(callbacks)
+    if callbacks.on_selection then self._on_selection:subscribe(callbacks.on_selection) end
+    if callbacks.on_toggle then self._on_toggle:subscribe(callbacks.on_toggle) end
+    return {
+        cancel = function()
+            if callbacks.on_selection then self._on_selection:unsubscribe(callbacks.on_selection) end
+            if callbacks.on_toggle then self._on_toggle:unsubscribe(callbacks.on_toggle) end
+        end,
+    }
 end
 
 ---@private
@@ -612,7 +620,7 @@ function TreeBuffer:expand(id)
         self:_render_range(idx, 1, new_subtree_flat)
     end
 
-    self._trackers:invoke("on_toggle", id, data.userdata, true)
+    self._on_toggle:emit(id, data.userdata, true)
 end
 
 function TreeBuffer:collapse(id)
@@ -627,7 +635,7 @@ function TreeBuffer:collapse(id)
         self:_render_range(idx, current_visible_size, { parent_flat })
     end
 
-    self._trackers:invoke("on_toggle", id, data.userdata, false)
+    self._on_toggle:emit(id, data.userdata, false)
 end
 
 function TreeBuffer:expand_all(id)
