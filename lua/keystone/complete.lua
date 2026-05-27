@@ -69,6 +69,7 @@ local state = {
 }
 
 local kind_map -- lazily built by build_kind_map()
+local doc_win  -- floating documentation window
 
 -- Utilities ------------------------------------------------------------------
 
@@ -442,6 +443,71 @@ local function apply_completion_extras(lsp_data)
   end)
 end
 
+-- Documentation float --------------------------------------------------------
+
+local function close_doc_win()
+  if doc_win and vim.api.nvim_win_is_valid(doc_win) then
+    vim.api.nvim_win_close(doc_win, true)
+  end
+  doc_win = nil
+end
+
+local function show_doc_content(documentation)
+  local lines
+  if documentation then
+    lines = vim.lsp.util.convert_input_to_markdown_lines(documentation)
+    lines = vim.tbl_filter(function(l) return l ~= "" end, lines)
+    if vim.tbl_isempty(lines) then lines = nil end
+  end
+  vim.schedule(function()
+    close_doc_win()
+    if not pumvisible() or not lines then return end
+
+    local pum = vim.fn.pum_getpos()
+    if vim.tbl_isempty(pum) then return end
+
+    local pum_right = pum.col + pum.width + (pum.scrollbar and 1 or 0)
+    local offset_x  = pum_right - (vim.fn.screencol() - 1)
+
+    local _, win = vim.lsp.util.open_floating_preview(lines, "markdown", {
+      border     = "rounded",
+      max_width  = 60,
+      max_height = 20,
+      focusable  = false,
+      offset_x   = offset_x,
+    })
+    doc_win = win
+  end)
+end
+
+local function on_complete_changed()
+  local lsp_data = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
+  if not lsp_data then show_doc_content(nil); return end
+
+  local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
+  if item.documentation then
+    show_doc_content(item.documentation)
+    return
+  end
+
+  local client = vim.lsp.get_client_by_id(item.client_id)
+  if not client or not tbl_get(client, { "server_capabilities", "completionProvider", "resolveProvider" }) then
+    show_doc_content(nil)
+    return
+  end
+
+  local item_id = lsp_data.item_id
+  client:request("completionItem/resolve", item, function(err, result)
+    if err or not result then return end
+    state.lsp.resolved[item_id] = result
+    vim.schedule(function()
+      if not pumvisible() then return end
+      local cur = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
+      if cur and cur.item_id == item_id then show_doc_content(result.documentation) end
+    end)
+  end, vim.api.nvim_get_current_buf())
+end
+
 -- Autocommand callbacks ------------------------------------------------------
 
 local function on_insert_char()
@@ -522,8 +588,9 @@ local function setup_autocmds(config)
 
   au("InsertCharPre",   "*",          on_insert_char)
   au("CursorMovedI",    "*",          on_cursor_moved)
-  au("ModeChanged",     "i*:[^i]*",   function() M.stop() end)
-  au("CompleteDonePre", "*",          on_complete_done)
+  au("CompleteChanged", "*",          on_complete_changed)
+  au("ModeChanged",     "i*:[^i]*",   function() M.stop(); close_doc_win() end)
+  au("CompleteDonePre", "*",          function() close_doc_win(); on_complete_done() end)
   au("TextChangedI",    "*",          function() change_tick = change_tick + 1 end)
   au("TextChangedP",    "*",          function() change_tick = change_tick + 1 end)
 
