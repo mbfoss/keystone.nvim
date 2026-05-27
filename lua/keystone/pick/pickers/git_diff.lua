@@ -2,24 +2,13 @@
 
 ---@class GitStatusEntry
 ---@field path string
+---@field index_status string
+---@field worktree_status string
 ---@field staged boolean
 ---@field unstaged boolean
 ---@field untracked boolean
 ---@field ignored boolean
 ---@field raw string
-
----@class PickerItemChunk
----@field text string
----@field hl string
-
----@class PickerItem
----@field label_chunks PickerItemChunk[]
----@field score number
----@field data GitStatusEntry
-
----@class PreviewCallbackResult
----@field content string
----@field filetype string
 
 local M = {}
 
@@ -29,6 +18,31 @@ local Process = require("keystone.utils.Process")
 local uitools = require("keystone.utils.uitools")
 local fsutils = require("keystone.utils.fsutils")
 local strutils = require("keystone.utils.strutils")
+local icons = require("keystone.icons")
+
+local STATUS_HL = {
+    A = "DiagnosticOk",
+    M = "DiagnosticWarn",
+    D = "DiagnosticError",
+    R = "DiagnosticInfo",
+    C = "DiagnosticInfo",
+    U = "DiagnosticError",
+    ["?"] = "DiagnosticHint",
+    ["!"] = "Comment",
+    [" "] = "NonText",
+}
+
+local function status_hl(char)
+    return STATUS_HL[char] or "Normal"
+end
+
+local function sort_priority(entry)
+    if entry.ignored then return 5 end
+    if entry.untracked then return 4 end
+    if entry.staged and entry.unstaged then return 2 end
+    if entry.staged then return 1 end
+    return 3
+end
 
 ---@local
 ---@param entries string[]
@@ -41,20 +55,16 @@ local function parse_porcelain_z(entries)
         local entry = entries[i]
 
         if #entry >= 3 then
-            local index_status = entry:sub(1, 1)
-            local worktree_status = entry:sub(2, 2)
-
-            local path = entry:sub(4)
+            local index_status      = entry:sub(1, 1)
+            local worktree_status   = entry:sub(2, 2)
+            local path              = entry:sub(4)
 
             local is_rename_or_copy =
-                index_status == "R"
-                or index_status == "C"
-                or worktree_status == "R"
-                or worktree_status == "C"
+                index_status == "R" or index_status == "C"
+                or worktree_status == "R" or worktree_status == "C"
 
             if is_rename_or_copy then
                 local dst = entries[i + 1]
-
                 if dst then
                     path = dst
                     i = i + 1
@@ -62,26 +72,14 @@ local function parse_porcelain_z(entries)
             end
 
             table.insert(parsed, {
-                path = path,
-
-                index_status = index_status,
+                path            = path,
+                index_status    = index_status,
                 worktree_status = worktree_status,
-
-                staged = index_status ~= " "
-                    and index_status ~= "?"
-                    and index_status ~= "!",
-
-                unstaged = worktree_status ~= " "
-                    and worktree_status ~= "?"
-                    and worktree_status ~= "!",
-
-                untracked = index_status == "?"
-                    and worktree_status == "?",
-
-                ignored = index_status == "!"
-                    and worktree_status == "!",
-
-                raw = entry,
+                staged          = index_status ~= " " and index_status ~= "?" and index_status ~= "!",
+                unstaged        = worktree_status ~= " " and worktree_status ~= "?" and worktree_status ~= "!",
+                untracked       = index_status == "?" and worktree_status == "?",
+                ignored         = index_status == "!" and worktree_status == "!",
+                raw             = entry,
             })
         end
 
@@ -102,28 +100,20 @@ function M.open()
 
     if result.code ~= 0 then
         local err = result.stderr and strutils.crop_string_for_ui(result.stderr, 70) or ""
-
         vim.notify(
-            ("git status failed (exit code %d): %s"):format(
-                result.code,
-                err ~= "" and err or "unknown error"
-            ),
+            ("git status failed (exit code %d): %s"):format(result.code, err ~= "" and err or "unknown error"),
             vim.log.levels.ERROR
         )
-
         return
     end
 
     local raw_output = result.stdout or ""
     local raw_entries = {}
-
     local start = 1
     while true do
         local nxt = raw_output:find("\0", start, true)
         if not nxt then break end
-
-        local entry = raw_output:sub(start, nxt - 1)
-        table.insert(raw_entries, entry)
+        table.insert(raw_entries, raw_output:sub(start, nxt - 1))
         start = nxt + 1
     end
 
@@ -134,125 +124,98 @@ function M.open()
         return
     end
 
-    local max_flags = 1
-    for _, entry in ipairs(parsed) do
-        local count = 0
-        if entry.staged then count = count + 1 end
-        if entry.unstaged then count = count + 1 end
-        if entry.untracked then count = count + 1 end
-        if entry.ignored then count = count + 1 end
-        if count > max_flags then
-            max_flags = count
-        end
-    end
+    table.sort(parsed, function(a, b)
+        local pa, pb = sort_priority(a), sort_priority(b)
+        if pa ~= pb then return pa < pb end
+        return a.path < b.path
+    end)
 
     picker.open({
-        prompt = "Git Status",
+        prompt         = "Git Status",
         enable_preview = true,
-
-        ---@param query string
-        ---@param fetch_opts table
-        ---@return PickerItem[]
-        finder = function(query, _, fetch_opts, callback)
+        finder         = function(query, _, fetch_opts, callback)
             local items = {}
 
             for _, entry in ipairs(parsed) do
-                local path = fsutils.get_relative_path(entry.path) or entry.path
-                local res = pickertools.match_label(path, query)
+                local path         = entry.path
+                local filename     = vim.fn.fnamemodify(path, ":t")
+                local dirpart      = vim.fn.fnamemodify(path, ":h")
+                dirpart            = (dirpart == "." or dirpart == "") and "" or (dirpart .. "/")
 
-                if res then
-                    local chunks = {}
-                    local active_flags = {}
-                    if entry.staged then
-                        table.insert(active_flags, { "[S]", "DiagnosticOk" })
-                    end
-                    if entry.unstaged then
-                        table.insert(active_flags, { "[U]", "DiagnosticWarn" })
-                    end
-                    if entry.untracked then
-                        table.insert(active_flags, { "[?]", "DiagnosticInfo" })
-                    end
-                    if entry.ignored then
-                        table.insert(active_flags, { "[I]", "Comment" })
-                    end
+                local match_target = fsutils.get_relative_path(path) or path
+                local res          = pickertools.match_label(filename ~= "" and filename or match_target, query)
+                if not res then goto continue end
 
-                    for _, flag in ipairs(active_flags) do
-                        table.insert(chunks, flag)
-                    end
+                local x = entry.index_status
+                local y = entry.worktree_status
+                local icon, icon_hl = icons.get_icon(filename)
 
-                    local padding = max_flags - #active_flags
-                    if padding > 0 then
-                        table.insert(chunks, { string.rep("   ", padding), "Normal" })
-                    end
+                local chunks = {
+                    { x,    status_hl(x) },
+                    { y,    status_hl(y) },
+                    { "  ", "Normal" },
+                    { icon, icon_hl },
+                    { " ",  "Normal" },
+                }
 
-                    table.insert(chunks, { " ", "Normal" })
-
-                    vim.list_extend(chunks, res.chunks)
-                    table.insert(items, {
-                        label_chunks = chunks,
-                        score = res.score,
-                        data = entry,
-                    })
+                if dirpart ~= "" then
+                    table.insert(chunks, { dirpart, "Comment" })
                 end
+
+                vim.list_extend(chunks, res.chunks)
+
+                table.insert(items, {
+                    label_chunks = chunks,
+                    score        = res.score,
+                    data         = entry,
+                })
+
+                ::continue::
             end
 
             callback(items)
         end,
 
-        ---@param data GitStatusEntry
-        ---@param opts table
-        ---@param callback fun(result: PreviewCallbackResult)
-        ---@return fun() cancel_fn
-        previewer = function(data, opts, callback)
-            local filepath = data.path
+        previewer      = function(data, opts, callback)
             if data.untracked then
                 vim.schedule(function()
-                    callback({
-                        content = "Untracked file",
-                        filetype = "text",
-                    })
+                    callback({ filepath = vim.fs.joinpath(cwd, data.path) })
                 end)
                 return function() end
             end
+
             local diff_output = {}
             local args
             if data.staged and not data.unstaged then
-                args = { "diff", "--cached", "--", filepath }
+                args = { "diff", "--cached", "--", data.path }
             elseif data.unstaged and not data.staged then
-                args = { "diff", "--", filepath }
+                args = { "diff", "--", data.path }
             else
-                args = { "diff", "HEAD", "--", filepath }
+                args = { "diff", "HEAD", "--", data.path }
             end
+
             local process = Process:new("git", {
-                cwd = cwd,
-                args = args,
+                cwd       = cwd,
+                args      = args,
                 on_output = function(chunk, is_stderr)
                     if chunk and not is_stderr then
                         table.insert(diff_output, chunk)
                     end
                 end,
-                on_exit = function()
+                on_exit   = function()
                     local content = table.concat(diff_output, "")
-                    if content == "" then
-                        content = "No diff available"
-                    end
+                    if content == "" then content = "No diff available" end
                     vim.schedule(function()
-                        callback({
-                            content = content,
-                            filetype = "diff",
-                        })
+                        callback({ content = content, filetype = "diff" })
                     end)
                 end,
             })
             process:start()
-            return function()
-                process:kill()
-            end
+            return function() process:kill() end
         end,
     }, function(data)
         if data then
-            local full_path = vim.fs.joinpath(cwd, data.path)
-            uitools.smart_open_file(full_path)
+            uitools.smart_open_file(vim.fs.joinpath(cwd, data.path))
         end
     end)
 end
