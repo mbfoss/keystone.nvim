@@ -64,7 +64,6 @@ function M.open()
 
     for name, cmd in pairs(vim.api.nvim_get_commands({})) do
         cmd.name   = name
-        cmd.is_buf = false
         user_cmds[name] = cmd
     end
 

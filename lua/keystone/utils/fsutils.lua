@@ -354,7 +354,7 @@ function M.async_walk_dir(dir, opts)
                         table.insert(pending_dirs, full_path)
                     end
                 elseif type_ == "file" then
-                    if strutils.check_path_pattern(rel_path, false, opts.include_regex_list, exclude_regex_list) then
+                    if strutils.check_path_pattern(rel_path, false, opts.include_regex_list, opts.exclude_regex_list) then
                         opts.on_file(full_path, name, rel_path)
                     end
                 end

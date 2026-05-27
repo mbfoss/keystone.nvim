@@ -287,6 +287,7 @@ function Picker:init(opts, callback)
 
     self.history               = {}
     self.history_idx           = 0
+    self.history_saved_query   = nil
 
     if self.opts.history_provider then
         self.history = self.opts.history_provider.load() or {}
@@ -951,6 +952,10 @@ end
 function Picker:history_prev()
     if not self.opts.history_provider or #self.history == 0 then return end
 
+    if self.history_idx == #self.history + 1 then
+        self.history_saved_query = _encode_history(self.query_text, self.filter_text)
+    end
+
     local new_idx = math.max(1, self.history_idx - 1)
     if new_idx ~= self.history_idx then
         self.history_idx = new_idx
@@ -967,7 +972,8 @@ function Picker:history_next()
         self:set_prompt_text(self.history[self.history_idx])
     elseif new_idx == #self.history + 1 then
         self.history_idx = new_idx
-        self:set_prompt_text("")
+        self:set_prompt_text(self.history_saved_query or "")
+        self.history_saved_query = nil
     end
 end
 
@@ -1064,6 +1070,7 @@ function Picker:close(selected_data)
 end
 
 function Picker:toggle_opts_mode()
+    if not self.opts.flags or #self.opts.flags == 0 then return end
     local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
     if self.prompt_mode == "query" then
         self.query_text  = current

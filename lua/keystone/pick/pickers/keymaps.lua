@@ -43,7 +43,7 @@ local function format_preview(km)
     add(lines, "LHS", km.lhs)
     add(lines, "Description", km.desc)
     add(lines, "RHS", km.rhs)
-    add(lines, "Buffer", km.buffer)
+    add(lines, "Buffer", km.buf)
     add(lines, "Abbreviation", km.abbr)
     add(lines, "NoRemap", km.noremap)
     add(lines, "Nowait", km.nowait)
@@ -93,7 +93,6 @@ function M.open()
         local bufmaps = vim.api.nvim_buf_get_keymap(buf, mode)
         for _, km in ipairs(bufmaps) do
             km.mode = mode
-            km.buffer = buf
             ---@diagnostic disable-next-line: inject-field
             km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
             table.insert(entries, km)
