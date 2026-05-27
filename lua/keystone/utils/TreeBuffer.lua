@@ -328,10 +328,8 @@ function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     vim.api.nvim_buf_clear_namespace(buf, _ns_id, start_row, start_row + old_size)
 
     local end_row = start_row + old_size
-    if old_size == 0 and vim.api.nvim_buf_line_count(buf) == 1 then
-        if vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1] == "" then
-            end_row = -1
-        end
+    if old_size == 0 and #self._flat_ids == 0 then
+        end_row = -1
     end
 
     vim.bo[buf].modifiable = true
@@ -344,11 +342,24 @@ function TreeBuffer:_render_range(start_idx, old_size, new_flat)
             self._id_to_idx[old_id] = nil
         end
     end
-    for _ = 1, old_size do
-        table.remove(self._flat_ids, start_idx)
+
+    local new_size = #new_ids
+    local total    = #self._flat_ids
+    local delta    = new_size - old_size
+    if delta > 0 then
+        for i = total, start_idx + old_size, -1 do
+            self._flat_ids[i + delta] = self._flat_ids[i]
+        end
+    elseif delta < 0 then
+        for i = start_idx + old_size, total do
+            self._flat_ids[i + delta] = self._flat_ids[i]
+        end
+        for i = total + delta + 1, total do
+            self._flat_ids[i] = nil
+        end
     end
     for i, id in ipairs(new_ids) do
-        table.insert(self._flat_ids, start_idx + i - 1, id)
+        self._flat_ids[start_idx + i - 1] = id
     end
 
     for i = start_idx, #self._flat_ids do
@@ -419,7 +430,7 @@ function TreeBuffer:get_visible_items(winid)
     local visible_items = {}
     for i = start_line, end_line do
         local id = self._flat_ids[i]
-        if id and type(id) ~= "table" then
+        if id then
             local base_data = self:_get_data(id)
             if base_data then
                 table.insert(visible_items, {

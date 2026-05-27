@@ -84,7 +84,7 @@ MANAGEMENT
 `A`       Create directory in parent directory
 `I`       Create directory inside selected directory
 `r`       Rename file or directory
-`d`      **Permanently** delete file or empty directory
+`d`       **Permanently** delete file or empty directory
 
 OTHER
 =====
