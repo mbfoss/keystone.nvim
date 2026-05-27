@@ -3,6 +3,7 @@ local common = require "keystone.utils.common"
 ---@field win_id integer
 ---@field buf_id integer
 ---@field height integer
+---@field timer uv.uv_timer_t?
 
 ---@class keystone.notify.Config
 ---@field enabled boolean
@@ -30,6 +31,9 @@ local M = {}
 
 ---@type table<string|integer, keystone.notify.Notification>
 local _active = {}
+
+---@type (string|integer)[]
+local _order = {}
 
 ---@type table<string|integer,  {timer: uv.uv_timer_t?,msg: string, title: string}>
 local _pending_lsp_notify = {}
@@ -98,8 +102,9 @@ end
 local function _layout()
   if vim.v.exiting ~= vim.NIL then return end
   local running_height = 0
-  for _, n in pairs(_active) do
-    if vim.api.nvim_win_is_valid(n.win_id) then
+  for _, id in ipairs(_order) do
+    local n = _active[id]
+    if n and vim.api.nvim_win_is_valid(n.win_id) then
       local row = vim.o.lines - _get_offset() - running_height - n.height
 
       vim.api.nvim_win_set_config(n.win_id, {
@@ -133,6 +138,11 @@ local function _close(id)
     return
   end
 
+  if n.timer then
+    common.stop_and_close_timer(n.timer)
+    n.timer = nil
+  end
+
   if vim.api.nvim_win_is_valid(n.win_id) then
     vim.api.nvim_win_close(n.win_id, true)
   end
@@ -142,6 +152,13 @@ local function _close(id)
   end
 
   _active[id] = nil
+
+  for i, oid in ipairs(_order) do
+    if oid == id then
+      table.remove(_order, i)
+      break
+    end
+  end
 
   _schedule_layout()
 end
@@ -211,6 +228,13 @@ function M.notify(msg, opts)
     }
 
     _active[id] = n
+    table.insert(_order, id)
+  else
+    if n.timer then
+      common.stop_and_close_timer(n.timer)
+      n.timer = nil
+    end
+    n.height = #lines
   end
 
   vim.bo[n.buf_id].modifiable = true
@@ -223,7 +247,7 @@ function M.notify(msg, opts)
 
   local timeout = opts.timeout or M.config.timeout or 0
   if timeout > 0 then
-    vim.defer_fn(function()
+    n.timer = vim.defer_fn(function()
       _close(id)
     end, timeout)
   end
@@ -290,12 +314,15 @@ local function _lsp_handler(_, progress, ctx)
   end
 
   if val.kind == "begin" then
+    local existing = _pending_lsp_notify[token]
+    if existing then
+      common.stop_and_close_timer(existing.timer)
+    end
     local token_state = {
       msg = msg,
       title = display_title,
     }
     _pending_lsp_notify[token] = token_state
-    common.stop_and_close_timer(token_state.timer)
     token_state.timer = vim.defer_fn(function()
       local state = _pending_lsp_notify[token]
       if not state then return end
