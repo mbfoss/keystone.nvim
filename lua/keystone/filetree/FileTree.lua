@@ -1,4 +1,3 @@
-local class          = require("keystone.utils.class")
 local strutils       = require("keystone.utils.strutils")
 local uitools        = require("keystone.utils.uitools")
 local fsutils        = require("keystone.utils.fsutils")
@@ -109,7 +108,14 @@ end
 
 ---@class keystone.FileTree
 ---@field new fun(self:keystone.FileTree, opts:keystone.FileTree.Opts?):keystone.FileTree
-local FileTree = class()
+local FileTree = {}
+FileTree.__index = FileTree
+
+function FileTree:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param opts keystone.FileTree.Opts
 function FileTree:init(opts)

@@ -1,4 +1,3 @@
-local class = require("keystone.utils.class")
 
 ---@class keystone.utils.LRU.Node
 ---@field key any
@@ -15,7 +14,14 @@ local class = require("keystone.utils.class")
 ---@field _on_evict fun(key:any, value:any)? Called ONLY when _capacity is exceeded.
 ---@field _on_removed fun(key:any, value:any)? Called for EVERY removal (eviction, delete, clear).
 ---@field new fun(self:keystone.utils.LRU, capacity:integer, opts?:{on_evict?:fun(key:any, value:any), on_removed?:fun(key:any, value:any)}):keystone.utils.LRU
-local LRU = class()
+local LRU = {}
+LRU.__index = LRU
+
+function LRU:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param capacity integer
 ---@param opts? {on_evict?:fun(key:any, value:any), on_removed?:fun(key:any, value:any)}

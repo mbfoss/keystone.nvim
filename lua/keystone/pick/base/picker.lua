@@ -1,5 +1,4 @@
 local Spinner            = require("keystone.utils.Spinner")
-local class              = require("keystone.utils.class")
 local common             = require("keystone.utils.common")
 local fsutils            = require("keystone.utils.fsutils")
 local uitools            = require("keystone.utils.uitools")
@@ -268,7 +267,14 @@ end
 ---@field current_query string?
 ---@field history string[]
 ---@field history_idx number
-local Picker = class()
+local Picker = {}
+Picker.__index = Picker
+
+function Picker:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param opts keystone.Picker.opts
 ---@param callback keystone.Picker.Callback

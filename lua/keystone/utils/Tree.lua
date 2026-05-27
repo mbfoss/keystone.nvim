@@ -1,4 +1,3 @@
-local class = require("keystone.utils.class")
 
 ---@class keystone.utils.Tree.Item
 ---@field id any
@@ -28,7 +27,14 @@ local class = require("keystone.utils.class")
 ---@field _nodes table<any, keystone.utils.Tree.Node>
 ---@field _root_first any|nil
 ---@field _root_last any|nil
-local Tree = class()
+local Tree = {}
+Tree.__index = Tree
+
+function Tree:new()
+    local obj = setmetatable({}, self)
+    obj:init()
+    return obj
+end
 function Tree:init()
 	---@type table<any, keystone.utils.Tree.Node>
 	self._nodes = {}

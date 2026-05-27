@@ -1,5 +1,4 @@
 local Spinner    = require("keystone.utils.Spinner")
-local class      = require("keystone.utils.class")
 local common     = require("keystone.utils.common")
 local fsutils    = require("keystone.utils.fsutils")
 local uitools    = require("keystone.utils.uitools")
@@ -181,7 +180,14 @@ end
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
 ---@field nav_history string[]
-local Explorer = class()
+local Explorer = {}
+Explorer.__index = Explorer
+
+function Explorer:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param opts keystone.Explorer.Opts
 ---@param callback keystone.Explorer.Callback

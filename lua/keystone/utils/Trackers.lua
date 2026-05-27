@@ -1,4 +1,3 @@
-local class = require("keystone.utils.class")
 
 ---@class keystone.TrackerRef
 ---@field cancel fun()
@@ -8,7 +7,14 @@ local class = require("keystone.utils.class")
 ---@field new fun(self: keystone.utils.Trackers<T>) : keystone.utils.Trackers<T>
 ---@field private _next_id integer
 ---@field private _items table<integer, T>
-local Trackers = class()
+local Trackers = {}
+Trackers.__index = Trackers
+
+function Trackers:new()
+    local obj = setmetatable({}, self)
+    obj:init()
+    return obj
+end
 
 local function _safe_call(fn, ...)
     local ok, err = xpcall(fn, debug.traceback, ...)

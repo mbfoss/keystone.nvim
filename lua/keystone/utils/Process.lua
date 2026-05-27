@@ -1,5 +1,4 @@
 local uv = require('luv')
-local class = require('keystone.utils.class')
 local common = require('keystone.utils.common')
 
 local function _safe_close(h)
@@ -18,7 +17,14 @@ end
 ---@class keystone.Process
 ---@field new fun(self: keystone.Process, cmd : string, opts : keystone.Process.Opts) : keystone.Process
 ---@field start fun(self: keystone.Process) : boolean,string?
-local Process = class()
+local Process = {}
+Process.__index = Process
+
+function Process:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param cmd string
 function Process:init(cmd, opts)

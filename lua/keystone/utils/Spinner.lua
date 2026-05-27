@@ -1,4 +1,3 @@
-local class = require('keystone.utils.class')
 local common = require('keystone.utils.common')
 
 ---@class keystone.utils.Spinner
@@ -20,7 +19,14 @@ local default_frames = {
 
 ---@class keystone.utils.Spinner
 ---@field new fun(self:keystone.utils.Spinner,opts:keystone.utils.SpinnerOpts):keystone.utils.Spinner
-local Spinner = class()
+local Spinner = {}
+Spinner.__index = Spinner
+
+function Spinner:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param opts keystone.utils.SpinnerOpts?
 function Spinner:init(opts)

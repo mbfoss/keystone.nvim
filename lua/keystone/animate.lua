@@ -1,4 +1,3 @@
-local class = require("keystone.utils.class")
 
 ---@class snacks.animate
 local M = {}
@@ -121,7 +120,8 @@ end
 ---@field changedtick number
 ---@field last number vim.uv.hrtime of last scroll
 ---@field _wo vim.wo Backup of window options
-local State = class()
+local State = {}
+State.__index = State
 
 local mouse_scrolling = false
 

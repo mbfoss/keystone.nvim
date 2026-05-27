@@ -1,4 +1,3 @@
-local class = require('keystone.utils.class')
 local Tree = require("keystone.utils.Tree")
 local uitools = require("keystone.utils.uitools")
 local Trackers = require("keystone.utils.Trackers")
@@ -48,7 +47,14 @@ local _ns_id = vim.api.nvim_create_namespace('keystoneTreeBuffer')
 
 ---@class keystone.TreeBuffer
 ---@field new fun(self: keystone.TreeBuffer,opts:keystone.TreeBuffer.Opts): keystone.TreeBuffer
-local TreeBuffer = class()
+local TreeBuffer = {}
+TreeBuffer.__index = TreeBuffer
+
+function TreeBuffer:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
 
 ---@param item keystone.TreeBuffer.ItemDef
 ---@return keystone.TreeBuffer.ItemData
