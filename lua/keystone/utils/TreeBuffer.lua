@@ -31,17 +31,13 @@ local Signal = require("keystone.utils.Signal")
 ---@field highlight string
 
 ---@alias keystone.TreeBuffer.FormatterFn fun(id:any, data:any,expanded:boolean):string[][],string[][]
----@
+
 ---@class keystone.TreeBuffer.Opts
 ---@field filetype string?
 ---@field formatter keystone.TreeBuffer.FormatterFn
 ---@field expand_char string?
 ---@field collapse_char string?
 ---@field indent_string string?
-
----@class keystone.TreeBuffer.Tracker
----@field on_selection? fun(id:any,data:any)
----@field on_toggle? fun(id:any,data:any,expanded:boolean)
 
 local _ns_id = vim.api.nvim_create_namespace('keystoneTreeBuffer')
 
@@ -161,7 +157,6 @@ function TreeBuffer:create_buffer(on_deleted)
 
     self:_full_render()
 
-    ---@return keystone.TreeBuffer.ItemData?
     local callbacks = {
         on_enter = function()
             ---@type any,keystone.TreeBuffer.ItemData?
@@ -223,7 +218,7 @@ function TreeBuffer:create_buffer(on_deleted)
 end
 
 ---@param callbacks keystone.TreeBuffer.Tracker
----@return keystone.TrackerRef
+---@return { cancel: fun() }
 function TreeBuffer:subscribe(callbacks)
     if callbacks.on_selection then self._on_selection:subscribe(callbacks.on_selection) end
     if callbacks.on_toggle then self._on_toggle:subscribe(callbacks.on_toggle) end
@@ -568,9 +563,7 @@ function TreeBuffer:set_children(parent_id, children)
     if buf > 0 then
         if parent_id == nil then
             local new_flat = _flatten(self._tree, nil)
-            local current_tree_size = #self._flat_ids
-            if current_tree_size < 0 then current_tree_size = 0 end
-            self:_render_range(1, current_tree_size, new_flat)
+            self:_render_range(1, #self._flat_ids, new_flat)
         else
             local parent_data = self._tree:get_data(parent_id)
             assert(parent_data)
@@ -656,9 +649,17 @@ function TreeBuffer:collapse_all(id)
     if data.expanded then
         self:collapse(id)
     end
-    local children = self._tree:get_children(id)
-    for _, child in ipairs(children) do
-        self:collapse_all(child.id)
+    self:_reset_expanded_recursive(id)
+end
+
+---@private
+function TreeBuffer:_reset_expanded_recursive(id)
+    for _, child in ipairs(self._tree:get_children(id)) do
+        local child_data = self._tree:get_data(child.id)
+        if child_data then
+            child_data.expanded = false
+        end
+        self:_reset_expanded_recursive(child.id)
     end
 end
 
