@@ -197,7 +197,6 @@ end
 -- Item processing ------------------------------------------------------------
 
 local function lsp_filter_word(x)  return x.filterText or x.label end
-local function lsp_item_lt(a, b)   return (a.sortText or a.label) < (b.sortText or b.label) end
 local function lsp_word(item)
   return tbl_get(item, { "textEdit", "newText" }) or item.insertText or lsp_filter_word(item) or ""
 end
@@ -575,31 +574,11 @@ end
 --- Filter and sort LSP completion items.
 ---@param items table
 ---@param base string
----@param opts? { filtersort?: "prefix"|"fuzzy"|"none"|function, kind_priority?: table }
+---@param opts? { filtersort?: function, kind_priority?: table }
 ---@return table
 M.default_process_items = function(items, base, opts)
   opts = opts or {}
-  local fs = opts.filtersort or (vim.o.completeopt:find("fuzzy") ~= nil and "fuzzy" or "prefix")
-
-  local methods = {
-    prefix = function(it, b)
-      local res = vim.tbl_filter(function(x) return vim.startswith(lsp_filter_word(x), b) end, it)
-      res = vim.deepcopy(res)
-      table.sort(res, lsp_item_lt)
-      return res
-    end,
-    fuzzy = function(it, b)
-      if b == "" then return vim.deepcopy(it) end
-      return vim.fn.matchfuzzy(it, b, { text_cb = lsp_filter_word })
-    end,
-    none = function(it, _) return vim.deepcopy(it) end,
-  }
-
-  local fn = type(fs) == "string" and methods[fs] or fs
-  if not vim.is_callable(fn) then
-    error("(keystone.complete) `filtersort` must be 'prefix', 'fuzzy', 'none', or callable", 0)
-  end
-  local res = fn(items, base)
+  local res = opts.filtersort and opts.filtersort(items, base) or vim.deepcopy(items)
   if opts.kind_priority then res = sort_by_kind(res, opts.kind_priority) end
   add_hlgroups(res)
   return res

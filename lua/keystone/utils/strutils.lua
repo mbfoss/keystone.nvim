@@ -1,24 +1,5 @@
 local M = {}
 
-local function _to_lower(byte)
-	if byte >= 65 and byte <= 90 then
-		return byte + 32
-	end
-	return byte
-end
-local function _is_upper(byte)
-	return byte >= 65 and byte <= 90
-end
-local function _is_boundary(text, i)
-	if i == 1 then return true end
-	local prev = text:byte(i - 1)
-	return not (
-		(prev >= 48 and prev <= 57) or -- 0-9
-		(prev >= 65 and prev <= 90) or -- A-Z
-		(prev >= 97 and prev <= 122) -- a-z
-	)
-end
-
 ---@param str string
 ---@param len number
 ---@return string
