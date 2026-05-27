@@ -86,6 +86,7 @@ end
 ---@field width_ratio number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
+---@field initial_query string?
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -231,6 +232,17 @@ local function _sort_by_score(items)
     return with_score
 end
 
+local _last_session = nil
+
+local function _item_label(item)
+    if not item.label_chunks then return "" end
+    local parts = {}
+    for _, chunk in ipairs(item.label_chunks) do
+        table.insert(parts, chunk[1] or "")
+    end
+    return table.concat(parts):gsub("\n", " ")
+end
+
 ---@class keystone.utils.Picker
 ---@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
 ---@field opts keystone.Picker.opts
@@ -264,6 +276,7 @@ function Picker:init(opts, callback)
     vim.validate("callback", callback, "function")
 
     self.opts                  = opts and vim.deepcopy(opts) or {}
+    self.opts.flags            = self.opts.flags or {}
     self.callback              = callback
 
     self.preview_enabled       = opts.enable_preview
@@ -303,7 +316,11 @@ function Picker:init(opts, callback)
     assert(self.pwin)
     vim.api.nvim_set_current_win(self.pwin)
 
-    self:run_fetch("")
+    if opts.initial_query and opts.initial_query ~= "" then
+        self:set_prompt_text(opts.initial_query)
+    else
+        self:run_fetch("")
+    end
     vim.schedule(function()
         vim.cmd("startinsert!")
     end)
@@ -508,7 +525,7 @@ function Picker:render_mode_prefix()
     if not self.pbuf then return end
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_PREFIX, 0, -1)
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_OTHER, 0, -1)
-    if not self.opts.flags then return end
+    if #self.opts.flags == 0 then return end
     if self.prompt_mode == "filter" then
         vim.api.nvim_buf_set_extmark(self.pbuf, NS_OTHER, 0, 0, {
             virt_text     = {
@@ -538,7 +555,7 @@ function Picker:render_prompt_highlight(query)
     vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
 
     local hls
-    if self.opts.flags and self.prompt_mode == "filter" then
+    if #self.opts.flags > 0 and self.prompt_mode == "filter" then
         hls = require("keystone.pick.base.queryflags").highlight(self.opts.flags, query)
     elseif self.opts.highlight_query and self.prompt_mode == "query" then
         hls = self.opts.highlight_query(query) or {}
@@ -555,7 +572,7 @@ function Picker:render_prompt_highlight(query)
 end
 
 function Picker:trigger_flag_completion(query)
-    if not self.opts.flags then return end
+    if #self.opts.flags == 0 then return end
     if self.prompt_mode ~= "filter" then return end
     if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
     if vim.fn.mode() ~= "i" then return end
@@ -911,7 +928,7 @@ function Picker:run_fetch(query)
     }
 
     local clean_query, flags
-    if self.opts.flags then
+    if #self.opts.flags > 0 then
         clean_query = self.query_text
         local parsed = require("keystone.pick.base.queryflags").parse(self.opts.flags, self.filter_text)
         flags = parsed.flags
@@ -935,8 +952,18 @@ function Picker:run_fetch(query)
             complete = true
             self:stop_spinner()
             if new_items and #new_items > 0 then
+                local initial_data = initial and new_items[initial] and new_items[initial].data or nil
                 self:set_items(new_items)
-                self:move_cursor(initial or 1, true, true)
+                local target_row = 1
+                if initial_data then
+                    for i, li in ipairs(self.list_items) do
+                        if li.data == initial_data then
+                            target_row = i
+                            break
+                        end
+                    end
+                end
+                self:move_cursor(target_row, true, true)
             else
                 self:clear_list()
             end
@@ -978,7 +1005,7 @@ function Picker:history_next()
 end
 
 function Picker:set_prompt_text(text)
-    if self.opts.flags then
+    if #self.opts.flags > 0 then
         self.query_text, self.filter_text = _decode_history(text)
         local display = self.prompt_mode == "filter" and self.filter_text or self.query_text
         vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
@@ -1052,7 +1079,7 @@ function Picker:close(selected_data)
     end
 
     if self.opts.history_provider then
-        local entry = self.opts.flags
+        local entry = #self.opts.flags > 0
             and _encode_history(self.query_text, self.filter_text)
             or self.current_query
         if entry and entry ~= "" and entry ~= self.history[#self.history] then
@@ -1063,6 +1090,17 @@ function Picker:close(selected_data)
         end
     end
 
+    local cursor      = self:get_cursor()
+    local cursor_item = cursor and self.list_items[cursor]
+    _last_session = {
+        cursor_text = cursor_item and cursor_item.text or nil,
+        query       = #self.opts.flags > 0
+                        and _encode_history(self.query_text, self.filter_text)
+                        or self.current_query or "",
+        opts        = self.opts,
+        callback    = self.callback,
+    }
+
     vim.cmd("stopinsert!")
     vim.schedule(function()
         self.callback(selected_data)
@@ -1070,7 +1108,7 @@ function Picker:close(selected_data)
 end
 
 function Picker:toggle_opts_mode()
-    if not self.opts.flags or #self.opts.flags == 0 then return end
+    if #self.opts.flags == 0 then return end
     local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
     if self.prompt_mode == "query" then
         self.query_text  = current
@@ -1165,7 +1203,7 @@ function Picker:setup_input()
             buffer = self.pbuf,
             callback = function()
                 local text = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-                if self.opts.flags then
+                if #self.opts.flags > 0 then
                     if self.prompt_mode == "query" then
                         self.query_text = text
                     else
@@ -1191,6 +1229,39 @@ end
 function M.open(opts, callback)
     assert(opts.finder, "finder missing in opts")
     Picker:new(opts, callback)
+end
+
+function M.repeat_last()
+    if not _last_session then
+        vim.notify("No previous picker session", vim.log.levels.INFO)
+        return
+    end
+    local session    = _last_session
+    local first_call = true
+
+    local opts = vim.tbl_extend("force", session.opts, {
+        initial_query = session.query,
+        finder        = function(query, flags, fetch_opts, callback)
+            if first_call then
+                first_call = false
+                return session.opts.finder(query, flags, fetch_opts, function(items, _)
+                    local target = 1
+                    if items and session.cursor_text then
+                        for i, item in ipairs(items) do
+                            if _item_label(item) == session.cursor_text then
+                                target = i
+                                break
+                            end
+                        end
+                    end
+                    callback(items, target)
+                end)
+            end
+            return session.opts.finder(query, flags, fetch_opts, callback)
+        end,
+    })
+
+    Picker:new(opts, session.callback)
 end
 
 return M
