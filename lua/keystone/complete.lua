@@ -85,6 +85,10 @@ local function get_left_char()
   return string.sub(line, col, col)
 end
 
+local function in_float()
+  return vim.api.nvim_win_get_config(0).relative ~= ""
+end
+
 local function tbl_get(t, id)
   if type(id) ~= "table" then return tbl_get(t, { id }) end
   local ok, res = true, t
@@ -441,6 +445,7 @@ end
 -- Autocommand callbacks ------------------------------------------------------
 
 local function on_insert_char()
+  if in_float() then return end
   state.timer:stop()
 
   local is_incomplete = state.lsp.is_incomplete
@@ -472,6 +477,7 @@ local function on_insert_char()
 end
 
 local function on_cursor_moved()
+  if in_float() then return end
   if not has_lsp_clients("signatureHelpProvider") then return end
   if is_trigger_char(get_left_char(), "signature") then vim.lsp.buf.signature_help() end
 end

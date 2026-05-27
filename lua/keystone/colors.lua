@@ -25,10 +25,15 @@ local function darken(hex, pct)
 end
 
 --[[
-  Base24 semantic palette — 9 neutrals + 15 pastel accents = 24 slots.
+  Base30 semantic palette — 15 neutrals + 15 pastel accents = 30 slots.
 
   Neutral band (dark → bright):
-    bg, bg_alt, surface, overlay, muted, subtle, fg, fg_alt, bright
+    bg_dark, bg, bg_panel, bg_alt, bg_cursor, bg_float,
+    surface, line, overlay, muted, fg_dim, subtle, fg, fg_alt, bright
+
+  The 6 neutral extensions fill the dark and mid zones so distinct
+  UI layers (inactive splits, panels, cursorline, floats, separators,
+  inactive text) each have their own dedicated shade.
 
   Pastel core (9):  red orange yellow green teal sky blue lavender pink
   Vivid extensions (6):  flame amber lime cyan indigo mauve
@@ -42,11 +47,17 @@ end
 
 local default_palette = {
     -- neutrals (dark → bright)
+    bg_dark  = '#252629',   -- inactive splits, deepest bg layer
     bg       = '#2e2f33',   -- editor background
-    bg_alt   = '#3a3b40',   -- panels, floats, statusline
+    bg_panel = '#34353a',   -- panels, sidebars, tabline
+    bg_alt   = '#3a3b40',   -- general alternate bg (selection sbar, etc.)
+    bg_cursor= '#3e3f46',   -- cursorline, colorcolumn
+    bg_float = '#46474f',   -- floating windows, popups
     surface  = '#505157',   -- selection, visual highlight
-    overlay  = '#6e6f77',   -- borders, separators
+    line     = '#585963',   -- separator lines (stronger than overlay)
+    overlay  = '#6e6f77',   -- borders, gutter separators
     muted    = '#a0a2ad',   -- comments, deemphasised text
+    fg_dim   = '#b4b5c0',   -- inactive UI text (winbar, statusline NC)
     subtle   = '#dcdce4',   -- line numbers, subtle UI
     fg       = '#f2f2f5',   -- primary foreground
     fg_alt   = '#fafafd',   -- bright foreground (titles, panels)
@@ -108,10 +119,10 @@ function M.setup(config)
 
     -- ── Core ──────────────────────────────────────────────────────────
     hl('Normal',        { fg = c.fg,      bg = c.bg })
-    hl('NormalNC',      { fg = c.fg,      bg = c.bg })
-    hl('NormalFloat',   { fg = c.fg,      bg = c.bg_alt })
-    hl('FloatBorder',   { fg = c.overlay, bg = c.bg_alt })
-    hl('FloatTitle',    { fg = c.blue,    bg = c.bg_alt, gui = 'bold' })
+    hl('NormalNC',      { fg = c.fg,      bg = c.bg_dark })
+    hl('NormalFloat',   { fg = c.fg,      bg = c.bg_float })
+    hl('FloatBorder',   { fg = c.overlay, bg = c.bg_float })
+    hl('FloatTitle',    { fg = c.blue,    bg = c.bg_float, gui = 'bold' })
 
     hl('Bold',          { gui = 'bold' })
     hl('Italic',        { gui = 'italic' })
@@ -132,36 +143,36 @@ function M.setup(config)
     hl('CurSearch',     { fg = c.bg,      bg = c.amber })
 
     -- ── UI chrome ─────────────────────────────────────────────────────
-    hl('StatusLine',    { fg = c.fg,      bg = c.surface, gui = 'none' })
-    hl('StatusLineNC',  { fg = c.subtle,  bg = c.bg_alt,  gui = 'none' })
+    hl('StatusLine',    { fg = c.fg,      bg = c.surface,   gui = 'none' })
+    hl('StatusLineNC',  { fg = c.fg_dim,  bg = c.bg_panel, gui = 'none' })
     hl('WinBar',        { fg = c.fg,      gui = 'none' })
-    hl('WinBarNC',      { fg = c.subtle,  gui = 'none' })
-    hl('VertSplit',     { fg = c.overlay })
-    hl('WinSeparator',  { fg = c.overlay })
-    hl('TabLine',       { fg = c.muted,   bg = c.bg_alt,  gui = 'none' })
-    hl('TabLineFill',   { fg = c.muted,   bg = c.bg_alt,  gui = 'none' })
-    hl('TabLineSel',    { fg = c.lime,    bg = c.bg_alt,  gui = 'bold' })
+    hl('WinBarNC',      { fg = c.fg_dim,  gui = 'none' })
+    hl('VertSplit',     { fg = c.line })
+    hl('WinSeparator',  { fg = c.line })
+    hl('TabLine',       { fg = c.muted,   bg = c.bg_panel, gui = 'none' })
+    hl('TabLineFill',   { fg = c.muted,   bg = c.bg_panel, gui = 'none' })
+    hl('TabLineSel',    { fg = c.lime,    bg = c.bg_panel, gui = 'bold' })
     hl('Title',         { fg = c.blue,    gui = 'bold' })
     hl('Directory',     { fg = c.cyan })
 
-    hl('ColorColumn',   { bg = c.bg_alt })
-    hl('CursorColumn',  { bg = c.bg_alt })
-    hl('CursorLine',    { bg = c.bg_alt })
-    hl('CursorLineNr',  { fg = c.subtle,  bg = c.bg_alt })
+    hl('ColorColumn',   { bg = c.bg_cursor })
+    hl('CursorColumn',  { bg = c.bg_cursor })
+    hl('CursorLine',    { bg = c.bg_cursor })
+    hl('CursorLineNr',  { fg = c.subtle,  bg = c.bg_cursor })
     hl('LineNr',        { fg = c.muted,   bg = c.bg })
     hl('SignColumn',    { fg = c.muted,   bg = c.bg })
     hl('FoldColumn',    { fg = c.overlay, bg = c.bg })
-    hl('Folded',        { fg = c.muted,   bg = c.bg_alt })
-    hl('QuickFixLine',  { bg = c.bg_alt })
+    hl('Folded',        { fg = c.fg_dim,  bg = c.bg_panel })
+    hl('QuickFixLine',  { bg = c.bg_cursor })
     hl('NonText',       { fg = c.overlay })
     hl('SpecialKey',    { fg = c.overlay })
     hl('Conceal',       { fg = c.overlay })
     hl('Whitespace',    { fg = c.overlay })
 
     -- ── Popup menu ────────────────────────────────────────────────────
-    hl('PMenu',         { fg = c.fg,      bg = c.bg_alt })
+    hl('PMenu',         { fg = c.fg,      bg = c.bg_float })
     hl('PMenuSel',      { fg = c.bg,      bg = c.blue })
-    hl('PMenuSbar',     { bg = c.surface })
+    hl('PMenuSbar',     { bg = c.bg_alt })
     hl('PMenuThumb',    { bg = c.overlay })
 
     -- ── Messages ──────────────────────────────────────────────────────
@@ -375,7 +386,7 @@ function M.setup(config)
     -- ── Diffview ──────────────────────────────────────────────────────
     if M.config.diffview then
         hl('DiffviewNormal',              { fg = c.fg,      bg = c.bg })
-        hl('DiffviewCursorLine',          { bg = c.bg_alt })
+        hl('DiffviewCursorLine',          { bg = c.bg_cursor })
         hl('DiffviewSignColumn',          { fg = c.subtle,  bg = c.bg })
         hl('DiffviewEndOfBuffer',         { fg = c.muted })
         hl('DiffviewLineNr',              { fg = c.subtle })
@@ -405,7 +416,7 @@ function M.setup(config)
     if M.config.which_key then
         hl('WhichKey',          { fg = c.cyan })
         hl('WhichKeyDesc',      { fg = c.fg })
-        hl('WhichKeyFloat',     { fg = c.fg,      bg = c.bg_alt })
+        hl('WhichKeyFloat',     { fg = c.fg,      bg = c.bg_float })
         hl('WhichKeyGroup',     { fg = c.indigo })
         hl('WhichKeySeparator', { fg = c.lime })
         hl('WhichKeyValue',     { fg = c.muted })
