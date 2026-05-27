@@ -206,8 +206,4 @@ function M.document_symbols(opts)
     end)
 end
 
-function M.document_functions()
-    M.document_symbols({ kinds = { "Function", "Constructor", "Method" }, prompt = "Document Functions" })
-end
-
 return M

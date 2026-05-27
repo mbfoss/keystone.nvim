@@ -16,7 +16,6 @@ local pickers = {
     jumplist              = function() require("keystone.pick.pickers.jumplist").open() end,
     lsp_references        = function() require("keystone.pick.pickers.lsp").references() end,
     document_symbols      = function() require("keystone.pick.pickers.lsp").document_symbols() end,
-    document_functions    = function() require("keystone.pick.pickers.lsp").document_functions() end,
     document_diagnostics  = function() require("keystone.pick.pickers.diagnosics").open({ bufnr = 0 }) end,
     workspace_diagnostics = function() require("keystone.pick.pickers.diagnosics").open() end,
     git_diff              = function() require("keystone.pick.pickers.git_diff").open() end,
