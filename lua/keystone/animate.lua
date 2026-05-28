@@ -1,9 +1,9 @@
 
----@class snacks.animate
+---@class keystone.animate
 local M = {}
 
-local _ns_name_onkey = "snacks_animate_onkey"
-local _augroup_name = "snacks_animate"
+local _ns_name_onkey = "keystone_animate_onkey"
+local _augroup_name = "keystone_animate"
 
 ---@alias keysstone.animate.easing_fn fun(i:number):number
 
@@ -11,7 +11,6 @@ local _augroup_name = "snacks_animate"
 ---@field enabled boolean?
 ---@field filter function?
 ---@field easing keysstone.animate.easing_fn?
----@field animate_repeat number?
 
 local function _get_default_config()
     ---@type keystone.animate.Config
@@ -107,9 +106,9 @@ local function _animate(from, to, cb, opts)
 end
 
 
----@alias snacks.animate.View {topline:number, lnum:number}
+---@alias keystone.animate.View {topline:number, lnum:number}
 
----@class snacks.animate.State
+---@class keystone.animate.State
 ---@field anim? table
 ---@field win number
 ---@field buf number
@@ -130,7 +129,7 @@ local SCROLL_UP, SCROLL_DOWN = _keycode("<c-y>"), _keycode("<c-e>")
 
 local uv = vim.uv or vim.loop
 local stats = { targets = 0, animating = 0, reset = 0, skipped = 0, mousescroll = 0, scrolls = 0 }
-local states = {} ---@type table<number, snacks.animate.State>
+local states = {} ---@type table<number, keystone.animate.State>
 
 local function is_enabled(buf)
     return M.enabled
@@ -321,6 +320,7 @@ function M.disable()
         return
     end
     M.enabled = false
+    for _, state in pairs(states) do state:stop() end
     states = {}
     vim.on_key(nil, vim.api.nvim_create_namespace(_ns_name_onkey))
     vim.api.nvim_del_augroup_by_name(_augroup_name)
@@ -382,6 +382,11 @@ function M.check(win)
         col_to = vim.fn.virtcol({ state.target.lnum, state.target.col })
     end)
 
+    if scrolls == 0 then
+        state:stop()
+        return
+    end
+
     local down = state.target.topline > state.current.topline
         or (state.target.topline == state.current.topline and state.target.topfill < state.current.topfill)
 
@@ -436,7 +441,7 @@ function M.check(win)
     end, opts)
 end
 
----@param opts keystone.lspwords.Config?
+---@param opts keystone.animate.Config?
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 

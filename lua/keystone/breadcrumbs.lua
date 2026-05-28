@@ -17,8 +17,11 @@ M.config = _get_default_config()
 
 -- [bufnr] = DocumentSymbol[] | SymbolInformation[]
 local _symbol_cache = {}
--- [bufnr] = string  (file+icon part, stable across cursor moves)
-local _file_cache = {}
+
+-- bufnrs where we own the winbar
+local _managed_bufs = {}
+
+local _OUR_WINBAR = '%{%v:lua.require("keystone.breadcrumbs").render()%}'
 
 local _KIND_ICONS = {
   [1]  = "", -- File
@@ -45,10 +48,15 @@ local function _in_range(line0, range)
   return line0 >= range.start.line and line0 <= range["end"].line
 end
 
+-- Method=6, Function=12, Constructor=9
+local _FUNCTION_KINDS = { [6] = true, [9] = true, [12] = true }
+
 local function _collect_enclosing(symbols, line0, chain)
   for _, sym in ipairs(symbols) do
     if sym.range and _in_range(line0, sym.range) then
-      table.insert(chain, sym)
+      if _FUNCTION_KINDS[sym.kind] then
+        table.insert(chain, sym)
+      end
       if sym.children and #sym.children > 0 then
         _collect_enclosing(sym.children, line0, chain)
       end
@@ -69,7 +77,7 @@ local function _build_symbol_trail(symbols, line)
     -- SymbolInformation flat list
     for _, sym in ipairs(symbols) do
       local r = sym.location and sym.location.range
-      if r and _in_range(line0, r) then
+      if r and _in_range(line0, r) and _FUNCTION_KINDS[sym.kind] then
         table.insert(chain, sym)
       end
     end
@@ -137,22 +145,6 @@ local function _fit_to_width(str, max_width)
   return "%#WinBar#…" .. table.concat(result)
 end
 
-local function _build_file_part(bufnr)
-  local name = vim.api.nvim_buf_get_name(bufnr)
-  if name == "" then
-    return "%#WinBar#[No Name]"
-  end
-
-  local rel = vim.fn.fnamemodify(name, ":~:.")
-  local dir = vim.fn.fnamemodify(rel, ":h")
-  local filename = vim.fn.fnamemodify(rel, ":t")
-
-  if dir and dir ~= "." and dir ~= "" then
-    return "%#WinBar#" .. dir:gsub("%%", "%%%%") .. "/%#WinBar#" .. filename:gsub("%%", "%%%%")
-  end
-  return "%#WinBar#" .. filename:gsub("%%", "%%%%")
-end
-
 function M.render()
   local ok, result = pcall(function()
     local winid = vim.g.statusline_winid
@@ -165,13 +157,14 @@ function M.render()
     local bufnr = vim.api.nvim_win_get_buf(winid)
     if vim.bo[bufnr].buftype ~= "" then return "" end
 
-    if not _file_cache[bufnr] then
-      _file_cache[bufnr] = _build_file_part(bufnr)
-    end
+    local name = vim.api.nvim_buf_get_name(bufnr)
+    name = vim.fn.fnamemodify(name, ":t"):gsub("%%", "%%%%")
+    local prefix = "%#WinBar# " .. name
+
     local cursor = vim.api.nvim_win_get_cursor(winid)
     local sym_trail = _build_symbol_trail(_symbol_cache[bufnr], cursor[1])
     local width = uitool.get_window_width(winid)
-    return _fit_to_width(" " .. _file_cache[bufnr] .. sym_trail, width)
+    return _fit_to_width(prefix .. sym_trail, width)
   end)
   return ok and result or ""
 end
@@ -185,7 +178,32 @@ local function _is_regular_win(winid)
 end
 
 local function _set_winbar(winid)
-  vim.wo[winid].winbar = '%{%v:lua.require("keystone.winbar").render()%}'
+  local current = vim.wo[winid].winbar
+  if current == "" or current == _OUR_WINBAR then
+    vim.wo[winid].winbar = _OUR_WINBAR
+  end
+end
+
+local function _clear_winbar(winid)
+  if vim.api.nvim_win_is_valid(winid) and vim.wo[winid].winbar == _OUR_WINBAR then
+    vim.wo[winid].winbar = ""
+  end
+end
+
+local function _apply_to_buf_wins(bufnr, fn)
+  for _, winid in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(winid)
+      and vim.api.nvim_win_get_buf(winid) == bufnr
+      and _is_regular_win(winid)
+    then
+      fn(winid)
+    end
+  end
+end
+
+local function _buf_has_symbol_client(bufnr)
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })
+  return #clients > 0
 end
 
 local function _request_symbols(bufnr)
@@ -210,38 +228,56 @@ function M.enable()
   if _enabled then return end
   _enabled = true
 
+  -- Apply to any buffers that already have LSP attached (e.g. setup() called late)
   for _, winid in ipairs(vim.api.nvim_list_wins()) do
     if _is_regular_win(winid) then
-      _set_winbar(winid)
+      local bufnr = vim.api.nvim_win_get_buf(winid)
+      if _buf_has_symbol_client(bufnr) then
+        _managed_bufs[bufnr] = true
+        _set_winbar(winid)
+      end
     end
   end
 
-  local group = vim.api.nvim_create_augroup("keystone_winbar", { clear = true })
+  local group = vim.api.nvim_create_augroup("keystone_breadcrumbs", { clear = true })
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
     group = group,
     callback = function()
       local winid = vim.api.nvim_get_current_win()
       if not _is_regular_win(winid) then return end
-      _set_winbar(winid)
       local bufnr = vim.api.nvim_win_get_buf(winid)
-      _request_symbols(bufnr)
-    end,
-  })
-
-  -- Invalidate file part cache when buffer name or write changes
-  vim.api.nvim_create_autocmd({ "BufWritePost", "BufFilePost" }, {
-    group = group,
-    callback = function(args)
-      _file_cache[args.buf] = nil
-      _request_symbols(args.buf)
+      if _managed_bufs[bufnr] then
+        _set_winbar(winid)
+        _request_symbols(bufnr)
+      end
     end,
   })
 
   vim.api.nvim_create_autocmd("LspAttach", {
     group = group,
     callback = function(args)
-      _request_symbols(args.buf)
+      local bufnr = args.buf
+      local client = vim.lsp.get_client_by_id(args.data.client_id)
+      if not client or not client:supports_method("textDocument/documentSymbol") then return end
+      _managed_bufs[bufnr] = true
+      _apply_to_buf_wins(bufnr, _set_winbar)
+      _request_symbols(bufnr)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("LspDetach", {
+    group = group,
+    callback = function(args)
+      local bufnr = args.buf
+      -- Schedule so the client list reflects the detach before we check
+      vim.schedule(function()
+        if _managed_bufs[bufnr] and not _buf_has_symbol_client(bufnr) then
+          _managed_bufs[bufnr] = nil
+          _symbol_cache[bufnr] = nil
+          _apply_to_buf_wins(bufnr, _clear_winbar)
+        end
+      end)
     end,
   })
 
@@ -249,7 +285,7 @@ function M.enable()
     group = group,
     callback = function(args)
       _symbol_cache[args.buf] = nil
-      _file_cache[args.buf] = nil
+      _managed_bufs[args.buf] = nil
     end,
   })
 end
@@ -257,14 +293,12 @@ end
 function M.disable()
   if not _enabled then return end
   _enabled = false
-  vim.api.nvim_del_augroup_by_name("keystone_winbar")
+  vim.api.nvim_del_augroup_by_name("keystone_breadcrumbs")
   for _, winid in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_is_valid(winid) then
-      vim.wo[winid].winbar = ""
-    end
+    _clear_winbar(winid)
   end
   _symbol_cache = {}
-  _file_cache = {}
+  _managed_bufs = {}
 end
 
 ---@param opts keystone.winbar.Config?

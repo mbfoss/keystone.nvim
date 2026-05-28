@@ -89,7 +89,7 @@ end
 
 function M.with_config(config)
     M.config = vim.tbl_extend('force',
-        { notify = true, cmp = true, lsp_semantic = true, diffview = true, which_key = true },
+        { notify = true, lsp_semantic = true, diffview = true, which_key = true },
         config or M.config or {})
 end
 

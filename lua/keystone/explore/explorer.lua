@@ -278,7 +278,7 @@ function Explorer:relayout(action)
         border = "rounded"
     }
 
-    local winhl = "NormalFloat:Normal,FloatBorder:Normal"
+    local winhl = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title"
 
     if not self.lwin then
         if not self.lbuf then
