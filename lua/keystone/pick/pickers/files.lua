@@ -1,8 +1,8 @@
 local M = {}
 
-local uitools = require("keystone.utils.uitools")
-local strutils = require("keystone.utils.strutils")
-local fsutils = require("keystone.utils.fsutils")
+local uitool = require("keystone.util.uitool")
+local strutil = require("keystone.util.strutil")
+local fsutil = require("keystone.util.fsutil")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons = require("keystone.icons")
@@ -61,11 +61,11 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local exclude_globs = vim.list_extend({ ".*", "**/.*" }, opts.exclude_globs or {})
 
     local include_regex_list = (opts.include_globs and #opts.include_globs > 0)
-        and strutils.compile_globs(opts.include_globs) or nil
-    local exclude_regex_list = strutils.compile_globs(exclude_globs)
+        and strutil.compile_globs(opts.include_globs) or nil
+    local exclude_regex_list = strutil.compile_globs(exclude_globs)
 
     local cancel_fn
-    cancel_fn = fsutils.async_walk_dir(
+    cancel_fn = fsutil.async_walk_dir(
         opts.cwd,
         {
             include_regex_list = include_regex_list,
@@ -147,7 +147,7 @@ function M.open(opts)
 
     }, function(data)
         if data then
-            uitools.smart_open_file(data.filepath)
+            uitool.smart_open_file(data.filepath)
         end
     end)
 end

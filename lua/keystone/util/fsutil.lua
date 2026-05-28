@@ -1,7 +1,7 @@
 local M = {}
 
-local common = require("keystone.utils.common")
-local strutils = require("keystone.utils.strutils")
+local common = require("keystone.util.common")
+local strutil = require("keystone.util.strutil")
 
 ---@param path string
 function M.file_exists(path)
@@ -298,7 +298,7 @@ function M.async_scan_dir(dir, include_regex_list, exclude_regex_list, on_file, 
     return cancel_fn
 end
 
----@class keystone.utils.walk_dir_opts
+---@class keystone.util.walk_dir_opts
 ---@field include_regex_list vim.regex[]?
 ---@field exclude_regex_list vim.regex[]?
 ---@field on_dir_enter fun(path:string)?
@@ -306,7 +306,7 @@ end
 ---@field on_done fun()
 
 ---@param dir string
----@param opts keystone.utils.walk_dir_opts
+---@param opts keystone.util.walk_dir_opts
 ---@return function # cancel function
 function M.async_walk_dir(dir, opts)
     local pending_dirs = { dir }
@@ -350,11 +350,11 @@ function M.async_walk_dir(dir, opts)
             local rel_path = vim.fs.relpath(dir, full_path)
             if rel_path then
                 if type_ == "directory" then
-                    if strutils.check_path_pattern(rel_path, true, nil, opts.exclude_regex_list) then
+                    if strutil.check_path_pattern(rel_path, true, nil, opts.exclude_regex_list) then
                         table.insert(pending_dirs, full_path)
                     end
                 elseif type_ == "file" then
-                    if strutils.check_path_pattern(rel_path, false, opts.include_regex_list, opts.exclude_regex_list) then
+                    if strutil.check_path_pattern(rel_path, false, opts.include_regex_list, opts.exclude_regex_list) then
                         opts.on_file(full_path, name, rel_path)
                     end
                 end

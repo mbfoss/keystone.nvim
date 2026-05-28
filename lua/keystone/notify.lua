@@ -1,4 +1,4 @@
-local common = require "keystone.utils.common"
+local common = require "keystone.util.common"
 ---@class keystone.notify.Notification
 ---@field win_id integer
 ---@field buf_id integer

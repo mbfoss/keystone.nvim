@@ -1,6 +1,6 @@
 local M = {}
 
-local uitools = require("keystone.utils.uitools")
+local uitool = require("keystone.util.uitool")
 
 ---@class keystone.winbar.Config
 ---@field enabled boolean
@@ -170,7 +170,7 @@ function M.render()
     end
     local cursor = vim.api.nvim_win_get_cursor(winid)
     local sym_trail = _build_symbol_trail(_symbol_cache[bufnr], cursor[1])
-    local width = uitools.get_window_width(winid)
+    local width = uitool.get_window_width(winid)
     return _fit_to_width(" " .. _file_cache[bufnr] .. sym_trail, width)
   end)
   return ok and result or ""

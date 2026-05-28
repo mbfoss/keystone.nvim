@@ -1,7 +1,7 @@
-local Spinner    = require("keystone.utils.Spinner")
-local common     = require("keystone.utils.common")
-local fsutils    = require("keystone.utils.fsutils")
-local uitools    = require("keystone.utils.uitools")
+local Spinner    = require("keystone.util.Spinner")
+local common     = require("keystone.util.common")
+local fsutil    = require("keystone.util.fsutil")
+local uitool    = require("keystone.util.uitool")
 local layouts    = require("keystone.explore.layouts")
 
 ---@mod keystone.picker
@@ -143,7 +143,7 @@ local function _default_preview(path, preview_opts, callback)
         return function()
         end
     end
-    if not fsutils.file_exists(filepath) then
+    if not fsutil.file_exists(filepath) then
         vim.schedule(function()
             callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
         end)
@@ -151,7 +151,7 @@ local function _default_preview(path, preview_opts, callback)
         end
     end
     local max_size = preview_opts.viewport_height * preview_opts.viewport_width
-    local cancel_fn = fsutils.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },
+    local cancel_fn = fsutil.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },
         function(load_err, content)
             callback({
                 content = content,
@@ -162,8 +162,8 @@ local function _default_preview(path, preview_opts, callback)
     return cancel_fn
 end
 
----@class keystone.utils.Explorer
----@field new fun(self: keystone.utils.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.utils.Explorer
+---@class keystone.util.Explorer
+---@field new fun(self: keystone.util.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.util.Explorer
 ---@field opts keystone.Explorer.Opts
 ---@field callback keystone.Explorer.Callback
 ---@field layout keystone.Explorer.Layout
@@ -171,7 +171,7 @@ end
 ---@field vbuf integer?
 ---@field lwin integer
 ---@field vwin integer?
----@field spinner keystone.utils.Spinner?
+---@field spinner keystone.util.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.explorer.ListItem[]
 ---@field async_fetch_context number
@@ -290,7 +290,7 @@ function Explorer:relayout(action)
             end)
         end
         local pwin_augroup
-        self.lwin, pwin_augroup = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+        self.lwin, pwin_augroup = uitool.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
                 row = self.layout.list_row,
                 col = self.layout.list_col,
                 width = self.layout.list_width,
@@ -348,7 +348,7 @@ function Explorer:relayout(action)
                 vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, vbuf_key_opts)
                 vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
             end
-            self.vwin = uitools.create_window(self.vbuf, false, {
+            self.vwin = uitool.create_window(self.vbuf, false, {
                     relative = "editor",
                     style = "minimal",
                     border = "rounded",
@@ -744,7 +744,7 @@ function Explorer:run_fetch(direction, on_complete)
             if display_path == "" then display_path = "/" end
             if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
                 vim.api.nvim_win_set_config(self.lwin, {
-                    title = fsutils.smart_crop_path(display_path, fetch_opts.list_width),
+                    title = fsutil.smart_crop_path(display_path, fetch_opts.list_width),
                     title_pos = "left",
                 })
             end

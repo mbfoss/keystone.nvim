@@ -34,7 +34,7 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `objects` | — | Treesitter text objects (`ia`/`aa`, `if`/`af`, `ic`/`ac`, `ib`/`ab`) |
 | `colors` | — | Semantic pastel colorscheme (palette, highlight blending) |
 
-Each feature's `setup(opts)` merges opts with defaults and registers its user command via `utils/usercmd.register_user_cmd`.
+Each feature's `setup(opts)` merges opts with defaults and registers its user command via `util/usercmd.register_user_cmd`.
 
 ### Picker engine (`lua/keystone/pick/base/`)
 
@@ -42,20 +42,20 @@ Each feature's `setup(opts)` merges opts with defaults and registers its user co
 
 Pickers in `lua/keystone/pick/pickers/` each call `picker.open(opts, callback)` and provide a finder backed by ripgrep, LSP, git, or Neovim APIs.
 
-### TreeBuffer (`lua/keystone/utils/TreeBuffer.lua`)
+### TreeBuffer (`lua/keystone/util/TreeBuffer.lua`)
 
 Reusable class that renders an indented, expandable tree into a Neovim buffer with virtual text. `FileTree` (`lua/keystone/filetree/FileTree.lua`) is its primary consumer — it wraps `TreeBuffer` with filesystem-aware expand/collapse logic, async directory loading, and LRU caching.
 
-### Utilities (`lua/keystone/utils/`)
+### Utilities (`lua/keystone/util/`)
 
-- `class.lua` — minimal prototype-based OOP; `class(base)` returns a table with `:new(...)` that calls `:init(...)`
-- `Process.lua` — async subprocess wrapper around `vim.uv`
+- `spawn.lua` — async subprocess wrapper around `vim.uv`
 - `floatwin.lua` / `inputwin.lua` — helpers for creating floating windows and input prompts
 - `Tree.lua` — generic tree data structure used by `TreeBuffer`
-- `Trackers.lua` — event/callback registration
+- `Signal.lua` — event/callback registration
 - `LRU.lua` — LRU cache
 - `Spinner.lua` — animated spinner for async operations
 - `throttle.lua` — throttle/debounce
-- `fsutils.lua` — filesystem helpers
-- `uitools.lua` — Neovim UI helpers
+- `fsutil.lua` — filesystem helpers
+- `strutil.lua` — string utilities
+- `uitool.lua` — Neovim UI helpers
 - `usercmd.lua` — registers user commands with subcommand completion

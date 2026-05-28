@@ -10,8 +10,8 @@ local M             = {}
 local notifications = require("keystone.notify")
 local picker        = require("keystone.pick.base.picker")
 local pickertools   = require("keystone.pick.base.pickertools")
-local strutils      = require("keystone.utils.strutils")
-local uitools       = require("keystone.utils.uitools")
+local strutil      = require("keystone.util.strutil")
+local uitool       = require("keystone.util.uitool")
 
 local _icons        = {
     info = "󰋽",
@@ -41,7 +41,7 @@ function M.open()
         finder = function(query, _, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(history) do
-                local text = strutils.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
+                local text = strutil.crop_string_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
                 local res = pickertools.match_label(text, query)
                 if res then
                     local timestamp = os.date("%H:%M:%S", math.floor(entry.timestamp / 1000))
@@ -72,7 +72,7 @@ function M.open()
             return
         end
 
-        local bufnr = uitools.create_sratch_buffer(true, {})
+        local bufnr = uitool.create_sratch_buffer(true, {})
         vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, data.message)
         vim.api.nvim_set_current_buf(bufnr)
     end)

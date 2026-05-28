@@ -2,8 +2,8 @@ local M = {}
 
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitools = require("keystone.utils.uitools")
-local fsutils = require("keystone.utils.fsutils")
+local uitool = require("keystone.util.uitool")
+local fsutil = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -67,7 +67,7 @@ function M.open(opts)
             severity = d.severity,
             source = (d.source or ""):lower(),
             filename = vim.fn.fnamemodify(bufname, ":t"):lower(),
-            relpath = fsutils.get_relative_path(bufname) or bufname,
+            relpath = fsutil.get_relative_path(bufname) or bufname,
             prefix_chunks = {
                 { sev_text,                          sev_hl },
                 { string.format(" %3d", d.lnum + 1), "Number" },
@@ -144,7 +144,7 @@ function M.open(opts)
         end
     }, function(data)
         if data then
-            uitools.smart_open_buffer(data.bufnr, data.lnum, data.col)
+            uitool.smart_open_buffer(data.bufnr, data.lnum, data.col)
         end
     end)
 end

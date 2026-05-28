@@ -1,8 +1,8 @@
-local Spinner            = require("keystone.utils.Spinner")
-local common             = require("keystone.utils.common")
-local fsutils            = require("keystone.utils.fsutils")
-local uitools            = require("keystone.utils.uitools")
-local floatwin           = require("keystone.utils.floatwin")
+local Spinner            = require("keystone.util.Spinner")
+local common             = require("keystone.util.common")
+local fsutil            = require("keystone.util.fsutil")
+local uitool            = require("keystone.util.uitool")
+local floatwin           = require("keystone.util.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 
 ---@mod keystone.picker
@@ -138,7 +138,7 @@ end
 ---@param modifiable boolean
 ---@param on_delete fun()
 local function _create_buffer(modifiable, on_delete)
-	return uitools.create_sratch_buffer(false, {
+	return uitool.create_sratch_buffer(false, {
 			buftype = "nofile",
 			bufhidden = "wipe",
 			modifiable = modifiable,
@@ -177,7 +177,7 @@ local function _default_preview(data, _, callback)
 		callback({})
 		return
 	end
-	if not fsutils.file_exists(filepath) then
+	if not fsutil.file_exists(filepath) then
 		callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
 		return
 	end
@@ -195,7 +195,7 @@ local function _default_preview(data, _, callback)
 			callback({ error_msg = "Maximum file size exceeded" })
 			return
 		end
-		cancel_fn = fsutils.async_load_text_file(filepath, { timeout = 3000 },
+		cancel_fn = fsutil.async_load_text_file(filepath, { timeout = 3000 },
 			function(load_err, content)
 				callback({
 					content = content,
@@ -245,8 +245,8 @@ local function _item_label(item)
 	return table.concat(parts):gsub("\n", " ")
 end
 
----@class keystone.utils.Picker
----@field new fun(self: keystone.utils.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.utils.Picker
+---@class keystone.util.Picker
+---@field new fun(self: keystone.util.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.util.Picker
 ---@field opts keystone.Picker.opts
 ---@field callback keystone.Picker.Callback
 ---@field preview_enabled boolean
@@ -257,7 +257,7 @@ end
 ---@field pwin integer?
 ---@field lwin integer?
 ---@field vwin integer?
----@field spinner keystone.utils.Spinner?
+---@field spinner keystone.util.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.picker.ListItem[]
 ---@field async_fetch_context number
@@ -399,7 +399,7 @@ function Picker:relayout(action)
 			end)
 		end
 		local pwin_augroup
-		self.pwin, pwin_augroup = uitools.create_window(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
+		self.pwin, pwin_augroup = uitool.create_window(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
 				row = self.layout.prompt_row,
 				col = self.layout.prompt_col,
 				width = self.layout.prompt_width,
@@ -458,7 +458,7 @@ function Picker:relayout(action)
 				end
 			end)
 		end
-		self.lwin = uitools.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+		self.lwin = uitool.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
 				row = self.layout.list_row,
 				col = self.layout.list_col,
 				width = self.layout.list_width,
@@ -491,7 +491,7 @@ function Picker:relayout(action)
 				vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
 				vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
 			end
-			self.vwin = uitools.create_window(self.vbuf, false, {
+			self.vwin = uitool.create_window(self.vbuf, false, {
 					relative = "editor",
 					style = "minimal",
 					border = "rounded",

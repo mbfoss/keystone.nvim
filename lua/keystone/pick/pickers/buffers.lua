@@ -1,7 +1,7 @@
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitools = require("keystone.utils.uitools")
-local fsutils = require("keystone.utils.fsutils")
+local uitool = require("keystone.util.uitool")
+local fsutil = require("keystone.util.fsutil")
 
 local M = {}
 
@@ -21,7 +21,7 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
     local label
     if bufname ~= "" then
-        label = fsutils.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
+        label = fsutil.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
     else
         label = "[No Name]"
     end
@@ -111,7 +111,7 @@ function M.open(opts)
         end,
     }, function(data)
         if data then
-            uitools.smart_open_buffer(data.bufnr, data.lnum, data.col)
+            uitool.smart_open_buffer(data.bufnr, data.lnum, data.col)
         end
     end)
 end

@@ -14,9 +14,9 @@ local M = {}
 
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitools = require("keystone.utils.uitools")
-local fsutils = require("keystone.utils.fsutils")
-local strutils = require("keystone.utils.strutils")
+local uitool = require("keystone.util.uitool")
+local fsutil = require("keystone.util.fsutil")
+local strutil = require("keystone.util.strutil")
 local icons = require("keystone.icons")
 
 local STATUS_HL = {
@@ -98,7 +98,7 @@ function M.open()
     ):wait()
 
     if result.code ~= 0 then
-        local err = result.stderr and strutils.crop_string_for_ui(result.stderr, 70) or ""
+        local err = result.stderr and strutil.crop_string_for_ui(result.stderr, 70) or ""
         vim.notify(
             ("git status failed (exit code %d): %s"):format(result.code, err ~= "" and err or "unknown error"),
             vim.log.levels.ERROR
@@ -141,7 +141,7 @@ function M.open()
                 local dirpart      = vim.fn.fnamemodify(path, ":h")
                 dirpart            = (dirpart == "." or dirpart == "") and "" or (dirpart .. "/")
 
-                local match_target = fsutils.get_relative_path(path) or path
+                local match_target = fsutil.get_relative_path(path) or path
                 local res          = pickertools.match_label(filename ~= "" and filename or match_target, query)
                 if not res then goto continue end
 
@@ -207,7 +207,7 @@ function M.open()
         end,
     }, function(data)
         if data then
-            uitools.smart_open_file(vim.fs.joinpath(cwd, data.path))
+            uitool.smart_open_file(vim.fs.joinpath(cwd, data.path))
         end
     end)
 end

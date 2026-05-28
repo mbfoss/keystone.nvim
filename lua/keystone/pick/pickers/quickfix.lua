@@ -1,7 +1,7 @@
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitools = require("keystone.utils.uitools")
-local fsutils = require("keystone.utils.fsutils")
+local uitool = require("keystone.util.uitool")
+local fsutil = require("keystone.util.fsutil")
 
 local M = {}
 
@@ -43,7 +43,7 @@ local function read_qf_item(item)
     local bufnr = item.bufnr
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
     local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local relpath = fsutils.get_relative_path(filepath) or filepath
+    local relpath = fsutil.get_relative_path(filepath) or filepath
     return {
         bufnr = bufnr,
         filepath = filepath,
@@ -132,7 +132,7 @@ function M.open(opts)
         },
         function(data)
             if data then
-                uitools.smart_open_file(data.filepath, data.lnum, data.col)
+                uitool.smart_open_file(data.filepath, data.lnum, data.col)
             end
         end)
 end

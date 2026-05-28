@@ -1,6 +1,6 @@
-local common = require('keystone.utils.common')
+local common = require('keystone.util.common')
 
----@class keystone.utils.Spinner
+---@class keystone.util.Spinner
 ---@field frames string[]
 ---@field interval integer
 ---@diagnostic disable-next-line: undefined-doc-name
@@ -15,10 +15,10 @@ local default_frames = {
 }
 
 
----@alias keystone.utils.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
+---@alias keystone.util.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
 
----@class keystone.utils.Spinner
----@field new fun(self:keystone.utils.Spinner,opts:keystone.utils.SpinnerOpts):keystone.utils.Spinner
+---@class keystone.util.Spinner
+---@field new fun(self:keystone.util.Spinner,opts:keystone.util.SpinnerOpts):keystone.util.Spinner
 local Spinner = {}
 Spinner.__index = Spinner
 
@@ -28,7 +28,7 @@ function Spinner:new(...)
     return obj
 end
 
----@param opts keystone.utils.SpinnerOpts?
+---@param opts keystone.util.SpinnerOpts?
 function Spinner:init(opts)
     opts = opts or {}
     self.frames = opts.frames or default_frames

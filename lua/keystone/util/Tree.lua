@@ -1,14 +1,14 @@
 
----@class keystone.utils.Tree.Item
+---@class keystone.util.Tree.Item
 ---@field id any
 ---@field data any
 
----@class keystone.utils.Tree.ItemUpdate
+---@class keystone.util.Tree.ItemUpdate
 ---@field id any
 ---@field data any
 ---@field keep_children boolean
 
----@class keystone.utils.Tree.Node
+---@class keystone.util.Tree.Node
 ---@field parent_id any|nil
 ---@field data any
 ---@field first_child any|nil
@@ -16,15 +16,15 @@
 ---@field next_sibling any|nil
 ---@field prev_sibling any|nil
 
----@class keystone.utils.Tree.FlatNode
+---@class keystone.util.Tree.FlatNode
 ---@field id any
 ---@field data any
 ---@field depth integer
 
 ---@generic T
----@class keystone.utils.Tree
----@field new fun(self: keystone.utils.Tree) : keystone.utils.Tree
----@field _nodes table<any, keystone.utils.Tree.Node>
+---@class keystone.util.Tree
+---@field new fun(self: keystone.util.Tree) : keystone.util.Tree
+---@field _nodes table<any, keystone.util.Tree.Node>
 ---@field _root_first any|nil
 ---@field _root_last any|nil
 local Tree = {}
@@ -36,7 +36,7 @@ function Tree:new()
     return obj
 end
 function Tree:init()
-	---@type table<any, keystone.utils.Tree.Node>
+	---@type table<any, keystone.util.Tree.Node>
 	self._nodes = {}
 
 	---@type any|nil
@@ -208,7 +208,7 @@ end
 
 ---@generic T
 ---@param parent_id any|nil
----@param items keystone.utils.Tree.Item[]
+---@param items keystone.util.Tree.Item[]
 function Tree:set_children(parent_id, items)
 	assert(type(items) == "table")
 	local parent_node = parent_id and self._nodes[parent_id]
@@ -268,7 +268,7 @@ function Tree:set_children(parent_id, items)
 end
 
 ---@param parent_id any|nil
----@param items keystone.utils.Tree.ItemUpdate[]
+---@param items keystone.util.Tree.ItemUpdate[]
 function Tree:update_children(parent_id, items)
 	assert(type(items) == "table", "items must be a table")
 	local parent_node = parent_id and self._nodes[parent_id]
@@ -457,7 +457,7 @@ function Tree:get_depth(id)
 	return depth
 end
 
----@return keystone.utils.Tree.Item[]
+---@return keystone.util.Tree.Item[]
 function Tree:get_items()
 	local items = {}
 	for id, node in pairs(self._nodes) do
@@ -494,7 +494,7 @@ function Tree:get_children_ids(parent_id)
 end
 
 ---@param parent_id any|nil If nil, returns root nodes.
----@return keystone.utils.Tree.Item[]
+---@return keystone.util.Tree.Item[]
 function Tree:get_children(parent_id)
 	local child_id
 	if parent_id == nil then
@@ -520,7 +520,7 @@ function Tree:remove_item(id)
 end
 
 ---@private
----@param node keystone.utils.Tree.Node
+---@param node keystone.util.Tree.Node
 function Tree:_remove_children(node)
 	local child = node.first_child
 	while child do

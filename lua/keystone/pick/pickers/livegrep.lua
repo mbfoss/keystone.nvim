@@ -1,12 +1,12 @@
 local M           = {}
 
-local uitools     = require("keystone.utils.uitools")
-local strutils    = require("keystone.utils.strutils")
+local uitool     = require("keystone.util.uitool")
+local strutil    = require("keystone.util.strutil")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutils     = require("keystone.utils.fsutils")
-local throttle    = require("keystone.utils.throttle")
-local spawn       = require("keystone.utils.spawn")
+local fsutil     = require("keystone.util.fsutil")
+local throttle    = require("keystone.util.throttle")
+local spawn       = require("keystone.util.spawn")
 
 ---@class keystone.livegrep.opts
 ---@field cwd           string?   -- defaults to getcwd
@@ -161,14 +161,14 @@ local function async_grep(parsed, grep_opts, fetch_opts, on_error, callback)
 
     local cwd           = vim.fn.getcwd()
 
-    local buffered_feed = strutils.create_line_buffered_feed(function(lines)
+    local buffered_feed = strutil.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
             if stop_read then return end
             local file, lnum, col, chunks = parse_rg_json(line)
             if chunks then
                 local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
-                local rel_path = fsutils.get_relative_path(abs_path, cwd)
-                local location = fsutils.smart_crop_path(
+                local rel_path = fsutil.get_relative_path(abs_path, cwd)
+                local location = fsutil.smart_crop_path(
                     string.format("%s:%s", rel_path, lnum),
                     fetch_opts.list_width
                 )
@@ -240,7 +240,7 @@ function M.open(opts)
         end,
     }, function(data)
         if data then
-            uitools.smart_open_file(data.filepath, data.lnum, data.col - 1)
+            uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
         end
     end)
 end

@@ -1,7 +1,7 @@
-local uitools = require "keystone.utils.uitools"
+local uitool = require "keystone.util.uitool"
 local M = {}
 
----@class keystone.utils.inputwin.Opts
+---@class keystone.util.inputwin.Opts
 ---@field prompt? string
 ---@field default_text? string
 ---@field default_width? number
@@ -9,7 +9,7 @@ local M = {}
 ---@field col_offset? number
 ---@field validate? fun(content:string):boolean,string?
 ---@
----@param opts keystone.utils.inputwin.Opts
+---@param opts keystone.util.inputwin.Opts
 ---@param on_confirm fun(value: string|nil)
 function M.open(opts, on_confirm)
     local prev_win = vim.api.nvim_get_current_win()
@@ -35,7 +35,7 @@ function M.open(opts, on_confirm)
     local current_height = 1
 
     local win, win_augroup
-    win, win_augroup = uitools.create_window(buf, true, {
+    win, win_augroup = uitool.create_window(buf, true, {
         relative = "cursor",
         row = opts.row_offset or 1,
         col = opts.col_offset or 0,

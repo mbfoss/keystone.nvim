@@ -1,4 +1,4 @@
-local uitools = require("keystone.utils.uitools")
+local uitool = require("keystone.util.uitool")
 
 local M = {}
 
@@ -45,7 +45,7 @@ function M.toggle()
         footer = "Focus mode",
     }
 
-    win_id = uitools.create_window(bufnr, true, opts, function()
+    win_id = uitool.create_window(bufnr, true, opts, function()
         win_id = nil
     end)
 

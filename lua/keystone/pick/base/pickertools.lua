@@ -1,6 +1,6 @@
 local M = {}
 
-local fsutils = require("keystone.utils.fsutils")
+local fsutil = require("keystone.util.fsutil")
 
 ---@param text string The final string to be shown
 ---@param positions integer[] Matched indices
@@ -72,7 +72,7 @@ function M.make_history_provider(name, opts)
         load = function()
             local hist = {}
             ---@type boolean,string
-            local ok, lines = fsutils.read_content(file_path)
+            local ok, lines = fsutil.read_content(file_path)
             if ok then
                 hist = vim.split(lines, '\n')
             end
@@ -85,7 +85,7 @@ function M.make_history_provider(name, opts)
             for i = start_idx, #hist do
                 table.insert(final_hist, hist[i])
             end
-            fsutils.write_content(file_path, table.concat(final_hist, '\n'))
+            fsutil.write_content(file_path, table.concat(final_hist, '\n'))
         end
     }
 

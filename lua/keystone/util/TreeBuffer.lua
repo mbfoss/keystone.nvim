@@ -1,6 +1,6 @@
-local Tree = require("keystone.utils.Tree")
-local uitools = require("keystone.utils.uitools")
-local Signal = require("keystone.utils.Signal")
+local Tree = require("keystone.util.Tree")
+local uitool = require("keystone.util.uitool")
+local Signal = require("keystone.util.Signal")
 
 ---@class keystone.TreeBuffer.Item
 ---@field id any
@@ -63,9 +63,9 @@ local function _itemdef_to_itemdata(item)
 end
 
 
----@param tree keystone.utils.Tree
+---@param tree keystone.util.Tree
 ---@param starting_id any|nil  -- nil = whole tree
----@return keystone.utils.Tree.FlatNode[]
+---@return keystone.util.Tree.FlatNode[]
 local function _flatten(tree, starting_id)
     local out = {}
     local function handler(id, data, depth)
@@ -84,7 +84,7 @@ local function _flatten(tree, starting_id)
     return out
 end
 
----@param tree keystone.utils.Tree
+---@param tree keystone.util.Tree
 ---@param starting_id any|nil  -- nil = whole tree
 ---@return number
 local function _tree_size(tree, starting_id)
@@ -138,7 +138,7 @@ function TreeBuffer:create_buffer(on_deleted)
         return self._bufnr, false
     end
 
-    self._bufnr = uitools.create_sratch_buffer(false, {
+    self._bufnr = uitool.create_sratch_buffer(false, {
             buftype = "nofile",
             bufhidden = "wipe",
             filetype = self._filetype or "keystone-tree",
@@ -231,7 +231,7 @@ function TreeBuffer:subscribe(callbacks)
 end
 
 ---@private
----@param flatnode keystone.utils.Tree.FlatNode
+---@param flatnode keystone.util.Tree.FlatNode
 ---@param row number The buffer row this node will occupy
 ---@return string line, table hl_calls, table extmark_data
 function TreeBuffer:_render_node(flatnode, row)
@@ -307,7 +307,7 @@ end
 ---@private
 ---@param start_idx number
 ---@param old_size number
----@param new_flat keystone.utils.Tree.FlatNode[]
+---@param new_flat keystone.util.Tree.FlatNode[]
 function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     local buf = self:get_bufnr()
     if buf <= 0 then return end

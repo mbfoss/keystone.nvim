@@ -1,10 +1,10 @@
 local M = {}
 
-local uitools = require("keystone.utils.uitools")
-local strutils = require("keystone.utils.strutils")
+local uitool = require("keystone.util.uitool")
+local strutil = require("keystone.util.strutil")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutils = require("keystone.utils.fsutils")
+local fsutil = require("keystone.util.fsutil")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
@@ -72,7 +72,7 @@ function M.references()
             finder = function(query, flags, fetch_opts, callback)
                 local picker_items = {}
                 for _, ref in ipairs(lsp_items) do
-                    local display_path = fsutils.get_relative_path(ref.filename) or ref.filename or ""
+                    local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
                     local filename = vim.fn.fnamemodify(display_path, ":t"):lower()
                     local skip = false
                     for _, v in ipairs(flags.file or {}) do
@@ -86,7 +86,7 @@ function M.references()
                     local match = pickertools.match_label(text, query)
                     if match then
                         local loc = ref.lnum and string.format("%s:%d", display_path, ref.lnum) or display_path
-                        loc = fsutils.smart_crop_path(loc, fetch_opts.list_width)
+                        loc = fsutil.smart_crop_path(loc, fetch_opts.list_width)
                         ---@type keystone.Picker.Item
                         table.insert(picker_items, {
                             label_chunks = match.chunks,
@@ -105,7 +105,7 @@ function M.references()
             end,
         }, function(data)
             if data then
-                uitools.smart_open_file(data.filepath, data.lnum, data.col)
+                uitool.smart_open_file(data.filepath, data.lnum, data.col)
             end
         end)
     end)

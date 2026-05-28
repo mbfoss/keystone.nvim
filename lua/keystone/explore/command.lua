@@ -2,10 +2,10 @@ local M        = {}
 
 local uv       = vim.uv
 local explorer = require("keystone.explore.explorer")
-local fsutils  = require("keystone.utils.fsutils")
-local uitools  = require("keystone.utils.uitools")
+local fsutil  = require("keystone.util.fsutil")
+local uitool  = require("keystone.util.uitool")
 local icons    = require("keystone.icons")
-local inputwin = require("keystone.utils.inputwin")
+local inputwin = require("keystone.util.inputwin")
 
 ---@param name string The filename or directory name
 ---@param is_dir boolean
@@ -52,7 +52,7 @@ local function _fs_create(type, location, on_done)
                     vim.notify(err or "Failed to create directory", vim.log.levels.ERROR)
                 end
             else
-                local created, err = fsutils.create_file(new_path)
+                local created, err = fsutil.create_file(new_path)
                 if created then
                     on_done(name)
                 else
@@ -73,7 +73,7 @@ local function _fs_rename(path, on_done)
         if new_parent_dir ~= parent_dir then return false, "Invalid name" end
         return true, nil, new_path
     end
-    local is_dir = fsutils.dir_exists(path)
+    local is_dir = fsutil.dir_exists(path)
     inputwin.open({
             prompt = "New " .. (is_dir and "directory" or "file") .. " name",
             default_text = vim.fn.fnamemodify(path, ":t"),
@@ -85,7 +85,7 @@ local function _fs_rename(path, on_done)
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
                 return
             end
-            local ok, err = fsutils.rename_file(path, new_path)
+            local ok, err = fsutil.rename_file(path, new_path)
             if ok then
                 on_done(name)
             else
@@ -99,7 +99,7 @@ end
 ---@param on_done fun()
 local function _fs_delete(path, recursive, on_done)
     recursive = recursive == true
-    local is_folder = fsutils.dir_exists(path)
+    local is_folder = fsutil.dir_exists(path)
     local msg
     if is_folder then
         msg = recursive and "Permanently delete directory and ALL its content\n%s?" or
@@ -107,7 +107,7 @@ local function _fs_delete(path, recursive, on_done)
     else
         msg = "Permanently delete file\n%s?"
     end
-    uitools.confirm_action(msg:format(path), false, function(confirmed)
+    uitool.confirm_action(msg:format(path), false, function(confirmed)
         if not confirmed then return end
         local success, err_msg
         if is_folder and recursive then
@@ -147,7 +147,7 @@ local function _explore_files()
             local path = table.concat(path_parts, '/')
             if path == "" then path = "/" end
             local raw_entries = {}
-            local cancel = fsutils.async_scan_dir(path, nil, nil,
+            local cancel = fsutil.async_scan_dir(path, nil, nil,
                 function(name, ftype)
                     table.insert(raw_entries, { name = name, ftype = ftype, full_path = vim.fs.joinpath(path, name) })
                 end,
@@ -230,7 +230,7 @@ local function _explore_files()
     }, function(path)
         if path then
             local filepath = table.concat(path, '/')
-            uitools.smart_open_file(filepath)
+            uitool.smart_open_file(filepath)
         end
     end)
 end

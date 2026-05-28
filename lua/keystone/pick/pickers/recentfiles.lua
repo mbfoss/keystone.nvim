@@ -1,6 +1,6 @@
 local M = {}
 
-local uitools = require("keystone.utils.uitools")
+local uitool = require("keystone.util.uitool")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 
@@ -64,7 +64,7 @@ function M.open()
 
     }, function(data)
         if data then
-            uitools.smart_open_file(data.filepath)
+            uitool.smart_open_file(data.filepath)
         end
     end)
 end

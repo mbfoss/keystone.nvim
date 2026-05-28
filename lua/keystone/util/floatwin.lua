@@ -1,5 +1,5 @@
-local uitools = require "keystone.utils.uitools"
----@class keystone.utils.floatwin
+local uitool = require "keystone.util.uitool"
+---@class keystone.util.floatwin
 ---@field _complete_cache? string[]
 ---@field _complete_buf? integer
 local M = {}
@@ -84,7 +84,7 @@ function M.open(text, opts)
     vim.bo[buf].bufhidden = "wipe"
 
     local win, win_augroup
-    win, win_augroup = uitools.create_window(buf, true, win_opts, function()
+    win, win_augroup = uitool.create_window(buf, true, win_opts, function()
         win, win_augroup = nil, nil
     end)
     local function close()

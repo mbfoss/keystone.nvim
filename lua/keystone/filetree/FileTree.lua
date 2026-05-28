@@ -1,11 +1,11 @@
-local strutils       = require("keystone.utils.strutils")
-local uitools        = require("keystone.utils.uitools")
-local fsutils        = require("keystone.utils.fsutils")
-local TreeBuffer     = require("keystone.utils.TreeBuffer")
-local LRU            = require("keystone.utils.LRU")
-local floatwin       = require("keystone.utils.floatwin")
-local inputwin       = require("keystone.utils.inputwin")
-local common         = require("keystone.utils.common")
+local strutil       = require("keystone.util.strutil")
+local uitool        = require("keystone.util.uitool")
+local fsutil        = require("keystone.util.fsutil")
+local TreeBuffer     = require("keystone.util.TreeBuffer")
+local LRU            = require("keystone.util.LRU")
+local floatwin       = require("keystone.util.floatwin")
+local inputwin       = require("keystone.util.inputwin")
+local common         = require("keystone.util.common")
 local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
@@ -148,8 +148,8 @@ function FileTree:_setup_tree()
 
     self._treebuf:subscribe({
         on_selection = function(id, data)
-            if not data.is_dir and fsutils.file_exists(data.path) then
-                uitools.smart_open_file(data.path)
+            if not data.is_dir and fsutil.file_exists(data.path) then
+                uitool.smart_open_file(data.path)
             end
         end,
         on_toggle = function(id, data, expanded)
@@ -177,7 +177,7 @@ function FileTree:_on_buffer_created()
             return
         end
         local buf = vim.api.nvim_get_current_buf()
-        if uitools.is_regular_buffer(buf) then
+        if uitool.is_regular_buffer(buf) then
             local path = vim.api.nvim_buf_get_name(buf)
             if path ~= "" then
                 vim.schedule(function()
@@ -350,9 +350,9 @@ end
 ---@return boolean
 function FileTree:_should_include(rel, is_dir)
     if is_dir then
-        return strutils.check_path_pattern(rel, true, nil, self._exclude_patterns)
+        return strutil.check_path_pattern(rel, true, nil, self._exclude_patterns)
     end
-    return strutils.check_path_pattern(rel, false, self._include_patterns, self._exclude_patterns)
+    return strutil.check_path_pattern(rel, false, self._include_patterns, self._exclude_patterns)
 end
 
 ---@private
@@ -365,7 +365,7 @@ function FileTree:_start_dir_monitor(path)
     if self._monitor_lru:has(path) then
         return false
     end
-    local cancel_fn, error_msg = fsutils.monitor_dir(path, function(name, status)
+    local cancel_fn, error_msg = fsutil.monitor_dir(path, function(name, status)
         local reload_counter = self._reload_counter
         ---@type keystone.FileTree.ProcessDirEntry[]
         if reload_counter ~= self._reload_counter then return end
@@ -401,8 +401,8 @@ function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
         self:_clear()
     end
     self._root = newroot
-    self._include_patterns = include_globs and strutils.compile_globs(include_globs) or nil
-    self._exclude_patterns = exclude_globs and strutils.compile_globs(exclude_globs) or nil
+    self._include_patterns = include_globs and strutil.compile_globs(include_globs) or nil
+    self._exclude_patterns = exclude_globs and strutil.compile_globs(exclude_globs) or nil
     self._follow_symlinks = follow_symlinks or true
     self:_reload()
 end
@@ -809,7 +809,7 @@ end
 ---@param collapse_others boolean?
 function FileTree:reveal_current_file(collapse_others)
     local buf = vim.api.nvim_get_current_buf()
-    if uitools.is_regular_buffer(buf) then
+    if uitool.is_regular_buffer(buf) then
         local path = vim.api.nvim_buf_get_name(buf)
         if path ~= "" then
             self:_reveal(path, collapse_others or false, true)
@@ -871,7 +871,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
                     vim.notify(err or "Failed to create directory", vim.log.levels.ERROR)
                 end
             else
-                local created, err = fsutils.create_file(new_path)
+                local created, err = fsutil.create_file(new_path)
                 if created then
                     self:_read_dir(base_dir, self._reload_counter, false)
                     self:_reveal(new_path)
@@ -921,7 +921,7 @@ function FileTree:_rename_node(item)
             if not self._treebuf:get_item(old_path) then return end
             if old_path == final_path then return end
 
-            local ok, err = fsutils.rename_file(old_path, final_path)
+            local ok, err = fsutil.rename_file(old_path, final_path)
             if ok then
                 self:_read_dir(parent_dir, self._reload_counter, false)
 
@@ -948,7 +948,7 @@ function FileTree:_delete_node(item)
     local parent_dir = vim.fn.fnamemodify(path, ":h")
     local type_str = is_folder and "directory" or "file"
     local reload_counter = self._reload_counter
-    uitools.confirm_action(("Permanently delete %s?\n%s"):format(type_str, path), false, function(confirmed)
+    uitool.confirm_action(("Permanently delete %s?\n%s"):format(type_str, path), false, function(confirmed)
         if not confirmed then return end
         if reload_counter ~= self._reload_counter then return end
         if not self._treebuf:get_item(path) then return end
