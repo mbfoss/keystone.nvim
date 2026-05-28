@@ -33,6 +33,8 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `focus` | — | Float preview of current buffer |
 | `objects` | — | Treesitter text objects (`ia`/`aa`, `if`/`af`, `ic`/`ac`, `ib`/`ab`) |
 | `colors` | — | Semantic pastel colorscheme (palette, highlight blending) |
+| `statusline` | — | Statusline: mode, git branch, filename+icon, LSP diagnostics, filetype, position |
+| `winbar` | — | Winbar: file path + LSP symbol breadcrumbs |
 
 Each feature's `setup(opts)` merges opts with defaults and registers its user command via `util/usercmd.register_user_cmd`.
 
