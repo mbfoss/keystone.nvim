@@ -20,16 +20,16 @@ local M = {}
 local function default_config()
   ---@type keystone.complete.Config
   return {
-    enabled = true,
-    delay   = 100,
-    lsp_completion = {
+    enabled         = true,
+    delay           = 100,
+    lsp_completion  = {
       source_func    = "completefunc",
       auto_setup     = true,
       process_items  = nil,
       snippet_insert = nil,
     },
-    fallback_action = "<C-n>",
-    mappings = {
+    fallback_action = "", -- "<C-n>",
+    mappings        = {
       force_twostep  = "<C-Space>",
       force_fallback = "<A-Space>",
     },
@@ -56,7 +56,7 @@ local state = {
   source    = nil,
   tick      = 0,
   timer     = vim.uv.new_timer(),
-  lsp = {
+  lsp       = {
     id            = 0,
     status        = nil,
     is_incomplete = false,
@@ -77,8 +77,8 @@ local function get_config()
   return vim.tbl_deep_extend("force", M.config, vim.b.keystone_complete_config or {})
 end
 
-local function pumvisible()      return vim.fn.pumvisible() > 0 end
-local function is_keyword(c)     return vim.fn.match(c, "[[:keyword:]]") >= 0 end
+local function pumvisible() return vim.fn.pumvisible() > 0 end
+local function is_keyword(c) return vim.fn.match(c, "[[:keyword:]]") >= 0 end
 
 local function get_left_char()
   local line = vim.api.nvim_get_current_line()
@@ -101,7 +101,7 @@ local function tbl_get(t, id)
 end
 
 local function pop_extmark(id, delete_text)
-  local data    = vim.api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true })
+  local data = vim.api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true })
   vim.api.nvim_buf_del_extmark(0, ns, id)
   local details = data[3] --[[@as any]]
   if not delete_text or data[1] == nil or details.end_row == nil then return data end
@@ -201,7 +201,7 @@ end
 
 -- Item processing ------------------------------------------------------------
 
-local function lsp_filter_word(x)  return x.filterText or x.label end
+local function lsp_filter_word(x) return x.filterText or x.label end
 local function lsp_word(item)
   return tbl_get(item, { "textEdit", "newText" }) or item.insertText or lsp_filter_word(item) or ""
 end
@@ -212,14 +212,14 @@ local function apply_defaults(items, defaults)
   local er_range   = (er or {}).start ~= nil and er or nil
   for _, item in ipairs(items) do
     item.commitCharacters = item.commitCharacters or defaults.commitCharacters
-    item.data             = item.data             or defaults.data
+    item.data             = item.data or defaults.data
     item.insertTextFormat = item.insertTextFormat or defaults.insertTextFormat
-    item.insertTextMode   = item.insertTextMode   or defaults.insertTextMode
+    item.insertTextMode   = item.insertTextMode or defaults.insertTextMode
     if has_er then
-      item.textEdit         = item.textEdit         or {}
+      item.textEdit         = item.textEdit or {}
       item.textEdit.newText = item.textEdit.newText or item.textEditText or item.label
-      item.textEdit.range   = item.textEdit.range   or er_range
-      item.textEdit.insert  = item.textEdit.insert  or er.insert
+      item.textEdit.range   = item.textEdit.range or er_range
+      item.textEdit.insert  = item.textEdit.insert or er.insert
       item.textEdit.replace = item.textEdit.replace or er.replace
     end
   end
@@ -235,11 +235,11 @@ local function to_vim_items(items)
   local snip_fmt   = vim.lsp.protocol.InsertTextFormat.Snippet
 
   for i, item in ipairs(items) do
-    local word      = lsp_word(item)
-    local is_sk     = item.kind == snip_kind
-    local is_sf     = item.insertTextFormat == snip_fmt
-    local snip_body = (word:find("[^\\]%${?%w") or word:find("^%${?%w") or word:find("[\n\t]")) ~= nil
-    local is_snippet = (is_sk or is_sf) and snip_body
+    local word         = lsp_word(item)
+    local is_sk        = item.kind == snip_kind
+    local is_sf        = item.insertTextFormat == snip_fmt
+    local snip_body    = (word:find("[^\\]%${?%w") or word:find("^%${?%w") or word:find("[\n\t]")) ~= nil
+    local is_snippet   = (is_sk or is_sf) and snip_body
 
     local details      = item.labelDetails or {}
     local sm           = is_snippet and "S" or ""
@@ -248,14 +248,16 @@ local function to_vim_items(items)
     menu               = menu .. ((menu ~= "" and desc ~= "") and " " or "") .. desc
 
     table.insert(res, {
-      word  = is_snippet and lsp_filter_word(item) or word,
-      abbr  = item.label,
+      word = is_snippet and lsp_filter_word(item) or word,
+      abbr = item.label,
       abbr_hlgroup = item.abbr_hlgroup,
-      kind  = item_kinds[item.kind] or "Unknown",
+      kind = item_kinds[item.kind] or "Unknown",
       kind_hlgroup = item.kind_hlgroup,
-      menu  = menu,
-      info  = is_snippet and word or nil,
-      icase = 1, dup = 1, empty = 1,
+      menu = menu,
+      info = is_snippet and word or nil,
+      icase = 1,
+      dup = 1,
+      empty = 1,
       user_data = { lsp = { item = item, item_id = i, needs_snippet_insert = is_snippet } },
     })
   end
@@ -299,9 +301,9 @@ local function stop_completion(keep_source, keep_lsp_incomplete, keep_lsp_resolv
   cancel_lsp()
   state.lsp.context = nil
   state.fallback, state.force = true, false
-  if not keep_source         then state.source          = nil   end
+  if not keep_source then state.source = nil end
   if not keep_lsp_incomplete then state.lsp.is_incomplete = false end
-  if not keep_lsp_resolved   then state.lsp.resolved     = {}   end
+  if not keep_lsp_resolved then state.lsp.resolved = {} end
 end
 
 local function trigger_fallback()
@@ -314,19 +316,21 @@ local function trigger_fallback()
     vim.api.nvim_feedkeys(keys.ctrl_n, "n", false)
     return
   end
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g><C-g>" .. action, true, false, true), "n", false)
+  if action ~= "" then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g><C-g>" .. action, true, false, true), "n", false)
+  end
 end
 
 -- forward declaration: request_completion and trigger_lsp mutually reference each other
 local trigger_lsp
 
 local function request_completion()
-  local req_id     = state.lsp.id + 1
-  state.lsp.id     = req_id
-  state.lsp.status = "sent"
+  local req_id        = state.lsp.id + 1
+  state.lsp.id        = req_id
+  state.lsp.status    = "sent"
 
-  local ctx    = state.lsp.context or { triggerKind = vim.lsp.protocol.CompletionTriggerKind.Invoked }
-  local buf_id = vim.api.nvim_get_current_buf()
+  local ctx           = state.lsp.context or { triggerKind = vim.lsp.protocol.CompletionTriggerKind.Invoked }
+  local buf_id        = vim.api.nvim_get_current_buf()
 
   state.lsp.cancel_fn = vim.lsp.buf_request_all(buf_id, "textDocument/completion", position_params(ctx),
     function(result)
@@ -373,9 +377,9 @@ local function tracked_text_edits(client_id, text_edits, from, to)
   if text_edits == nil then return from, to end
 
   local cur       = vim.api.nvim_win_get_cursor(0)
-  local cursor_id = vim.api.nvim_buf_set_extmark(0, ns, cur[1] - 1,  cur[2],  {})
+  local cursor_id = vim.api.nvim_buf_set_extmark(0, ns, cur[1] - 1, cur[2], {})
   local from_id   = vim.api.nvim_buf_set_extmark(0, ns, from[1] - 1, from[2], {})
-  local to_id     = vim.api.nvim_buf_set_extmark(0, ns, to[1] - 1,   to[2],   {})
+  local to_id     = vim.api.nvim_buf_set_extmark(0, ns, to[1] - 1, to[2], {})
 
   apply_text_edits(client_id, text_edits)
 
@@ -388,14 +392,16 @@ local function tracked_text_edits(client_id, text_edits, from, to)
 end
 
 local function apply_completion_extras(lsp_data)
-  local item    = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
+  local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
   if item.additionalTextEdits == nil and item.command == nil and not lsp_data.needs_snippet_insert then return end
-  local snippet = lsp_data.needs_snippet_insert and lsp_word(item) or nil
+  local snippet  = lsp_data.needs_snippet_insert and lsp_word(item) or nil
 
   local cur      = vim.api.nvim_win_get_cursor(0)
   local track_id = vim.api.nvim_buf_set_extmark(0, ns, cur[1] - 1, cur[2], {
-    end_row = cur[1] - 1, end_col = cur[2],
-    right_gravity = false, end_right_gravity = true,
+    end_row = cur[1] - 1,
+    end_col = cur[2],
+    right_gravity = false,
+    end_right_gravity = true,
   })
 
   vim.schedule(function()
@@ -469,20 +475,22 @@ local function show_doc_content(documentation)
     local pum_right = pum.col + pum.width + (pum.scrollbar and 1 or 0)
     local offset_x  = pum_right - (vim.fn.screencol() - 1)
 
-    local _, win = vim.lsp.util.open_floating_preview(lines, "markdown", {
+    local _, win    = vim.lsp.util.open_floating_preview(lines, "markdown", {
       border     = "rounded",
       max_width  = 60,
       max_height = 20,
       focusable  = false,
       offset_x   = offset_x,
     })
-    doc_win = win
+    doc_win         = win
   end)
 end
 
 local function on_complete_changed()
   local lsp_data = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
-  if not lsp_data then show_doc_content(nil); return end
+  if not lsp_data then
+    show_doc_content(nil); return
+  end
 
   local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
   if item.documentation then
@@ -574,7 +582,7 @@ local function apply_config(config)
     if not vim.api.nvim_get_option_info2(opt, { scope = "global" }).was_set then val() end
   end
   set_if_unset("completeopt", function() vim.o.completeopt = "menuone,noselect" end)
-  set_if_unset("shortmess",   function() vim.opt.shortmess:append("c") end)
+  set_if_unset("shortmess", function() vim.opt.shortmess:append("c") end)
   if config.fallback_action == "<C-n>" then
     set_if_unset("complete", function() vim.opt.complete:remove("t") end)
   end
@@ -586,13 +594,17 @@ local function setup_autocmds(config)
     vim.api.nvim_create_autocmd(event, { group = gr, pattern = pattern, callback = cb })
   end
 
-  au("InsertCharPre",   "*",          on_insert_char)
-  au("CursorMovedI",    "*",          on_cursor_moved)
-  au("CompleteChanged", "*",          on_complete_changed)
-  au("ModeChanged",     "i*:[^i]*",   function() M.stop(); close_doc_win() end)
-  au("CompleteDonePre", "*",          function() close_doc_win(); on_complete_done() end)
-  au("TextChangedI",    "*",          function() change_tick = change_tick + 1 end)
-  au("TextChangedP",    "*",          function() change_tick = change_tick + 1 end)
+  au("InsertCharPre", "*", on_insert_char)
+  au("CursorMovedI", "*", on_cursor_moved)
+  au("CompleteChanged", "*", on_complete_changed)
+  au("ModeChanged", "i*:[^i]*", function()
+    M.stop(); close_doc_win()
+  end)
+  au("CompleteDonePre", "*", function()
+    close_doc_win(); on_complete_done()
+  end)
+  au("TextChangedI", "*", function() change_tick = change_tick + 1 end)
+  au("TextChangedP", "*", function() change_tick = change_tick + 1 end)
 
   if config.lsp_completion.auto_setup then
     local sf = config.lsp_completion.source_func
@@ -619,8 +631,8 @@ M.completefunc_lsp = function(findstart, base)
     return from[2]
   end
 
-  local is_incomplete = false
-  local all_items = collect_lsp_results(state.lsp.result, function(response, client_id)
+  local is_incomplete     = false
+  local all_items         = collect_lsp_results(state.lsp.result, function(response, client_id)
     is_incomplete = is_incomplete or (response.isIncomplete == true)
     local items   = tbl_get(response, { "items" }) or response
     if type(items) ~= "table" then return {} end
@@ -629,11 +641,11 @@ M.completefunc_lsp = function(findstart, base)
     return items
   end)
 
-  local process    = get_config().lsp_completion.process_items or M.default_process_items
-  all_items        = process(all_items, base)
-  local candidates = to_vim_items(all_items)
+  local process           = get_config().lsp_completion.process_items or M.default_process_items
+  all_items               = process(all_items, base)
+  local candidates        = to_vim_items(all_items)
 
-  state.lsp.status       = "done"
+  state.lsp.status        = "done"
   state.lsp.is_incomplete = is_incomplete
 
   if vim.tbl_isempty(candidates) and state.fallback then
@@ -688,7 +700,7 @@ M.get_lsp_capabilities = function()
           labelDetailsSupport     = true,
         },
         completionItemKind = {
-          valueSet = { 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25 },
+          valueSet = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25 },
         },
         contextSupport = true,
         insertTextMode = 1,
@@ -703,7 +715,7 @@ end
 --- Force two-stage completion.
 M.complete_twostage = function(fallback, force)
   if fallback == nil then fallback = true end
-  if force   == nil then force   = true end
+  if force == nil then force = true end
   stop_completion()
   state.fallback, state.force = fallback, force
   trigger_auto()

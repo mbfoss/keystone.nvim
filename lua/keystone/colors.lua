@@ -1,31 +1,7 @@
 local M = {}
-local hex_re = vim.regex('#\\x\\x\\x\\x\\x\\x')
-
-local HEX_DIGITS = {
-    ['0']=0, ['1']=1, ['2']=2, ['3']=3, ['4']=4,
-    ['5']=5, ['6']=6, ['7']=7, ['8']=8, ['9']=9,
-    ['a']=10, ['b']=11, ['c']=12, ['d']=13, ['e']=14, ['f']=15,
-    ['A']=10, ['B']=11, ['C']=12, ['D']=13, ['E']=14, ['F']=15,
-}
-
-local function hex_to_rgb(hex)
-    return HEX_DIGITS[hex:sub(1,1)]*16 + HEX_DIGITS[hex:sub(2,2)],
-           HEX_DIGITS[hex:sub(3,3)]*16 + HEX_DIGITS[hex:sub(4,4)],
-           HEX_DIGITS[hex:sub(5,5)]*16 + HEX_DIGITS[hex:sub(6,6)]
-end
-
-local function rgb_to_hex(r, g, b)
-    return bit.tohex(bit.bor(bit.lshift(r, 16), bit.lshift(g, 8), b), 6)
-end
-
-local function darken(hex, pct)
-    local r, g, b = hex_to_rgb(hex:sub(2))
-    local k = 1 - pct
-    return '#' .. rgb_to_hex(math.floor(r*k), math.floor(g*k), math.floor(b*k))
-end
 
 --[[
-  Base30 semantic palette — 15 neutrals + 15 pastel accents = 30 slots.
+  Base36 semantic palette — 15 neutrals + 15 pastel accents + 6 tinted bgs = 36 slots.
 
   Neutral band (dark → bright):
     bg_dark, bg, bg_panel, bg_alt, bg_cursor, bg_float,
@@ -41,8 +17,11 @@ end
   The vivid layer provides a brighter, more saturated counterpart for each
   hue family so highlights can distinguish "the thing" from "the built-in
   variant of the thing" without relying on italic alone.
-]]
 
+  Tinted backgrounds (6):  bg_red bg_amber bg_green bg_teal bg_blue bg_purple
+  Dark hue-tinted bgs anchored to the editor bg. One per hue family, generic
+  enough to serve diff, diagnostics, decorations, and similar colored-bg needs.
+]]
 
 
 local default_palette = {
@@ -81,6 +60,14 @@ local default_palette = {
     cyan     = '#8cd6de',   -- builtins (func/const/var), special funcs
     indigo   = '#98a8dc',   -- namespaces, modules, import, type-builtins
     mauve    = '#caaad0',   -- operators, punctuation-special, markup-em
+
+    -- tinted backgrounds
+    bg_red    = '#3b2d2d',   -- red-tinted bg   (errors, deletions, danger)
+    bg_amber  = '#3E3A33',   -- amber-tinted bg  (warnings, changes)
+    bg_green  = '#2d3830',   -- green-tinted bg  (success, additions)
+    bg_teal   = '#2b3836',   -- teal-tinted bg   (hints, intra-line diffs)
+    bg_blue   = '#2d3140',   -- blue-tinted bg   (info, selections)
+    bg_purple = '#35303e',   -- purple-tinted bg (misc decorations)
 }
 
 local function hl(group, opts)
@@ -135,6 +122,7 @@ function M.setup(config)
     hl('Visual',        { bg = c.surface })
     hl('VisualNOS',     { bg = c.surface })
     hl('MatchParen',    { bg = c.overlay, gui = 'bold' })
+    hl('SnippetTabstop',{ bg = c.bg_alt, sp = c.teal, gui = 'undercurl' })
 
     -- ── Search ────────────────────────────────────────────────────────
     hl('Search',        { fg = c.bg,      bg = c.yellow })
@@ -218,15 +206,10 @@ function M.setup(config)
     hl('Todo',          { fg = c.amber,   bg = c.bg_alt, gui = 'bold' })
 
     -- ── Diff ──────────────────────────────────────────────────────────
-    local diff_add_bg    = hex_re:match_str(c.green) and darken(c.green,  0.65) or c.bg
-    local diff_del_bg    = hex_re:match_str(c.red)   and darken(c.red,    0.65) or c.bg
-    local diff_change_bg = hex_re:match_str(c.amber) and darken(c.amber,  0.75) or c.bg
-    local diff_text_bg   = hex_re:match_str(c.green) and darken(c.green,  0.55) or c.bg_alt
-
-    hl('DiffAdd',       { bg = diff_add_bg })
-    hl('DiffDelete',    { bg = diff_del_bg })
-    hl('DiffChange',    { bg = diff_change_bg })
-    hl('DiffText',      { bg = diff_text_bg,  gui = 'bold' })
+    hl('DiffAdd',       { bg = c.bg_green  })
+    hl('DiffDelete',    { bg = c.bg_red    })
+    hl('DiffChange',    { bg = c.bg_amber  })
+    hl('DiffText',      { bg = c.bg_teal,  gui = 'bold' })
     hl('DiffAdded',     { fg = c.green,       bg = c.bg })
     hl('DiffRemoved',   { fg = c.red,         bg = c.bg })
     hl('DiffFile',      { fg = c.flame,       bg = c.bg })
@@ -408,7 +391,7 @@ function M.setup(config)
         hl('DiffviewStatusBroken',        { fg = c.flame,   gui = 'bold' })
         hl('DiffviewStatusUnknown',       { fg = c.red })
         hl('DiffviewStatusUnmerged',      { fg = c.lavender, gui = 'bold' })
-        hl('DiffviewDiffAddAsDelete',     { fg = c.flame,   bg = diff_del_bg })
+        hl('DiffviewDiffAddAsDelete',     { fg = c.flame,   bg = c.bg_red })
         hl('DiffviewDiffDelete',          { fg = c.muted,   bg = c.bg })
     end
 
