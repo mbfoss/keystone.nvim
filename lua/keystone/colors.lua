@@ -131,10 +131,10 @@ function M.setup(config)
     hl('CurSearch',     { fg = c.bg,      bg = c.amber })
 
     -- ── UI chrome ─────────────────────────────────────────────────────
-    hl('StatusLine',    { fg = c.fg,      bg = c.surface,   gui = 'none' })
+    hl('StatusLine',    { fg = c.fg,      bg = c.surface,  gui = 'none' })
     hl('StatusLineNC',  { fg = c.fg_dim,  bg = c.bg_panel, gui = 'none' })
-    hl('WinBar',        { fg = c.fg,      gui = 'none' })
-    hl('WinBarNC',      { fg = c.fg_dim,  gui = 'none' })
+    hl('WinBar',        { fg = c.fg,      bg = c.bg_float, gui = 'none' })
+    hl('WinBarNC',      { fg = c.fg_dim,  bg = c.bg_float, gui = 'none' })
     hl('VertSplit',     { fg = c.line })
     hl('WinSeparator',  { fg = c.line })
     hl('TabLine',       { fg = c.muted,   bg = c.bg_panel, gui = 'none' })

@@ -1,6 +1,17 @@
 local M = {}
 
 ---@param winid number?
+function M.get_window_width(winid)
+    if not winid or winid == 0 then winid = vim.api.nvim_get_current_win() end
+    local infos = vim.fn.getwininfo(winid)
+    if not infos or #infos == 0 then
+        return vim.o.columns
+    end
+    local info = infos[1]
+    return info.width
+end
+
+---@param winid number?
 function M.get_window_text_width(winid)
     if not winid or winid == 0 then winid = vim.api.nvim_get_current_win() end
     local infos = vim.fn.getwininfo(winid)
