@@ -43,15 +43,15 @@ local function _setup_highlights()
     vim.api.nvim_set_hl(0, name, opts)
   end
 
-  def("KeystoneSLModeNormal",  { fg = 0x89B4FA, bold = true })
-  def("KeystoneSLModeInsert",  { fg = 0xA6E3A1, bold = true })
-  def("KeystoneSLModeVisual",  { fg = 0xCBA6F7, bold = true })
-  def("KeystoneSLModeReplace", { fg = 0xF38BA8, bold = true })
-  def("KeystoneSLModeCommand", { fg = 0xF9E2AF, bold = true })
-  def("KeystoneSLGit",         { fg = 0x7F849C })
-  def("KeystoneSLDiagError",   { fg = 0xF38BA8 })
-  def("KeystoneSLDiagWarn",    { fg = 0xF9E2AF })
-  def("KeystoneSLDiagHint",    { fg = 0x94E2D5 })
+  def("KeystoneSLModeNormal",  { fg = "#6E94C9", bold = true })
+  def("KeystoneSLModeInsert",  { fg = "#7BA87A", bold = true })
+  def("KeystoneSLModeVisual",  { fg = "#9D82C7", bold = true })
+  def("KeystoneSLModeReplace", { fg = "#B87A90", bold = true })
+  def("KeystoneSLModeCommand", { fg = "#CDCDCD", bold = true })
+  def("KeystoneSLGit",         { fg = "#7F849C" })
+  def("KeystoneSLDiagError",   { fg = "#F38BA8" })
+  def("KeystoneSLDiagWarn",    { fg = "#F9E2AF" })
+  def("KeystoneSLDiagHint",    { fg = "#94E2D5" })
 end
 
 local function _section_mode()
@@ -64,7 +64,7 @@ end
 local function _section_git(bufnr)
   local branch = vim.b[bufnr].gitsigns_head or vim.g.gitsigns_head
   if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
+  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
 end
 
 ---@param bufnr integer
@@ -80,8 +80,8 @@ local function _section_filename(bufnr)
 
   local filename = vim.fn.fnamemodify(name, ":t")
   local rel      = vim.fn.fnamemodify(name, ":~:.")
-  local icon, icon_hl = _icons.get_icon(filename)
-  local icon_str = icon ~= "" and ("%#" .. icon_hl .. "# " .. icon) or ""
+  local icon, _ = _icons.get_icon(filename)
+  local icon_str = icon ~= "" and ("%#StatusLine# " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " %#KeystoneSLDiagWarn#●%#StatusLine#" or ""
   local ro       = vim.bo[bufnr].readonly and " %#KeystoneSLDiagError#%#StatusLine#" or ""
   return icon_str .. "%#StatusLine# " .. rel:gsub("%%", "%%%%") .. mod .. ro
@@ -95,9 +95,9 @@ local function _section_diagnostics(bufnr)
   local h = counts[vim.diagnostic.severity.HINT]  or 0
 
   local parts = {}
-  if e > 0 then table.insert(parts, "%#KeystoneSLDiagError# " .. e) end
-  if w > 0 then table.insert(parts, "%#KeystoneSLDiagWarn# " .. w) end
-  if h > 0 then table.insert(parts, "%#KeystoneSLDiagHint#󰌶 " .. h) end
+  if e > 0 then table.insert(parts, "%#KeystoneSLDiagError#󰅚 " .. e) end
+  if w > 0 then table.insert(parts, "%#KeystoneSLDiagWarn#󰀪 " .. w) end
+  if h > 0 then table.insert(parts, "%#KeystoneSLDiagHint#󰋽 " .. h) end
   if #parts == 0 then return "" end
 
   return table.concat(parts, " ") .. " %#StatusLine#"
