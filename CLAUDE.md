@@ -59,3 +59,11 @@ Reusable class that renders an indented, expandable tree into a Neovim buffer wi
 - `strutil.lua` — string utilities
 - `uitool.lua` — Neovim UI helpers
 - `usercmd.lua` — registers user commands with subcommand completion
+
+### Styling
+
+Add Lua annotations (`---@param`, `---@return`, `---@class`, etc.) whenever possible.
+
+Class-based modules are named in PascalCase and functional modules are named in snake_case.
+
+Module local variable names are to be prefixed with underscore, but not local function names or module names.

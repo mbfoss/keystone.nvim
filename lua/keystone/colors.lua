@@ -26,7 +26,7 @@ local M = {}
 
 local default_palette = {
     -- neutrals (dark → bright)
-    bg_dark  = '#252629',   -- inactive splits, deepest bg layer
+    bg_dark  = '#26272B',   -- inactive splits, deepest bg layer
     bg       = '#2e2f33',   -- editor background
     bg_panel = '#34353a',   -- panels, sidebars, tabline
     bg_alt   = '#3a3b40',   -- general alternate bg (selection sbar, etc.)
@@ -106,7 +106,7 @@ function M.setup(config)
 
     -- ── Core ──────────────────────────────────────────────────────────
     hl('Normal',        { fg = c.fg,      bg = c.bg })
-    hl('NormalNC',      { fg = c.fg,      bg = c.bg_dark })
+    hl('NormalNC',      { fg = c.fg,      bg = c.bg })
     hl('NormalFloat',   { fg = c.fg,      bg = c.bg_float })
     hl('FloatBorder',   { fg = c.overlay, bg = c.bg_float })
     hl('FloatTitle',    { fg = c.blue,    bg = c.bg_float, gui = 'bold' })
@@ -131,10 +131,10 @@ function M.setup(config)
     hl('CurSearch',     { fg = c.bg,      bg = c.amber })
 
     -- ── UI chrome ─────────────────────────────────────────────────────
-    hl('StatusLine',    { fg = c.fg,      bg = c.surface,  gui = 'none' })
-    hl('StatusLineNC',  { fg = c.fg_dim,  bg = c.bg_panel, gui = 'none' })
-    hl('WinBar',        { fg = c.fg,      bg = c.bg_float, gui = 'none' })
-    hl('WinBarNC',      { fg = c.fg_dim,  bg = c.bg_float, gui = 'none' })
+    hl('StatusLine',    { fg = c.fg_dim,  bg = c.surface,  gui = 'none' })
+    hl('StatusLineNC',  { fg = c.muted,   bg = c.bg_panel, gui = 'none' })
+    hl('WinBar',        { fg = c.fg_dim,  bg = c.bg_float, gui = 'none' })
+    hl('WinBarNC',      { fg = c.muted,   bg = c.bg_float, gui = 'none' })
     hl('VertSplit',     { fg = c.line })
     hl('WinSeparator',  { fg = c.line })
     hl('TabLine',       { fg = c.muted,   bg = c.bg_panel, gui = 'none' })

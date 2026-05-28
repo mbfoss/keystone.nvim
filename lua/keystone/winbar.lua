@@ -81,10 +81,10 @@ local function _build_symbol_trail(symbols, line)
   for _, sym in ipairs(chain) do
     local kind_icon = _KIND_ICONS[sym.kind] or "󰊕"
     local name = sym.name:gsub("%%", "%%%%")
-    table.insert(parts, "%#WinBarNC# " .. kind_icon .. " %#WinBar#" .. name)
+    table.insert(parts, "%#WinBar# " .. kind_icon .. " %#WinBar#" .. name)
   end
 
-  return "%#WinBarNC# ›" .. table.concat(parts, " %#WinBarNC#›")
+  return "%#WinBar# ›" .. table.concat(parts, " %#WinBar#›")
 end
 
 -- Crops a winbar string (containing %#HlGroup# sequences) from the left,
@@ -101,7 +101,7 @@ local function _fit_to_width(str, max_width)
   local i = 1
   local n = #str
   local result = {}
-  local pending_hl = "%#WinBarNC#"
+  local pending_hl = "%#WinBar#"
   local collecting = false
 
   while i <= n do
@@ -134,7 +134,7 @@ local function _fit_to_width(str, max_width)
     end
   end
 
-  return "%#WinBarNC#…" .. table.concat(result)
+  return "%#WinBar#…" .. table.concat(result)
 end
 
 local function _build_file_part(bufnr)
@@ -148,7 +148,7 @@ local function _build_file_part(bufnr)
   local filename = vim.fn.fnamemodify(rel, ":t")
 
   if dir and dir ~= "." and dir ~= "" then
-    return "%#WinBarNC#" .. dir:gsub("%%", "%%%%") .. "/%#WinBar#" .. filename:gsub("%%", "%%%%")
+    return "%#WinBar#" .. dir:gsub("%%", "%%%%") .. "/%#WinBar#" .. filename:gsub("%%", "%%%%")
   end
   return "%#WinBar#" .. filename:gsub("%%", "%%%%")
 end
