@@ -552,8 +552,13 @@ end
 
 local function on_cursor_moved()
   if in_float() then return end
-  if not has_lsp_clients("signatureHelpProvider") then return end
-  if is_trigger_char(get_left_char(), "signature") then vim.lsp.buf.signature_help() end
+  ---@type vim.lsp.buf.signature_help.Opts
+  local opts = {
+    silent = true,
+    border = "rounded",
+    --close_events = {},
+  }
+  vim.lsp.buf.signature_help(opts)
 end
 
 local function on_complete_done()

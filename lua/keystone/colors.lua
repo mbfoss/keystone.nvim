@@ -258,10 +258,11 @@ function M.setup(config)
     hl('DiagnosticUnderlineOk',         { gui = 'undercurl', sp = c.lime })
 
     -- ── LSP ───────────────────────────────────────────────────────────
-    hl('LspReferenceText',  { gui = 'underline', sp = c.subtle })
-    hl('LspReferenceRead',  { gui = 'underline', sp = c.subtle })
-    hl('LspReferenceWrite', { gui = 'underline', sp = c.amber })
-    hl('LspInlayHint',      { fg = c.muted,      gui = 'italic' })
+    hl('LspReferenceText',           { gui = 'underline', sp = c.subtle })
+    hl('LspReferenceRead',           { gui = 'underline', sp = c.subtle })
+    hl('LspReferenceWrite',          { gui = 'underline', sp = c.amber })
+    hl('LspInlayHint',               { fg = c.muted,      gui = 'italic' })
+    hl('LspSignatureActiveParameter',{ fg = c.lavender,   gui = 'bold' })
 
     -- ── Treesitter (@-namespace, Neovim 0.9+) ─────────────────────────
     hl('@variable',              { fg = c.fg })
