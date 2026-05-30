@@ -552,6 +552,7 @@ end
 
 local function on_cursor_moved()
   if in_float() then return end
+  if not has_lsp_clients("signatureHelpProvider") then return end
   ---@type vim.lsp.buf.signature_help.Opts
   local opts = {
     silent = true,
