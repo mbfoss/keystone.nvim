@@ -1,12 +1,12 @@
 local M           = {}
 
-local uitool     = require("keystone.util.uitool")
-local strutil    = require("keystone.util.strutil")
+local uitool     = require("nvtoolkit.ui.utils")
+local strutil    = require("nvtoolkit.strutil")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutil     = require("keystone.util.fsutil")
-local throttle    = require("keystone.util.throttle")
-local spawn       = require("keystone.util.spawn")
+local fsutil     = require("nvtoolkit.fsutil")
+local throttle    = require("nvtoolkit.throttle")
+local spawn       = require("nvtoolkit.spawn")
 
 ---@class keystone.livegrep.opts
 ---@field cwd           string?   -- defaults to getcwd

@@ -2,8 +2,8 @@ local M        = {}
 
 local uv       = vim.uv
 local explorer = require("keystone.explore.explorer")
-local fsutil  = require("keystone.util.fsutil")
-local uitool  = require("keystone.util.uitool")
+local fsutil  = require("nvtoolkit.fsutil")
+local uitool  = require("nvtoolkit.ui.utils")
 local icons    = require("keystone.icons")
 local inputwin = require("keystone.util.inputwin")
 

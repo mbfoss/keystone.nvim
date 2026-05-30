@@ -1,6 +1,6 @@
 local M = {}
 
-local uitool = require("keystone.util.uitool")
+local uitool = require("nvtoolkit.ui.utils")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 

@@ -1,6 +1,6 @@
 local M = {}
 
-local uitool = require("keystone.util.uitool")
+local uitool = require("nvtoolkit.ui.utils")
 
 ---@class keystone.winbar.Config
 ---@field enabled boolean
