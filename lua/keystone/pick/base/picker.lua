@@ -233,7 +233,8 @@ local function _sort_by_score(items)
 	return with_score
 end
 
-local _last_session = nil
+local _last_session   = nil
+local _active_picker  = nil
 
 ---@param item keystone.picker.ListItem
 local function _item_label(item)
@@ -318,6 +319,8 @@ function Picker:init(opts, callback)
 
 	local cword_ok, cword = pcall(vim.fn.expand, "<cword>")
 	self.original_cword = tostring(cword_ok and (type(cword) == "table" and cword[1] or cword) or "")
+
+	_active_picker = self
 
 	self:setup_ui()
 	self:setup_input()
@@ -1065,6 +1068,7 @@ end
 function Picker:close(selected_data)
 	if self.closed then return end
 	self.closed = true
+	if _active_picker == self then _active_picker = nil end
 
 	self:stop_spinner()
 
@@ -1235,6 +1239,9 @@ end
 ---@param callback keystone.Picker.Callback
 function M.open(opts, callback)
 	assert(opts.finder, "finder missing in opts")
+	if _active_picker and not _active_picker.closed then
+		_active_picker:close()
+	end
 	Picker:new(opts, callback)
 end
 

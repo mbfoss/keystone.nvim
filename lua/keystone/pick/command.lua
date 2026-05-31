@@ -33,6 +33,13 @@ local pickers = {
 
 local function _pick(picker_type)
     if not picker_type or picker_type == "" then
+        local keys = vim.tbl_keys(pickers)
+        table.sort(keys)
+        vim.ui.select(keys, { prompt = "Pick" }, function(choice)
+            if choice then
+                pickers[choice]()
+            end
+        end)
         return
     end
 
