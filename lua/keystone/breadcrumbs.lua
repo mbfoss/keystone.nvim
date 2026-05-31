@@ -1,7 +1,7 @@
 local M = {}
 
-local uitool = require("nvtoolkit.ui.utils")
-local throttle = require("nvtoolkit.throttle")
+local uitool = require("keystone.util.uitool")
+local throttle = require("keystone.util.throttle")
 
 ---@class keystone.winbar.Config
 ---@field enabled boolean

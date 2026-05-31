@@ -1,5 +1,5 @@
 local M = {}
-local strutil = require('nvtoolkit.strutil')
+local strutil = require('keystone.util.strutil')
 
 ---@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[]):string[]
 

@@ -1,11 +1,11 @@
-local strutil       = require("nvtoolkit.strutil")
-local uitool        = require("nvtoolkit.ui.utils")
-local fsutil        = require("nvtoolkit.fsutil")
-local TreeBuffer     = require("nvtoolkit.ui.TreeBuffer")
-local LRU            = require("nvtoolkit.LRU")
+local strutil       = require("keystone.util.strutil")
+local uitool        = require("keystone.util.uitool")
+local fsutil        = require("keystone.util.fsutil")
+local TreeBuffer     = require("keystone.util.TreeBuffer")
+local LRU            = require("keystone.util.LRU")
 local floatwin       = require("keystone.util.floatwin")
 local inputwin       = require("keystone.util.inputwin")
-local common         = require("nvtoolkit.timer")
+local common         = require("keystone.util.timer")
 local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
@@ -22,7 +22,7 @@ local icons          = require("keystone.icons")
 ---@field children_loading boolean?
 ---@field childrenload_req_id number
 
----@alias keystone.FileTree.ItemDef nvtoolkit.ui.TreeBuffer.ItemData
+---@alias keystone.FileTree.ItemDef keystone.util.TreeBuffer.ItemData
 
 ---@class keystone.FileTree.PrepareDirEntry
 ---@field name string
@@ -468,7 +468,7 @@ end
 
 ---@private
 ---@param parent_id string
----@param item nvtoolkit.ui.TreeBuffer.ItemDef
+---@param item keystone.util.TreeBuffer.ItemDef
 function FileTree:_upsert_single_item(parent_id, item)
     local root = self._root
     if not root then return end
@@ -673,12 +673,12 @@ function FileTree:_process_dir(path, entries, error_flag)
         end
     end
 
-    local children = {} ---@type nvtoolkit.ui.TreeBuffer.ItemDef[]
+    local children = {} ---@type keystone.util.TreeBuffer.ItemDef[]
     for _, entry in pairs(new_entries_map) do
         local icon, icon_hl = self:_get_icon_for_node(entry.name, entry.is_dir, entry.is_link)
         local expanded = self._pending_expand[entry.full_path]
         if expanded ~= nil then self._pending_expand[entry.full_path] = nil end
-        ---@type nvtoolkit.ui.TreeBuffer.ItemDef
+        ---@type keystone.util.TreeBuffer.ItemDef
         local child = {
             id = entry.full_path,
             expandable = entry.is_dir,
@@ -989,7 +989,7 @@ function FileTree:get_persistent_state()
     local expanded_map = {}
     local expanded_count = 0
 
-    ---@param parent nvtoolkit.ui.TreeBuffer.Item
+    ---@param parent keystone.util.TreeBuffer.Item
     local function walk(parent)
         if parent.expanded then
             expanded_map[parent.id] = true

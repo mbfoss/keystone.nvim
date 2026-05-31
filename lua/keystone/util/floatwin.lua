@@ -1,4 +1,4 @@
-local uitool = require "nvtoolkit.ui.utils"
+local uitool = require "keystone.util.uitool"
 ---@class keystone.util.floatwin
 ---@field _complete_cache? string[]
 ---@field _complete_buf? integer

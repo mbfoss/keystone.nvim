@@ -10,8 +10,8 @@ local M             = {}
 local notifications = require("keystone.notify")
 local picker        = require("keystone.pick.base.picker")
 local pickertools   = require("keystone.pick.base.pickertools")
-local strutil      = require("nvtoolkit.strutil")
-local uitool       = require("nvtoolkit.ui.utils")
+local strutil      = require("keystone.util.strutil")
+local uitool       = require("keystone.util.uitool")
 
 local _icons        = {
     info = "󰋽",

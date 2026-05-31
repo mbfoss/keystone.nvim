@@ -1,4 +1,4 @@
-local uitool = require "nvtoolkit.ui.utils"
+local uitool = require "keystone.util.uitool"
 local M = {}
 
 ---@class keystone.util.inputwin.Opts

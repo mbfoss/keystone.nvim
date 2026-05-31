@@ -1,8 +1,8 @@
 local M = {}
 
-local uitool = require("nvtoolkit.ui.utils")
-local strutil = require("nvtoolkit.strutil")
-local fsutil = require("nvtoolkit.fsutil")
+local uitool = require("keystone.util.uitool")
+local strutil = require("keystone.util.strutil")
+local fsutil = require("keystone.util.fsutil")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons = require("keystone.icons")

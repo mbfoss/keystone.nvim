@@ -1,10 +1,10 @@
 local M = {}
 
-local uitool = require("nvtoolkit.ui.utils")
-local strutil = require("nvtoolkit.strutil")
+local uitool = require("keystone.util.uitool")
+local strutil = require("keystone.util.strutil")
 local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutil = require("nvtoolkit.fsutil")
+local fsutil = require("keystone.util.fsutil")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)

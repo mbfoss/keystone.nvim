@@ -1,7 +1,7 @@
-local Spinner            = require("nvtoolkit.Spinner")
-local common             = require("nvtoolkit.timer")
-local fsutil            = require("nvtoolkit.fsutil")
-local uitool            = require("nvtoolkit.ui.utils")
+local Spinner            = require("keystone.util.Spinner")
+local common             = require("keystone.util.timer")
+local fsutil            = require("keystone.util.fsutil")
+local uitool            = require("keystone.util.uitool")
 local floatwin           = require("keystone.util.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 
