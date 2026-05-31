@@ -18,15 +18,17 @@ local function build_highlight_chunks(text, positions, hl_group)
 
     local current_chunk = ""
     local last_was_match = pos_map[1] or false
+    local nchars = vim.fn.strchars(text)
 
-    for i = 1, #text do
+    for i = 1, nchars do
+        local char = vim.fn.strcharpart(text, i - 1, 1)
         local is_match = pos_map[i] or false
         if is_match ~= last_was_match then
             table.insert(chunks, last_was_match and { current_chunk, hl } or { current_chunk })
-            current_chunk = text:sub(i, i)
+            current_chunk = char
             last_was_match = is_match
         else
-            current_chunk = current_chunk .. text:sub(i, i)
+            current_chunk = current_chunk .. char
         end
     end
 
@@ -48,7 +50,7 @@ function M.match_label(text, query)
     local raw_positions = result[2][1]
     local positions = {}
     for _, p in ipairs(raw_positions) do
-        positions[#positions + 1] = p + 1  -- matchfuzzypos is 0-based; build_highlight_chunks expects 1-based
+        positions[#positions + 1] = p + 1 -- matchfuzzypos is 0-based; build_highlight_chunks expects 1-based
     end
     return {
         score = result[3][1],
