@@ -55,8 +55,8 @@ local function _setup_highlights()
 end
 
 local function _section_mode()
-  local raw = vim.fn.mode(1)
-  local info = _MODE_MAP[raw:sub(1, 1)] or { label = raw:upper(), hl = "KeystoneSLModeNormal" }
+  local raw = vim.fn.mode()
+  local info = _MODE_MAP[raw] or { label = "?", hl = "KeystoneSLModeNormal" }
   return "%#" .. info.hl .. "# " .. info.label .. " %#StatusLine#"
 end
 
