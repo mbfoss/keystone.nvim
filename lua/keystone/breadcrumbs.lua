@@ -1,6 +1,7 @@
 local M = {}
 
 local uitool = require("nvtoolkit.ui.utils")
+local throttle = require("nvtoolkit.throttle")
 
 ---@class keystone.winbar.Config
 ---@field enabled boolean
@@ -21,35 +22,38 @@ local _symbol_cache = {}
 -- bufnrs where we own the winbar
 local _managed_bufs = {}
 
+-- per-buffer debounced refresh functions (created lazily on first TextChanged)
+local _refresh_fns = {}
+
 local _OUR_WINBAR = '%{%v:lua.require("keystone.breadcrumbs").render()%}'
 
 local _KIND_ICONS = {
-  [1]  = "", -- File
-  [2]  = "", -- Module
-  [3]  = "󰅩", -- Namespace
-  [4]  = "", -- Package
-  [5]  = "", -- Class
-  [6]  = "󰊕", -- Method
-  [7]  = "", -- Property
-  [8]  = "󰏿", -- Field
-  [9]  = "󰊕", -- Constructor
-  [10] = "", -- Enum
-  [11] = "󰜰", -- Interface
+  [1]  = "󰈙", -- File
+  [2]  = "󰆧", -- Module
+  [3]  = "󰌗", -- Namespace
+  [4]  = "󰏗", -- Package
+  [5]  = "󰌗", -- Class
+  [6]  = "󰆧", -- Method
+  [7]  = "󰜢", -- Property
+  [8]  = "󰇽", -- Field
+  [9]  = "", -- Constructor
+  [10] = "󰕘", -- Enum
+  [11] = "", -- Interface
   [12] = "󰊕", -- Function
-  [13] = "", -- Variable
-  [14] = "", -- Constant
-  [22] = "", -- EnumMember
-  [23] = "󱂖", -- Struct
-  [25] = "󰅪", -- Operator
-  [26] = "󰊕", -- TypeParameter
+  [13] = "󰀫", -- Variable
+  [14] = "󰏿", -- Constant
+  [22] = "󰕘", -- EnumMember
+  [23] = "󰙅", -- Struct
+  [25] = "󰆕", -- Operator
+  [26] = "󰊄", -- TypeParameter
 }
 
 local function _in_range(line0, range)
   return line0 >= range.start.line and line0 <= range["end"].line
 end
 
--- Method=6, Function=12, Constructor=9
-local _FUNCTION_KINDS = { [6] = true, [9] = true, [12] = true }
+-- Class=5, Method=6, Constructor=9, Function=12, Struct=23
+local _FUNCTION_KINDS = { [5] = true, [6] = true, [9] = true, [12] = true, [23] = true }
 
 local function _collect_enclosing(symbols, line0, chain)
   for _, sym in ipairs(symbols) do
@@ -222,6 +226,15 @@ local function _request_symbols(bufnr)
   end, bufnr)
 end
 
+local function _get_refresh_fn(bufnr)
+  if not _refresh_fns[bufnr] then
+    _refresh_fns[bufnr] = throttle.debounce_wrap(500, function()
+      _request_symbols(bufnr)
+    end)
+  end
+  return _refresh_fns[bufnr]
+end
+
 local _enabled = false
 
 function M.enable()
@@ -281,9 +294,19 @@ function M.enable()
     end,
   })
 
-  vim.api.nvim_create_autocmd("BufDelete", {
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
     group = group,
     callback = function(args)
+      if _managed_bufs[args.buf] then
+        _get_refresh_fn(args.buf)()
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+    group = group,
+    callback = function(args)
+      _refresh_fns[args.buf] = nil
       _symbol_cache[args.buf] = nil
       _managed_bufs[args.buf] = nil
     end,
@@ -297,6 +320,7 @@ function M.disable()
   for _, winid in ipairs(vim.api.nvim_list_wins()) do
     _clear_winbar(winid)
   end
+  _refresh_fns = {}
   _symbol_cache = {}
   _managed_bufs = {}
 end
