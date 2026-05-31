@@ -82,8 +82,8 @@ local function _section_filename(bufnr)
   local rel      = vim.fn.fnamemodify(name, ":~:.")
   local icon, _ = _icons.get_icon(filename)
   local icon_str = icon ~= "" and ("%#StatusLine# " .. icon) or ""
-  local mod      = vim.bo[bufnr].modified and " %#KeystoneSLDiagWarn#●%#StatusLine#" or ""
-  local ro       = vim.bo[bufnr].readonly and " %#KeystoneSLDiagError#%#StatusLine#" or ""
+  local mod      = vim.bo[bufnr].modified and " [+]" or ""
+  local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
   return icon_str .. "%#StatusLine# " .. rel:gsub("%%", "%%%%") .. mod .. ro
 end
 
