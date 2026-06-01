@@ -2,12 +2,27 @@ local M = {}
 
 local _icons = require("keystone.icons")
 
+---A section can be a builtin name or a function returning a statusline string.
+---Builtin names: "mode" | "git" | "filename" | "diagnostics" | "filetype" | "position"
+---@alias keystone.statusline.Section string | fun(bufnr: integer): string
+
+---@class keystone.statusline.Sections
+---@field left  keystone.statusline.Section[]
+---@field right keystone.statusline.Section[]
+
 ---@class keystone.statusline.Config
----@field enabled boolean
+---@field enabled  boolean
+---@field sections keystone.statusline.Sections
 
 local function _get_default_config()
   ---@type keystone.statusline.Config
-  return { enabled = true }
+  return {
+    enabled = true,
+    sections = {
+      left  = { "mode", "git", "filename" },
+      right = { "diagnostics", "filetype", "position" },
+    },
+  }
 end
 
 ---@type keystone.statusline.Config
@@ -54,8 +69,12 @@ local function _setup_highlights()
   def("KeystoneSLDiagHint",    { fg = "#94E2D5" })
 end
 
-local function _section_mode()
-  local raw = vim.fn.mode()
+-- ---------------------------------------------------------------------------
+-- Built-in section renderers
+-- ---------------------------------------------------------------------------
+
+local function _section_mode(_)
+  local raw  = vim.fn.mode()
   local info = _MODE_MAP[raw] or { label = "?", hl = "KeystoneSLModeNormal" }
   return "%#" .. info.hl .. "# " .. info.label .. " %#StatusLine#"
 end
@@ -64,7 +83,7 @@ end
 local function _section_git(bufnr)
   local branch = vim.b[bufnr].gitsigns_head or vim.g.gitsigns_head
   if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
+  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
 end
 
 ---@param bufnr integer
@@ -80,7 +99,7 @@ local function _section_filename(bufnr)
 
   local filename = vim.fn.fnamemodify(name, ":t")
   local rel      = vim.fn.fnamemodify(name, ":~:.")
-  local icon, _ = _icons.get_icon(filename)
+  local icon, _  = _icons.get_icon(filename)
   local icon_str = icon ~= "" and ("%#StatusLine# " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
@@ -110,8 +129,42 @@ local function _section_filetype(bufnr)
   return "%#StatusLine# " .. ft .. " "
 end
 
-local function _section_position()
+local function _section_position(_)
   return "%#StatusLine# %l:%c "
+end
+
+---@type table<string, fun(bufnr: integer): string>
+local _BUILTINS = {
+  mode        = _section_mode,
+  git         = _section_git,
+  filename    = _section_filename,
+  diagnostics = _section_diagnostics,
+  filetype    = _section_filetype,
+  position    = _section_position,
+}
+
+-- ---------------------------------------------------------------------------
+-- Render
+-- ---------------------------------------------------------------------------
+
+---@param sections keystone.statusline.Section[]
+---@param bufnr    integer
+---@return string
+local function _render_sections(sections, bufnr)
+  local out = {}
+  for _, section in ipairs(sections) do
+    local chunk
+    if type(section) == "function" then
+      chunk = section(bufnr)
+    elseif type(section) == "string" then
+      local fn = _BUILTINS[section]
+      chunk = fn and fn(bufnr) or ""
+    end
+    if chunk and chunk ~= "" then
+      table.insert(out, chunk)
+    end
+  end
+  return table.concat(out)
 end
 
 function M.render()
@@ -125,18 +178,18 @@ function M.render()
     if cfg.relative ~= "" then return "" end
     local bufnr = vim.api.nvim_win_get_buf(winid)
 
-    local left = _section_mode()
-      .. _section_git(bufnr)
-      .. _section_filename(bufnr)
-
-    local right = _section_diagnostics(bufnr)
-      .. _section_filetype(bufnr)
-      .. _section_position()
+    local sections = M.config.sections
+    local left  = _render_sections(sections.left,  bufnr)
+    local right = _render_sections(sections.right, bufnr)
 
     return left .. "%=" .. right
   end)
   return ok and result or ""
 end
+
+-- ---------------------------------------------------------------------------
+-- Lifecycle
+-- ---------------------------------------------------------------------------
 
 local _enabled = false
 
