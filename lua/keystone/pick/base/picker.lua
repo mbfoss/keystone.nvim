@@ -1,7 +1,7 @@
 local Spinner            = require("keystone.util.Spinner")
 local common             = require("keystone.util.timer")
-local fsutil            = require("keystone.util.fsutil")
-local uitool            = require("keystone.util.uitool")
+local fsutil             = require("keystone.util.fsutil")
+local uitool             = require("keystone.util.uitool")
 local floatwin           = require("keystone.util.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 
@@ -233,8 +233,8 @@ local function _sort_by_score(items)
 	return with_score
 end
 
-local _last_session   = nil
-local _active_picker  = nil
+local _last_session  = nil
+local _active_picker = nil
 
 ---@param item keystone.picker.ListItem
 local function _item_label(item)
@@ -589,6 +589,7 @@ function Picker:trigger_flag_completion(query)
 	if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
 	if vim.fn.mode() ~= "i" then return end
 	if vim.fn.pumvisible() == 1 then return end
+	if self._pum_dismiss_pending then return end
 
 	local col         = vim.api.nvim_win_get_cursor(self.pwin)[2]
 	local completions = require("keystone.pick.base.queryflags").get_completions(self.opts.flags, query, col)
@@ -682,7 +683,7 @@ function Picker:update_preview()
 	local item = cursor and self.list_items[cursor] or nil
 	if not item then return end
 
-	local preview_width = math.max(0, self.layout.preview_width - 2)   -- -2 for borders
+	local preview_width = math.max(0, self.layout.preview_width - 2) -- -2 for borders
 	local preview_height = math.max(0, self.layout.preview_height - 2) -- -2 for borders
 
 	local preview_fn = self.opts.previewer or _default_preview
@@ -828,7 +829,6 @@ function Picker:set_items(items)
 	local extmarks = {}
 
 	for row_idx, item in ipairs(items) do
-
 		---@type keystone.picker.ListItem
 		local list_item = {
 			score = item.score,
@@ -1119,6 +1119,14 @@ function Picker:close(selected_data)
 end
 
 function Picker:toggle_opts_mode()
+	if vim.fn.pumvisible() == 1 then
+		self._pum_dismiss_pending = true
+		vim.api.nvim_feedkeys(
+			vim.api.nvim_replace_termcodes("<C-y>", true, false, true), "n", false
+		)
+		vim.schedule(function() self._pum_dismiss_pending = false end)
+		return
+	end
 	if #self.opts.flags == 0 then return end
 	local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
 	if self.prompt_mode == "query" then
@@ -1130,11 +1138,6 @@ function Picker:toggle_opts_mode()
 		self:render_prompt_highlight(display)
 		self:trigger_flag_completion(display)
 	else
-		if vim.fn.pumvisible() == 1 then
-			vim.api.nvim_feedkeys(
-				vim.api.nvim_replace_termcodes("<C-e>", true, false, true), "n", false
-			)
-		end
 		self.filter_text = current
 		self.prompt_mode = "query"
 		local display    = self.query_text
