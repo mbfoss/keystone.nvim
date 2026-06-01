@@ -100,6 +100,27 @@ function M.highlight(schema, raw)
 end
 
 ---@param schema      keystone.queryflags.FlagDef[]
+---@param raw         string
+---@param default_hl  string  -- highlight group for unhighlighted spans
+---@return {[1]:string,[2]:string}[]
+function M.to_virt_text(schema, raw, default_hl)
+    local hls    = M.highlight(schema, raw)
+    local chunks = {}
+    local pos    = 0
+    for _, h in ipairs(hls) do
+        if h.start > pos then
+            chunks[#chunks + 1] = { raw:sub(pos + 1, h.start), default_hl }
+        end
+        chunks[#chunks + 1] = { raw:sub(h.start + 1, h.finish), h.hl }
+        pos = h.finish
+    end
+    if pos < #raw then
+        chunks[#chunks + 1] = { raw:sub(pos + 1), default_hl }
+    end
+    return chunks
+end
+
+---@param schema      keystone.queryflags.FlagDef[]
 ---@param line        string
 ---@param cursor_byte integer  -- 0-indexed byte offset from nvim_win_get_cursor
 ---@return keystone.queryflags.Completions?
