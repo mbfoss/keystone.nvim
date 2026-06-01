@@ -57,11 +57,10 @@ function M.select(items, opts, on_choice)
     local height_ratio = (list_height + 3) / vim.o.lines
 
     picker.open({
-        prompt         = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
-        list_width     = list_width,
-        height_ratio   = height_ratio,
-        enable_preview = true,
-        finder         = function(query, _, fetch_opts, callback)
+        prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
+        list_width   = list_width,
+        height_ratio = height_ratio,
+        finder       = function(query, _, fetch_opts, callback)
             local results = {}
 
             for _, entry in ipairs(cached) do
@@ -76,14 +75,6 @@ function M.select(items, opts, on_choice)
 
             callback(results)
         end,
-        previewer      = function(data, preview_opts, callback)
-            callback({
-                content = (type(data) == "table" and not (getmetatable(data) or {}).__tostring)
-                    and vim.inspect(data)
-                    or tostring(data),
-                filetype = "yaml"
-            })
-        end
     }, function(choice)
         if choice then
             on_choice(choice)
