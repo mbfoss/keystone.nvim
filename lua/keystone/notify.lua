@@ -45,6 +45,7 @@ local _id_counter = 0
 local _initialized = false
 local _enabled = false
 local _original_vim_notify = nil
+local _LSP_AUGROUP = "keystone_notify_lsp"
 local _layout_scheduled = false
 
 local _hl_map = {
@@ -73,8 +74,8 @@ local function _get_defaults()
     width = 50,
     border = "rounded",
     timeout = 3000,
-    lsp_progress = true,
-    lsp_progress_delay = 1000,
+    lsp_progress = false,
+    lsp_progress_delay = 1000, -- this avoids progress notification for short updates
     history_limit = 100,
   }
 end
@@ -291,17 +292,18 @@ local function _override(msg, level, opts)
   return M.notify(msg, opts)
 end
 
----@param progress lsp.ProgressParams
----@param ctx lsp.HandlerContext
-local function _lsp_handler(_, progress, ctx)
-  local client = vim.lsp.get_client_by_id(ctx.client_id)
-  local val = progress.value
+---@param ev vim.api.keyset.create_autocmd.callback_args
+local function _lsp_handler(ev)
+  if not _enabled then return end
+  local client = vim.lsp.get_client_by_id(ev.data.client_id)
+  local params = ev.data.params
+  local val    = params and params.value
 
   if not client or not val then
     return
   end
 
-  local token = progress.token
+  local token = params.token
 
   local display_title = val.title
       and (client.name .. ": " .. val.title)
@@ -379,25 +381,39 @@ function M.enable()
     assert(vim.notify)
     _original_vim_notify = vim.notify
     vim.notify = _override
-
-    if M.config.lsp_progress then
-      local prev = vim.lsp.handlers["$/progress"]
-
-      vim.lsp.handlers["$/progress"] = function(err, prog, ctx)
-        if _enabled then
-          _lsp_handler(err, prog, ctx)
-        end
-
-        if prev then
-          prev(err, prog, ctx)
-        end
-      end
-    end
   end
 end
 
 function M.disable()
   _enabled = false
+end
+
+function M.enable_lsp_progress()
+  M.config.lsp_progress = true
+  vim.api.nvim_create_autocmd("LspProgress", {
+    group = vim.api.nvim_create_augroup(_LSP_AUGROUP, { clear = true }),
+    callback = _lsp_handler,
+  })
+end
+
+function M.disable_lsp_progress()
+  M.config.lsp_progress = false
+  pcall(vim.api.nvim_del_augroup_by_name, _LSP_AUGROUP)
+  for token, state in pairs(_pending_lsp_notify) do
+    if state.timer then
+      common.stop_and_close_timer(state.timer)
+    end
+    _pending_lsp_notify[token] = nil
+    _close(token)
+  end
+end
+
+function M.toggle_lsp_progress()
+  if M.config.lsp_progress then
+    M.disable_lsp_progress()
+  else
+    M.enable_lsp_progress()
+  end
 end
 
 function M.setup(opts)
@@ -407,6 +423,10 @@ function M.setup(opts)
     M.enable()
   else
     M.disable()
+  end
+
+  if M.config.lsp_progress then
+    M.enable_lsp_progress()
   end
 end
 

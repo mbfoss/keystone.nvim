@@ -3,7 +3,7 @@ local M = {}
 local _icons = require("keystone.icons")
 
 ---A section can be a builtin name or a function returning a statusline string.
----Builtin names: "mode" | "git" | "filename" | "diagnostics" | "filetype" | "position"
+---Builtin names: "mode" | "git" | "filename" | "lsp_progress" | "diagnostics" | "filetype" | "position"
 ---@alias keystone.statusline.Section string | fun(bufnr: integer): string
 
 ---@class keystone.statusline.Sections
@@ -20,7 +20,7 @@ local function _get_default_config()
     enabled = true,
     sections = {
       left  = { "mode", "git", "filename" },
-      right = { "diagnostics", "filetype", "position" },
+      right = { "lsp_progress", "diagnostics", "filetype", "position" },
     },
   }
 end
@@ -63,11 +63,19 @@ local function _setup_highlights()
   def("KeystoneSLModeVisual",  { fg = "#9D82C7", bold = true })
   def("KeystoneSLModeReplace", { fg = "#B87A90", bold = true })
   def("KeystoneSLModeCommand", { fg = "#CDCDCD", bold = true })
-  def("KeystoneSLGit",         { fg = "#7F849C" })
-  def("KeystoneSLDiagError",   { fg = "#F38BA8" })
-  def("KeystoneSLDiagWarn",    { fg = "#F9E2AF" })
-  def("KeystoneSLDiagHint",    { fg = "#94E2D5" })
+  def("KeystoneSLGit",         { link = "StatusLine" })
+  def("KeystoneSLLspProgress", { link = "StatusLine" })
+  def("KeystoneSLDiagError",   { link = "DiagnosticError" })
+  def("KeystoneSLDiagWarn",    { link = "DiagnosticWarn" })
+  def("KeystoneSLDiagHint",    { link = "DiagnosticHint" })
 end
+
+---@class keystone.statusline.LspToken
+---@field name       string
+---@field percentage integer?
+
+---@type table<string|integer, keystone.statusline.LspToken>
+local _lsp_progress = {}
 
 -- ---------------------------------------------------------------------------
 -- Built-in section renderers
@@ -83,7 +91,7 @@ end
 local function _section_git(bufnr)
   local branch = vim.b[bufnr].gitsigns_head or vim.g.gitsigns_head
   if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
+  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
 end
 
 ---@param bufnr integer
@@ -129,18 +137,29 @@ local function _section_filetype(bufnr)
   return "%#StatusLine# " .. ft .. " "
 end
 
+local function _section_lsp_progress(_)
+  local parts = {}
+  for _, token in pairs(_lsp_progress) do
+    local text = token.percentage and (token.name .. " " .. token.percentage .. "%%") or token.name
+    table.insert(parts, text)
+  end
+  if #parts == 0 then return "" end
+  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %#StatusLine#"
+end
+
 local function _section_position(_)
   return "%#StatusLine# %l:%c "
 end
 
 ---@type table<string, fun(bufnr: integer): string>
 local _BUILTINS = {
-  mode        = _section_mode,
-  git         = _section_git,
-  filename    = _section_filename,
-  diagnostics = _section_diagnostics,
-  filetype    = _section_filetype,
-  position    = _section_position,
+  mode         = _section_mode,
+  git          = _section_git,
+  filename     = _section_filename,
+  lsp_progress = _section_lsp_progress,
+  diagnostics  = _section_diagnostics,
+  filetype     = _section_filetype,
+  position     = _section_position,
 }
 
 -- ---------------------------------------------------------------------------
@@ -206,11 +225,30 @@ function M.enable()
     group = group,
     callback = _setup_highlights,
   })
+
+  vim.api.nvim_create_autocmd("LspProgress", {
+    group = group,
+    callback = function(ev)
+      local client = vim.lsp.get_client_by_id(ev.data.client_id)
+      if not client then return end
+      local params = ev.data.params
+      local val    = params and params.value
+      if not val then return end
+      local token = params.token
+      if val.kind == "end" then
+        _lsp_progress[token] = nil
+      else
+        _lsp_progress[token] = { name = client.name, percentage = val.percentage }
+      end
+      vim.cmd.redrawstatus()
+    end,
+  })
 end
 
 function M.disable()
   if not _enabled then return end
   _enabled = false
+  _lsp_progress = {}
   vim.api.nvim_del_augroup_by_name("keystone_statusline")
   vim.o.statusline = ""
 end
