@@ -148,7 +148,7 @@ local function _section_lsp_progress(_)
 end
 
 local function _section_position(_)
-  return "%#StatusLine# %l:%c "
+  return "%#StatusLine# %4l:%-3c "
 end
 
 ---@type table<string, fun(bufnr: integer): string>
