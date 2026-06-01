@@ -14,6 +14,7 @@ local icons = require("keystone.icons")
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
+---@field follow_symlinks boolean?
 
 ---@class keystone.filepicker.SearchOpts
 ---@field cwd string The root directory for the search
@@ -23,12 +24,14 @@ local icons = require("keystone.icons")
 ---@field max_results number?
 ---@field use_regex boolean?
 ---@field case_sensitive boolean?
+---@field follow_symlinks boolean?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
-    { name = "regex", type = "boolean",               desc = "enable regex mode"   },
-    { name = "case",  type = "boolean",               desc = "case-sensitive"      },
+    { name = "dir",    type = "value",   multi = true, desc = "filter by directory" },
+    { name = "regex",  type = "boolean",              desc = "enable regex mode"   },
+    { name = "case",   type = "boolean",              desc = "case-sensitive"      },
+    { name = "follow", type = "boolean",              desc = "follow symlinks"     },
 }
 
 ---@param filename string
@@ -70,6 +73,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         {
             include_regex_list = include_regex_list,
             exclude_regex_list = exclude_regex_list,
+            follow_symlinks    = opts.follow_symlinks,
             on_dir_enter = function(path)
                 vim.cmd("redraw")
             end,
@@ -134,13 +138,14 @@ function M.open(opts)
 
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
-                cwd            = opts.cwd or vim.fn.getcwd(),
-                include_globs  = (opts.include_globs and #opts.include_globs > 0) and opts.include_globs or nil,
-                dir_filters    = #dir_filters > 0 and dir_filters or nil,
-                exclude_globs  = opts.exclude_globs,
-                max_results    = opts.max_results or 10000,
-                use_regex      = flags.regex,
-                case_sensitive = flags.case,
+                cwd             = opts.cwd or vim.fn.getcwd(),
+                include_globs   = (opts.include_globs and #opts.include_globs > 0) and opts.include_globs or nil,
+                dir_filters     = #dir_filters > 0 and dir_filters or nil,
+                exclude_globs   = opts.exclude_globs,
+                max_results     = opts.max_results or 10000,
+                use_regex       = flags.regex,
+                case_sensitive  = flags.case,
+                follow_symlinks = opts.follow_symlinks or flags.follow,
             }
             return async_lua_search(query, search_opts, fetch_opts, callback)
         end,

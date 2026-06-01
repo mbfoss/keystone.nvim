@@ -9,19 +9,21 @@ local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
 
 ---@class keystone.livegrep.opts
----@field cwd           string?   -- defaults to getcwd
----@field include_globs string[]?
----@field exclude_globs string[]?
+---@field cwd             string?   -- defaults to getcwd
+---@field include_globs   string[]?
+---@field exclude_globs   string[]?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
----@field max_results   number?
+---@field max_results     number?
+---@field follow_symlinks boolean?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "glob",  type = "value",   multi = true,              desc = "raw glob pattern" },
-    { name = "file",  type = "value",   multi = true,              desc = "filter by filename" },
-    { name = "dir",   type = "value",   multi = true,              desc = "filter by directory" },
-    { name = "regex", type = "boolean", desc = "enable regex mode" },
-    { name = "case",  type = "boolean", desc = "case-sensitive" },
+    { name = "glob",   type = "value",   multi = true,              desc = "raw glob pattern" },
+    { name = "file",   type = "value",   multi = true,              desc = "filter by filename" },
+    { name = "dir",    type = "value",   multi = true,              desc = "filter by directory" },
+    { name = "regex",  type = "boolean", desc = "enable regex mode" },
+    { name = "case",   type = "boolean", desc = "case-sensitive" },
+    { name = "follow", type = "boolean", desc = "follow symlinks" },
 }
 
 ---@param line string
@@ -90,6 +92,10 @@ local function build_rg_cmd(parsed, opts)
     end
 
     local args = { "--json", "--no-heading", "--glob-case-insensitive" }
+
+    if opts.follow_symlinks or flags.follow then
+        table.insert(args, "--follow")
+    end
 
     if flags.case then
         table.insert(args, "--case-sensitive")
@@ -232,10 +238,11 @@ function M.open(opts)
         finder           = function(query, flags, fetch_opts, callback)
             local parsed = { query = query, flags = flags }
             return async_grep(parsed, {
-                cwd           = cwd,
-                include_globs = opts.include_globs or {},
-                exclude_globs = opts.exclude_globs or {},
-                max_results   = opts.max_results or 10000,
+                cwd             = cwd,
+                include_globs   = opts.include_globs or {},
+                exclude_globs   = opts.exclude_globs or {},
+                max_results     = opts.max_results or 10000,
+                follow_symlinks = opts.follow_symlinks,
             }, fetch_opts, error_notifier, callback)
         end,
     }, function(data)

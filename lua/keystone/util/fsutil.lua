@@ -303,6 +303,7 @@ end
 ---@field on_dir_enter fun(path:string)?
 ---@field on_file fun(filepath:string,filename:string,relative_path:string)
 ---@field on_done fun()
+---@field follow_symlinks boolean?
 
 ---@param dir string
 ---@param opts keystone.util.fsutil.walk_dir_opts
@@ -347,11 +348,16 @@ function M.async_walk_dir(dir, opts)
             local full_path = vim.fs.joinpath(path, name)
             local rel_path = vim.fs.relpath(dir, full_path)
             if rel_path then
-                if type_ == "directory" then
+                local resolved_type = type_ ---@type string?
+                if type_ == "link" and opts.follow_symlinks then
+                    local stat = uv.fs_stat(full_path)
+                    resolved_type = stat and stat.type or nil
+                end
+                if resolved_type == "directory" then
                     if strutil.check_path_pattern(rel_path, true, nil, opts.exclude_regex_list) then
                         table.insert(pending_dirs, full_path)
                     end
-                elseif type_ == "file" then
+                elseif resolved_type == "file" then
                     if strutil.check_path_pattern(rel_path, false, opts.include_regex_list, opts.exclude_regex_list) then
                         opts.on_file(full_path, name, rel_path)
                     end
