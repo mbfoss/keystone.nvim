@@ -1012,6 +1012,7 @@ function Picker:set_prompt_text(text)
 		vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
 		self:render_mode_prefix()
 	else
+		self.query_text = text
 		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
 		vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
 	end
