@@ -72,6 +72,7 @@ end
 
 ---@class keystone.statusline.LspToken
 ---@field name       string
+---@field client_id  integer
 ---@field percentage integer?
 
 ---@type table<string|integer, keystone.statusline.LspToken>
@@ -137,11 +138,14 @@ local function _section_filetype(bufnr)
   return "%#StatusLine# " .. ft .. " "
 end
 
-local function _section_lsp_progress(_)
+---@param bufnr integer
+local function _section_lsp_progress(bufnr)
   local parts = {}
   for _, token in pairs(_lsp_progress) do
-    local text = token.percentage and (token.name .. " " .. token.percentage .. "%%") or token.name
-    table.insert(parts, text)
+    if vim.lsp.buf_is_attached(bufnr, token.client_id) then
+      local text = token.percentage and (token.name .. " " .. token.percentage .. "%%") or token.name
+      table.insert(parts, text)
+    end
   end
   if #parts == 0 then return "" end
   return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %#StatusLine#"
@@ -238,7 +242,7 @@ function M.enable()
       if val.kind == "end" then
         _lsp_progress[token] = nil
       else
-        _lsp_progress[token] = { name = client.name, percentage = val.percentage }
+        _lsp_progress[token] = { name = client.name, client_id = ev.data.client_id, percentage = val.percentage }
       end
       vim.cmd.redrawstatus()
     end,
