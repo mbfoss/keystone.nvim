@@ -226,6 +226,7 @@ function M.notify(msg, opts)
       win_id = win,
       buf_id = buf,
       height = #lines,
+      level = level,
     }
 
     _active[id] = n
