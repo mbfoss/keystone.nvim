@@ -67,7 +67,8 @@ function M.make_history_provider(name, opts)
     assert(type(name) == "string" and name:match("^[%w_]+$"), "invalid name")
     assert(not opts.max_entries or type(opts.max_entries) == "number")
 
-    local file_path = vim.fs.joinpath(vim.fn.stdpath("data"), "keystonehist." .. name .. ".txt")
+    local dir = vim.fs.joinpath(vim.fn.stdpath("data"), "keystone")
+    local file_path = vim.fs.joinpath(dir, "pickhist." .. name .. ".txt")
     local max_entries = opts.max_entries or 50
     ---@type keystone.Picker.QueryHistoryProvider
     local provider = {
@@ -82,10 +83,13 @@ function M.make_history_provider(name, opts)
         end,
         ---@param hist string[]
         store = function(hist)
+            vim.fn.mkdir(dir, 'p')
             local start_idx = math.max(#hist - max_entries + 1, 1)
             local final_hist = {}
             for i = start_idx, #hist do
-                table.insert(final_hist, hist[i])
+                local s = hist[i]
+                assert(not s:match('\n'), "picker history item cannot contain \n")
+                table.insert(final_hist, s)
             end
             fsutil.write_content(file_path, table.concat(final_hist, '\n'))
         end

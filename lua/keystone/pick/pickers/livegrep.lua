@@ -1,9 +1,8 @@
 local M           = {}
 
 local uitool      = require("keystone.util.uitool")
-local strutil     = require("keystone.util.strutil")
-local pickertools = require("keystone.pick.base.pickertools")
-local fsutil      = require("keystone.util.fsutil")
+local strutil = require("keystone.util.strutil")
+local fsutil  = require("keystone.util.fsutil")
 local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
 
@@ -12,8 +11,8 @@ local spawn       = require("keystone.util.spawn")
 ---@field include_globs   string[]?
 ---@field exclude_globs   string[]?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
----@field max_results     number?
----@field follow_symlinks boolean?
+---@field max_results      number?
+---@field follow_symlinks  boolean?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
@@ -209,11 +208,10 @@ function M.spec(opts)
     local cwd = opts.cwd or vim.fn.getcwd()
 
     return {
-        prompt           = "Live Grep",
-        flags            = FLAGS,
-        enable_preview   = true,
-        enable_list_sep  = true,
-        history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
+        prompt          = "Live Grep",
+        flags           = FLAGS,
+        enable_preview  = true,
+        enable_list_sep = true,
         finder           = function(query, flags, fetch_opts, callback, _)
             local parsed = { query = query, flags = flags }
             return async_grep(parsed, {

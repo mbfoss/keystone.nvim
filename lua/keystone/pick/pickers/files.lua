@@ -12,7 +12,6 @@ local icons       = require("keystone.icons")
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
----@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field follow_symlinks boolean?
 
 ---@class keystone.filepicker.SearchOpts
@@ -116,10 +115,9 @@ end
 function M.spec(opts)
     opts = opts or {}
     return {
-        prompt           = opts.prompt or "Files",
-        flags            = FLAGS,
-        enable_preview   = true,
-        history_provider = opts.history_provider or pickertools.make_history_provider("files"),
+        prompt         = opts.prompt or "Files",
+        flags          = FLAGS,
+        enable_preview = true,
         finder           = function(query, flags, fetch_opts, callback, _)
             if not query or query == "" then
                 callback()

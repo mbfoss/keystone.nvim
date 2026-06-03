@@ -1,7 +1,8 @@
 local M = {}
 
-local picker   = require("keystone.pick.base.picker")
-local registry = require("keystone.pick.registry")
+local picker      = require("keystone.pick.base.picker")
+local registry    = require("keystone.pick.registry")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@class keystone.pick.Config
 ---@field override_ui_select boolean?
@@ -70,13 +71,13 @@ end
 
 ---@param picker_type string?
 ---@param initial_filter string?
-local function _pick(picker_type, initial_filter)
+function M.pick(picker_type, initial_filter)
     if not picker_type or picker_type == "" then
         local keys = registry.keys()
         table.insert(keys, "repeat_last")
         table.sort(keys)
         vim.ui.select(keys, { prompt = "Pick" }, function(choice)
-            if choice then _pick(choice) end
+            if choice then M.pick(choice) end
         end)
         return
     end
@@ -88,6 +89,7 @@ local function _pick(picker_type, initial_filter)
 
     local spec = registry.get(picker_type)
     if spec then
+        spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
         _open_spec(spec, initial_filter)
     else
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
@@ -118,7 +120,7 @@ function M.setup(opts)
                     end
                     initial_filter = table.concat(parts, " ")
                 end
-                _pick(args[1], initial_filter)
+                M.pick(args[1], initial_filter)
             end
         end,
         {
