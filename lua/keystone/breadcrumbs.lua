@@ -93,16 +93,16 @@ local function _build_symbol_trail(symbols, line)
   for _, sym in ipairs(chain) do
     local kind_icon = _KIND_ICONS[sym.kind] or "󰊕"
     local name = sym.name:gsub("%%", "%%%%")
-    table.insert(parts, "%#WinBar# " .. kind_icon .. " %#WinBar#" .. name)
+    table.insert(parts, "%* " .. kind_icon .. " %*" .. name)
   end
 
-  return "%#WinBar# ›" .. table.concat(parts, " %#WinBar#›")
+  return "%* ›" .. table.concat(parts, " %*›")
 end
 
 -- Crops a winbar string (containing %#HlGroup# sequences) from the left,
 -- keeping the rightmost content when it exceeds max_width display columns.
 local function _fit_to_width(str, max_width)
-  local plain = (str:gsub("%%#[^#]*#", ""))
+  local plain = (str:gsub("%%#[^#]*#", ""):gsub("%%%*", ""))
   if vim.fn.strwidth(plain) <= max_width then return str end
 
   local keep_width = max_width - vim.fn.strwidth("…")
@@ -113,7 +113,7 @@ local function _fit_to_width(str, max_width)
   local i = 1
   local n = #str
   local result = {}
-  local pending_hl = "%#WinBar#"
+  local pending_hl = "%*"
   local collecting = false
 
   while i <= n do
@@ -129,6 +129,13 @@ local function _fit_to_width(str, max_width)
       else
         i = i + 1
       end
+    elseif str:sub(i, i) == "%" and i < n and str:sub(i + 1, i + 1) == "*" then
+      if collecting then
+        table.insert(result, "%*")
+      else
+        pending_hl = "%*"
+      end
+      i = i + 2
     else
       local b = str:byte(i)
       local clen = b < 0x80 and 1 or b < 0xE0 and 2 or b < 0xF0 and 3 or 4
@@ -146,7 +153,7 @@ local function _fit_to_width(str, max_width)
     end
   end
 
-  return "%#WinBar#…" .. table.concat(result)
+  return "%*…" .. table.concat(result)
 end
 
 function M.render()
@@ -163,7 +170,7 @@ function M.render()
 
     local name = vim.api.nvim_buf_get_name(bufnr)
     name = vim.fn.fnamemodify(name, ":t"):gsub("%%", "%%%%")
-    local prefix = "%#WinBar# " .. name
+    local prefix = "%* " .. name
 
     local cursor = vim.api.nvim_win_get_cursor(winid)
     local sym_trail = _build_symbol_trail(_symbol_cache[bufnr], cursor[1])

@@ -44,17 +44,7 @@ local _MODE_MAP = {
 }
 
 local function _setup_highlights()
-  local function hl_attr(name, attr)
-    local ok, h = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
-    if ok and h then return h[attr] end
-  end
-
-  local sl_bg = hl_attr("StatusLine", "bg")
-
   local function def(name, opts)
-    if sl_bg then
-      opts.bg = opts.bg or sl_bg
-    end
     vim.api.nvim_set_hl(0, name, opts)
   end
 
@@ -63,8 +53,8 @@ local function _setup_highlights()
   def("KeystoneSLModeVisual",  { fg = "#9D82C7", bold = true })
   def("KeystoneSLModeReplace", { fg = "#B87A90", bold = true })
   def("KeystoneSLModeCommand", { fg = "#CDCDCD", bold = true })
-  def("KeystoneSLGit",         { link = "StatusLine" })
-  def("KeystoneSLLspProgress", { link = "StatusLine" })
+  def("KeystoneSLGit",         { link = "" })
+  def("KeystoneSLLspProgress", { link = "" })
   def("KeystoneSLDiagError",   { link = "DiagnosticError" })
   def("KeystoneSLDiagWarn",    { link = "DiagnosticWarn" })
   def("KeystoneSLDiagHint",    { link = "DiagnosticHint" })
@@ -85,34 +75,34 @@ local _lsp_progress = {}
 local function _section_mode(_)
   local raw  = vim.fn.mode()
   local info = _MODE_MAP[raw] or { label = "?", hl = "KeystoneSLModeNormal" }
-  return "%#" .. info.hl .. "# " .. info.label .. " %#StatusLine#"
+  return "%#" .. info.hl .. "# " .. info.label .. " %*"
 end
 
 ---@param bufnr integer
 local function _section_git(bufnr)
   local branch = vim.b[bufnr].gitsigns_head or vim.g.gitsigns_head
   if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %#StatusLine#"
+  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %*"
 end
 
 ---@param bufnr integer
 local function _section_filename(bufnr)
   if vim.bo[bufnr].buftype == "terminal" then
-    return "%#StatusLine#  "
+    return "%*  "
   end
 
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" then
-    return "%#StatusLine# [No Name]"
+    return "%* [No Name]"
   end
 
   local filename = vim.fn.fnamemodify(name, ":t")
   local rel      = vim.fn.fnamemodify(name, ":~:.")
   local icon, _  = _icons.get_icon(filename)
-  local icon_str = icon ~= "" and ("%#StatusLine# " .. icon) or ""
+  local icon_str = icon ~= "" and ("%* " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
-  return icon_str .. "%#StatusLine# " .. rel:gsub("%%", "%%%%") .. mod .. ro
+  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. mod .. ro
 end
 
 ---@param bufnr integer
@@ -128,14 +118,14 @@ local function _section_diagnostics(bufnr)
   if h > 0 then table.insert(parts, "%#KeystoneSLDiagHint#󰋽 " .. h) end
   if #parts == 0 then return "" end
 
-  return table.concat(parts, " ") .. " %#StatusLine#"
+  return table.concat(parts, " ") .. " %*"
 end
 
 ---@param bufnr integer
 local function _section_filetype(bufnr)
   local ft = vim.bo[bufnr].filetype
   if ft == "" then return "" end
-  return "%#StatusLine# " .. ft .. " "
+  return "%* " .. ft .. " "
 end
 
 ---@param bufnr integer
@@ -148,11 +138,11 @@ local function _section_lsp_progress(bufnr)
     end
   end
   if #parts == 0 then return "" end
-  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %#StatusLine#"
+  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %*"
 end
 
 local function _section_position(_)
-  return "%#StatusLine# %4l:%-3c "
+  return "%* %4l:%-3c "
 end
 
 ---@type table<string, fun(bufnr: integer): string>
