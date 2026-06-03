@@ -1,21 +1,25 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-local uitool = require("keystone.util.uitool")
-local fsutil = require("keystone.util.fsutil")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
+local uitool      = require("keystone.util.uitool")
+local fsutil      = require("keystone.util.fsutil")
+
+---@class keystone.buffers.Opts
+---@field include_unloaded boolean?
+---@field include_unlisted boolean?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "ft",       type = "value",   multi = true, desc = "filter by filetype"          },
-    { name = "modified", type = "boolean",               desc = "only modified buffers"        },
-    { name = "unloaded", type = "boolean",               desc = "include unloaded buffers"     },
-    { name = "unlisted", type = "boolean",               desc = "include unlisted buffers"     },
+    { name = "ft",       type = "value",   multi = true, desc = "filter by filetype"      },
+    { name = "modified", type = "boolean",               desc = "only modified buffers"   },
+    { name = "unloaded", type = "boolean",               desc = "include unloaded buffers" },
+    { name = "unlisted", type = "boolean",               desc = "include unlisted buffers" },
 }
 
 ---@param bufnr number
 ---@param query string
 ---@param flags table
+---@param current_buf number
 ---@return keystone.Picker.Item?
 local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
@@ -26,7 +30,7 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
         label = "[No Name]"
     end
     local modified = vim.bo[bufnr].modified
-    local ft = vim.bo[bufnr].filetype
+    local ft       = vim.bo[bufnr].filetype
 
     if flags.modified and not modified then return nil end
     for _, v in ipairs(flags.ft or {}) do
@@ -51,7 +55,7 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
         table.insert(label_chunks, { " [unlisted]", "Special" })
     end
 
-    local mark = vim.api.nvim_buf_get_mark(bufnr, '"')
+    local mark     = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = unpack(mark)
     ---@type keystone.Picker.Item
     return {
@@ -62,34 +66,35 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     }
 end
 
----@param opts {include_unloaded:boolean?, included_unlised:boolean?}?
-function M.open(opts)
+---@param opts keystone.buffers.Opts?
+---@return keystone.PickerSpec
+function M.spec(opts)
     opts = opts or {}
+
     local max_preview_size = 1024 * 1024
-    local buffers     = vim.api.nvim_list_bufs()
-    local current_buf = vim.api.nvim_get_current_buf()
-    picker.open({
-        prompt = "Open Buffers",
-        flags = FLAGS,
+    local buffers          = vim.api.nvim_list_bufs()
+    local current_buf      = vim.api.nvim_get_current_buf()
+
+    return {
+        prompt         = "Open Buffers",
+        flags          = FLAGS,
         enable_preview = true,
-        finder = function(query, flags, _, callback)
+        finder         = function(query, flags, _, callback)
             local include_unloaded = opts.include_unloaded or flags.unloaded
-            local include_unlisted = opts.included_unlised or flags.unlisted
+            local include_unlisted = opts.include_unlisted or flags.unlisted
             local items = {}
             for _, bufnr in ipairs(buffers) do
                 if (include_unloaded or vim.api.nvim_buf_is_loaded(bufnr))
                     and (include_unlisted or vim.bo[bufnr].buflisted)
                 then
                     local item = buffer_to_picker_item(bufnr, query, flags, current_buf)
-                    if item then
-                        table.insert(items, item)
-                    end
+                    if item then table.insert(items, item) end
                 end
             end
             callback(items)
         end,
         previewer = function(data, _, callback)
-            local bufnr = data.bufnr
+            local bufnr     = data.bufnr
             local cancelled = false
             vim.schedule(function()
                 if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then
@@ -97,9 +102,10 @@ function M.open(opts)
                         local size = vim.api.nvim_buf_get_offset(bufnr, vim.api.nvim_buf_line_count(bufnr))
                         if size > max_preview_size then
                             callback({ error_msg = "Buffer too large for preview" })
+                            return
                         end
                         callback({
-                            content = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true),
+                            content  = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true),
                             filetype = vim.bo[bufnr].filetype,
                         })
                     end
@@ -109,11 +115,10 @@ function M.open(opts)
             end)
             return function() cancelled = true end
         end,
-    }, function(data)
-        if data then
-            uitool.smart_open_buffer(data.bufnr, data.lnum, data.col)
-        end
-    end)
+        on_confirm = function(data)
+            if data then uitool.smart_open_buffer(data.bufnr, data.lnum, data.col) end
+        end,
+    }
 end
 
 return M

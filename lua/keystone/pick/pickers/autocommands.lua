@@ -1,26 +1,21 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "event", type = "value", multi = true, desc = "filter by event name"  },
-    { name = "group", type = "value", multi = true, desc = "filter by augroup"     },
-    { name = "pat",   type = "value", multi = true, desc = "filter by pattern"     },
+    { name = "event", type = "value", multi = true, desc = "filter by event name" },
+    { name = "group", type = "value", multi = true, desc = "filter by augroup"    },
+    { name = "pat",   type = "value", multi = true, desc = "filter by pattern"    },
 }
 
 ---@param ac vim.api.keyset.get_autocmds.ret
 local function format_preview(ac)
     local function fmt(val)
         if val == nil then return nil end
-        if type(val) == "table" then
-            return table.concat(val, ", ")
-        elseif type(val) == "boolean" then
-            return val and "true" or "false"
-        else
-            return tostring(val)
-        end
+        if type(val) == "table"   then return table.concat(val, ", ") end
+        if type(val) == "boolean" then return val and "true" or "false" end
+        return tostring(val)
     end
 
     local function add(lines, label, value)
@@ -31,15 +26,15 @@ local function format_preview(ac)
     end
 
     local lines = {}
-
-    add(lines, "ID", ac.id)
-    add(lines, "Group", ac.group_name or ac.group)
-    add(lines, "Event", ac.event)
-    add(lines, "Pattern", ac.pattern or "*")
+    add(lines, "ID",          ac.id)
+    add(lines, "Group",       ac.group_name or ac.group)
+    add(lines, "Event",       ac.event)
+    add(lines, "Pattern",     ac.pattern or "*")
     add(lines, "Description", ac.desc)
-    add(lines, "Once", ac.once)
-    add(lines, "Buflocal", ac.buflocal)
-    add(lines, "Buffer", ac.buffer)
+    add(lines, "Once",        ac.once)
+    add(lines, "Buflocal",    ac.buflocal)
+    ---@diagnostic disable-next-line: undefined-field
+    add(lines, "Buffer",      ac.buffer)
 
     table.insert(lines, "")
     table.insert(lines, "Action:")
@@ -50,12 +45,8 @@ local function format_preview(ac)
         local info = debug.getinfo(ac.callback, "S")
         table.insert(lines, "- Type: Lua callback")
         if info then
-            if info.short_src then
-                table.insert(lines, string.format("- Source: `%s`", info.short_src))
-            end
-            if info.linedefined then
-                table.insert(lines, string.format("- Line: %d", info.linedefined))
-            end
+            if info.short_src   then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
+            if info.linedefined then table.insert(lines, string.format("- Line: %d",     info.linedefined)) end
         end
     else
         table.insert(lines, "_No action defined_")
@@ -64,93 +55,82 @@ local function format_preview(ac)
     return table.concat(lines, "\n")
 end
 
-function M.open()
+---@return keystone.PickerSpec?
+function M.spec()
     local entries = vim.api.nvim_get_autocmds({})
 
     if vim.tbl_isempty(entries) then
         vim.notify("No autocommands found", vim.log.levels.WARN)
-        return
+        return nil
     end
 
-    picker.open({
-            prompt = "Autocommands",
-            flags = FLAGS,
-            enable_preview = true,
-            enable_list_sep = true,
-            finder = function(query, flags, _, callback)
-                local items = {}
+    return {
+        prompt          = "Autocommands",
+        flags           = FLAGS,
+        enable_preview  = true,
+        enable_list_sep = true,
+        finder          = function(query, flags, _, callback)
+            local items = {}
 
-                for _, ac in ipairs(entries) do
-                    local group   = (ac.group_name or ac.group or ""):lower()
-                    local event   = (ac.event or ""):lower()
-                    local pattern = (ac.pattern and ac.pattern ~= "" and ac.pattern or "*"):lower()
+            for _, ac in ipairs(entries) do
+                local group   = (ac.group_name or ac.group or ""):lower()
+                local event   = (ac.event or ""):lower()
+                local pattern = (ac.pattern and ac.pattern ~= "" and ac.pattern or "*"):lower()
 
-                    local skip = false
-                    for _, v in ipairs(flags.event or {}) do
-                        if not event:find(v:lower(), 1, true) then skip = true; break end
+                local skip = false
+                for _, v in ipairs(flags.event or {}) do
+                    if not event:find(v:lower(), 1, true) then skip = true; break end
+                end
+                if not skip then
+                    for _, v in ipairs(flags.group or {}) do
+                        if not group:find(v:lower(), 1, true) then skip = true; break end
                     end
-                    if not skip then
-                        for _, v in ipairs(flags.group or {}) do
-                            if not group:find(v:lower(), 1, true) then skip = true; break end
-                        end
+                end
+                if not skip then
+                    for _, v in ipairs(flags.pat or {}) do
+                        if not pattern:find(v:lower(), 1, true) then skip = true; break end
                     end
-                    if not skip then
-                        for _, v in ipairs(flags.pat or {}) do
-                            if not pattern:find(v:lower(), 1, true) then skip = true; break end
-                        end
-                    end
-                    if skip then goto continue end
+                end
+                if skip then goto continue end
 
-                    local label = string.format(
-                        "%s │ %s │ %s",
-                        ac.group_name or ac.group or "",
-                        ac.event or "",
-                        (ac.pattern and ac.pattern ~= "") and ac.pattern or "*"
-                    )
+                local label = string.format(
+                    "%s │ %s │ %s",
+                    ac.group_name or ac.group or "",
+                    ac.event or "",
+                    (ac.pattern and ac.pattern ~= "") and ac.pattern or "*"
+                )
 
-                    local match = query ~= "" and pickertools.match_label(label, query) or { score = 0, chunks = { { label } } }
-                    local virt_lines = (ac.desc and ac.desc ~= "") and {
-                        { { ac.desc, "Comment" } }
-                    } or {}
+                local match      = query ~= "" and pickertools.match_label(label, query)
+                    or { score = 0, chunks = { { label } } }
+                local virt_lines = (ac.desc and ac.desc ~= "") and { { { ac.desc, "Comment" } } } or {}
 
-                    if match then
-                        table.insert(items, {
-                            label_chunks = match.chunks,
-                            virt_lines = virt_lines,
-                            score = match.score,
-                            data = { ac = ac },
-                        })
-                    end
-
-                    ::continue::
+                if match then
+                    table.insert(items, {
+                        label_chunks = match.chunks,
+                        virt_lines   = virt_lines,
+                        score        = match.score,
+                        data         = { ac = ac },
+                    })
                 end
 
-                table.sort(items, function(a, b)
-                    return a.score > b.score
-                end)
-
-                callback(items)
-            end,
-            previewer = function(data, opts, callback)
-                callback({
-                    content = format_preview(data.ac),
-                })
-                return function() end
+                ::continue::
             end
-        },
-        function(item)
-            if not item then return end
 
-            -- optional: show details or copy command
+            table.sort(items, function(a, b) return a.score > b.score end)
+            callback(items)
+        end,
+        previewer = function(data, _, callback)
+            callback({ content = format_preview(data.ac) })
+            return function() end
+        end,
+        on_confirm = function(item)
+            if not item then return end
             vim.notify(
-                string.format(
-                    "Autocmd: %s [%s]",
-                    item.command,
-                    item.event
-                ),
+                string.format("Autocmd: %s [%s]", item.command, item.event),
                 vim.log.levels.INFO
             )
-        end)
+        end,
+    }
 end
 
 return M

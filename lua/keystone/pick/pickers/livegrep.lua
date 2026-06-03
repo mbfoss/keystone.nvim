@@ -2,14 +2,13 @@ local M           = {}
 
 local uitool      = require("keystone.util.uitool")
 local strutil     = require("keystone.util.strutil")
-local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local fsutil      = require("keystone.util.fsutil")
 local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
 
 ---@class keystone.livegrep.opts
----@field cwd             string?   -- defaults to getcwd
+---@field cwd             string?
 ---@field include_globs   string[]?
 ---@field exclude_globs   string[]?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
@@ -18,12 +17,12 @@ local spawn       = require("keystone.util.spawn")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "glob",   type = "value",   multi = true,              desc = "raw glob pattern" },
-    { name = "file",   type = "value",   multi = true,              desc = "filter by filename" },
+    { name = "glob",   type = "value",   multi = true,              desc = "raw glob pattern"   },
+    { name = "file",   type = "value",   multi = true,              desc = "filter by filename"  },
     { name = "dir",    type = "value",   multi = true,              desc = "filter by directory" },
     { name = "regex",  type = "boolean", desc = "enable regex mode" },
-    { name = "case",   type = "boolean", desc = "case-sensitive" },
-    { name = "follow", type = "boolean", desc = "follow symlinks" },
+    { name = "case",   type = "boolean", desc = "case-sensitive"    },
+    { name = "follow", type = "boolean", desc = "follow symlinks"   },
 }
 
 ---@param line string
@@ -66,15 +65,12 @@ local function build_rg_cmd(parsed, opts)
     local query = parsed.query
     local flags = parsed.flags
 
-    -- merge caller-provided globs with inline flag values
     local include_globs = vim.deepcopy(opts.include_globs or {})
 
     for _, g in ipairs(flags.glob or {}) do
         table.insert(include_globs, g)
     end
 
-    -- file: filename-only filter — strip slashes and stars so rg keeps it as a
-    -- filename-component glob (rg only matches the filename when there's no /)
     for _, val in ipairs(flags.file or {}) do
         local p = val:gsub("[/*]", "")
         if p ~= "" then
@@ -82,8 +78,6 @@ local function build_rg_cmd(parsed, opts)
         end
     end
 
-    -- dir: directory filter — strip stars and surrounding slashes, then wrap in
-    -- a **/<dir>/** pattern so it matches anywhere in the path hierarchy
     for _, val in ipairs(flags.dir or {}) do
         local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
         if p ~= "" then
@@ -209,17 +203,18 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
 end
 
 ---@param opts keystone.livegrep.opts?
-function M.open(opts)
+---@return keystone.PickerSpec
+function M.spec(opts)
     opts      = opts or {}
     local cwd = opts.cwd or vim.fn.getcwd()
 
-    picker.open({
+    return {
         prompt           = "Live Grep",
         flags            = FLAGS,
         enable_preview   = true,
         enable_list_sep  = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("grep"),
-        finder           = function(query, flags, fetch_opts, callback)
+        finder           = function(query, flags, fetch_opts, callback, _)
             local parsed = { query = query, flags = flags }
             return async_grep(parsed, {
                 cwd             = cwd,
@@ -229,11 +224,12 @@ function M.open(opts)
                 follow_symlinks = opts.follow_symlinks,
             }, fetch_opts, callback)
         end,
-    }, function(data)
-        if data and data.filepath and data.lnum and data.col then
-            uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
-        end
-    end)
+        on_confirm = function(data)
+            if data and data.filepath and data.lnum and data.col then
+                uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
+            end
+        end,
+    }
 end
 
 return M

@@ -1,51 +1,108 @@
 local M = {}
 
-local pickers = {
-    files                 = function() require("keystone.pick.pickers.files").open() end,
-    live_grep             = function() require("keystone.pick.pickers.livegrep").open() end,
-    recent_files          = function() require("keystone.pick.pickers.recentfiles").open() end,
+local picker = require("keystone.pick.base.picker")
+
+---@class keystone.PickerSpec
+---@field prompt string
+---@field flags keystone.queryflags.FlagDef[]?
+---@field enable_preview boolean?
+---@field preview_default "visible"|"hidden"|nil
+---@field enable_list_sep boolean?
+---@field height_ratio number?
+---@field width_ratio number?
+---@field list_wrap boolean?
+---@field history_provider keystone.Picker.QueryHistoryProvider?
+---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
+---@field setup (fun(callback:fun(data:table?)))?
+---@field finder fun(query:string, flags:table, fetch_opts:keystone.Picker.FetcherOpts, callback:fun(items:keystone.Picker.Item[]?), data:table?):fun()?
+---@field previewer keystone.Picker.AsyncPreviewLoader?
+---@field on_confirm fun(data:keystone.picker.ItemData?)
+
+---@param spec keystone.PickerSpec
+---@param data table?
+local function _do_open(spec, data)
+    picker.open({
+        prompt             = spec.prompt,
+        flags              = spec.flags,
+        enable_preview     = spec.enable_preview,
+        preview_default    = spec.preview_default,
+        enable_list_sep    = spec.enable_list_sep,
+        height_ratio       = spec.height_ratio,
+        width_ratio        = spec.width_ratio,
+        list_wrap          = spec.list_wrap,
+        history_provider   = spec.history_provider,
+        quickfix_formatter = spec.quickfix_formatter,
+        previewer          = spec.previewer,
+        finder             = function(query, flags, fetch_opts, callback)
+            return spec.finder(query, flags, fetch_opts, callback, data)
+        end,
+    }, spec.on_confirm or function() end)
+end
+
+---@param spec keystone.PickerSpec?
+local function _open_spec(spec)
+    if not spec then return end
+    if spec.setup then
+        spec.setup(function(data)
+            if data ~= nil then _do_open(spec, data) end
+        end)
+    else
+        _do_open(spec, nil)
+    end
+end
+
+local _pickers = {
+    files                 = function() return require("keystone.pick.pickers.files").spec() end,
+    live_grep             = function() return require("keystone.pick.pickers.livegrep").spec() end,
+    recent_files          = function() return require("keystone.pick.pickers.recentfiles").spec() end,
     config_files          = function()
-        require("keystone.pick.pickers.files").open({
-            cwd = vim.fn.stdpath("config"),
-            prompt =
-            "Config files"
+        return require("keystone.pick.pickers.files").spec({
+            cwd    = vim.fn.stdpath("config"),
+            prompt = "Config files",
         })
     end,
-    repeat_last           = function() require("keystone.pick.base.picker").repeat_last() end,
-    quickfix              = function() require("keystone.pick.pickers.quickfix").open() end,
-    jumplist              = function() require("keystone.pick.pickers.jumplist").open() end,
-    lsp_references        = function() require("keystone.pick.pickers.lsp").references() end,
-    document_symbols      = function() require("keystone.pick.pickers.lsp").document_symbols() end,
-    document_diagnostics  = function() require("keystone.pick.pickers.diagnosics").open({ bufnr = 0 }) end,
-    workspace_diagnostics = function() require("keystone.pick.pickers.diagnosics").open() end,
-    git_diff              = function() require("keystone.pick.pickers.git_diff").open() end,
-    git_hunks             = function() require("keystone.pick.pickers.git_hunks").open() end,
-    buffers               = function() require("keystone.pick.pickers.buffers").open() end,
-    all_buffers           = function() require("keystone.pick.pickers.buffers").open({ include_unloaded = true, included_unlised = true }) end,
-    windows               = function() require("keystone.pick.pickers.windows").open() end,
-    spell_suggest         = function() require("keystone.pick.pickers.spell").open() end,
-    highlights            = function() require("keystone.pick.pickers.highlights").open() end,
-    autocommands          = function() require("keystone.pick.pickers.autocommands").open() end,
-    keymaps               = function() require("keystone.pick.pickers.keymaps").open() end,
-    notifications         = function() require("keystone.pick.pickers.notifications").open() end,
-    commands              = function() require("keystone.pick.pickers.commands").open() end,
+    quickfix              = function() return require("keystone.pick.pickers.quickfix").spec() end,
+    jumplist              = function() return require("keystone.pick.pickers.jumplist").spec() end,
+    lsp_references        = function() return require("keystone.pick.pickers.lsp").references_spec() end,
+    document_symbols      = function() return require("keystone.pick.pickers.lsp").document_symbols_spec() end,
+    document_diagnostics  = function() return require("keystone.pick.pickers.diagnosics").spec({ bufnr = 0 }) end,
+    workspace_diagnostics = function() return require("keystone.pick.pickers.diagnosics").spec() end,
+    git_diff              = function() return require("keystone.pick.pickers.git_diff").spec() end,
+    buffers               = function() return require("keystone.pick.pickers.buffers").spec() end,
+    all_buffers           = function()
+        return require("keystone.pick.pickers.buffers").spec({
+            include_unloaded = true,
+            include_unlisted = true,
+        })
+    end,
+    windows               = function() return require("keystone.pick.pickers.windows").spec() end,
+    spell_suggest         = function() return require("keystone.pick.pickers.spell").spec() end,
+    highlights            = function() return require("keystone.pick.pickers.highlights").spec() end,
+    autocommands          = function() return require("keystone.pick.pickers.autocommands").spec() end,
+    keymaps               = function() return require("keystone.pick.pickers.keymaps").spec() end,
+    notifications         = function() return require("keystone.pick.pickers.notifications").spec() end,
+    commands              = function() return require("keystone.pick.pickers.commands").spec() end,
 }
 
 local function _pick(picker_type)
     if not picker_type or picker_type == "" then
-        local keys = vim.tbl_keys(pickers)
+        local keys = vim.tbl_keys(_pickers)
+        table.insert(keys, "repeat_last")
         table.sort(keys)
         vim.ui.select(keys, { prompt = "Pick" }, function(choice)
-            if choice then
-                pickers[choice]()
-            end
+            if choice then _pick(choice) end
         end)
         return
     end
 
-    local action = pickers[picker_type]
-    if action then
-        action()
+    if picker_type == "repeat_last" then
+        picker.repeat_last()
+        return
+    end
+
+    local factory = _pickers[picker_type]
+    if factory then
+        _open_spec(factory())
     else
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
     end
@@ -55,12 +112,11 @@ end
 ---@param rest string[]
 ---@return string[]
 function M.get_subcommands(cmd, rest)
-    if cmd == "Pick" then
-        if #rest == 0 then
-            local keys = vim.tbl_keys(pickers)
-            table.sort(keys)
-            return keys
-        end
+    if cmd == "Pick" and #rest == 0 then
+        local keys = vim.tbl_keys(_pickers)
+        table.insert(keys, "repeat_last")
+        table.sort(keys)
+        return keys
     end
     return {}
 end

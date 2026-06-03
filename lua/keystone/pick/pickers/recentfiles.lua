@@ -1,16 +1,17 @@
 local M = {}
 
-local uitool = require("keystone.util.uitool")
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
+local uitool      = require("keystone.util.uitool")
+local pickertools  = require("keystone.pick.base.pickertools")
 
-function M.open()
-    local cwd = vim.fn.getcwd()
+---@return keystone.PickerSpec
+function M.spec()
+    local cwd     = vim.fn.getcwd()
+    local curbuf  = vim.api.nvim_get_current_buf()
+    local seen    = {}
+    seen[vim.fn.fnamemodify(vim.api.nvim_buf_get_name(curbuf), ":p")] = true
 
     local recent_files = {}
-    local curbuf = vim.api.nvim_get_current_buf()
-    local seen = {}
-    seen[vim.fn.fnamemodify(vim.api.nvim_buf_get_name(curbuf), ":p")] = true
+
     local bufs = vim.fn.getbufinfo({ buflisted = 1 })
     table.sort(bufs, function(a, b) return a.lastused > b.lastused end)
     for _, info in ipairs(bufs) do
@@ -22,9 +23,8 @@ function M.open()
                     and vim.fn.fnamemodify(full_path, ":.")
                     or vim.fn.fnamemodify(full_path, ":~")
                 table.insert(recent_files, {
-                    full_path = full_path,
+                    full_path  = full_path,
                     match_path = match_path,
-                    filename = vim.fn.fnamemodify(full_path, ":t")
                 })
             end
         end
@@ -38,35 +38,32 @@ function M.open()
                 and vim.fn.fnamemodify(full_path, ":.")
                 or vim.fn.fnamemodify(full_path, ":~")
             table.insert(recent_files, {
-                full_path = full_path,
+                full_path  = full_path,
                 match_path = match_path,
-                filename = vim.fn.fnamemodify(full_path, ":t")
             })
         end
     end
 
-    picker.open({
-        prompt = "Recent Files",
+    return {
+        prompt         = "Recent Files",
         enable_preview = true,
-        finder = function(query, _, fetch_opts, callback)
+        finder         = function(query, _, _, callback)
             local items = {}
             for _, file in ipairs(recent_files) do
                 local res = pickertools.match_label(file.match_path, query)
                 if res then
                     table.insert(items, {
                         label_chunks = res.chunks,
-                        data = { filepath = file.full_path },
+                        data         = { filepath = file.full_path },
                     })
                 end
             end
             callback(items)
         end,
-
-    }, function(data)
-        if data then
-            uitool.smart_open_file(data.filepath)
-        end
-    end)
+        on_confirm = function(data)
+            if data then uitool.smart_open_file(data.filepath) end
+        end,
+    }
 end
 
 return M

@@ -12,20 +12,19 @@
 
 local M = {}
 
-local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitool = require("keystone.util.uitool")
-local fsutil = require("keystone.util.fsutil")
-local strutil = require("keystone.util.strutil")
-local icons = require("keystone.icons")
+local uitool      = require("keystone.util.uitool")
+local fsutil      = require("keystone.util.fsutil")
+local strutil     = require("keystone.util.strutil")
+local icons       = require("keystone.icons")
 
 local STATUS_HL = {
-    A = "DiagnosticOk",
-    M = "DiagnosticWarn",
-    D = "DiagnosticError",
-    R = "DiagnosticInfo",
-    C = "DiagnosticInfo",
-    U = "DiagnosticError",
+    A   = "DiagnosticOk",
+    M   = "DiagnosticWarn",
+    D   = "DiagnosticError",
+    R   = "DiagnosticInfo",
+    C   = "DiagnosticInfo",
+    U   = "DiagnosticError",
     ["?"] = "DiagnosticHint",
     ["!"] = "Comment",
     [" "] = "NonText",
@@ -36,14 +35,13 @@ local function status_hl(char)
 end
 
 local function sort_priority(entry)
-    if entry.ignored then return 5 end
+    if entry.ignored   then return 5 end
     if entry.untracked then return 4 end
     if entry.staged and entry.unstaged then return 2 end
-    if entry.staged then return 1 end
+    if entry.staged    then return 1 end
     return 3
 end
 
----@local
 ---@param entries string[]
 ---@return GitStatusEntry[]
 local function parse_porcelain_z(entries)
@@ -54,9 +52,9 @@ local function parse_porcelain_z(entries)
         local entry = entries[i]
 
         if #entry >= 3 then
-            local index_status      = entry:sub(1, 1)
-            local worktree_status   = entry:sub(2, 2)
-            local path              = entry:sub(4)
+            local index_status    = entry:sub(1, 1)
+            local worktree_status = entry:sub(2, 2)
+            local path            = entry:sub(4)
 
             local is_rename_or_copy =
                 index_status == "R" or index_status == "C"
@@ -66,7 +64,7 @@ local function parse_porcelain_z(entries)
                 local dst = entries[i + 1]
                 if dst then
                     path = dst
-                    i = i + 1
+                    i    = i + 1
                 end
             end
 
@@ -88,8 +86,8 @@ local function parse_porcelain_z(entries)
     return parsed
 end
 
----@public
-function M.open()
+---@return keystone.PickerSpec?
+function M.spec()
     local cwd = vim.fn.getcwd()
 
     local result = vim.system(
@@ -103,12 +101,12 @@ function M.open()
             ("git status failed (exit code %d): %s"):format(result.code, err ~= "" and err or "unknown error"),
             vim.log.levels.ERROR
         )
-        return
+        return nil
     end
 
-    local raw_output = result.stdout or ""
+    local raw_output  = result.stdout or ""
     local raw_entries = {}
-    local start = 1
+    local start       = 1
     while true do
         local nxt = raw_output:find("\0", start, true)
         if not nxt then break end
@@ -120,7 +118,7 @@ function M.open()
 
     if #parsed == 0 then
         vim.notify("No changed files", vim.log.levels.INFO)
-        return
+        return nil
     end
 
     table.sort(parsed, function(a, b)
@@ -129,10 +127,10 @@ function M.open()
         return a.path < b.path
     end)
 
-    picker.open({
+    return {
         prompt         = "Git Status",
         enable_preview = true,
-        finder         = function(query, _, fetch_opts, callback)
+        finder         = function(query, _, _, callback)
             local items = {}
 
             for _, entry in ipairs(parsed) do
@@ -145,16 +143,16 @@ function M.open()
                 local res          = pickertools.match_label(filename ~= "" and filename or match_target, query)
                 if not res then goto continue end
 
-                local x = entry.index_status
-                local y = entry.worktree_status
+                local x            = entry.index_status
+                local y            = entry.worktree_status
                 local icon, icon_hl = icons.get_icon(filename)
 
                 local chunks = {
                     { x,    status_hl(x) },
                     { y,    status_hl(y) },
-                    { "  ", "Normal" },
-                    { icon, icon_hl },
-                    { " ",  "Normal" },
+                    { "  ", "Normal"     },
+                    { icon, icon_hl      },
+                    { " ",  "Normal"     },
                 }
 
                 if dirpart ~= "" then
@@ -174,8 +172,7 @@ function M.open()
 
             callback(items)
         end,
-
-        previewer      = function(data, opts, callback)
+        previewer = function(data, _, callback)
             if data.untracked then
                 vim.schedule(function()
                     callback({ filepath = vim.fs.joinpath(cwd, data.path) })
@@ -205,11 +202,10 @@ function M.open()
             )
             return function() sys_obj:kill("sigterm") end
         end,
-    }, function(data)
-        if data then
-            uitool.smart_open_file(vim.fs.joinpath(cwd, data.path))
-        end
-    end)
+        on_confirm = function(data)
+            if data then uitool.smart_open_file(vim.fs.joinpath(cwd, data.path)) end
+        end,
+    }
 end
 
 return M

@@ -1,7 +1,6 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -11,14 +10,11 @@ local FLAGS = {
     { name = "buf",  type = "boolean",               desc = "only buffer-local keymaps"               },
 }
 
-local modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
+local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
 local function format_lhs(lhs)
     if not lhs then return "" end
-
-    return lhs
-        :gsub(" ", "<space>")
-        :gsub("\t", "<tab>")
+    return lhs:gsub(" ", "<space>"):gsub("\t", "<tab>")
 end
 
 ---@param km vim.api.keyset.get_keymap
@@ -38,20 +34,19 @@ local function format_preview(km)
     end
 
     local lines = {}
-
-    add(lines, "Mode", km.mode)
-    add(lines, "LHS", km.lhs)
+    add(lines, "Mode",        km.mode)
+    add(lines, "LHS",         km.lhs)
     add(lines, "Description", km.desc)
-    add(lines, "RHS", km.rhs)
-    add(lines, "Buffer", km.buf)
+    add(lines, "RHS",         km.rhs)
+    add(lines, "Buffer",      km.buf)
     add(lines, "Abbreviation", km.abbr)
-    add(lines, "NoRemap", km.noremap)
-    add(lines, "Nowait", km.nowait)
-    add(lines, "Silent", km.silent)
-    add(lines, "Script", km.script)
-    add(lines, "Expr", km.expr)
-    add(lines, "SID", km.sid)
-    add(lines, "Line", km.lnum)
+    add(lines, "NoRemap",     km.noremap)
+    add(lines, "Nowait",      km.nowait)
+    add(lines, "Silent",      km.silent)
+    add(lines, "Script",      km.script)
+    add(lines, "Expr",        km.expr)
+    add(lines, "SID",         km.sid)
+    add(lines, "Line",        km.lnum)
 
     table.insert(lines, "")
     table.insert(lines, "Action:")
@@ -60,9 +55,7 @@ local function format_preview(km)
         local info = debug.getinfo(km.callback, "S")
         table.insert(lines, "- Type: Lua callback")
         if info then
-            if info.short_src then
-                table.insert(lines, string.format("- Source: `%s`", info.short_src))
-            end
+            if info.short_src  then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
             if info.linedefined and info.linedefined > 0 then
                 table.insert(lines, string.format("- Start Line: %d", info.linedefined))
             end
@@ -76,12 +69,12 @@ local function format_preview(km)
     return table.concat(lines, "\n")
 end
 
-function M.open()
+---@return keystone.PickerSpec?
+function M.spec()
     ---@type vim.api.keyset.get_keymap[]
     local entries = {}
 
-    -- collect all modes
-    for _, mode in ipairs(modes) do
+    for _, mode in ipairs(_modes) do
         local global = vim.api.nvim_get_keymap(mode)
         for _, km in ipairs(global) do
             km.mode = mode
@@ -89,8 +82,7 @@ function M.open()
             km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
             table.insert(entries, km)
         end
-        local buf = vim.api.nvim_get_current_buf()
-        local bufmaps = vim.api.nvim_buf_get_keymap(buf, mode)
+        local bufmaps = vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), mode)
         for _, km in ipairs(bufmaps) do
             km.mode = mode
             ---@diagnostic disable-next-line: inject-field
@@ -101,69 +93,61 @@ function M.open()
 
     if vim.tbl_isempty(entries) then
         vim.notify("No keymaps found", vim.log.levels.WARN)
-        return
+        return nil
     end
 
-    picker.open({
-            prompt = "Keymaps",
-            flags = FLAGS,
-            enable_preview = true,
-            finder = function(query, flags, _, callback)
-                local items = {}
+    return {
+        prompt         = "Keymaps",
+        flags          = FLAGS,
+        enable_preview = true,
+        finder         = function(query, flags, _, callback)
+            local items = {}
 
-                for _, km in ipairs(entries) do
-                    if flags.buf and not km["buffer"] then goto continue end
+            for _, km in ipairs(entries) do
+                if flags.buf and not km["buffer"] then goto continue end
 
-                    local skip = false
-                    for _, v in ipairs(flags.mode or {}) do
-                        if km.mode ~= v then
-                            skip = true; break
-                        end
-                    end
-                    if not skip then
-                        local lhs = format_lhs(km.lhs or ""):lower()
-                        for _, v in ipairs(flags.key or {}) do
-                            if not lhs:find(v:lower(), 1, true) then skip = true; break end
-                        end
-                    end
-                    if not skip then
-                        local src = (km["source"] or ""):lower()
-                        for _, v in ipairs(flags.src or {}) do
-                            if not src:find(v:lower(), 1, true) then skip = true; break end
-                        end
-                    end
-                    if skip then goto continue end
-
-                    local label = (km.desc and km.desc ~= "") and km.desc or (km.rhs or "")
-                    local match = pickertools.match_label(label, query)
-                    if match then
-                        local chunks = { { string.format("%-10s │ %s │ ", format_lhs(km.lhs or ""), km.mode or " ") } }
-                        vim.list_extend(chunks, match.chunks)
-                        table.insert(items, {
-                            label_chunks = chunks,
-                            score = match.score,
-                            data = { km = km },
-                        })
-                    end
-                    ::continue::
+                local skip = false
+                for _, v in ipairs(flags.mode or {}) do
+                    if km.mode ~= v then skip = true; break end
                 end
+                if not skip then
+                    local lhs = format_lhs(km.lhs or ""):lower()
+                    for _, v in ipairs(flags.key or {}) do
+                        if not lhs:find(v:lower(), 1, true) then skip = true; break end
+                    end
+                end
+                if not skip then
+                    ---@diagnostic disable-next-line: undefined-field
+                    local src = (km["source"] or ""):lower()
+                    for _, v in ipairs(flags.src or {}) do
+                        if not src:find(v:lower(), 1, true) then skip = true; break end
+                    end
+                end
+                if skip then goto continue end
 
-                table.sort(items, function(a, b)
-                    return a.score > b.score
-                end)
-
-                callback(items)
-            end,
-            previewer = function(data, opts, callback)
-                callback({
-                    content = format_preview(data.km),
-                })
-                return function() end
+                local label = (km.desc and km.desc ~= "") and km.desc or (km.rhs or "")
+                local match = pickertools.match_label(label, query)
+                if match then
+                    local chunks = { { string.format("%-10s │ %s │ ", format_lhs(km.lhs or ""), km.mode or " ") } }
+                    vim.list_extend(chunks, match.chunks)
+                    table.insert(items, {
+                        label_chunks = chunks,
+                        score        = match.score,
+                        data         = { km = km },
+                    })
+                end
+                ::continue::
             end
-        },
-        function(item)
-            if not item then return end
-        end)
+
+            table.sort(items, function(a, b) return a.score > b.score end)
+            callback(items)
+        end,
+        previewer = function(data, _, callback)
+            callback({ content = format_preview(data.km) })
+            return function() end
+        end,
+        on_confirm = function(_) end,
+    }
 end
 
 return M

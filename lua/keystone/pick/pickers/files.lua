@@ -1,15 +1,14 @@
 local M = {}
 
-local uitool = require("keystone.util.uitool")
-local strutil = require("keystone.util.strutil")
-local fsutil = require("keystone.util.fsutil")
-local picker = require("keystone.pick.base.picker")
+local uitool      = require("keystone.util.uitool")
+local strutil     = require("keystone.util.strutil")
+local fsutil      = require("keystone.util.fsutil")
 local pickertools = require("keystone.pick.base.pickertools")
-local icons = require("keystone.icons")
+local icons       = require("keystone.icons")
 
 ---@class keystone.filepicker.Opts
 ---@field prompt string?
----@field cwd string The root directory for the search
+---@field cwd string? The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
 ---@field max_results number?
@@ -57,12 +56,11 @@ end
 ---@param callback fun(items:keystone.Picker.Item[]?)
 local function async_lua_search(query, opts, fetch_opts, callback)
     assert(query ~= "")
-    local count = 0
-    local max_results = opts.max_results or 10000
-    local items = {}
+    local count        = 0
+    local max_results  = opts.max_results or 10000
+    local items        = {}
 
-    local exclude_globs = vim.list_extend({ ".*", "**/.*" }, opts.exclude_globs or {})
-
+    local exclude_globs     = vim.list_extend({ ".*", "**/.*" }, opts.exclude_globs or {})
     local include_regex_list = (opts.include_globs and #opts.include_globs > 0)
         and strutil.compile_globs(opts.include_globs) or nil
     local exclude_regex_list = strutil.compile_globs(exclude_globs)
@@ -74,7 +72,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
             include_regex_list = include_regex_list,
             exclude_regex_list = exclude_regex_list,
             follow_symlinks    = opts.follow_symlinks,
-            on_dir_enter = function(path)
+            on_dir_enter = function(_)
                 vim.cmd("redraw")
             end,
             on_file = function(filepath, filename, relative_path)
@@ -92,16 +90,14 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                     cancel_fn()
                     return
                 end
-                local filedir = relative_path:sub(1, #relative_path - #filename)
+                local filedir    = relative_path:sub(1, #relative_path - #filename)
                 local icon, icon_hl = icons.get_icon(filename)
-                local chunks = { { icon, icon_hl }, { " " }, { filedir } }
+                local chunks     = { { icon, icon_hl }, { " " }, { filedir } }
                 vim.list_extend(chunks, res.chunks)
                 table.insert(items, {
                     label_chunks = chunks,
-                    score = res.score,
-                    data = {
-                        filepath = filepath
-                    },
+                    score        = res.score,
+                    data         = { filepath = filepath },
                 })
                 count = count + 1
             end,
@@ -116,20 +112,20 @@ local function async_lua_search(query, opts, fetch_opts, callback)
 end
 
 ---@param opts keystone.filepicker.Opts?
-function M.open(opts)
+---@return keystone.PickerSpec
+function M.spec(opts)
     opts = opts or {}
-    return picker.open({
-        prompt = opts.prompt or "Files",
-        flags  = FLAGS,
-        enable_preview = true,
+    return {
+        prompt           = opts.prompt or "Files",
+        flags            = FLAGS,
+        enable_preview   = true,
         history_provider = opts.history_provider or pickertools.make_history_provider("files"),
-        finder = function(query, flags, fetch_opts, callback)
+        finder           = function(query, flags, fetch_opts, callback, _)
             if not query or query == "" then
                 callback()
                 return
             end
 
-            -- dir: plain substring filters against the relative path
             local dir_filters = {}
             for _, val in ipairs(flags.dir or {}) do
                 local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
@@ -149,12 +145,10 @@ function M.open(opts)
             }
             return async_lua_search(query, search_opts, fetch_opts, callback)
         end,
-
-    }, function(data)
-        if data then
-            uitool.smart_open_file(data.filepath)
-        end
-    end)
+        on_confirm = function(data)
+            if data then uitool.smart_open_file(data.filepath) end
+        end,
+    }
 end
 
 return M

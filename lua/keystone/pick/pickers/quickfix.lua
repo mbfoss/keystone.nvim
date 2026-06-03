@@ -1,9 +1,8 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-local uitool = require("keystone.util.uitool")
-local fsutil = require("keystone.util.fsutil")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
+local uitool      = require("keystone.util.uitool")
+local fsutil      = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -15,25 +14,20 @@ local FLAGS = {
 
 local _type_prefix = {
     E = { "󰅚 ", "DiagnosticError" },
-    W = { "󰀪 ", "DiagnosticWarn" },
-    I = { "󰋽 ", "DiagnosticInfo" },
-    N = { "󰌶 ", "DiagnosticHint" },
+    W = { "󰀪 ", "DiagnosticWarn"  },
+    I = { "󰋽 ", "DiagnosticInfo"  },
+    N = { "󰌶 ", "DiagnosticHint"  },
 }
+
 ---@param qf any
 ---@param filter keystone.pick.quickfix_filter
 ---@return boolean
 local function matches_filter(qf, filter)
-    if filter == "all" or not filter then
-        return true
-    end
+    if filter == "all" or not filter then return true end
     local t = (qf.type or ""):upper()
-    if filter == "errors" then
-        return t == "E" or t == ""
-    elseif filter == "warnings" then
-        return t == "W"
-    elseif filter == "info" then
-        return t == "I"
-    end
+    if filter == "errors"   then return t == "E" or t == "" end
+    if filter == "warnings" then return t == "W" end
+    if filter == "info"     then return t == "I" end
     return true
 end
 
@@ -43,20 +37,21 @@ local function read_qf_item(item)
     local bufnr = item.bufnr
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
     local filepath = vim.api.nvim_buf_get_name(bufnr)
-    local relpath = fsutil.get_relative_path(filepath) or filepath
+    local relpath  = fsutil.get_relative_path(filepath) or filepath
     return {
-        bufnr = bufnr,
+        bufnr    = bufnr,
         filepath = filepath,
-        relpath = relpath,
-        lnum = item.lnum,
-        col = item.col > 0 and item.col - 1 or 0,
-        type = (item.type or ""):upper(),
-        text = item.text or "",
+        relpath  = relpath,
+        lnum     = item.lnum,
+        col      = item.col > 0 and item.col - 1 or 0,
+        type     = (item.type or ""):upper(),
+        text     = item.text or "",
     }
 end
 
 ---@param opts {filter:keystone.pick.quickfix_filter?}?
-function M.open(opts)
+---@return keystone.PickerSpec?
+function M.spec(opts)
     opts = opts or {}
     local filter = opts.filter or "all"
     local qflist = vim.fn.getqflist()
@@ -75,66 +70,63 @@ function M.open(opts)
         else
             vim.notify(("No %s in quickfix list"):format(filter), vim.log.levels.WARN)
         end
-        return
+        return nil
     end
 
-    picker.open({
-            prompt = "Quickfix Items",
-            flags = FLAGS,
-            enable_list_sep = true,
-            enable_preview = true,
-            finder = function(query, flags, _, callback)
-                local items = {}
-                for _, data in ipairs(entries) do
-                    local skip = false
-                    local type_flags = flags.type or {}
-                    if #type_flags > 0 then
-                        local matched = false
-                        for _, v in ipairs(type_flags) do
-                            if data.type == v:upper() then matched = true; break end
-                        end
-                        if not matched then skip = true end
+    return {
+        prompt          = "Quickfix Items",
+        flags           = FLAGS,
+        enable_list_sep = true,
+        enable_preview  = true,
+        finder          = function(query, flags, _, callback)
+            local items = {}
+            for _, data in ipairs(entries) do
+                local skip       = false
+                local type_flags = flags.type or {}
+                if #type_flags > 0 then
+                    local matched = false
+                    for _, v in ipairs(type_flags) do
+                        if data.type == v:upper() then matched = true; break end
                     end
-                    if not skip then
-                        local filename = vim.fn.fnamemodify(data.relpath, ":t"):lower()
-                        for _, v in ipairs(flags.file or {}) do
-                            if not filename:find(v:lower(), 1, true) then skip = true; break end
-                        end
-                    end
-                    if skip then goto continue end
-
-                    local text = vim.trim(data.text ~= "" and data.text or "[No description]")
-                    local match = pickertools.match_label(text, query)
-                    if match then
-                        local chunks = { _type_prefix[data.type] or _type_prefix.N }
-                        vim.list_extend(chunks, match.chunks)
-                        local virt_lines = nil
-                        if data.relpath and #data.relpath > 0 then
-                            virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
-                        end
-                        ---@type keystone.Picker.Item
-                        local item = {
-                            label_chunks = chunks,
-                            score = match.score,
-                            virt_lines = virt_lines,
-                            data = data
-                        }
-                        table.insert(items, item)
-                    end
-                    ::continue::
+                    if not matched then skip = true end
                 end
-                table.sort(items, function(a, b) return a.score > b.score end)
-                callback(items)
-            end,
-            quickfix_formatter = function(data)
-                return data
+                if not skip then
+                    local filename = vim.fn.fnamemodify(data.relpath, ":t"):lower()
+                    for _, v in ipairs(flags.file or {}) do
+                        if not filename:find(v:lower(), 1, true) then skip = true; break end
+                    end
+                end
+                if skip then goto continue end
+
+                local text  = vim.trim(data.text ~= "" and data.text or "[No description]")
+                local match = pickertools.match_label(text, query)
+                if match then
+                    local chunks     = { _type_prefix[data.type] or _type_prefix.N }
+                    vim.list_extend(chunks, match.chunks)
+                    local virt_lines = nil
+                    if data.relpath and #data.relpath > 0 then
+                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
+                    end
+                    ---@type keystone.Picker.Item
+                    table.insert(items, {
+                        label_chunks = chunks,
+                        score        = match.score,
+                        virt_lines   = virt_lines,
+                        data         = data,
+                    })
+                end
+                ::continue::
             end
-        },
-        function(data)
-            if data then
-                uitool.smart_open_file(data.filepath, data.lnum, data.col)
-            end
-        end)
+            table.sort(items, function(a, b) return a.score > b.score end)
+            callback(items)
+        end,
+        quickfix_formatter = function(data)
+            return data
+        end,
+        on_confirm = function(data)
+            if data then uitool.smart_open_file(data.filepath, data.lnum, data.col) end
+        end,
+    }
 end
 
 return M

@@ -1,9 +1,8 @@
 local M = {}
 
-local picker = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local uitool = require("keystone.util.uitool")
-local fsutil = require("keystone.util.fsutil")
+local uitool      = require("keystone.util.uitool")
+local fsutil      = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -19,75 +18,73 @@ local SEV_MAP = {
     hint  = vim.diagnostic.severity.HINT,
 }
 
----@param severity vim.diagnostic.Severity LSP DiagnosticSeverity
----@return string, string (Text, HighlightGroup)
+---@param severity vim.diagnostic.Severity
+---@return string, string
 local function get_severity_info(severity)
     local map = {
         [vim.diagnostic.severity.ERROR] = { "󰅚", "DiagnosticError" },
-        [vim.diagnostic.severity.WARN]  = { "󰀪", "DiagnosticWarn" },
-        [vim.diagnostic.severity.INFO]  = { "󰋽", "DiagnosticInfo" },
-        [vim.diagnostic.severity.HINT]  = { "󰌶", "DiagnosticHint" },
+        [vim.diagnostic.severity.WARN]  = { "󰀪", "DiagnosticWarn"  },
+        [vim.diagnostic.severity.INFO]  = { "󰋽", "DiagnosticInfo"  },
+        [vim.diagnostic.severity.HINT]  = { "󰌶", "DiagnosticHint"  },
     }
     local res = map[severity] or { "󰠠", "Comment" }
     return res[1], res[2]
 end
 
 local function severity_to_qf_type(severity)
-    if severity == vim.diagnostic.severity.ERROR then
-        return "E"
-    elseif severity == vim.diagnostic.severity.WARN then
-        return "W"
-    elseif severity == vim.diagnostic.severity.INFO then
-        return "I"
-    elseif severity == vim.diagnostic.severity.HINT then
-        return "N"
+    if severity == vim.diagnostic.severity.ERROR then return "E"
+    elseif severity == vim.diagnostic.severity.WARN  then return "W"
+    elseif severity == vim.diagnostic.severity.INFO  then return "I"
+    elseif severity == vim.diagnostic.severity.HINT  then return "N"
     end
     return ""
 end
 
 ---@param opts {bufnr:number?}?
-function M.open(opts)
+---@return keystone.PickerSpec?
+function M.spec(opts)
     opts = opts or {}
     local diagnostics = vim.diagnostic.get(opts.bufnr)
 
     if vim.tbl_isempty(diagnostics) then
         vim.notify("No diagnostics found", vim.log.levels.INFO)
-        return
+        return nil
     end
 
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)
+
     local buf_set = {}
     local entries = {}
     for _, d in ipairs(diagnostics) do
         local sev_text, sev_hl = get_severity_info(d.severity)
-        local bufname = vim.api.nvim_buf_get_name(d.bufnr)
-        buf_set[d.bufnr] = true
+        local bufname          = vim.api.nvim_buf_get_name(d.bufnr)
+        buf_set[d.bufnr]       = true
         table.insert(entries, {
-            message = d.message:gsub("\n", " "),
-            severity = d.severity,
-            source = (d.source or ""):lower(),
-            filename = vim.fn.fnamemodify(bufname, ":t"):lower(),
-            relpath = fsutil.get_relative_path(bufname) or bufname,
+            message       = d.message:gsub("\n", " "),
+            severity      = d.severity,
+            source        = (d.source or ""):lower(),
+            filename      = vim.fn.fnamemodify(bufname, ":t"):lower(),
+            relpath       = fsutil.get_relative_path(bufname) or bufname,
             prefix_chunks = {
-                { sev_text,                          sev_hl },
-                { string.format(" %3d", d.lnum + 1), "Number" },
-                { ": ",                              "Comment" }
+                { sev_text,                           sev_hl   },
+                { string.format(" %3d", d.lnum + 1),  "Number" },
+                { ": ",                               "Comment" },
             },
-            bufnr = d.bufnr,
+            bufnr    = d.bufnr,
             filepath = bufname,
-            lnum = d.lnum + 1,
-            col = d.col,
+            lnum     = d.lnum + 1,
+            col      = d.col,
         })
     end
     local multi_buf = vim.tbl_count(buf_set) > 1
 
-    picker.open({
-        prompt = opts.bufnr and "Document Diagnostics" or "Workspace Diagnostics",
-        flags = FLAGS,
-        enable_preview = true,
-        enable_list_sep = multi_buf,
-        finder = function(query, flags, _, callback)
-            local sev_filter = {}
+    return {
+        prompt             = opts.bufnr and "Document Diagnostics" or "Workspace Diagnostics",
+        flags              = FLAGS,
+        enable_preview     = true,
+        enable_list_sep    = multi_buf,
+        finder             = function(query, flags, _, callback)
+            local sev_filter     = {}
             for _, v in ipairs(flags.sev or {}) do
                 local s = SEV_MAP[v:lower()]
                 if s then sev_filter[s] = true end
@@ -111,14 +108,14 @@ function M.open(opts)
 
                 local res = pickertools.match_label(entry.message, query)
                 if res then
-                    local chunks = vim.deepcopy(entry.prefix_chunks)
+                    local chunks     = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)
                     local virt_lines = multi_buf and { { { entry.relpath, "Special" } } } or nil
                     table.insert(items, {
                         label_chunks = chunks,
                         virt_lines   = virt_lines,
-                        score = res.score,
-                        data = {
+                        score        = res.score,
+                        data         = {
                             message  = entry.message,
                             severity = entry.severity,
                             bufnr    = entry.bufnr,
@@ -141,12 +138,11 @@ function M.open(opts)
                 lnum     = data.lnum or 1,
                 col      = data.col or 0,
             }
-        end
-    }, function(data)
-        if data then
-            uitool.smart_open_buffer(data.bufnr, data.lnum, data.col)
-        end
-    end)
+        end,
+        on_confirm = function(data)
+            if data then uitool.smart_open_buffer(data.bufnr, data.lnum, data.col) end
+        end,
+    }
 end
 
 return M
