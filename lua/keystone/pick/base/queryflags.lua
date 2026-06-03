@@ -65,7 +65,7 @@ function M.highlight(schema, raw)
     local defs = build_map(schema)
     local hls  = {}
 
-    local p       = 1
+    local p    = 1
     while p <= #raw do
         local ts, te, tok = raw:find("(%S+)", p)
         if not ts then break end
@@ -148,7 +148,6 @@ function M.get_completions(schema, line, cursor_byte)
                     table.insert(items, {
                         word = key .. ":" .. v,
                         abbr = v,
-                        menu = def.desc or "",
                     })
                 end
             end

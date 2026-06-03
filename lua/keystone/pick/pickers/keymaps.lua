@@ -2,15 +2,15 @@ local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
 
+local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
+
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "mode", type = "value",   multi = true, desc = "filter by mode: n, i, v, x, s, o, c, t" },
-    { name = "key",  type = "value",   multi = true, desc = "filter by key (lhs)"                     },
-    { name = "src",  type = "value",   multi = true, desc = "filter by source file"                   },
-    { name = "buf",  type = "boolean",               desc = "only buffer-local keymaps"               },
+    { name = "mode", type = "value",   multi = true,                      desc = "filter by mode: n, i, v, x, s, o, c, t", values = _modes },
+    { name = "key",  type = "value",   multi = true,                      desc = "filter by key (lhs)" },
+    { name = "src",  type = "value",   multi = true,                      desc = "filter by source file" },
+    { name = "buf",  type = "boolean", desc = "only buffer-local keymaps" },
 }
-
-local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
 local function format_lhs(lhs)
     if not lhs then return "" end
@@ -34,19 +34,19 @@ local function format_preview(km)
     end
 
     local lines = {}
-    add(lines, "Mode",        km.mode)
-    add(lines, "LHS",         km.lhs)
+    add(lines, "Mode", km.mode)
+    add(lines, "LHS", km.lhs)
     add(lines, "Description", km.desc)
-    add(lines, "RHS",         km.rhs)
-    add(lines, "Buffer",      km.buf)
+    add(lines, "RHS", km.rhs)
+    add(lines, "Buffer", km.buf)
     add(lines, "Abbreviation", km.abbr)
-    add(lines, "NoRemap",     km.noremap)
-    add(lines, "Nowait",      km.nowait)
-    add(lines, "Silent",      km.silent)
-    add(lines, "Script",      km.script)
-    add(lines, "Expr",        km.expr)
-    add(lines, "SID",         km.sid)
-    add(lines, "Line",        km.lnum)
+    add(lines, "NoRemap", km.noremap)
+    add(lines, "Nowait", km.nowait)
+    add(lines, "Silent", km.silent)
+    add(lines, "Script", km.script)
+    add(lines, "Expr", km.expr)
+    add(lines, "SID", km.sid)
+    add(lines, "Line", km.lnum)
 
     table.insert(lines, "")
     table.insert(lines, "Action:")
@@ -55,7 +55,7 @@ local function format_preview(km)
         local info = debug.getinfo(km.callback, "S")
         table.insert(lines, "- Type: Lua callback")
         if info then
-            if info.short_src  then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
+            if info.short_src then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
             if info.linedefined and info.linedefined > 0 then
                 table.insert(lines, string.format("- Start Line: %d", info.linedefined))
             end
@@ -108,19 +108,25 @@ function M.spec()
 
                 local skip = false
                 for _, v in ipairs(flags.mode or {}) do
-                    if km.mode ~= v then skip = true; break end
+                    if km.mode ~= v then
+                        skip = true; break
+                    end
                 end
                 if not skip then
                     local lhs = format_lhs(km.lhs or ""):lower()
                     for _, v in ipairs(flags.key or {}) do
-                        if not lhs:find(v:lower(), 1, true) then skip = true; break end
+                        if not lhs:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
                     end
                 end
                 if not skip then
                     ---@diagnostic disable-next-line: undefined-field
                     local src = (km["source"] or ""):lower()
                     for _, v in ipairs(flags.src or {}) do
-                        if not src:find(v:lower(), 1, true) then skip = true; break end
+                        if not src:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
                     end
                 end
                 if skip then goto continue end
@@ -142,11 +148,11 @@ function M.spec()
             table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
-        previewer = function(data, _, callback)
+        previewer      = function(data, _, callback)
             callback({ content = format_preview(data.km) })
             return function() end
         end,
-        on_confirm = function(_) end,
+        on_confirm     = function(_) end,
     }
 end
 

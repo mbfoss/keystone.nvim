@@ -1,22 +1,22 @@
-local M = {}
+local M            = {}
 
-local pickertools = require("keystone.pick.base.pickertools")
-local uitool      = require("keystone.util.uitool")
-local fsutil      = require("keystone.util.fsutil")
+local pickertools  = require("keystone.pick.base.pickertools")
+local uitool       = require("keystone.util.uitool")
+local fsutil       = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
-local FLAGS = {
-    { name = "type", type = "value", multi = true, desc = "filter by type: E, W, I, N" },
-    { name = "file", type = "value", multi = true, desc = "filter by filename"          },
+local FLAGS        = {
+    { name = "type", type = "value", multi = true, desc = "filter by type: E, W, I, N", values = { "E", "W", "I", "N" } },
+    { name = "file", type = "value", multi = true, desc = "filter by filename" },
 }
 
 ---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
 
 local _type_prefix = {
     E = { "󰅚 ", "DiagnosticError" },
-    W = { "󰀪 ", "DiagnosticWarn"  },
-    I = { "󰋽 ", "DiagnosticInfo"  },
-    N = { "󰌶 ", "DiagnosticHint"  },
+    W = { "󰀪 ", "DiagnosticWarn" },
+    I = { "󰋽 ", "DiagnosticInfo" },
+    N = { "󰌶 ", "DiagnosticHint" },
 }
 
 ---@param qf any
@@ -25,9 +25,9 @@ local _type_prefix = {
 local function matches_filter(qf, filter)
     if filter == "all" or not filter then return true end
     local t = (qf.type or ""):upper()
-    if filter == "errors"   then return t == "E" or t == "" end
+    if filter == "errors" then return t == "E" or t == "" end
     if filter == "warnings" then return t == "W" end
-    if filter == "info"     then return t == "I" end
+    if filter == "info" then return t == "I" end
     return true
 end
 
@@ -74,11 +74,11 @@ function M.spec(opts)
     end
 
     return {
-        prompt          = "Quickfix Items",
-        flags           = FLAGS,
-        enable_list_sep = true,
-        enable_preview  = true,
-        finder          = function(query, flags, _, callback)
+        prompt             = "Quickfix Items",
+        flags              = FLAGS,
+        enable_list_sep    = true,
+        enable_preview     = true,
+        finder             = function(query, flags, _, callback)
             local items = {}
             for _, data in ipairs(entries) do
                 local skip       = false
@@ -86,14 +86,18 @@ function M.spec(opts)
                 if #type_flags > 0 then
                     local matched = false
                     for _, v in ipairs(type_flags) do
-                        if data.type == v:upper() then matched = true; break end
+                        if data.type == v:upper() then
+                            matched = true; break
+                        end
                     end
                     if not matched then skip = true end
                 end
                 if not skip then
                     local filename = vim.fn.fnamemodify(data.relpath, ":t"):lower()
                     for _, v in ipairs(flags.file or {}) do
-                        if not filename:find(v:lower(), 1, true) then skip = true; break end
+                        if not filename:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
                     end
                 end
                 if skip then goto continue end
@@ -101,7 +105,7 @@ function M.spec(opts)
                 local text  = vim.trim(data.text ~= "" and data.text or "[No description]")
                 local match = pickertools.match_label(text, query)
                 if match then
-                    local chunks     = { _type_prefix[data.type] or _type_prefix.N }
+                    local chunks = { _type_prefix[data.type] or _type_prefix.N }
                     vim.list_extend(chunks, match.chunks)
                     local virt_lines = nil
                     if data.relpath and #data.relpath > 0 then
@@ -123,7 +127,7 @@ function M.spec(opts)
         quickfix_formatter = function(data)
             return data
         end,
-        on_confirm = function(data)
+        on_confirm         = function(data)
             if data then uitool.smart_open_file(data.filepath, data.lnum, data.col) end
         end,
     }

@@ -587,7 +587,6 @@ function Picker:trigger_flag_completion(query)
 	if self.prompt_mode ~= "filter" then return end
 	if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
 	if vim.fn.mode() ~= "i" then return end
-	if vim.fn.pumvisible() == 1 then return end
 
 	local col         = vim.api.nvim_win_get_cursor(self.pwin)[2]
 	local completions = queryflags.get_completions(self.opts.flags, query, col)
