@@ -595,38 +595,35 @@ function Picker:trigger_flag_completion(query)
 	end
 end
 
-function Picker:render_ui()
-	if not self.lbuf then
-		return
-	end
-
-	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
+function Picker:render_position()
+	if not self.pbuf then return end
 	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
+	local total = #self.list_items
+	if total == 0 then return end
+	local cur = self:get_cursor() or 1
+	local text = string.format("%d/%d", cur, total)
+	vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
+		virt_text = { { text, "Comment" } },
+		virt_text_pos = "eol_right_align",
+		hl_mode = "blend",
+		priority = 50,
+	})
+end
 
+function Picker:render_cursor()
+	if not self.lbuf then return end
+	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
 	local total = #self.list_items
 	if total == 0 then
+		vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
 		return
 	end
-
 	local cur = self:get_cursor() or 1
-
-	if total > 0 then
-		vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
-			virt_text = { { "❯ ", "Special" } },
-			virt_text_pos = "overlay",
-			priority = 100,
-		})
-	end
-
-	if total > 0 and self.pbuf then
-		local text = string.format("%d/%d", cur, total)
-		vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
-			virt_text = { { text, "Comment" } },
-			virt_text_pos = "eol_right_align",
-			hl_mode = "blend",
-			priority = 50,
-		})
-	end
+	vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
+		virt_text = { { "❯ ", "Special" } },
+		virt_text_pos = "overlay",
+		priority = 100,
+	})
 end
 
 ---@return integer?
@@ -655,7 +652,8 @@ function Picker:move_cursor(row, force, clamp)
 
 	vim.api.nvim_win_set_cursor(self.lwin, { row, 0 })
 
-	self:render_ui()
+	self:render_cursor()
+	self:render_position()
 	self:update_preview()
 end
 
@@ -807,11 +805,12 @@ function Picker:clear_list()
 	vim.bo[self.lbuf].modifiable = true
 	vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
 	vim.bo[self.lbuf].modifiable = false
+	vim.wo[self.lwin].cursorline = false
 
 	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
 	self:request_clear_preview()
-	vim.wo[self.lwin].cursorline = false
-	self:render_ui()
+	self:render_cursor()
+	self:render_position()
 end
 
 ---@param items keystone.Picker.Item[]?
@@ -1128,6 +1127,7 @@ function Picker:toggle_opts_mode()
 		self:render_prompt_highlight(display)
 		self:trigger_flag_completion(display)
 		self:render_mode_prefix()
+		self:render_position()
 	else
 		if vim.fn.pumvisible() == 1 then
 			self.dismissing_pum = true
@@ -1147,6 +1147,7 @@ function Picker:toggle_opts_mode()
 		vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
 		self:render_prompt_highlight(display)
 		self:render_mode_prefix()
+		self:render_position()
 	end
 end
 
