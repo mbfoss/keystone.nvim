@@ -4,9 +4,9 @@ local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "buf",     type = "boolean", desc = "only buffer-local commands" },
-    { name = "builtin", type = "boolean", desc = "only built-in commands"     },
-    { name = "user",    type = "boolean", desc = "only user-defined commands" },
+    { name = "buflocal", type = "boolean", desc = "only buffer-local commands" },
+    { name = "builtin",  type = "boolean", desc = "only built-in commands" },
+    { name = "user",     type = "boolean", desc = "only user-defined commands" },
 }
 
 ---@param cmd table
@@ -23,14 +23,14 @@ local function format_preview(cmd)
     end
 
     local lines = {}
-    add(lines, "Name",        cmd.name)
-    add(lines, "Nargs",       cmd.nargs)
-    add(lines, "Range",       cmd.range)
-    add(lines, "Count",       cmd.count)
-    add(lines, "Addr",        cmd.addr)
-    add(lines, "Bang",        cmd.bang)
-    add(lines, "Bar",         cmd.bar)
-    add(lines, "Complete",    cmd.complete or cmd.complete_arg)
+    add(lines, "Name", cmd.name)
+    add(lines, "Nargs", cmd.nargs)
+    add(lines, "Range", cmd.range)
+    add(lines, "Count", cmd.count)
+    add(lines, "Addr", cmd.addr)
+    add(lines, "Bang", cmd.bang)
+    add(lines, "Bar", cmd.bar)
+    add(lines, "Complete", cmd.complete or cmd.complete_arg)
     add(lines, "Description", cmd.desc)
 
     table.insert(lines, "")
@@ -40,7 +40,7 @@ local function format_preview(cmd)
         local info = debug.getinfo(cmd.callback, "S")
         table.insert(lines, "- Type: Lua callback")
         if info then
-            if info.short_src  then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
+            if info.short_src then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
             if info.linedefined and info.linedefined > 0 then
                 table.insert(lines, string.format("- Line: %d", info.linedefined))
             end
@@ -60,13 +60,13 @@ function M.spec()
     local user_cmds = {}
 
     for name, cmd in pairs(vim.api.nvim_get_commands({})) do
-        cmd.name    = name
+        cmd.name        = name
         user_cmds[name] = cmd
     end
 
     for name, cmd in pairs(vim.api.nvim_buf_get_commands(0, {})) do
-        cmd.name    = name
-        cmd.is_buf  = true
+        cmd.name        = name
+        cmd.is_buf      = true
         user_cmds[name] = cmd
     end
 
@@ -93,9 +93,9 @@ function M.spec()
         finder         = function(query, flags, _, callback)
             local items = {}
             for _, cmd in ipairs(entries) do
-                if flags.buf     and not cmd.is_buf     then goto continue end
+                if flags.buflocal and not cmd.is_buf then goto continue end
                 if flags.builtin and not cmd.is_builtin then goto continue end
-                if flags.user    and cmd.is_builtin     then goto continue end
+                if flags.user and cmd.is_builtin then goto continue end
 
                 local match = pickertools.match_label(cmd.name, query)
                 if match then
@@ -119,11 +119,11 @@ function M.spec()
             table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
-        previewer = function(data, _, callback)
+        previewer      = function(data, _, callback)
             callback({ content = format_preview(data.cmd) })
             return function() end
         end,
-        on_confirm = function(data)
+        on_confirm     = function(data)
             if not data then return end
             local name    = data.cmd.name
             local nargs   = data.cmd.nargs

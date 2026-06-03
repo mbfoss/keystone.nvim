@@ -6,10 +6,10 @@ local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "mode", type = "value",   multi = true,                      desc = "filter by mode: n, i, v, x, s, o, c, t", values = _modes },
-    { name = "key",  type = "value",   multi = true,                      desc = "filter by key (lhs)" },
-    { name = "src",  type = "value",   multi = true,                      desc = "filter by source file" },
-    { name = "buf",  type = "boolean", desc = "only buffer-local keymaps" },
+    { name = "mode",     type = "value",   multi = true,                      desc = "filter by mode: n, i, v, x, s, o, c, t", values = _modes },
+    { name = "key",      type = "value",   multi = true,                      desc = "filter by key (lhs)" },
+    { name = "src",      type = "value",   multi = true,                      desc = "filter by source file" },
+    { name = "buflocal", type = "boolean", desc = "only buffer-local keymaps" },
 }
 
 local function format_lhs(lhs)
@@ -104,7 +104,7 @@ function M.spec()
             local items = {}
 
             for _, km in ipairs(entries) do
-                if flags.buf and not km["buffer"] then goto continue end
+                if flags.buflocal and not km["buffer"] then goto continue end
 
                 local skip = false
                 for _, v in ipairs(flags.mode or {}) do
