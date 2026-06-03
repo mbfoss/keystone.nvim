@@ -1,10 +1,10 @@
 local M           = {}
 
-local uitool     = require("keystone.util.uitool")
-local strutil    = require("keystone.util.strutil")
+local uitool      = require("keystone.util.uitool")
+local strutil     = require("keystone.util.strutil")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fsutil     = require("keystone.util.fsutil")
+local fsutil      = require("keystone.util.fsutil")
 local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
 
@@ -124,46 +124,31 @@ local function build_rg_cmd(parsed, opts)
     return "rg", args, query
 end
 
----@param ms    number
----@param title string
----@return fun(msg:string)
-local function create_error_notifier(ms, title)
-    local pending = {}
-    local flush = throttle.trailing_fixed_wrap(ms, function()
-        if vim.tbl_isempty(pending) then return end
-        local lines = {}
-        for i, msg in ipairs(pending) do lines[#lines + 1] = ("%d. %s"):format(i, msg) end
-        vim.notify(
-            table.concat(lines, "\n"),
-            vim.log.levels.ERROR,
-            { title = (title .. " (%d)"):format(#pending) }
-        )
-        pending = {}
-    end)
-    return function(msg)
-        pending[#pending + 1] = tostring(msg)
-        flush()
-    end
-end
-
 ---@param parsed     keystone.queryflags.ParseResult
 ---@param grep_opts  keystone.livegrep.opts
 ---@param fetch_opts keystone.Picker.FetcherOpts
----@param on_error   fun(msg:string)
 ---@param callback   fun(items:table[]?)
 ---@return fun()? cancel
-local function async_grep(parsed, grep_opts, fetch_opts, on_error, callback)
+local function async_grep(parsed, grep_opts, fetch_opts, callback)
     local cmd, args, query = build_rg_cmd(parsed, grep_opts)
     if query == "" then
         callback()
         return
     end
 
-    local max_results   = grep_opts.max_results or 10000
-    local stop_read     = false
-    local items         = {}
-    local count         = 0
+    local max_results = grep_opts.max_results or 10000
+    local stop_read   = false
+    local items       = {}
+    local count       = 0
     local sys_obj
+
+    local function on_error(msg)
+        ---@type keystone.Picker.Item
+        table.insert(items, {
+            label_chunks = { { "ERROR: ", "Error" }, { msg } },
+            data         = {},
+        })
+    end
 
     local cwd           = vim.fn.getcwd()
 
@@ -225,9 +210,8 @@ end
 
 ---@param opts keystone.livegrep.opts?
 function M.open(opts)
-    opts                 = opts or {}
-    local cwd            = opts.cwd or vim.fn.getcwd()
-    local error_notifier = create_error_notifier(1000, "rg errors")
+    opts      = opts or {}
+    local cwd = opts.cwd or vim.fn.getcwd()
 
     picker.open({
         prompt           = "Live Grep",
@@ -243,10 +227,10 @@ function M.open(opts)
                 exclude_globs   = opts.exclude_globs or {},
                 max_results     = opts.max_results or 10000,
                 follow_symlinks = opts.follow_symlinks,
-            }, fetch_opts, error_notifier, callback)
+            }, fetch_opts, callback)
         end,
     }, function(data)
-        if data then
+        if data and data.filepath and data.lnum and data.col then
             uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
         end
     end)
