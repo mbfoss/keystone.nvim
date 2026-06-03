@@ -66,6 +66,7 @@ function M.select(items, opts, on_choice)
             for _, entry in ipairs(cached) do
                 local match = pickertools.match_label(entry.label, query)
                 if match then
+                    -- do not set score, ui.select items should not be reordered
                     table.insert(results, {
                         label_chunks = match.chunks,
                         data = entry.data,
