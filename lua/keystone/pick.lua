@@ -101,7 +101,23 @@ function M.setup(opts)
     require("keystone.util.usercmd").register_user_cmd("Pick",
         function(cmd, args)
             if cmd == "Pick" then
-                local initial_filter = #args > 1 and table.concat(args, " ", 2) or nil
+                local initial_filter
+                if #args > 1 then
+                    local parts = {}
+                    for i = 2, #args do
+                        local a     = args[i]
+                        local colon = a:find(':', 1, true)
+                        local key   = colon and a:sub(1, colon - 1) or a
+                        local val   = colon and a:sub(colon + 1)    or nil
+                        if key:find(' ', 1, true) then
+                            a = vim.fn.shellescape(a)
+                        elseif val and val:find(' ', 1, true) then
+                            a = key .. ':' .. vim.fn.shellescape(val)
+                        end
+                        parts[#parts + 1] = a
+                    end
+                    initial_filter = table.concat(parts, " ")
+                end
                 _pick(args[1], initial_filter)
             end
         end,

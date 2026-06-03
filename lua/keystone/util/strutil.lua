@@ -86,66 +86,71 @@ function M.indent_errors(errors, parent_msg)
 	return errors
 end
 
+---@class keystone.strutil.Token
+---@field text   string   -- processed text: quotes stripped, escapes resolved
+---@field raw    string   -- verbatim slice of the source string
+---@field start  integer  -- 1-indexed start position in source string
+---@field finish integer  -- 1-indexed finish position in source string (inclusive)
+
 ---@param str string
----@return string[]
-function M.split_shell_args(str)
-	local args = {}
-	local i = 1
-	local len = #str
+---@return keystone.strutil.Token[]
+function M.tokenize_shell_args(str)
+	local tokens = {}
+	local i      = 1
+	local len    = #str
 
 	local function skip_ws()
-		while i <= len and str:sub(i, i):match("%s") do
-			i = i + 1
-		end
-	end
-
-	local function add(part)
-		if part ~= "" then table.insert(args, part) end
+		while i <= len and str:sub(i, i):match("%s") do i = i + 1 end
 	end
 
 	while i <= len do
 		skip_ws()
 		if i > len then break end
 
-		local part = {}
-		local in_quote = nil
+		local tok_start = i
+		local part      = {}
+		local in_quote  = nil
 
 		while i <= len do
-			local c = str:sub(i, i)
+			local c   = str:sub(i, i)
 			local nxt = str:sub(i + 1, i + 1)
 			if not in_quote and c:match("%s") then break end
 			if not in_quote and (c == '"' or c == "'") then
-				in_quote = c
-				i = i + 1
-				goto continue
+				in_quote = c; i = i + 1; goto continue
 			end
 			if in_quote and c == in_quote then
-				in_quote = nil
-				i = i + 1
-				goto continue
+				in_quote = nil; i = i + 1; goto continue
 			end
 			if c == "\\" and i + 1 <= len then
-				local esc = nxt
-				if esc == "\n" then
-					i = i + 2 -- line continuation
-				else
-					table.insert(part, esc)
-					i = i + 2
-				end
+				if nxt == "\n" then i = i + 2
+				else table.insert(part, nxt); i = i + 2 end
 				goto continue
 			end
-
 			table.insert(part, c)
 			i = i + 1
 			::continue::
 		end
-		if in_quote then
-			table.insert(part, 1, in_quote)
-		end
 
-		add(table.concat(part))
+		local text = table.concat(part)
+		if text ~= "" then
+			tokens[#tokens + 1] = {
+				text   = text,
+				raw    = str:sub(tok_start, i - 1),
+				start  = tok_start,
+				finish = i - 1,
+			}
+		end
 	end
 
+	return tokens
+end
+
+---@param str string
+---@return string[]
+function M.split_shell_args(str)
+	local tokens = M.tokenize_shell_args(str)
+	local args   = {}
+	for _, t in ipairs(tokens) do args[#args + 1] = t.text end
 	return args
 end
 

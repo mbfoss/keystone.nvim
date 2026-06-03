@@ -1,4 +1,5 @@
-local M = {}
+local M       = {}
+local strutil = require("keystone.util.strutil")
 
 ---@class keystone.queryflags.FlagDef
 ---@field name   string
@@ -22,9 +23,10 @@ local function build_map(schema)
     return m
 end
 
--- Format: space-separated tokens
---   boolean flag:  "flagname"        → flags.flagname = true
---   value flag:    "key:value"       → flags.key = value  (or array if multi)
+-- Format: space-separated tokens; quoted values may contain spaces
+--   boolean flag:  "flagname"              → flags.flagname = true
+--   value flag:    "key:value"             → flags.key = value  (or array if multi)
+--   quoted value:  'key:"val with spaces"' → flags.key = "val with spaces"
 
 ---@param schema keystone.queryflags.FlagDef[]
 ---@param raw    string
@@ -33,7 +35,8 @@ function M.parse(schema, raw)
     local defs  = build_map(schema)
     local flags = {}
 
-    for tok in raw:gmatch("%S+") do
+    for _, token in ipairs(strutil.tokenize_shell_args(raw)) do
+        local tok   = token.text
         local colon = tok:find(":", 1, true)
         if colon then
             local key = tok:sub(1, colon - 1)
@@ -65,35 +68,27 @@ function M.highlight(schema, raw)
     local defs = build_map(schema)
     local hls  = {}
 
-    local p    = 1
-    while p <= #raw do
-        local ts, te, tok = raw:find("(%S+)", p)
-        if not ts then break end
+    for _, token in ipairs(strutil.tokenize_shell_args(raw)) do
+        -- Use raw slice for byte positions; extmarks want 0-indexed start, exclusive end
+        local s0    = token.start - 1
+        local e0    = token.finish
+        local colon = token.raw:find(":", 1, true)
 
-        -- ts/te are 1-indexed; extmarks use 0-indexed start and exclusive end_col
-        local s0 = ts - 1
-        local e0 = te
-
-        local colon = tok:find(":", 1, true)
         if colon then
-            local key = tok:sub(1, colon - 1)
+            local key = token.raw:sub(1, colon - 1)
             local def = defs[key]
             if def and def.type == "value" then
-                -- "key:" part → Keyword
-                table.insert(hls, { start = s0, finish = s0 + colon, hl = "Keyword" })
-                -- "value" part → String (may be empty if user is still typing)
-                if #tok > colon then
-                    table.insert(hls, { start = s0 + colon, finish = e0, hl = "String" })
+                table.insert(hls, { start = s0,          finish = s0 + colon, hl = "Keyword" })
+                if #token.raw > colon then
+                    table.insert(hls, { start = s0 + colon, finish = e0,          hl = "String"  })
                 end
             end
         else
-            local def = defs[tok]
+            local def = defs[token.text]
             if def and def.type == "boolean" then
                 table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
             end
         end
-
-        p = te + 1
     end
 
     return hls
@@ -126,14 +121,17 @@ end
 ---@return keystone.queryflags.Completions?
 function M.get_completions(schema, line, cursor_byte)
     local before = line:sub(1, cursor_byte)
+    local defs   = build_map(schema)
 
-    local word_start_1, current_word = before:match(".*%s()(%S*)$")
-    if not word_start_1 then
-        word_start_1 = 1
-        current_word = before
+    -- Find the token at the cursor position (quote-aware)
+    local tokens       = strutil.tokenize_shell_args(before)
+    local last         = tokens[#tokens]
+    local word_start_1 = #before + 1
+    local current_word = ""
+    if last and last.finish == #before then
+        word_start_1 = last.start
+        current_word = last.text
     end
-
-    local defs = build_map(schema)
 
     -- "key:" or "key:partial" → complete values
     local colon = current_word:find(":", 1, true)
