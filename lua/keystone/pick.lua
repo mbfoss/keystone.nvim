@@ -107,12 +107,40 @@ function M.setup(opts)
         end,
         {
             desc = "Picker for files, grep etc...",
-            subcommand_fn = function(cmd, rest)
-                if cmd == "Pick" and #rest == 0 then
+            subcommand_fn = function(cmd, rest, arg_lead)
+                if cmd ~= "Pick" then return {} end
+                if #rest == 0 then
                     local keys = registry.keys()
                     table.insert(keys, "repeat_last")
                     table.sort(keys)
                     return keys
+                end
+                if #rest >= 1 then
+                    local flags = registry.get_flags(rest[1])
+                    if not flags then return {} end
+                    local colon = arg_lead:find(":", 1, true)
+                    if colon then
+                        local key     = arg_lead:sub(1, colon - 1)
+                        local partial = arg_lead:sub(colon + 1)
+                        for _, flag in ipairs(flags) do
+                            if flag.name == key and flag.type == "value" and flag.values then
+                                local out = {}
+                                for _, v in ipairs(flag.values) do
+                                    if vim.startswith(v, partial) then
+                                        table.insert(out, key .. ":" .. v)
+                                    end
+                                end
+                                return out
+                            end
+                        end
+                        return {}
+                    end
+                    local out = {}
+                    for _, flag in ipairs(flags) do
+                        local word = flag.type == "boolean" and flag.name or (flag.name .. ":")
+                        table.insert(out, word)
+                    end
+                    return out
                 end
                 return {}
             end,

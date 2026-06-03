@@ -1,7 +1,7 @@
 local M = {}
 local strutil = require('keystone.util.strutil')
 
----@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[]):string[]
+---@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[],arg_lead:string):string[]
 
 ---@alias keystone.usercmd.run_fn
 ---| fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
@@ -26,11 +26,11 @@ local function _complete(subcommand_fn, arg_lead, cmd_line)
 
     local cmd = args[1]
     if #args == 1 then
-        return filter(subcommand_fn(cmd, {}))
+        return filter(subcommand_fn(cmd, {}, arg_lead))
     elseif #args >= 2 then
         local rest = { unpack(args, 2) }
         rest[#rest] = nil
-        return filter(subcommand_fn(cmd, rest))
+        return filter(subcommand_fn(cmd, rest, arg_lead))
     end
     return {}
 end

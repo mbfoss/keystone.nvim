@@ -46,4 +46,11 @@ function M.get(name)
     return factory and factory() or nil
 end
 
+---@param name string
+---@return keystone.queryflags.FlagDef[]?
+function M.get_flags(name)
+    local spec = M.get(name)
+    return spec and spec.flags or nil
+end
+
 return M
