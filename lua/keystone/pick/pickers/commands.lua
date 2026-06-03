@@ -1,7 +1,6 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -41,9 +40,7 @@ local function format_preview(cmd)
         local info = debug.getinfo(cmd.callback, "S")
         table.insert(lines, "- Type: Lua callback")
         if info then
-            if info.short_src then
-                table.insert(lines, string.format("- Source: `%s`", info.short_src))
-            end
+            if info.short_src  then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
             if info.linedefined and info.linedefined > 0 then
                 table.insert(lines, string.format("- Line: %d", info.linedefined))
             end
@@ -58,26 +55,24 @@ local function format_preview(cmd)
     return table.concat(lines, "\n")
 end
 
-function M.open()
-    -- collect user-defined commands (global + buffer-local) keyed by name
+---@return keystone.PickerSpec?
+function M.spec()
     local user_cmds = {}
 
     for name, cmd in pairs(vim.api.nvim_get_commands({})) do
-        cmd.name   = name
+        cmd.name    = name
         user_cmds[name] = cmd
     end
 
     for name, cmd in pairs(vim.api.nvim_buf_get_commands(0, {})) do
-        cmd.name   = name
-        cmd.is_buf = true
+        cmd.name    = name
+        cmd.is_buf  = true
         user_cmds[name] = cmd
     end
 
-    -- all command names available in the current context (includes builtins)
     local all_names = vim.fn.getcompletion("", "command")
 
     local entries = {}
-
     for _, name in ipairs(all_names) do
         if user_cmds[name] then
             table.insert(entries, user_cmds[name])
@@ -88,14 +83,14 @@ function M.open()
 
     if vim.tbl_isempty(entries) then
         vim.notify("No commands found", vim.log.levels.WARN)
-        return
+        return nil
     end
 
-    picker.open({
-        prompt = "Commands",
-        flags = FLAGS,
+    return {
+        prompt         = "Commands",
+        flags          = FLAGS,
         enable_preview = true,
-        finder = function(query, flags, _, callback)
+        finder         = function(query, flags, _, callback)
             local items = {}
             for _, cmd in ipairs(entries) do
                 if flags.buf     and not cmd.is_buf     then goto continue end
@@ -128,13 +123,14 @@ function M.open()
             callback({ content = format_preview(data.cmd) })
             return function() end
         end,
-    }, function(data)
-        if not data then return end
-        local name  = data.cmd.name
-        local nargs = data.cmd.nargs
-        local cmdline = (not data.cmd.is_builtin and nargs ~= "0") and (name .. " ") or name
-        vim.api.nvim_feedkeys(":" .. cmdline, "n", false)
-    end)
+        on_confirm = function(data)
+            if not data then return end
+            local name    = data.cmd.name
+            local nargs   = data.cmd.nargs
+            local cmdline = (not data.cmd.is_builtin and nargs ~= "0") and (name .. " ") or name
+            vim.api.nvim_feedkeys(":" .. cmdline, "n", false)
+        end,
+    }
 end
 
 return M

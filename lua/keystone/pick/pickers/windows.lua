@@ -1,7 +1,6 @@
-local picker = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-
 local M = {}
+
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -12,19 +11,20 @@ local FLAGS = {
 ---@param winid number
 ---@param query string
 ---@param is_float boolean
+---@param current_win number
 ---@return keystone.Picker.Item?
 local function window_to_picker_item(winid, query, is_float, current_win)
     if not vim.api.nvim_win_is_valid(winid) then return nil end
 
-    local bufnr = vim.api.nvim_win_get_buf(winid)
-    local bufname = vim.api.nvim_buf_get_name(bufnr)
+    local bufnr    = vim.api.nvim_win_get_buf(winid)
+    local bufname  = vim.api.nvim_buf_get_name(bufnr)
     local filename = bufname ~= "" and vim.fn.fnamemodify(bufname, ":t") or "[No Name]"
 
     local match = pickertools.match_label(filename, query)
     if not match then return nil end
 
     local label_chunks = {
-        { string.format("%2d ", winid),                               "Comment" },
+        { string.format("%2d ", winid),                               "Comment"  },
         { string.format("[%d] ", vim.api.nvim_win_get_number(winid)), "Constant" },
     }
     vim.list_extend(label_chunks, match.chunks)
@@ -52,19 +52,22 @@ local function window_to_picker_item(winid, query, is_float, current_win)
 end
 
 ---@param opts {only_current_tab:boolean?}?
-function M.open(opts)
+---@return keystone.PickerSpec
+function M.spec(opts)
     opts = opts or {}
-    local windows     = opts.only_current_tab and vim.api.nvim_tabpage_list_wins(0) or vim.api.nvim_list_wins()
+    local windows     = opts.only_current_tab
+        and vim.api.nvim_tabpage_list_wins(0)
+        or vim.api.nvim_list_wins()
     local current_win = vim.api.nvim_get_current_win()
 
-    picker.open({
-        prompt = "Switch Window",
-        flags = FLAGS,
+    return {
+        prompt         = "Switch Window",
+        flags          = FLAGS,
         enable_preview = true,
-        finder = function(query, flags, _, callback)
+        finder         = function(query, flags, _, callback)
             local items = {}
             for _, winid in ipairs(windows) do
-                local config = vim.api.nvim_win_get_config(winid)
+                local config   = vim.api.nvim_win_get_config(winid)
                 local is_float = config.relative ~= ""
                 if is_float and not flags.float then goto continue end
 
@@ -78,12 +81,12 @@ function M.open(opts)
             callback(items)
         end,
         previewer = function(data, _, callback)
-            local bufnr = data.bufnr
+            local bufnr     = data.bufnr
             local cancelled = false
             vim.schedule(function()
                 if not cancelled and vim.api.nvim_buf_is_valid(bufnr) then
                     callback({
-                        content = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+                        content  = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
                         filetype = vim.bo[bufnr].filetype,
                     })
                 else
@@ -92,11 +95,12 @@ function M.open(opts)
             end)
             return function() cancelled = true end
         end,
-    }, function(data)
-        if data and vim.api.nvim_win_is_valid(data.winid) then
-            vim.api.nvim_set_current_win(data.winid)
-        end
-    end)
+        on_confirm = function(data)
+            if data and vim.api.nvim_win_is_valid(data.winid) then
+                vim.api.nvim_set_current_win(data.winid)
+            end
+        end,
+    }
 end
 
 return M

@@ -1,48 +1,47 @@
-local picker = require("keystone.pick.base.picker")
+local M = {}
+
 local pickertools = require("keystone.pick.base.pickertools")
 
-local M = {}
-function M.open(opts)
+---@class keystone.spell.Opts
+---@field limit number?
+
+---@param opts keystone.spell.Opts?
+---@return keystone.PickerSpec?
+function M.spec(opts)
     opts = opts or {}
 
     local cursor_word = vim.fn.expand("<cword>")
     if cursor_word == "" then
         vim.notify("No word under cursor", vim.log.levels.WARN)
-        return
+        return nil
     end
 
     local suggestions = vim.fn.spellsuggest(cursor_word, opts.limit or 25)
 
     if #suggestions == 0 then
         vim.notify("No spell suggestions found for: " .. cursor_word, vim.log.levels.INFO)
-        return
+        return nil
     end
 
-    picker.open({
+    return {
         prompt = "Spell Checker: " .. cursor_word,
-        finder = function(query, _, fetch_opts, callback)
+        finder = function(query, _, _, callback)
             local items = {}
-            for i, word in ipairs(suggestions) do
-                local item = {
-                    label = word,
-                    data = {
-                        word = word
-                    }
-                }
-                local match = pickertools.match_label(item.label, query)
-
+            for _, word in ipairs(suggestions) do
+                local match = pickertools.match_label(word, query)
                 if match then
-                    item.label_chunks = match.chunks
-                    table.insert(items, item)
+                    table.insert(items, {
+                        label_chunks = match.chunks,
+                        data         = { word = word },
+                    })
                 end
             end
             callback(items)
         end,
-    }, function(data)
-        if data then
-            vim.cmd("normal! ciw" .. data.word)
-        end
-    end)
+        on_confirm = function(data)
+            if data then vim.cmd("normal! ciw" .. data.word) end
+        end,
+    }
 end
 
 return M
