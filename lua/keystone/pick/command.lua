@@ -20,7 +20,8 @@ local picker = require("keystone.pick.base.picker")
 
 ---@param spec keystone.PickerSpec
 ---@param data table?
-local function _do_open(spec, data)
+---@param initial_filter string?
+local function _do_open(spec, data, initial_filter)
     picker.open({
         prompt             = spec.prompt,
         flags              = spec.flags,
@@ -33,6 +34,7 @@ local function _do_open(spec, data)
         history_provider   = spec.history_provider,
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
+        initial_filter     = initial_filter,
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,
@@ -40,14 +42,15 @@ local function _do_open(spec, data)
 end
 
 ---@param spec keystone.PickerSpec?
-local function _open_spec(spec)
+---@param initial_filter string?
+local function _open_spec(spec, initial_filter)
     if not spec then return end
     if spec.setup then
         spec.setup(function(data)
-            if data ~= nil then _do_open(spec, data) end
+            if data ~= nil then _do_open(spec, data, initial_filter) end
         end)
     else
-        _do_open(spec, nil)
+        _do_open(spec, nil, initial_filter)
     end
 end
 
@@ -84,7 +87,9 @@ local _pickers = {
     commands              = function() return require("keystone.pick.pickers.commands").spec() end,
 }
 
-local function _pick(picker_type)
+---@param picker_type string?
+---@param initial_filter string?
+local function _pick(picker_type, initial_filter)
     if not picker_type or picker_type == "" then
         local keys = vim.tbl_keys(_pickers)
         table.insert(keys, "repeat_last")
@@ -102,7 +107,7 @@ local function _pick(picker_type)
 
     local factory = _pickers[picker_type]
     if factory then
-        _open_spec(factory())
+        _open_spec(factory(), initial_filter)
     else
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
     end
@@ -126,7 +131,8 @@ end
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.run_command(cmd, args, opts)
     if cmd == "Pick" then
-        _pick(args[1])
+        local initial_filter = #args > 1 and table.concat(args, " ", 2) or nil
+        _pick(args[1], initial_filter)
     end
 end
 

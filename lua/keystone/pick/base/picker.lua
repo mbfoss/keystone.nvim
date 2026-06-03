@@ -87,6 +87,7 @@ end
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
 ---@field initial_query string?
+---@field initial_filter string?
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -327,9 +328,16 @@ function Picker:init(opts, callback)
 	assert(self.pwin)
 	vim.api.nvim_set_current_win(self.pwin)
 
+	if opts.initial_filter and opts.initial_filter ~= "" and #self.opts.flags > 0 then
+		self.filter_text = opts.initial_filter
+	end
+
 	if opts.initial_query and opts.initial_query ~= "" then
 		self:set_prompt_text(opts.initial_query)
 	else
+		if self.filter_text ~= "" then
+			self:render_mode_prefix()
+		end
 		self:run_fetch("")
 	end
 	vim.schedule(function()
@@ -547,7 +555,7 @@ function Picker:render_mode_prefix()
 		})
 	else
 		if self.filter_text ~= "" then
-			local chunks = queryflags.to_virt_text(self.opts.flags, self.filter_text, "Special")
+			local chunks = queryflags.to_virt_text(self.opts.flags, self.filter_text, "Comment")
 			chunks[#chunks + 1] = { " ❯ ", "Special" }
 			vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
 				virt_text     = chunks,
