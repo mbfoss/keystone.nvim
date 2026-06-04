@@ -1,5 +1,34 @@
 local M = {}
-local strutil = require('keystone.util.strutil')
+
+---@param str string
+---@return string[]
+local function _split_args(str)
+    local args = {}
+    local i = 1
+    local len = #str
+    local part = {}
+
+    while i <= len do
+        local c = str:sub(i, i)
+        if c == '\\' and i < len then
+            table.insert(part, str:sub(i + 1, i + 1))
+            i = i + 2
+        elseif c:match('%s') then
+            if #part > 0 then
+                table.insert(args, table.concat(part))
+                part = {}
+            end
+            i = i + 1
+        else
+            table.insert(part, c)
+            i = i + 1
+        end
+    end
+    if #part > 0 then
+        table.insert(args, table.concat(part))
+    end
+    return args
+end
 
 ---@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[],arg_lead:string):string[]
 
@@ -19,7 +48,7 @@ local function _complete(subcommand_fn, arg_lead, cmd_line)
         return out
     end
 
-    local args = strutil.split_shell_args(cmd_line)
+    local args = _split_args(cmd_line)
     if cmd_line:match("%s+$") then
         table.insert(args, ' ')
     end
@@ -39,7 +68,7 @@ end
 ---@param run_fn keystone.usercmd.run_fn
 ---@param opts vim.api.keyset.create_user_command.command_args
 local function _dispatch(cmd, run_fn, opts)
-    local args = strutil.split_shell_args(opts.args)
+    local args = _split_args(opts.args)
     local ok, err = pcall(run_fn, cmd, args, opts)
     if not ok then
         vim.notify(
