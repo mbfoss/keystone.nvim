@@ -49,7 +49,7 @@ local function _do_open(spec, data, initial_filter)
         history_provider   = spec.history_provider,
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
-        initial_filter     = initial_filter,
+        initial_query      = initial_filter,
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,
@@ -140,6 +140,15 @@ function M.setup(opts)
                     if colon then
                         local key     = arg_lead:sub(1, colon - 1)
                         local partial = arg_lead:sub(colon + 1)
+                        if key == "is" then
+                            local out = {}
+                            for _, flag in ipairs(flags) do
+                                if flag.type == "boolean" and vim.startswith(flag.name, partial) then
+                                    table.insert(out, "is:" .. flag.name)
+                                end
+                            end
+                            return out
+                        end
                         for _, flag in ipairs(flags) do
                             if flag.name == key and flag.type == "value" and flag.values then
                                 local out = {}
@@ -155,8 +164,11 @@ function M.setup(opts)
                     end
                     local out = {}
                     for _, flag in ipairs(flags) do
-                        local word = flag.type == "boolean" and flag.name or (flag.name .. ":")
-                        table.insert(out, word)
+                        if flag.type == "boolean" then
+                            table.insert(out, "is:" .. flag.name)
+                        else
+                            table.insert(out, flag.name .. ":")
+                        end
                     end
                     return out
                 end

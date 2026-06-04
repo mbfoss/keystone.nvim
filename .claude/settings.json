@@ -4,7 +4,9 @@
       "Bash(xxd)",
       "Bash(python3 -c ' *)",
       "Bash(python3 -)",
-      "Bash(xargs ls)"
+      "Bash(xargs ls)",
+      "Bash(NVIM_PLENARY_DIR=/Users/Dev/.config/nvim/pack/plugins/opt/plenary.nvim make test)",
+      "Bash(git stash *)"
     ]
   }
 }

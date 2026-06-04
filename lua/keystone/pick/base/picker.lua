@@ -15,22 +15,9 @@ local NS_CURSOR          = vim.api.nvim_create_namespace("keystone_PickerCursor"
 local NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent")
 local NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
-local NS_PREFIX          = vim.api.nvim_create_namespace("keystone_PickerPrefix")
 
 local _antiflicker_delay = 200
 
-local function _encode_history(query_text, filter_text)
-	if filter_text == "" then return query_text end
-	return vim.json.encode({ q = query_text, f = filter_text })
-end
-
-local function _decode_history(entry)
-	local ok, decoded = pcall(vim.json.decode, entry)
-	if ok and type(decoded) == "table" then
-		return decoded.q or "", decoded.f or ""
-	end
-	return entry, ""
-end
 
 ---@class keystone.picker.ItemData
 ---@field filepath string?
@@ -87,7 +74,6 @@ end
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
 ---@field initial_query string?
----@field initial_filter string?
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -305,8 +291,6 @@ function Picker:init(opts, callback)
 	self.spinner               = nil
 
 	self.query_text            = ""
-	self.filter_text           = ""
-	self.prompt_mode           = "query" ---@type "filter"|"query"
 
 	self.history               = {}
 	self.history_idx           = 0
@@ -328,16 +312,9 @@ function Picker:init(opts, callback)
 	assert(self.pwin)
 	vim.api.nvim_set_current_win(self.pwin)
 
-	if opts.initial_filter and opts.initial_filter ~= "" and #self.opts.flags > 0 then
-		self.filter_text = opts.initial_filter
-	end
-
 	if opts.initial_query and opts.initial_query ~= "" then
 		self:set_prompt_text(opts.initial_query)
 	else
-		if self.filter_text ~= "" then
-			self:render_mode_prefix()
-		end
 		self:run_fetch("")
 	end
 	vim.schedule(function()
@@ -540,51 +517,21 @@ function Picker:relayout(action)
 	end
 end
 
-function Picker:render_mode_prefix()
-	if not self.pbuf then return end
-	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_PREFIX, 0, -1)
-	if #self.opts.flags == 0 then return end
-	if self.prompt_mode == "filter" then
-		vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
-			virt_text     = {
-				{ "Flags❯ ", "Special" },
-			},
-			virt_text_pos = "inline",
-			right_gravity = false,
-			priority      = 100,
-		})
-	else
-		if self.filter_text ~= "" then
-			local chunks = queryflags.to_virt_text(self.opts.flags, self.filter_text, "Comment")
-			chunks[#chunks + 1] = { " ❯ ", "Special" }
-			vim.api.nvim_buf_set_extmark(self.pbuf, NS_PREFIX, 0, 0, {
-				virt_text     = chunks,
-				virt_text_pos = "inline",
-				right_gravity = false,
-				priority      = 100,
-			})
-		end
-	end
-end
-
 function Picker:render_prompt_highlight(query)
 	if not self.pbuf then return end
 	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
 	if #self.opts.flags == 0 then return end
-	if self.prompt_mode == "filter" then
-		for _, h in ipairs(queryflags.highlight(self.opts.flags, query)) do
-			vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
-				end_col  = h.finish,
-				hl_group = h.hl,
-			})
-		end
+	for _, h in ipairs(queryflags.highlight(self.opts.flags, query)) do
+		vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
+			end_col  = h.finish,
+			hl_group = h.hl,
+		})
 	end
 end
 
 function Picker:trigger_flag_completion(query)
 	if #self.opts.flags == 0 then return end
-	if self.dismissing_pum then return end
-	if self.prompt_mode ~= "filter" then return end
+	if vim.fn.pumvisible() == 1 then return end
 	if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
 	if vim.fn.mode() ~= "i" then return end
 
@@ -929,8 +876,8 @@ function Picker:run_fetch(query)
 
 	local clean_query, flags
 	if #self.opts.flags > 0 then
-		clean_query = self.query_text
-		local parsed = queryflags.parse(self.opts.flags, self.filter_text)
+		local parsed = queryflags.parse(self.opts.flags, query)
+		clean_query = parsed.query
 		flags = parsed.flags
 		fetch_opts.parsed = parsed
 	else
@@ -986,7 +933,7 @@ function Picker:history_prev()
 	if not self.opts.history_provider or #self.history == 0 then return end
 
 	if self.history_idx == #self.history + 1 then
-		self.history_saved_query = _encode_history(self.query_text, self.filter_text)
+		self.history_saved_query = self.query_text
 	end
 
 	local new_idx = math.max(1, self.history_idx - 1)
@@ -1011,17 +958,9 @@ function Picker:history_next()
 end
 
 function Picker:set_prompt_text(text)
-	if #self.opts.flags > 0 then
-		self.query_text, self.filter_text = _decode_history(text)
-		local display = self.prompt_mode == "filter" and self.filter_text or self.query_text
-		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
-		vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
-		self:render_mode_prefix()
-	else
-		self.query_text = text
-		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
-		vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
-	end
+	self.query_text = text
+	vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
+	vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
 	self:run_fetch(text)
 end
 
@@ -1078,9 +1017,7 @@ function Picker:close(selected_data)
 	local cursor_item = cursor and self.list_items[cursor]
 	_last_session     = {
 		cursor_text = cursor_item and _item_label(cursor_item) or nil,
-		query       = #self.opts.flags > 0
-			and _encode_history(self.query_text, self.filter_text)
-			or self.current_query or "",
+		query       = self.current_query or "",
 		opts        = self.opts,
 		callback    = self.callback,
 	}
@@ -1098,9 +1035,7 @@ function Picker:close(selected_data)
 	end
 
 	if self.opts.history_provider then
-		local entry = #self.opts.flags > 0
-			and _encode_history(self.query_text, self.filter_text)
-			or self.current_query
+		local entry = self.current_query
 		if entry and entry ~= "" and entry ~= self.history[#self.history] then
 			table.insert(self.history, entry)
 			if self.opts.history_provider.store then
@@ -1115,41 +1050,6 @@ function Picker:close(selected_data)
 	end)
 end
 
-function Picker:toggle_opts_mode()
-	if #self.opts.flags == 0 then return end
-	local current = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-	if self.prompt_mode == "query" then
-		self.query_text  = current
-		self.prompt_mode = "filter"
-		local display    = self.filter_text
-		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
-		vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
-		self:render_prompt_highlight(display)
-		self:trigger_flag_completion(display)
-		self:render_mode_prefix()
-		self:render_position()
-	else
-		if vim.fn.pumvisible() == 1 then
-			self.dismissing_pum = true
-			vim.api.nvim_feedkeys(
-				vim.api.nvim_replace_termcodes("<C-y>", true, false, true), "n", false)
-			vim.schedule(function()
-				self.dismissing_pum = false
-				if self.prompt_mode ~= "filter" then return end
-				self:toggle_opts_mode()
-			end)
-			return
-		end
-		self.filter_text = current
-		self.prompt_mode = "query"
-		local display    = self.query_text
-		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { display })
-		vim.api.nvim_win_set_cursor(self.pwin, { 1, #display })
-		self:render_prompt_highlight(display)
-		self:render_mode_prefix()
-		self:render_position()
-	end
-end
 
 function Picker:setup_input()
 	do
@@ -1214,21 +1114,12 @@ function Picker:setup_input()
 
 		vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
-		vim.keymap.set({ "n", "i" }, "<C-f>", function() self:toggle_opts_mode() end, pbuf_key_opts)
-
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
 			buffer = self.pbuf,
 			callback = function()
 				local text = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-				local update = false
-				if self.prompt_mode == "query" then
-					update = text ~= self.query_text
+				if text ~= self.query_text then
 					self.query_text = text
-				else
-					update = text ~= self.filter_text
-					self.filter_text = text
-				end
-				if update then
 					self:render_prompt_highlight(text)
 					self:run_fetch(text)
 					self:trigger_flag_completion(text)
