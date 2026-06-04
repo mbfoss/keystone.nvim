@@ -177,6 +177,9 @@ end
 ---@param cursor_byte integer  -- 0-indexed byte offset from nvim_win_get_cursor
 ---@return keystone.queryflags.Completions?
 function M.get_completions(schema, line, cursor_byte)
+    local char_after = line:sub(cursor_byte + 1, cursor_byte + 1)
+    if char_after ~= "" and not char_after:match("%s") then return nil end
+
     local before = line:sub(1, cursor_byte)
 
     local tokens       = _tokenize(before)
