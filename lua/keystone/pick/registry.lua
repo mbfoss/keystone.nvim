@@ -32,6 +32,7 @@ local _pickers = {
     keymaps               = function() return require("keystone.pick.pickers.keymaps").spec() end,
     notifications         = function() return require("keystone.pick.pickers.notifications").spec() end,
     commands              = function() return require("keystone.pick.pickers.commands").spec() end,
+    parse_debug           = function() return require("keystone.pick.pickers.parse_debug").spec() end,
 }
 
 ---@return string[]

@@ -164,7 +164,6 @@ function M.get_completions(schema, line, cursor_byte)
     end
 
     -- no colon yet: suggest value flag names and individual "is:flagname" items
-    if current_word == "" then return nil end
     local items = {}
     for _, def in ipairs(schema) do
         if def.type == "value" and vim.startswith(def.name, current_word) then
