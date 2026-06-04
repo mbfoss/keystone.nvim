@@ -961,6 +961,7 @@ function Picker:set_prompt_text(text)
 	self.query_text = text
 	vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
 	vim.api.nvim_win_set_cursor(self.pwin, { 1, #text })
+	self:render_prompt_highlight(text)
 	self:run_fetch(text)
 end
 
@@ -1049,7 +1050,6 @@ function Picker:close(selected_data)
 		self.callback(selected_data)
 	end)
 end
-
 
 function Picker:setup_input()
 	do

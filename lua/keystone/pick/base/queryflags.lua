@@ -37,8 +37,9 @@ function M.parse(schema, raw)
     local query_parts = {}
 
     for _, token in ipairs(strutil.tokenize_shell_args(raw)) do
-        local tok   = token.text
-        local colon = tok:find(":", 1, true)
+        local tok    = token.text
+        local quoted = token.raw:sub(1, 1) == '"' or token.raw:sub(1, 1) == "'"
+        local colon  = not quoted and tok:find(":", 1, true)
         if colon then
             local key = tok:sub(1, colon - 1)
             local val = tok:sub(colon + 1)
@@ -89,17 +90,17 @@ function M.highlight(schema, raw)
             if key == "is" then
                 local def = defs[val]
                 if def and def.type == "boolean" then
-                    table.insert(hls, { start = s0,          finish = s0 + colon, hl = "Keyword" })
+                    table.insert(hls, { start = s0, finish = s0 + colon, hl = "Keyword" })
                     if #val > 0 then
-                        table.insert(hls, { start = s0 + colon, finish = e0,          hl = "Special" })
+                        table.insert(hls, { start = s0 + colon, finish = e0, hl = "Special" })
                     end
                 end
             else
                 local def = defs[key]
                 if def and def.type == "value" then
-                    table.insert(hls, { start = s0,          finish = s0 + colon, hl = "Keyword" })
+                    table.insert(hls, { start = s0, finish = s0 + colon, hl = "Keyword" })
                     if #val > 0 then
-                        table.insert(hls, { start = s0 + colon, finish = e0,          hl = "String"  })
+                        table.insert(hls, { start = s0 + colon, finish = e0, hl = "String" })
                     end
                 end
             end
@@ -114,8 +115,8 @@ end
 ---@param cursor_byte integer  -- 0-indexed byte offset from nvim_win_get_cursor
 ---@return keystone.queryflags.Completions?
 function M.get_completions(schema, line, cursor_byte)
-    local before = line:sub(1, cursor_byte)
-    local defs   = build_map(schema)
+    local before       = line:sub(1, cursor_byte)
+    local defs         = build_map(schema)
 
     local tokens       = strutil.tokenize_shell_args(before)
     local last         = tokens[#tokens]
@@ -126,44 +127,6 @@ function M.get_completions(schema, line, cursor_byte)
         current_word = last.text
     end
 
-    local colon = current_word:find(":", 1, true)
-    if colon then
-        local prefix  = current_word:sub(1, colon - 1)
-        local partial = current_word:sub(colon + 1)
-
-        if prefix == "is" then
-            -- complete boolean flag names after "is:"
-            local items = {}
-            for _, def in ipairs(schema) do
-                if def.type == "boolean" and vim.startswith(def.name, partial) then
-                    table.insert(items, {
-                        word = "is:" .. def.name,
-                        abbr = def.name,
-                        menu = def.desc or "[flag]",
-                    })
-                end
-            end
-            return #items > 0 and { startcol = word_start_1, items = items } or nil
-        else
-            -- complete values after "key:"
-            local def = defs[prefix]
-            if def and def.type == "value" and def.values then
-                local items = {}
-                for _, v in ipairs(def.values) do
-                    if vim.startswith(v, partial) then
-                        table.insert(items, {
-                            word = prefix .. ":" .. v,
-                            abbr = v,
-                        })
-                    end
-                end
-                return #items > 0 and { startcol = word_start_1, items = items } or nil
-            end
-        end
-        return nil
-    end
-
-    -- no colon yet: suggest value flag names and individual "is:flagname" items
     local items = {}
     for _, def in ipairs(schema) do
         if def.type == "value" and vim.startswith(def.name, current_word) then
