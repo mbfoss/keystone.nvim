@@ -191,7 +191,7 @@ function M.get_completions(schema, line, cursor_byte)
         current_word = last.text
     end
 
-    local colon = last and last.colon_pos
+    local colon = last and last.finish == #before and last.colon_pos
     if colon then
         local prefix  = current_word:sub(1, colon - 1)
         local partial = current_word:sub(colon + 1)
