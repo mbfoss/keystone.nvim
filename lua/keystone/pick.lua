@@ -100,81 +100,34 @@ end
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    require("keystone.util.usercmd").register_user_cmd("Pick",
-        function(cmd, args)
-            if cmd == "Pick" then
-                local initial_filter
-                if #args > 1 then
-                    local parts = {}
-                    for i = 2, #args do
-                        local a     = args[i]
-                        local colon = a:find(':', 1, true)
-                        local key   = colon and a:sub(1, colon - 1) or a
-                        local val   = colon and a:sub(colon + 1)    or nil
-                        if key:find(' ', 1, true) then
-                            a = vim.fn.shellescape(a)
-                        elseif val and val:find(' ', 1, true) then
-                            a = key .. ':' .. vim.fn.shellescape(val)
-                        end
-                        parts[#parts + 1] = a
-                    end
-                    initial_filter = table.concat(parts, " ")
-                end
-                M.pick(args[1], initial_filter)
+    vim.api.nvim_create_user_command("Pick", function(cmd_opts)
+        local picker_type    = cmd_opts.fargs[1]
+        local initial_filter = #cmd_opts.fargs > 1 and cmd_opts.args:match("^%S+%s+(.+)$") or nil
+        M.pick(picker_type, initial_filter)
+    end, {
+        nargs    = "*",
+        desc     = "Picker for files, grep etc...",
+        complete = function(arg_lead, cmd_line, _)
+            local parts = vim.split(cmd_line, "%s+", { trimempty = true })
+            if #parts <= 1 or (#parts == 2 and not cmd_line:match("%s$")) then
+                local keys = registry.keys()
+                table.insert(keys, "repeat_last")
+                table.sort(keys)
+                return vim.tbl_filter(function(k) return vim.startswith(k, arg_lead) end, keys)
             end
+            local flags = registry.get_flags(parts[2])
+            if not flags then return {} end
+            local out = {}
+            for _, flag in ipairs(flags) do
+                if flag.type == "boolean" then
+                    table.insert(out, "is:" .. flag.name)
+                else
+                    table.insert(out, flag.name .. ":")
+                end
+            end
+            return vim.tbl_filter(function(v) return vim.startswith(v, arg_lead) end, out)
         end,
-        {
-            desc = "Picker for files, grep etc...",
-            subcommand_fn = function(cmd, rest, arg_lead)
-                if cmd ~= "Pick" then return {} end
-                if #rest == 0 then
-                    local keys = registry.keys()
-                    table.insert(keys, "repeat_last")
-                    table.sort(keys)
-                    return keys
-                end
-                if #rest >= 1 then
-                    local flags = registry.get_flags(rest[1])
-                    if not flags then return {} end
-                    local colon = arg_lead:find(":", 1, true)
-                    if colon then
-                        local key     = arg_lead:sub(1, colon - 1)
-                        local partial = arg_lead:sub(colon + 1)
-                        if key == "is" then
-                            local out = {}
-                            for _, flag in ipairs(flags) do
-                                if flag.type == "boolean" and vim.startswith(flag.name, partial) then
-                                    table.insert(out, "is:" .. flag.name)
-                                end
-                            end
-                            return out
-                        end
-                        for _, flag in ipairs(flags) do
-                            if flag.name == key and flag.type == "value" and flag.values then
-                                local out = {}
-                                for _, v in ipairs(flag.values) do
-                                    if vim.startswith(v, partial) then
-                                        table.insert(out, key .. ":" .. v)
-                                    end
-                                end
-                                return out
-                            end
-                        end
-                        return {}
-                    end
-                    local out = {}
-                    for _, flag in ipairs(flags) do
-                        if flag.type == "boolean" then
-                            table.insert(out, "is:" .. flag.name)
-                        else
-                            table.insert(out, flag.name .. ":")
-                        end
-                    end
-                    return out
-                end
-                return {}
-            end,
-        })
+    })
 
     if M.config.override_ui_select then
         vim.ui.select = require("keystone.pick.select").select
