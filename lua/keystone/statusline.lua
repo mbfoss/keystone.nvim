@@ -1,6 +1,7 @@
 local M = {}
 
-local _icons = require("keystone.icons")
+local _icons     = require("keystone.icons")
+local _lspsymbol = require("keystone.util.lspsymbol")
 
 ---A section can be a builtin name or a function returning a statusline string.
 ---Builtin names: "mode" | "git" | "filename" | "lsp_progress" | "diagnostics" | "filetype" | "position"
@@ -19,7 +20,7 @@ local function _get_default_config()
   return {
     enabled = true,
     sections = {
-      left  = { "mode", "git", "filename" },
+      left  = { "mode", "git", "filename", "symbol" },
       right = { "lsp_progress", "diagnostics", "filetype", "position" },
     },
   }
@@ -55,6 +56,7 @@ local function _setup_highlights()
   def("KeystoneSLModeCommand", { fg = "#CDCDCD", bold = true })
   def("KeystoneSLGit",         { link = "" })
   def("KeystoneSLLspProgress", { link = "" })
+  def("KeystoneSLSymbol",      { link = "Comment" })
   def("KeystoneSLDiagError",   { link = "DiagnosticError" })
   def("KeystoneSLDiagWarn",    { link = "DiagnosticWarn" })
   def("KeystoneSLDiagHint",    { link = "DiagnosticHint" })
@@ -67,6 +69,20 @@ end
 
 ---@type table<string|integer, keystone.statusline.LspToken>
 local _lsp_progress = {}
+
+-- [bufnr] = SymbolInfo[] — last chain received from lspsymbol
+local _symbol_chains = {}
+local _lspsymbol_unsub = nil
+
+local _FUNCTION_KINDS = { [5] = true, [6] = true, [9] = true, [12] = true, [23] = true }
+
+local _SYMBOL_ICONS = {
+  [5]  = "󰌗", -- Class
+  [6]  = "󰆧", -- Method
+  [9]  = "",  -- Constructor
+  [12] = "󰊕", -- Function
+  [23] = "󰙅", -- Struct
+}
 
 -- ---------------------------------------------------------------------------
 -- Built-in section renderers
@@ -141,6 +157,21 @@ local function _section_lsp_progress(bufnr)
   return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %*"
 end
 
+local function _section_symbol(bufnr)
+  local chain = _symbol_chains[bufnr]
+  if not chain or #chain == 0 then return "" end
+  local sym
+  for i = #chain, 1, -1 do
+    if _FUNCTION_KINDS[chain[i].kind] then
+      sym = chain[i]
+      break
+    end
+  end
+  if not sym then return "" end
+  local icon = _SYMBOL_ICONS[sym.kind] or "󰊕"
+  return "%#KeystoneSLSymbol# " .. icon .. " " .. sym.name:gsub("%%", "%%%%") .. " %*"
+end
+
 local function _section_position(_)
   return "%* %4l:%-3c "
 end
@@ -150,6 +181,7 @@ local _BUILTINS = {
   mode         = _section_mode,
   git          = _section_git,
   filename     = _section_filename,
+  symbol       = _section_symbol,
   lsp_progress = _section_lsp_progress,
   diagnostics  = _section_diagnostics,
   filetype     = _section_filetype,
@@ -213,6 +245,11 @@ function M.enable()
   _setup_highlights()
   vim.o.statusline = '%{%v:lua.require("keystone.statusline").render()%}'
 
+  _lspsymbol_unsub = _lspsymbol.subscribe(function(bufnr, chain)
+    _symbol_chains[bufnr] = chain
+    vim.schedule(vim.cmd.redrawstatus)
+  end)
+
   local group = vim.api.nvim_create_augroup("keystone_statusline", { clear = true })
 
   vim.api.nvim_create_autocmd("ColorScheme", {
@@ -242,6 +279,11 @@ end
 function M.disable()
   if not _enabled then return end
   _enabled = false
+  if _lspsymbol_unsub then
+    _lspsymbol_unsub()
+    _lspsymbol_unsub = nil
+  end
+  _symbol_chains = {}
   _lsp_progress = {}
   vim.api.nvim_del_augroup_by_name("keystone_statusline")
   vim.o.statusline = ""
