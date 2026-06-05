@@ -190,7 +190,7 @@ function M.spec()
             end
 
             local sys_obj = vim.system(
-                { "git", table.unpack(args) },
+                { "git", unpack(args) },
                 { cwd = cwd },
                 function(out)
                     local content = out.stdout or ""

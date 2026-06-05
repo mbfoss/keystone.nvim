@@ -1114,6 +1114,8 @@ function Picker:setup_input()
 
 		vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
+		vim.keymap.set("i", "<C-Space>", function() self:trigger_flag_completion(self.query_text) end, pbuf_key_opts)
+
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
 			buffer = self.pbuf,
 			callback = function()
@@ -1122,7 +1124,7 @@ function Picker:setup_input()
 					self.query_text = text
 					self:render_prompt_highlight(text)
 					self:run_fetch(text)
-					self:trigger_flag_completion(text)
+					--self:trigger_flag_completion(text)
 				end
 			end
 		})
