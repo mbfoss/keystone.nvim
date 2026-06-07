@@ -516,6 +516,30 @@ local function on_complete_changed()
   end, vim.api.nvim_get_current_buf())
 end
 
+local function show_signature_help()
+  if in_float() then return end
+  local client
+  for _, c in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+    if tbl_get(c, { "server_capabilities", "signatureHelpProvider" }) then
+      client = c
+      break
+    end
+  end
+  if not client then return end
+  local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+  client:request("textDocument/signatureHelp", params, function(err, result, ctx)
+    if err or not result or not result.signatures or #result.signatures == 0 then return end
+    for _, sig in ipairs(result.signatures) do
+      sig.documentation = nil
+    end
+    vim.lsp.handlers["textDocument/signatureHelp"](err, result, ctx, {
+      silent    = true,
+      border    = "rounded",
+      focusable = false,
+    })
+  end, 0)
+end
+
 -- Autocommand callbacks ------------------------------------------------------
 
 local function on_insert_char()
@@ -551,15 +575,7 @@ local function on_insert_char()
 end
 
 local function on_cursor_moved()
-  if in_float() then return end
-  if not has_lsp_clients("signatureHelpProvider") then return end
-  ---@type vim.lsp.buf.signature_help.Opts
-  local opts = {
-    silent = true,
-    border = "rounded",
-    --close_events = {},
-  }
-  vim.lsp.buf.signature_help(opts)
+  show_signature_help()
 end
 
 local function on_complete_done()
