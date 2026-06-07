@@ -1,9 +1,9 @@
-local M = {}
+local M                  = {}
 
-local uitool      = require("keystone.util.uitool")
-local strutil     = require("keystone.util.strutil")
-local pickertools  = require("keystone.pick.base.pickertools")
-local fsutil      = require("keystone.util.fsutil")
+local uitool             = require("keystone.util.uitool")
+local strutil            = require("keystone.util.strutil")
+local pickertools        = require("keystone.pick.base.pickertools")
+local fsutil             = require("keystone.util.fsutil")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
@@ -27,7 +27,40 @@ local REF_FLAGS = {
 
 ---@type keystone.queryflags.FlagDef[]
 local SYMBOL_FLAGS = {
-    { name = "kind", type = "value", multi = true, desc = "filter by symbol kind: Function, Method, Class, ..." },
+    {
+        name = "kind",
+        type = "value",
+        multi = true,
+        desc = "filter by symbol kind: Function, Method, Class, ...",
+        values = {
+            "File",
+            "Module",
+            "Namespace",
+            "Package",
+            "Class",
+            "Method",
+            "Property",
+            "Field",
+            "Constructor",
+            "Enum",
+            "Interface",
+            "Function",
+            "Variable",
+            "Constant",
+            "String",
+            "Number",
+            "Boolean",
+            "Array",
+            "Object",
+            "Key",
+            "Null",
+            "EnumMember",
+            "Struct",
+            "Event",
+            "Operator",
+            "TypeParameter",
+        }
+    },
 }
 
 ---@return keystone.PickerSpec
@@ -52,8 +85,8 @@ function M.references_spec()
                     if err then
                         errors[client_id] = err
                     elseif result ~= nil then
-                        local locations    = vim.islist(result) and result or { result }
-                        local enc          = vim.lsp.get_client_by_id(client_id).offset_encoding
+                        local locations = vim.islist(result) and result or { result }
+                        local enc       = vim.lsp.get_client_by_id(client_id).offset_encoding
                         vim.list_extend(lsp_items, vim.lsp.util.locations_to_items(locations, enc))
                     end
                 end
@@ -68,14 +101,16 @@ function M.references_spec()
                 callback({ lsp_items = lsp_items })
             end)
         end,
-        finder = function(query, flags, fetch_opts, callback, data)
+        finder          = function(query, flags, fetch_opts, callback, data)
             local picker_items = {}
             for _, ref in ipairs(data.lsp_items) do
                 local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
                 local filename     = vim.fn.fnamemodify(display_path, ":t"):lower()
                 local skip         = false
                 for _, v in ipairs(flags.file or {}) do
-                    if not filename:find(v:lower(), 1, true) then skip = true; break end
+                    if not filename:find(v:lower(), 1, true) then
+                        skip = true; break
+                    end
                 end
                 if skip then goto continue end
 
@@ -100,7 +135,7 @@ function M.references_spec()
             end
             callback(picker_items)
         end,
-        on_confirm = function(data)
+        on_confirm      = function(data)
             if data then uitool.smart_open_file(data.filepath, data.lnum, data.col) end
         end,
     }
@@ -109,11 +144,11 @@ end
 ---@param opts {kinds:string[]?,prompt:string?}?
 ---@return keystone.PickerSpec
 function M.document_symbols_spec(opts)
-    opts = opts or {}
+    opts                   = opts or {}
 
-    local params      = { textDocument = vim.lsp.util.make_text_document_params() }
-    local filepath    = vim.api.nvim_buf_get_name(0)
-    local cursor_lnum = vim.api.nvim_win_get_cursor(0)[1]
+    local params           = { textDocument = vim.lsp.util.make_text_document_params() }
+    local filepath         = vim.api.nvim_buf_get_name(0)
+    local cursor_lnum      = vim.api.nvim_win_get_cursor(0)[1]
 
     local opts_kind_filter = {}
     for _, k in ipairs(opts.kinds or {}) do opts_kind_filter[k:lower()] = true end
@@ -165,7 +200,7 @@ function M.document_symbols_spec(opts)
                 callback({ items = items })
             end)
         end,
-        finder = function(query, flags, _, callback, data)
+        finder          = function(query, flags, _, callback, data)
             local flag_kinds = flags.kind or {}
             local filtered   = {}
             for _, item in ipairs(data.items) do
@@ -173,11 +208,18 @@ function M.document_symbols_spec(opts)
                 if next(opts_kind_filter) ~= nil and not opts_kind_filter[kind_lower] then
                     goto continue
                 end
-                local skip = false
-                for _, v in ipairs(flag_kinds) do
-                    if not kind_lower:find(v:lower(), 1, true) then skip = true; break end
+                if #flag_kinds > 0 then
+                    local matched = false
+                    for _, v in ipairs(flag_kinds) do
+                        for part in v:lower():gmatch("[^,]+") do
+                            if kind_lower == part then
+                                matched = true; break
+                            end
+                        end
+                        if matched then break end
+                    end
+                    if not matched then goto continue end
                 end
-                if skip then goto continue end
 
                 local match = pickertools.match_label(item.data.name, query)
                 if match then
@@ -193,7 +235,7 @@ function M.document_symbols_spec(opts)
             table.sort(filtered, function(a, b) return a.score > b.score end)
             callback(filtered)
         end,
-        on_confirm = function(data)
+        on_confirm      = function(data)
             if data then vim.api.nvim_win_set_cursor(0, { data.lnum, data.col }) end
         end,
     }

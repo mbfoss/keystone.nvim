@@ -1,6 +1,7 @@
 local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
+local uitool      = require("keystone.util.uitool")
 
 local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
@@ -79,14 +80,22 @@ function M.spec()
         for _, km in ipairs(global) do
             km.mode = mode
             ---@diagnostic disable-next-line: inject-field
-            km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
+            local info = km.callback and debug.getinfo(km.callback, "S") or nil
+            ---@diagnostic disable-next-line: inject-field
+            km.source   = info and (info.source or ""):gsub("^@", "") or ""
+            ---@diagnostic disable-next-line: inject-field
+            km.src_lnum = info and info.linedefined or 0
             table.insert(entries, km)
         end
         local bufmaps = vim.api.nvim_buf_get_keymap(vim.api.nvim_get_current_buf(), mode)
         for _, km in ipairs(bufmaps) do
             km.mode = mode
             ---@diagnostic disable-next-line: inject-field
-            km.source = km.callback and (debug.getinfo(km.callback, "S").short_src or "") or ""
+            local info = km.callback and debug.getinfo(km.callback, "S") or nil
+            ---@diagnostic disable-next-line: inject-field
+            km.source   = info and (info.source or ""):gsub("^@", "") or ""
+            ---@diagnostic disable-next-line: inject-field
+            km.src_lnum = info and info.linedefined or 0
             table.insert(entries, km)
         end
     end
@@ -136,10 +145,18 @@ function M.spec()
                 if match then
                     local chunks = { { string.format("%-10s │ %s │ ", format_lhs(km.lhs or ""), km.mode or " ") } }
                     vim.list_extend(chunks, match.chunks)
+                    ---@diagnostic disable-next-line: undefined-field
+                    local src = km.source or ""
+                    ---@diagnostic disable-next-line: undefined-field
+                    local src_lnum = km.src_lnum or 0
                     table.insert(items, {
                         label_chunks = chunks,
                         score        = match.score,
-                        data         = { km = km },
+                        data         = {
+                            km      = km,
+                            source  = src ~= "" and src or nil,
+                            src_lnum = src_lnum > 0 and src_lnum or nil,
+                        },
                     })
                 end
                 ::continue::
@@ -152,7 +169,11 @@ function M.spec()
             callback({ content = format_preview(data.km) })
             return function() end
         end,
-        on_confirm     = function(_) end,
+        on_confirm     = function(data)
+            if data and data.source then
+                uitool.smart_open_file(data.source, data.src_lnum, 0)
+            end
+        end,
     }
 end
 
