@@ -6,7 +6,10 @@
       "Bash(python3 -)",
       "Bash(xargs ls)",
       "Bash(NVIM_PLENARY_DIR=/Users/Dev/.config/nvim/pack/plugins/opt/plenary.nvim make test)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Read(//Users/Dev/.config/nvim/pack/plugins/opt/easytasks-debug.nvim/lua/easytasks-debug/ui/**)",
+      "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/extmarks.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/extmarks.lua)",
+      "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/signs.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/signs.lua)"
     ]
   }
 }

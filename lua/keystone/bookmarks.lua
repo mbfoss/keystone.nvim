@@ -11,8 +11,7 @@ local M = {}
 ---@field file string   -- absolute path
 ---@field lnum integer  -- 1-based line number
 
-local _SIGN_GROUP = "KeystoneBookmarks"
-local _SIGN_NAME  = "KeystoneBookmark"
+local _SIGN_NAME = "bookmark"
 
 local _store      = require("keystone.bookmarks.store")
 local _inputwin   = require("keystone.util.inputwin")
@@ -20,18 +19,25 @@ local _uitool     = require("keystone.util.uitool")
 local _picker     = require("keystone.pick.base.picker")
 local _pickertools = require("keystone.pick.base.pickertools")
 
----@type keystone.bookmarks.Entry[]
-local _entries = {}
+---@type keystone.bookmarks.signs.Group
+local _sign_group
 
 ---@type keystone.bookmarks.Config
 local _config
+
+local _next_id = 0
+
+local function _new_id()
+    _next_id = _next_id + 1
+    return _next_id
+end
 
 local function _get_default_config()
     ---@type keystone.bookmarks.Config
     return {
         enabled    = true,
         persist_dir = nil,
-        sign_text  = "",
+        sign_text  = "*",
         sign_hl    = "DiagnosticInfo",
     }
 end
@@ -43,57 +49,44 @@ local function _norm(file)
     return vim.fn.fnamemodify(file, ":p")
 end
 
-local function _refresh_signs()
-    vim.fn.sign_unplace(_SIGN_GROUP)
-    local loaded = {}
-    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_loaded(bufnr) then
-            local name = vim.api.nvim_buf_get_name(bufnr)
-            if name ~= "" then
-                loaded[vim.fn.fnamemodify(name, ":p")] = bufnr
-            end
-        end
+---@return keystone.bookmarks.Entry[]
+local function _read_entries()
+    local signs = _sign_group.get_signs(true)
+    local entries = {}
+    for _, s in ipairs(signs) do
+        entries[#entries + 1] = {
+            name = s.user_data.name,
+            file = s.file,
+            lnum = s.lnum,
+        }
     end
-    local id = 1
-    for _, entry in ipairs(_entries) do
-        local bufnr = loaded[entry.file]
-        if bufnr then
-            vim.fn.sign_place(id, _SIGN_GROUP, _SIGN_NAME, bufnr, {
-                lnum = entry.lnum,
-                priority = 20,
-            })
-            id = id + 1
-        end
-    end
+    return entries
 end
 
 local function _persist()
-    _store.save(_config, _entries)
+    _store.save(_config, _read_entries())
+end
+
+---@param name string
+---@return keystone.bookmarks.signs.SignInfo?
+local function _find_by_name(name)
+    for _, s in ipairs(_sign_group.get_signs(false)) do
+        if s.user_data.name == name then return s end
+    end
 end
 
 ---@param name string
 ---@param file string
 ---@param lnum integer
 local function _upsert(name, file, lnum)
-    local new_entries = {}
-    for _, e in ipairs(_entries) do
-        if e.name ~= name and not (e.file == file and e.lnum == lnum) then
-            table.insert(new_entries, e)
-        end
-    end
-    table.insert(new_entries, { name = name, file = file, lnum = lnum })
-    _entries = new_entries
-    _persist()
-    _refresh_signs()
-end
+    local by_loc = _sign_group.get_sign_by_location(file, lnum, true)
+    if by_loc then _sign_group.remove_sign(by_loc.id) end
 
----@param file string
----@param lnum integer
----@return integer?
-local function _find_by_location(file, lnum)
-    for i, e in ipairs(_entries) do
-        if e.file == file and e.lnum == lnum then return i end
-    end
+    local by_name = _find_by_name(name)
+    if by_name then _sign_group.remove_sign(by_name.id) end
+
+    _sign_group.set_file_sign(_new_id(), file, lnum, _SIGN_NAME, { name = name })
+    _persist()
 end
 
 ----------- PUBLIC API -----------
@@ -105,8 +98,8 @@ function M.set_at_cursor()
         return
     end
     file = _norm(file)
-    local existing_idx = _find_by_location(file, lnum)
-    local default = existing_idx and _entries[existing_idx].name or ""
+    local existing = _sign_group.get_sign_by_location(file, lnum, true)
+    local default = existing and existing.user_data.name or ""
     _inputwin.open({ prompt = "Bookmark name", default_text = default }, function(name)
         if not name or name:match("^%s*$") then return end
         name = name:match("^%s*(.-)%s*$")
@@ -118,36 +111,26 @@ function M.delete_at_cursor()
     local file, lnum = _uitool.get_current_file_and_line()
     if not file or not lnum then return end
     file = _norm(file)
-    local idx = _find_by_location(file, lnum)
-    if not idx then
+    local sign = _sign_group.get_sign_by_location(file, lnum, true)
+    if not sign then
         vim.notify("[keystone] No bookmark at current line", vim.log.levels.WARN)
         return
     end
-    local name = _entries[idx].name
-    table.remove(_entries, idx)
+    local name = sign.user_data.name
+    _sign_group.remove_sign(sign.id)
     _persist()
-    _refresh_signs()
     vim.notify("[keystone] Deleted bookmark: " .. name)
 end
 
 ---@param name string
 function M.delete_by_name(name)
-    local new_entries = {}
-    local found = false
-    for _, e in ipairs(_entries) do
-        if e.name == name then
-            found = true
-        else
-            table.insert(new_entries, e)
-        end
-    end
-    if not found then
+    local sign = _find_by_name(name)
+    if not sign then
         vim.notify("[keystone] No bookmark named: " .. name, vim.log.levels.WARN)
         return
     end
-    _entries = new_entries
+    _sign_group.remove_sign(sign.id)
     _persist()
-    _refresh_signs()
 end
 
 function M.clear_file()
@@ -157,45 +140,36 @@ function M.clear_file()
     if not file or file == "" then return end
     _uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
-        local keep = {}
-        local count = 0
-        for _, e in ipairs(_entries) do
-            if e.file == file then
-                count = count + 1
-            else
-                table.insert(keep, e)
-            end
-        end
-        _entries = keep
+        local before = #_sign_group.get_file_signs(file, false)
+        _sign_group.remove_file_signs(file)
         _persist()
-        _refresh_signs()
-        if count > 0 then
-            vim.notify(string.format("[keystone] Cleared %d bookmark(s) from file", count))
+        if before > 0 then
+            vim.notify(string.format("[keystone] Cleared %d bookmark(s) from file", before))
         end
     end)
 end
 
 function M.clear_all()
-    if #_entries == 0 then
+    if #_sign_group.get_signs(false) == 0 then
         vim.notify("[keystone] No bookmarks to clear")
         return
     end
     _uitool.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
-        _entries = {}
+        _sign_group.remove_signs()
         _persist()
-        _refresh_signs()
         vim.notify("[keystone] All bookmarks cleared")
     end)
 end
 
 ---@return keystone.bookmarks.Entry[]
 function M.get_entries()
-    return vim.deepcopy(_entries)
+    return _read_entries()
 end
 
 function M.pick()
-    if #_entries == 0 then
+    local entries = _read_entries()
+    if #entries == 0 then
         vim.notify("[keystone] No bookmarks set", vim.log.levels.WARN)
         return
     end
@@ -203,7 +177,6 @@ function M.pick()
     local cur_file, cur_lnum = _uitool.get_current_file_and_line()
     if cur_file then cur_file = _norm(cur_file) end
 
-    local entries = vim.deepcopy(_entries)
     table.sort(entries, function(a, b)
         if a.file ~= b.file then return a.file < b.file end
         return a.lnum < b.lnum
@@ -247,25 +220,23 @@ end
 
 ---@param opts keystone.bookmarks.Config?
 function M.setup(opts)
-    _config    = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
-    M.config   = _config
+    _config  = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = _config
 
     if not _config.enabled then return end
 
-    vim.fn.sign_define(_SIGN_NAME, {
-        text   = _config.sign_text,
-        texthl = _config.sign_hl,
+    _sign_group = require("keystone.bookmarks.signs").define_group("bookmarks", { priority = 20 })
+    _sign_group.define_sign(_SIGN_NAME, _config.sign_text, _config.sign_hl)
+
+    local stored = _store.load(_config)
+    for _, e in ipairs(stored) do
+        _sign_group.set_file_sign(_new_id(), e.file, e.lnum, _SIGN_NAME, { name = e.name })
+    end
+
+    vim.api.nvim_create_autocmd("VimLeave", {
+        group    = vim.api.nvim_create_augroup("keystone_bookmarks", { clear = true }),
+        callback = _persist,
     })
-
-    _entries = _store.load(_config)
-
-    local _augroup = vim.api.nvim_create_augroup("keystone_bookmarks", { clear = true })
-    vim.api.nvim_create_autocmd("BufReadPost", {
-        group    = _augroup,
-        callback = function() _refresh_signs() end,
-    })
-
-    _refresh_signs()
 
     require("keystone.util.usercmd").register_user_cmd("Bookmarks",
         function(cmd, args, cmd_opts)
