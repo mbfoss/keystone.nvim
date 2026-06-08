@@ -22,27 +22,21 @@ local function build_map(schema)
     return m
 end
 
--- Backslash escape sequences: \\ → \, \  → space, \n \t \r → control chars.
--- Any other \x → x. Tokens split on unescaped whitespace.
--- Unescaped ':' is a flag separator; \: is a literal colon (no flag splitting).
+-- Tokens split on whitespace.  ':' is a flag separator.
 --
 -- GitHub-style flags:
 --   boolean flag:  "is:flagname"   → flags.flagname = true
 --   value flag:    "key:value"     → flags.key = value  (or array if multi)
+--   literal:       "literal:text"  → query term "text" verbatim (allows e.g. literal:is:open)
 --   anything else: accumulated into query
---
--- To include a literal colon that looks like a flag: escape it with \:
---   e.g.  is\:regex  →  query term "is:regex"
 
 ---@class keystone.queryflags.Token
----@field text          string   -- processed text (escapes resolved)
+---@field text          string   -- processed text (\: resolved to :)
 ---@field raw           string   -- verbatim slice of source
 ---@field start         integer  -- 1-indexed start in source
 ---@field finish        integer  -- 1-indexed finish in source (inclusive)
 ---@field colon_pos     integer? -- 1-indexed position of first unescaped ':' in text
 ---@field colon_raw_pos integer? -- 1-indexed position of first unescaped ':' in raw (for buffer offsets)
-
-local _escape = { n = "\n", t = "\t", r = "\r" }
 
 ---@param str string
 ---@return keystone.queryflags.Token[]
@@ -63,18 +57,12 @@ local function _tokenize(str)
         while i <= len do
             local c = str:sub(i, i)
             if c:match("%s") then break end
-            if c == "\\" and i + 1 <= len then
-                local nxt = str:sub(i + 1, i + 1)
-                table.insert(chars, _escape[nxt] or nxt)
-                i = i + 2
-            else
-                if c == ":" and colon_pos == nil then
-                    colon_pos     = #chars + 1
-                    colon_raw_pos = i - tok_start + 1
-                end
-                table.insert(chars, c)
-                i = i + 1
+            if c == ":" and colon_pos == nil then
+                colon_pos     = #chars + 1
+                colon_raw_pos = i - tok_start + 1
             end
+            table.insert(chars, c)
+            i = i + 1
         end
 
         local text = table.concat(chars)
@@ -106,7 +94,9 @@ function M.parse(schema, raw)
         if colon then
             local key = token.text:sub(1, colon - 1)
             local val = token.text:sub(colon + 1)
-            if key == "is" then
+            if key == "literal" then
+                if val ~= "" then table.insert(query_parts, val) end
+            elseif key == "is" then
                 local def = defs[val]
                 if def and def.type == "boolean" then
                     flags[val] = true
