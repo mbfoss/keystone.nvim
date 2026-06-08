@@ -16,20 +16,13 @@ local M = {}
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
 ---@field items    table[]
 
-local _RESERVED = { literal = true }
-
 local function build_map(schema)
     local m = {}
-    for _, def in ipairs(schema) do
-        if not _RESERVED[def.name] then m[def.name] = def end
-    end
+    for _, def in ipairs(schema) do m[def.name] = def end
     return m
 end
 
 -- Tokens split on whitespace.  ':' is a flag separator.
---
--- Built-in (reserved, cannot be overridden by schema):
---   literal:text   → query term "text" verbatim (e.g. literal:is:open)
 --
 -- Schema-driven flags:
 --   boolean flag:  "is:flagname"   → flags.flagname = true
@@ -37,12 +30,12 @@ end
 --   anything else: accumulated into query
 
 ---@class keystone.queryflags.Token
----@field text          string   -- processed text (\: resolved to :)
+---@field text          string   -- verbatim token text
 ---@field raw           string   -- verbatim slice of source
 ---@field start         integer  -- 1-indexed start in source
 ---@field finish        integer  -- 1-indexed finish in source (inclusive)
----@field colon_pos     integer? -- 1-indexed position of first unescaped ':' in text
----@field colon_raw_pos integer? -- 1-indexed position of first unescaped ':' in raw (for buffer offsets)
+---@field colon_pos     integer? -- 1-indexed position of first ':' in text
+---@field colon_raw_pos integer? -- 1-indexed position of first ':' in raw (for buffer offsets)
 
 ---@param str string
 ---@return keystone.queryflags.Token[]
@@ -100,9 +93,7 @@ function M.parse(schema, raw)
         if colon then
             local key = token.text:sub(1, colon - 1)
             local val = token.text:sub(colon + 1)
-            if key == "literal" then
-                if val ~= "" then table.insert(query_parts, val) end
-            elseif key == "is" then
+            if key == "is" then
                 local def = defs[val]
                 if def and def.type == "boolean" then
                     flags[val] = true
@@ -145,9 +136,7 @@ function M.highlight(schema, raw)
             local key = token.text:sub(1, token.colon_pos - 1)
             local val = token.text:sub(token.colon_pos + 1)
 
-            if key == "literal" then
-                table.insert(hls, { start = s0, finish = s0 + colon_rpos, hl = "Keyword" })
-            elseif key == "is" then
+            if key == "is" then
                 local def = defs[val]
                 if def and def.type == "boolean" then
                     table.insert(hls, { start = s0,               finish = s0 + colon_rpos, hl = "Keyword" })
@@ -195,9 +184,7 @@ function M.get_completions(schema, line, cursor_byte)
         local partial = current_word:sub(colon + 1)
         local defs    = build_map(schema)
 
-        if prefix == "literal" then
-            return nil
-        elseif prefix == "is" then
+        if prefix == "is" then
             local items = {}
             for _, def in ipairs(schema) do
                 if def.type == "boolean" and vim.startswith(def.name, partial) then
@@ -225,9 +212,6 @@ function M.get_completions(schema, line, cursor_byte)
     end
 
     local items = {}
-    if vim.startswith("literal:", current_word) then
-        table.insert(items, { word = "literal:", abbr = "literal", menu = "[literal query]" })
-    end
     for _, def in ipairs(schema) do
         if def.type == "value" and vim.startswith(def.name, current_word) then
             table.insert(items, {
