@@ -25,8 +25,8 @@ end
 -- Tokens split on whitespace.  ':' is a flag separator.
 --
 -- Schema-driven flags:
---   boolean flag:  "is:flagname"   → flags.flagname = true
---   value flag:    "key:value"     → flags.key = value  (or array if multi)
+--   boolean flag:  "flagname"   → flags.flagname = true  (bare token matching a boolean def)
+--   value flag:    "key:value"  → flags.key = value  (or string[] if multi)
 --   anything else: accumulated into query
 
 ---@class keystone.queryflags.Token
@@ -93,28 +93,24 @@ function M.parse(schema, raw)
         if colon then
             local key = token.text:sub(1, colon - 1)
             local val = token.text:sub(colon + 1)
-            if key == "is" then
-                local def = defs[val]
-                if def and def.type == "boolean" then
-                    flags[val] = true
+            local def = defs[key]
+            if def and def.type == "value" and val ~= "" then
+                if def.multi then
+                    flags[key] = flags[key] or {}
+                    table.insert(flags[key], val)
                 else
-                    table.insert(query_parts, token.text)
+                    flags[key] = val
                 end
             else
-                local def = defs[key]
-                if def and def.type == "value" and val ~= "" then
-                    if def.multi then
-                        flags[key] = flags[key] or {}
-                        table.insert(flags[key], val)
-                    else
-                        flags[key] = val
-                    end
-                else
-                    table.insert(query_parts, token.text)
-                end
+                table.insert(query_parts, token.text)
             end
         else
-            table.insert(query_parts, token.text)
+            local def = defs[token.text]
+            if def and def.type == "boolean" then
+                flags[token.text] = true
+            else
+                table.insert(query_parts, token.text)
+            end
         end
     end
 
@@ -129,29 +125,22 @@ function M.highlight(schema, raw)
     local hls  = {}
 
     for _, token in ipairs(_tokenize(raw)) do
-        local colon_rpos = token.colon_raw_pos
-        if colon_rpos then
+        if token.colon_raw_pos then
             local s0  = token.start - 1
             local e0  = token.finish
             local key = token.text:sub(1, token.colon_pos - 1)
             local val = token.text:sub(token.colon_pos + 1)
-
-            if key == "is" then
-                local def = defs[val]
-                if def and def.type == "boolean" then
-                    table.insert(hls, { start = s0,               finish = s0 + colon_rpos, hl = "Keyword" })
-                    if #val > 0 then
-                        table.insert(hls, { start = s0 + colon_rpos, finish = e0,               hl = "Special" })
-                    end
+            local def = defs[key]
+            if def and def.type == "value" then
+                table.insert(hls, { start = s0,                        finish = s0 + token.colon_raw_pos, hl = "Keyword" })
+                if #val > 0 then
+                    table.insert(hls, { start = s0 + token.colon_raw_pos, finish = e0,                        hl = "String"  })
                 end
-            else
-                local def = defs[key]
-                if def and def.type == "value" then
-                    table.insert(hls, { start = s0,               finish = s0 + colon_rpos, hl = "Keyword" })
-                    if #val > 0 then
-                        table.insert(hls, { start = s0 + colon_rpos, finish = e0,               hl = "String"  })
-                    end
-                end
+            end
+        else
+            local def = defs[token.text]
+            if def and def.type == "boolean" then
+                table.insert(hls, { start = token.start - 1, finish = token.finish, hl = "Special" })
             end
         end
     end
@@ -183,30 +172,15 @@ function M.get_completions(schema, line, cursor_byte)
         local prefix  = current_word:sub(1, colon - 1)
         local partial = current_word:sub(colon + 1)
         local defs    = build_map(schema)
-
-        if prefix == "is" then
+        local def     = defs[prefix]
+        if def and def.type == "value" and def.values then
             local items = {}
-            for _, def in ipairs(schema) do
-                if def.type == "boolean" and vim.startswith(def.name, partial) then
-                    table.insert(items, {
-                        word = "is:" .. def.name,
-                        abbr = def.name,
-                        menu = def.desc or "[flag]",
-                    })
+            for _, v in ipairs(def.values) do
+                if vim.startswith(v, partial) then
+                    table.insert(items, { word = prefix .. ":" .. v, abbr = v })
                 end
             end
             return #items > 0 and { startcol = word_start_1, items = items } or nil
-        else
-            local def = defs[prefix]
-            if def and def.type == "value" and def.values then
-                local items = {}
-                for _, v in ipairs(def.values) do
-                    if vim.startswith(v, partial) then
-                        table.insert(items, { word = prefix .. ":" .. v, abbr = v })
-                    end
-                end
-                return #items > 0 and { startcol = word_start_1, items = items } or nil
-            end
         end
         return nil
     end
@@ -217,17 +191,51 @@ function M.get_completions(schema, line, cursor_byte)
             table.insert(items, {
                 word = def.name .. ":",
                 abbr = def.name,
-                menu = def.desc or "[value]",
+                menu = def.desc or "[filter]",
             })
-        elseif def.type == "boolean" and vim.startswith("is:" .. def.name, current_word) then
+        elseif def.type == "boolean" and vim.startswith(def.name, current_word) then
             table.insert(items, {
-                word = "is:" .. def.name,
-                abbr = "is:" .. def.name,
+                word = def.name,
+                abbr = def.name,
                 menu = def.desc or "[flag]",
             })
         end
     end
     return #items > 0 and { startcol = word_start_1, items = items } or nil
+end
+
+---@param schema keystone.queryflags.FlagDef[]
+---@param raw    string
+---@return {[1]:string,[2]:string}[]
+function M.flag_chunks(schema, raw)
+    local defs   = build_map(schema)
+    local chunks = {}
+
+    for _, token in ipairs(_tokenize(raw)) do
+        local token_chunks
+        if token.colon_pos then
+            local key = token.text:sub(1, token.colon_pos - 1)
+            local val = token.text:sub(token.colon_pos + 1)
+            local def = defs[key]
+            if def and def.type == "value" and val ~= "" then
+                token_chunks = { { key .. ":", "Keyword" }, { val, "String" } }
+            end
+        else
+            local def = defs[token.text]
+            if def and def.type == "boolean" then
+                token_chunks = { { token.text, "Special" } }
+            end
+        end
+
+        if token_chunks then
+            if #chunks > 0 then
+                table.insert(chunks, { " ", "Comment" })
+            end
+            vim.list_extend(chunks, token_chunks)
+        end
+    end
+
+    return chunks
 end
 
 return M

@@ -49,7 +49,7 @@ local function _do_open(spec, data, initial_filter)
         history_provider   = spec.history_provider,
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
-        initial_query      = initial_filter,
+        initial_filter     = initial_filter,
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,

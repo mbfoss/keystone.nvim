@@ -224,6 +224,22 @@ end
 local _last_session  = nil
 local _active_picker = nil
 
+---@param a table
+---@param b table
+---@return boolean
+local function _flags_equal(a, b)
+    for k, v in pairs(a) do
+        if type(v) == "table" then
+            if type(b[k]) ~= "table" or #v ~= #b[k] then return false end
+            for i, x in ipairs(v) do if b[k][i] ~= x then return false end end
+        elseif b[k] ~= v then
+            return false
+        end
+    end
+    for k in pairs(b) do if a[k] == nil then return false end end
+    return true
+end
+
 ---@param query_text string
 ---@param filter_text string
 ---@return string
@@ -340,6 +356,7 @@ function Picker:init(opts, callback)
 	if opts.initial_query and opts.initial_query ~= "" then
 		self:set_prompt_text(opts.initial_query)
 	else
+		self:render_mode_indicator()
 		self:run_fetch()
 	end
 	vim.schedule(function()
@@ -892,12 +909,16 @@ function Picker:render_mode_indicator()
 			virt_text_pos = "inline",
 			right_gravity = false,
 		})
-	elseif self.filter_text ~= "" then
-		vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
-			virt_text     = { { self.filter_text, "Comment" } },
-			virt_text_pos = "eol_right_align",
-			priority      = 200,
-		})
+	elseif self.filter_text ~= "" and #self.opts.flags > 0 then
+		local chunks = queryflags.flag_chunks(self.opts.flags, self.filter_text)
+		if #chunks > 0 then
+			table.insert(chunks, 1, { "  ", "Comment" })
+			vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
+				virt_text     = chunks,
+				virt_text_pos = "eol_right_align",
+				priority      = 200,
+			})
+		end
 	end
 end
 
@@ -957,6 +978,12 @@ function Picker:run_fetch()
 		clean_query = query_text
 		flags       = {}
 	end
+
+	if clean_query == self._last_clean_query and _flags_equal(flags, self._last_flags or {}) then
+		return
+	end
+	self._last_clean_query = clean_query
+	self._last_flags       = flags
 
 	self.async_fetch_context = self.async_fetch_context + 1
 	local context            = self.async_fetch_context
