@@ -888,14 +888,27 @@ function Picker:render_mode_indicator()
 	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_FILTER, 0, -1)
 	if self.filter_mode then
 		vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
-			virt_text     = { { "filter> ", "Special" } },
+			virt_text     = { { "Options> ", "Special" } },
 			virt_text_pos = "inline",
 			right_gravity = false,
+		})
+	elseif self.filter_text ~= "" then
+		vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
+			virt_text     = { { self.filter_text, "Comment" } },
+			virt_text_pos = "eol_right_align",
+			priority      = 200,
 		})
 	end
 end
 
 function Picker:toggle_filter_mode()
+	if vim.fn.pumvisible() == 1 then
+		vim.api.nvim_feedkeys(
+			vim.api.nvim_replace_termcodes("<C-y>", true, false, true), "n", false
+		)
+		vim.schedule(function() self:toggle_filter_mode() end)
+		return
+	end
 	local text = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
 	if self.filter_mode then
 		self.filter_text = text
