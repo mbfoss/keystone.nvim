@@ -1,10 +1,10 @@
 local Spinner            = require("keystone.util.Spinner")
 local common             = require("keystone.util.timer")
-local fsutil             = require("keystone.util.fsutil")
 local uitool             = require("keystone.util.uitool")
 local floatwin           = require("keystone.util.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 local queryflags         = require("keystone.pick.base.queryflags")
+local pickertools         = require("keystone.pick.base.pickertools")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -156,49 +156,6 @@ local function _center_for_previewer(msg, width, height)
 	return lines
 end
 
----@type keystone.Picker.AsyncPreviewLoader
-local function _default_preview(data, _, callback)
-	local max_preview_size = 10124 * 10124
-
-	local filepath = data.filepath
-	if not filepath or filepath == "" then
-		callback({})
-		return
-	end
-	if not fsutil.file_exists(filepath) then
-		callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
-		return
-	end
-	local cancelled = false
-	local cancel_fn
-	vim.uv.fs_stat(filepath, vim.schedule_wrap(function(stat_err, stat)
-		if cancelled then
-			return
-		end
-		if stat_err or not stat then
-			callback({ error_msg = stat_err })
-			return
-		end
-		if stat.size > max_preview_size then
-			callback({ error_msg = "Maximum file size exceeded" })
-			return
-		end
-		cancel_fn = fsutil.async_load_text_file(filepath, { timeout = 3000 },
-			function(load_err, content)
-				callback({
-					content = content,
-					filepath = filepath,
-					lnum = data.lnum,
-					col = data.col,
-					error_msg = load_err,
-				})
-			end)
-	end))
-	return function()
-		cancelled = true
-		if cancel_fn then cancel_fn() end
-	end
-end
 
 ---@param items keystone.picker.ListItem[]
 local function _sort_by_score(items)
@@ -671,7 +628,7 @@ function Picker:update_preview()
 	local preview_width = math.max(0, self.layout.preview_width - 2) -- -2 for borders
 	local preview_height = math.max(0, self.layout.preview_height - 2) -- -2 for borders
 
-	local preview_fn = self.opts.previewer or _default_preview
+	local preview_fn = self.opts.previewer or pickertools.file_preview
 
 	self.async_preview_cancel = preview_fn(
 		item.data,

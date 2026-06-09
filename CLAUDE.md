@@ -72,4 +72,4 @@ Module local variable names that are not required module names or function names
 
 ### Naming conventions
 
-All module-scope `local` variables that are not `require()` calls must be prefixed with `_`. The only exception is the primary exported table returned at the end of the file (typically `M`, or the class table itself for class modules like `Signal`, `Tree`, `StatusTree`, etc.).
+All module-scope `local` variables and functions that are not `require()` calls must be prefixed with `_`. The only exception is the primary exported table returned at the end of the file (typically `M`, or the class table itself for class modules like `TreeBuffer`, `ReplBuffer`, `DebugView`, etc.).

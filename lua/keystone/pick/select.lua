@@ -41,41 +41,60 @@ function M.select(items, opts, on_choice)
     end
 
     -- cache formatted items once
-    local cached = {}
+    local _cached = {}
+    local _has_preview = false
     for i, item in ipairs(items) do
         local ok, label = pcall(format_item, item)
         if not ok then
             label = tostring(item)
         end
-        cached[i] = {
+        if type(item) == "table" and item.preview ~= nil then
+            _has_preview = true
+        end
+        _cached[i] = {
             label = tostring(label),
-            data = item,
+            data  = item,
         }
     end
 
-    local list_width, list_height = _compute_dimentions(cached)
-    local height_ratio = (list_height + 3) / vim.o.lines
+    local list_width, list_height, height_ratio
+    if not _has_preview then
+        list_width, list_height = _compute_dimentions(_cached)
+        height_ratio = (list_height + 3) / vim.o.lines
+    end
 
     picker.open({
-        prompt       = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
-        list_width   = list_width,
-        height_ratio = height_ratio,
-        finder       = function(query, _, fetch_opts, callback)
+        prompt         = opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select",
+        list_width     = list_width,
+        height_ratio   = height_ratio,
+        enable_preview = _has_preview,
+        finder         = function(query, _, _, callback)
             local results = {}
 
-            for _, entry in ipairs(cached) do
+            for _, entry in ipairs(_cached) do
                 local match = pickertools.match_label(entry.label, query)
                 if match then
                     -- do not set score, ui.select items should not be reordered
                     table.insert(results, {
                         label_chunks = match.chunks,
-                        data = entry.data,
+                        data         = entry.data,
                     })
                 end
             end
 
             callback(results)
         end,
+
+        previewer      = _has_preview and function(data, _, callback)
+            local _p = type(data) == "table" and data.preview or nil
+            if type(_p) == "string" then
+                callback({ content = _p })
+            elseif type(_p) == "table" and _p.filepath then
+                pickertools.file_preview({ filepath = _p.filepath, lnum = _p.lnum, col = _p.col }, _, callback)
+            else
+                callback(nil)
+            end
+        end or nil,
     }, function(choice)
         if choice then
             on_choice(choice)

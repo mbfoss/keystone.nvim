@@ -58,6 +58,47 @@ function M.match_label(text, query)
     }
 end
 
+---@type keystone.Picker.AsyncPreviewLoader
+function M.file_preview(data, _, callback)
+    local _max_size = 10124 * 10124
+    local _filepath = data.filepath
+    if not _filepath or _filepath == "" then
+        callback({})
+        return
+    end
+    if not fsutil.file_exists(_filepath) then
+        callback({ error_msg = "Invalid file path: " .. tostring(_filepath) })
+        return
+    end
+    local _cancelled = false
+    local _cancel_fn
+    vim.uv.fs_stat(_filepath, vim.schedule_wrap(function(stat_err, stat)
+        if _cancelled then return end
+        if stat_err or not stat then
+            callback({ error_msg = stat_err })
+            return
+        end
+        if stat.size > _max_size then
+            callback({ error_msg = "Maximum file size exceeded" })
+            return
+        end
+        _cancel_fn = fsutil.async_load_text_file(_filepath, { timeout = 3000 },
+            function(load_err, content)
+                callback({
+                    content   = content,
+                    filepath  = _filepath,
+                    lnum      = data.lnum,
+                    col       = data.col,
+                    error_msg = load_err,
+                })
+            end)
+    end))
+    return function()
+        _cancelled = true
+        if _cancel_fn then _cancel_fn() end
+    end
+end
+
 ---@param name string
 ---@param opts {max_entries:number?}?
 ---@return keystone.Picker.QueryHistoryProvider
@@ -97,5 +138,6 @@ function M.make_history_provider(name, opts)
 
     return provider
 end
+
 
 return M
