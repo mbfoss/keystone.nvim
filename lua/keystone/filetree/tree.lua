@@ -2,28 +2,28 @@ local M = {}
 
 local config = require("keystone.filetree").config
 
-local KEY_MARKER = "Keystone_filetreewin"
+local _KEY_MARKER = "Keystone_filetreewin"
 
 local _tree ---@type keystone.FileTree?
 
 ---@return number?
-local function get_win()
+local function _get_win()
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(vim.api.nvim_get_current_tabpage())) do
-        local ok, val = pcall(function() return vim.w[win][KEY_MARKER] end)
+        local ok, val = pcall(function() return vim.w[win][_KEY_MARKER] end)
         if ok and val == true then return win end
     end
     return nil
 end
 
 ---@param win number
-local function apply_width(win)
+local function _apply_width(win)
     local total = vim.o.columns
     local width = math.floor(total * (config.width_ratio or 0.2))
     vim.api.nvim_win_set_width(win, width)
 end
 
-local function open()
-    local win = get_win()
+local function _open()
+    local win = _get_win()
     if win then return end
 
     if not _tree then
@@ -48,7 +48,7 @@ local function open()
     win = vim.api.nvim_get_current_win()
     vim.api.nvim_set_current_win(last_win)
 
-    vim.w[win][KEY_MARKER] = true
+    vim.w[win][_KEY_MARKER] = true
 
     local bufname = "keystone://" .. bufnr .. "/File Tree"
     vim.api.nvim_buf_set_name(bufnr, bufname)
@@ -60,14 +60,14 @@ local function open()
     vim.wo[win].winfixheight = true
     vim.wo[win].winfixwidth = true
 
-    apply_width(win)
+    _apply_width(win)
 
     local augroup_name = "keystone_filetree_w" .. win
     local augroup = vim.api.nvim_create_augroup(augroup_name, { clear = true })
     vim.api.nvim_create_autocmd("VimResized", {
         group = augroup,
         callback = function()
-            apply_width(win)
+            _apply_width(win)
         end,
     })
     vim.api.nvim_create_autocmd("WinClosed", {
@@ -77,7 +77,7 @@ local function open()
             if closedwin ~= win then
                 vim.schedule(function()
                     if win then
-                        apply_width(win)
+                        _apply_width(win)
                     end
                 end)
             else
@@ -90,27 +90,27 @@ local function open()
 end
 
 function M.toggle()
-    local win = get_win()
+    local win = _get_win()
     if win then
         vim.api.nvim_win_close(win, false)
     else
-        open()
+        _open()
     end
 end
 
 function M.open()
-    open()
+    _open()
 end
 
 function M.close()
-    local win = get_win()
+    local win = _get_win()
     if win then
         vim.api.nvim_win_close(win, false)
     end
 end
 
 function M.is_visible()
-    return get_win() ~= nil
+    return _get_win() ~= nil
 end
 
 return M

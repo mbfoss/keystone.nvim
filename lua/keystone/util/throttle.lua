@@ -1,6 +1,6 @@
 local M = {}
 
-local uv = vim.uv
+local _uv = vim.uv
 
 local function _is_exiting()
     return vim.v.exiting ~= vim.NIL
@@ -25,10 +25,10 @@ function M.throttle_wrap(ms, fn)
     local last_exec = 0
 
     return function()
-        local now = uv.now()
+        local now = _uv.now()
 
         local function run()
-            last_exec = uv.now()
+            last_exec = _uv.now()
             if not _is_exiting() then
                 fn()
             end
@@ -41,7 +41,7 @@ function M.throttle_wrap(ms, fn)
             return
         end
         local delay = ms - (now - last_exec)
-        timer = uv.new_timer()
+        timer = _uv.new_timer()
         assert(timer)
         timer:start(delay, 0, function()
             vim.schedule(function()
@@ -73,7 +73,7 @@ end
 function M.leading_throttle_wrap(ms, fn)
     local last_exec = 0
     return function(...)
-        local now = uv.now()
+        local now = _uv.now()
         if last_exec ~= 0 and (now - last_exec) < ms then
             return
         end
@@ -110,7 +110,7 @@ function M.trailing_fixed_wrap(ms, fn)
         end
 
         is_pending = true
-        local t = uv.new_timer()
+        local t = _uv.new_timer()
         assert(t)
         t:start(ms, 0, function()
             vim.schedule(function()
@@ -147,7 +147,7 @@ function M.debounce_wrap(ms, fn)
             if not timer:is_closing() then timer:stop(); timer:close() end
             timer = nil
         end
-        local t = uv.new_timer()
+        local t = _uv.new_timer()
         assert(t)
         timer = t
         t:start(ms, 0, function()

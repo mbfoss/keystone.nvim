@@ -11,11 +11,11 @@ local queryflags         = require("keystone.pick.base.queryflags")
 
 local M                  = {}
 
-local NS_CURSOR          = vim.api.nvim_create_namespace("keystone_PickerCursor")
-local NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent")
-local NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
-local NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
-local NS_FILTER          = vim.api.nvim_create_namespace("keystone_PickerFilter")
+local _NS_CURSOR          = vim.api.nvim_create_namespace("keystone_PickerCursor")
+local _NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent")
+local _NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local _NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
+local _NS_FILTER          = vim.api.nvim_create_namespace("keystone_PickerFilter")
 
 local _antiflicker_delay = 200
 
@@ -561,10 +561,10 @@ end
 
 function Picker:render_prompt_highlight(query)
 	if not self.pbuf then return end
-	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CONTENT, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_CONTENT, 0, -1)
 	if #self.opts.flags == 0 or not self.filter_mode then return end
 	for _, h in ipairs(queryflags.highlight(self.opts.flags, query)) do
-		vim.api.nvim_buf_set_extmark(self.pbuf, NS_CONTENT, 0, h.start, {
+		vim.api.nvim_buf_set_extmark(self.pbuf, _NS_CONTENT, 0, h.start, {
 			end_col  = h.finish,
 			hl_group = h.hl,
 		})
@@ -587,12 +587,12 @@ end
 
 function Picker:render_position()
 	if not self.pbuf then return end
-	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_CURSOR, 0, -1)
 	local total = #self.list_items
 	if total == 0 then return end
 	local cur = self:get_cursor() or 1
 	local text = string.format("%d/%d", cur, total)
-	vim.api.nvim_buf_set_extmark(self.pbuf, NS_CURSOR, 0, 0, {
+	vim.api.nvim_buf_set_extmark(self.pbuf, _NS_CURSOR, 0, 0, {
 		virt_text = { { text, "Comment" } },
 		virt_text_pos = "eol_right_align",
 		hl_mode = "blend",
@@ -602,14 +602,14 @@ end
 
 function Picker:render_cursor()
 	if not self.lbuf then return end
-	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CURSOR, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CURSOR, 0, -1)
 	local total = #self.list_items
 	if total == 0 then
-		vim.api.nvim_buf_clear_namespace(self.pbuf, NS_CURSOR, 0, -1)
+		vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_CURSOR, 0, -1)
 		return
 	end
 	local cur = self:get_cursor() or 1
-	vim.api.nvim_buf_set_extmark(self.lbuf, NS_CURSOR, cur - 1, 0, {
+	vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CURSOR, cur - 1, 0, {
 		virt_text = { { "❯ ", "Special" } },
 		virt_text_pos = "overlay",
 		priority = 100,
@@ -715,8 +715,8 @@ function Picker:update_preview()
 						vim.api.nvim_win_call(self.vwin, function()
 							vim.cmd("normal! zz")
 						end)
-						vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
-						vim.api.nvim_buf_set_extmark(self.vbuf, NS_PREVIEW, lnum - 1, 0, {
+						vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
+						vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, 0, {
 							end_row = lnum,
 							hl_group = "Visual",
 							hl_eol = true,
@@ -741,8 +741,8 @@ function Picker:start_spinner()
 		interval = 100,
 		on_update = function(frame)
 			if not self.pbuf then return end
-			vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
-			vim.api.nvim_buf_set_extmark(self.pbuf, NS_SPINNER, 0, 0, {
+			vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_SPINNER, 0, -1)
+			vim.api.nvim_buf_set_extmark(self.pbuf, _NS_SPINNER, 0, 0, {
 				virt_text = { { frame .. " ", "Comment" } },
 				virt_text_pos = "eol_right_align",
 				priority = 1,
@@ -760,7 +760,7 @@ function Picker:stop_spinner()
 	end
 
 	if self.pbuf then
-		vim.api.nvim_buf_clear_namespace(self.pbuf, NS_SPINNER, 0, -1)
+		vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_SPINNER, 0, -1)
 	end
 end
 
@@ -771,7 +771,7 @@ function Picker:request_clear_preview(immediate)
 			vim.bo[self.vbuf].modifiable = true
 			vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
 			vim.bo[self.vbuf].modifiable = false
-			vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
+			vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
 		end
 	end
 	if immediate then
@@ -797,7 +797,7 @@ function Picker:clear_list()
 	vim.bo[self.lbuf].modifiable = false
 	vim.wo[self.lwin].cursorline = false
 
-	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
 	self:request_clear_preview()
 	self:render_cursor()
 	self:render_position()
@@ -839,7 +839,7 @@ function Picker:set_items(items)
 				if text and #text > 0 then
 					if hl then
 						table.insert(extmarks, {
-							ns = NS_CONTENT,
+							ns = _NS_CONTENT,
 							row = row,
 							col = col,
 							opts = {
@@ -870,7 +870,7 @@ function Picker:set_items(items)
 
 		if #vlines > 0 then
 			table.insert(extmarks, {
-				ns = NS_CONTENT,
+				ns = _NS_CONTENT,
 				row = row,
 				col = 0,
 				opts = {
@@ -885,7 +885,7 @@ function Picker:set_items(items)
 
 	vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, lines)
 
-	vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
 
 	for _, mark in ipairs(extmarks) do
 		vim.api.nvim_buf_set_extmark(
@@ -902,9 +902,9 @@ end
 
 function Picker:render_mode_indicator()
 	if not self.pbuf then return end
-	vim.api.nvim_buf_clear_namespace(self.pbuf, NS_FILTER, 0, -1)
+	vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_FILTER, 0, -1)
 	if self.filter_mode then
-		vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
+		vim.api.nvim_buf_set_extmark(self.pbuf, _NS_FILTER, 0, 0, {
 			virt_text     = { { "Options> ", "Special" } },
 			virt_text_pos = "inline",
 			right_gravity = false,
@@ -913,7 +913,7 @@ function Picker:render_mode_indicator()
 		local chunks = queryflags.flag_chunks(self.opts.flags, self.filter_text)
 		if #chunks > 0 then
 			table.insert(chunks, 1, { "  ", "Comment" })
-			vim.api.nvim_buf_set_extmark(self.pbuf, NS_FILTER, 0, 0, {
+			vim.api.nvim_buf_set_extmark(self.pbuf, _NS_FILTER, 0, 0, {
 				virt_text     = chunks,
 				virt_text_pos = "eol_right_align",
 				priority      = 200,

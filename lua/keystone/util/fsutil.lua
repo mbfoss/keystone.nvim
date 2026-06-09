@@ -261,7 +261,7 @@ function M.monitor_dir(dir, change_callback)
     return cancel
 end
 
-local uv = vim.uv or vim.loop
+local _uv = vim.uv or vim.loop
 
 
 ---@param dir string
@@ -283,13 +283,13 @@ function M.async_scan_dir(dir, include_regex_list, exclude_regex_list, on_file, 
             on_done_called = true
         end
     end
-    local fd = uv.fs_scandir(dir)
+    local fd = _uv.fs_scandir(dir)
     if not fd then
         call_on_done()
         return cancel_fn
     end
     while true do
-        local name, type = uv.fs_scandir_next(fd)
+        local name, type = _uv.fs_scandir_next(fd)
         if not name or is_cancelled then break end
         on_file(name, type)
     end
@@ -336,13 +336,13 @@ function M.async_walk_dir(dir, opts)
         if opts.on_dir_enter then
             opts.on_dir_enter(path)
         end
-        local fd = uv.fs_scandir(path)
+        local fd = _uv.fs_scandir(path)
         if not fd then
             vim.schedule(process_next_dir)
             return
         end
         while true do
-            local name, type_ = uv.fs_scandir_next(fd)
+            local name, type_ = _uv.fs_scandir_next(fd)
             if not name then break end
 
             local full_path = vim.fs.joinpath(path, name)
@@ -350,7 +350,7 @@ function M.async_walk_dir(dir, opts)
             if rel_path then
                 local resolved_type = type_ ---@type string?
                 if type_ == "link" and opts.follow_symlinks then
-                    local stat = uv.fs_stat(full_path)
+                    local stat = _uv.fs_stat(full_path)
                     resolved_type = stat and stat.type or nil
                 end
                 if resolved_type == "directory" then

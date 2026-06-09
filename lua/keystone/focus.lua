@@ -15,12 +15,12 @@ end
 ---@type keystone.floatpreview.Config
 M.config = _get_default_config()
 
-local win_id = nil
+local _win_id = nil
 
 function M.toggle()
-    if win_id and vim.api.nvim_win_is_valid(win_id) then
-        vim.api.nvim_win_close(win_id, true)
-        win_id = nil
+    if _win_id and vim.api.nvim_win_is_valid(_win_id) then
+        vim.api.nvim_win_close(_win_id, true)
+        _win_id = nil
         return
     end
 
@@ -45,12 +45,12 @@ function M.toggle()
         footer = "Focus mode",
     }
 
-    win_id = uitool.create_window(bufnr, true, opts, function()
-        win_id = nil
+    _win_id = uitool.create_window(bufnr, true, opts, function()
+        _win_id = nil
     end)
 
-    vim.wo[win_id].winhighlight = "NormalFloat:Normal,FloatBorder:Nontext,FloatTitle:Nontext"
-    vim.wo[win_id].statusline = vim.wo[origwin].statusline
+    vim.wo[_win_id].winhighlight = "NormalFloat:Normal,FloatBorder:Nontext,FloatTitle:Nontext"
+    vim.wo[_win_id].statusline = vim.wo[origwin].statusline
 end
 
 ---@param opts keystone.floatpreview.Config?

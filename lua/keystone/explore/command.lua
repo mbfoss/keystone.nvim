@@ -1,6 +1,6 @@
 local M        = {}
 
-local uv       = vim.uv
+local _uv      = vim.uv
 local explorer = require("keystone.explore.explorer")
 local fsutil  = require("keystone.util.fsutil")
 local uitool  = require("keystone.util.uitool")

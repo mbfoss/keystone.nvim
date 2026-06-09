@@ -15,17 +15,17 @@ end
 ---@type keystone.lspwords.Config
 M.config = _get_default_config()
 
-local enabled = false
+local _enabled = false
 
 function M.enable()
-  if enabled then return end
-  enabled = true
+  if _enabled then return end
+  _enabled = true
 
   local group = vim.api.nvim_create_augroup("keystone_lspwords", { clear = true })
   vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
     group = group,
     callback = function()
-      if not enabled then return end
+      if not _enabled then return end
       vim.lsp.buf.clear_references()
       local clients = vim.lsp.get_clients({ bufnr = 0, method = lsp_protocol.Methods.textDocument_documentHighlight })
       if next(clients) then
@@ -36,8 +36,8 @@ function M.enable()
 end
 
 function M.disable()
-  if not enabled then return end
-  enabled = false
+  if not _enabled then return end
+  _enabled = false
   vim.api.nvim_del_augroup_by_name("keystone_lspwords")
   vim.lsp.buf.clear_references()
 end

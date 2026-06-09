@@ -16,7 +16,7 @@ local M = {}
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
 ---@field items    table[]
 
-local function build_map(schema)
+local function _build_map(schema)
     local m = {}
     for _, def in ipairs(schema) do m[def.name] = def end
     return m
@@ -84,7 +84,7 @@ end
 ---@param raw    string
 ---@return keystone.queryflags.ParseResult
 function M.parse(schema, raw)
-    local defs        = build_map(schema)
+    local defs        = _build_map(schema)
     local flags       = {}
     local query_parts = {}
 
@@ -121,7 +121,7 @@ end
 ---@param raw    string
 ---@return {start:integer, finish:integer, hl:string}[]
 function M.highlight(schema, raw)
-    local defs = build_map(schema)
+    local defs = _build_map(schema)
     local hls  = {}
 
     for _, token in ipairs(_tokenize(raw)) do
@@ -171,7 +171,7 @@ function M.get_completions(schema, line, cursor_byte)
     if colon then
         local prefix  = current_word:sub(1, colon - 1)
         local partial = current_word:sub(colon + 1)
-        local defs    = build_map(schema)
+        local defs    = _build_map(schema)
         local def     = defs[prefix]
         if def and def.type == "value" and def.values then
             local items = {}
@@ -208,7 +208,7 @@ end
 ---@param raw    string
 ---@return {[1]:string,[2]:string}[]
 function M.flag_chunks(schema, raw)
-    local defs   = build_map(schema)
+    local defs   = _build_map(schema)
     local chunks = {}
 
     for _, token in ipairs(_tokenize(raw)) do

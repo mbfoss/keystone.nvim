@@ -1,13 +1,13 @@
 local M = {}
 
 -- Treesitter textobjects capture pairs for each group
-local TS_CAPS = {
+local _TS_CAPS = {
   f = { "function.outer", "function.inner" },
   c = { "class.outer",    "class.inner"    },
   b = { "block.outer",    "block.inner"    },
 }
 
-local KEYMAPS = {
+local _KEYMAPS = {
   { { "o", "x" }, "ia", function() M.select("a", true) end,  "inner argument" },
   { { "o", "x" }, "aa", function() M.select("a", false) end, "around argument" },
   { { "o", "x" }, "if", function() M.select("f", true) end,  "inner function" },
@@ -18,7 +18,7 @@ local KEYMAPS = {
   { { "o", "x" }, "ab", function() M.select("b", false) end, "around block" },
 }
 
-local function range_contains(sr, sc, er, ec, row, col)
+local function _range_contains(sr, sc, er, ec, row, col)
   if row < sr or row > er then return false end
   if row == sr and col < sc then return false end
   if row == er and col >= ec then return false end
@@ -27,7 +27,7 @@ end
 
 -- Find the smallest textobjects capture containing the cursor.
 -- Walks up the language tree for injected languages, same as mini.ai.
-local function ts_find(bufnr, capture_name, crow, ccol)
+local function _ts_find(bufnr, capture_name, crow, ccol)
   local parser = vim.treesitter.get_parser(bufnr, nil, { error = false })
   if not parser then return end
 
@@ -44,7 +44,7 @@ local function ts_find(bufnr, capture_name, crow, ccol)
         for id, node in query:iter_captures(trees[1]:root(), bufnr, 0, -1) do
           if query.captures[id] == capture_name then
             local sr, sc, er, ec = node:range()
-            if range_contains(sr, sc, er, ec, crow, ccol) then
+            if _range_contains(sr, sc, er, ec, crow, ccol) then
               local size = (er - sr) * 1000000 + (ec - sc)
               if size < best_size then
                 best_size = size
@@ -61,7 +61,7 @@ local function ts_find(bufnr, capture_name, crow, ccol)
 end
 
 -- Apply a visual selection from a 0-indexed treesitter range (exclusive end col).
-local function apply_ts_visual(sr, sc, er, ec)
+local function _apply_ts_visual(sr, sc, er, ec)
   vim.fn.setpos("'<", { 0, sr + 1, sc + 1, 0 })
   vim.fn.setpos("'>", { 0, er + 1, ec, 0 })
   vim.cmd("normal! gv")
@@ -69,7 +69,7 @@ end
 
 -- Bracket-based argument selection, same approach as mini.ai gen_spec.argument().
 -- All positions here are 1-indexed (vim.fn convention).
-local function arg_select(inner)
+local function _arg_select(inner)
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))
   col = col + 1  -- 0→1 indexed
 
@@ -159,11 +159,11 @@ end
 ---@param inner boolean
 function M.select(group, inner)
   if group == "a" then
-    arg_select(inner)
+    _arg_select(inner)
     return
   end
 
-  local caps = TS_CAPS[group]
+  local caps = _TS_CAPS[group]
   if not caps then return end
 
   local bufnr = vim.api.nvim_get_current_buf()
@@ -171,13 +171,13 @@ function M.select(group, inner)
   local crow, ccol = pos[1] - 1, pos[2]
   local capture = inner and caps[2] or caps[1]
 
-  local sr, sc, er, ec = ts_find(bufnr, capture, crow, ccol)
+  local sr, sc, er, ec = _ts_find(bufnr, capture, crow, ccol)
   if not sr and inner then
-    sr, sc, er, ec = ts_find(bufnr, caps[1], crow, ccol)
+    sr, sc, er, ec = _ts_find(bufnr, caps[1], crow, ccol)
   end
   if not sr then return end
 
-  apply_ts_visual(sr, sc, er, ec)
+  _apply_ts_visual(sr, sc, er, ec)
 end
 
 ---@class keystone.textobjects.Config
@@ -187,13 +187,13 @@ end
 M.config = { enabled = true }
 
 function M.enable()
-  for _, km in ipairs(KEYMAPS) do
+  for _, km in ipairs(_KEYMAPS) do
     vim.keymap.set(km[1], km[2], km[3], { desc = km[4] })
   end
 end
 
 function M.disable()
-  for _, km in ipairs(KEYMAPS) do
+  for _, km in ipairs(_KEYMAPS) do
     for _, mode in ipairs(km[1]) do
       pcall(vim.keymap.del, mode, km[2])
     end

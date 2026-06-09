@@ -9,9 +9,9 @@ local layouts    = require("keystone.explore.layouts")
 
 local M          = {}
 
-local NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
-local NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
-local NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
+local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
+local _NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 
 local _antiflicker_delay = 200
@@ -489,8 +489,8 @@ function Explorer:update_preview()
                         vim.api.nvim_win_call(self.vwin, function()
                             vim.cmd("normal! zz")
                         end)
-                        vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
-                        vim.api.nvim_buf_set_extmark(self.vbuf, NS_PREVIEW, lnum - 1, 0, {
+                        vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
+                        vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, 0, {
                             end_row = lnum,
                             hl_group = "Visual",
                             hl_eol = true,
@@ -541,8 +541,8 @@ function Explorer:start_spinner()
         interval = 80,
         on_update = function(frame)
             if not self.lbuf then return end
-            vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
-            vim.api.nvim_buf_set_extmark(self.lbuf, NS_SPINNER, 0, 0, {
+            vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_SPINNER, 0, -1)
+            vim.api.nvim_buf_set_extmark(self.lbuf, _NS_SPINNER, 0, 0, {
                 virt_text = { { frame .. " ", "Comment" } },
                 virt_text_pos = "eol_right_align"
             })
@@ -558,7 +558,7 @@ function Explorer:stop_spinner()
         self.spinner = nil
     end
     if self.lbuf then
-        vim.api.nvim_buf_clear_namespace(self.lbuf, NS_SPINNER, 0, -1)
+        vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_SPINNER, 0, -1)
     end
 end
 
@@ -569,7 +569,7 @@ function Explorer:request_clear_preview(immediate)
             vim.bo[self.vbuf].modifiable = true
             vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
             vim.bo[self.vbuf].modifiable = false
-            vim.api.nvim_buf_clear_namespace(self.vbuf, NS_PREVIEW, 0, -1)
+            vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
         end
     end
     if immediate then
@@ -594,7 +594,7 @@ function Explorer:clear_list()
     vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
     vim.bo[self.lbuf].modifiable = false
 
-    vim.api.nvim_buf_clear_namespace(self.lbuf, NS_CONTENT, 0, -1)
+    vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
     self:request_clear_preview()
     vim.wo[self.lwin].cursorline = false
     self._list_fresh = true
@@ -646,7 +646,7 @@ function Explorer:add_new_lines(items)
                 local text, hl = chunk[1], chunk[2]
                 if text and #text > 0 then
                     if hl then
-                        vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, col, {
+                        vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, col, {
                             end_col = col + #text,
                             hl_group = hl,
                         })
@@ -667,7 +667,7 @@ function Explorer:add_new_lines(items)
             table.insert(vlines, { { self.list_sep_line, "Nontext" } })
         end
         if #vlines > 0 then
-            vim.api.nvim_buf_set_extmark(self.lbuf, NS_CONTENT, row, 0, {
+            vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
                 virt_lines = vlines,
                 hl_mode = "blend"
             })

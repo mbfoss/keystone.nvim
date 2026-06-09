@@ -122,16 +122,16 @@ end
 local State = {}
 State.__index = State
 
-local mouse_scrolling = false
+local _mouse_scrolling = false
 
 M.enabled = false
-local SCROLL_UP, SCROLL_DOWN = _keycode("<c-y>"), _keycode("<c-e>")
+local _SCROLL_UP, _SCROLL_DOWN = _keycode("<c-y>"), _keycode("<c-e>")
 
-local uv = vim.uv or vim.loop
-local stats = { targets = 0, animating = 0, reset = 0, skipped = 0, mousescroll = 0, scrolls = 0 }
-local states = {} ---@type table<number, keystone.animate.State>
+local _uv = vim.uv or vim.loop
+local _stats = { targets = 0, animating = 0, reset = 0, skipped = 0, mousescroll = 0, scrolls = 0 }
+local _states = {} ---@type table<number, keystone.animate.State>
 
-local function is_enabled(buf)
+local function _is_enabled(buf)
     return M.enabled
         and buf
         and not vim.o.paste
@@ -169,7 +169,7 @@ end
 
 function State:valid()
     return M.enabled
-        and states[self.win] == self
+        and _states[self.win] == self
         and vim.api.nvim_win_is_valid(self.win)
         and vim.api.nvim_buf_is_valid(self.buf)
         and vim.api.nvim_win_get_buf(self.win) == self.buf
@@ -184,15 +184,15 @@ end
 
 ---@private
 ---@param win number
-local function get_state(win)
+local function _get_state(win)
     local buf = vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win)
-    if not buf or not is_enabled(buf) then
-        states[win] = nil
+    if not buf or not _is_enabled(buf) then
+        _states[win] = nil
         return nil
     end
 
     local view = vim.api.nvim_win_call(win, vim.fn.winsaveview) ---@type vim.fn.winsaveview.ret
-    local ret = states[win]
+    local ret = _states[win]
     if not (ret and ret:valid()) then
         if ret then
             ret:stop()
@@ -208,16 +208,16 @@ local function get_state(win)
     end
     ret.scrolloff = ret._wo.scrolloff or vim.wo[win].scrolloff
     ret.view = view
-    states[win] = ret
+    _states[win] = ret
     return ret
 end
 
 --- Reset the scroll state for a buffer
 ---@param win number
-local function reset_state(win)
-    if states[win] then
-        states[win]:stop()
-        states[win] = nil
+local function _reset_state(win)
+    if _states[win] then
+        _states[win]:stop()
+        _states[win] = nil
     end
 end
 
@@ -227,18 +227,18 @@ function M.enable()
     end
 
     M.enabled = true
-    states = {}
+    _states = {}
 
     -- get initial state for all windows
     for _, win in ipairs(vim.api.nvim_list_wins()) do
-        get_state(win)
+        _get_state(win)
     end
 
     local function on_key(key)
         -- compare against raw keycodes
         if key == vim.api.nvim_replace_termcodes("<ScrollWheelDown>", true, false, true)
             or key == vim.api.nvim_replace_termcodes("<ScrollWheelUp>", true, false, true) then
-            mouse_scrolling = true
+            _mouse_scrolling = true
         end
     end
 
@@ -252,7 +252,7 @@ function M.enable()
         group = group,
         callback = vim.schedule_wrap(function(ev)
             for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                get_state(win)
+                _get_state(win)
             end
         end),
     })
@@ -262,7 +262,7 @@ function M.enable()
         group = group,
         callback = function(ev)
             for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                get_state(win)
+                _get_state(win)
             end
         end,
     })
@@ -272,8 +272,8 @@ function M.enable()
         group = group,
         callback = vim.schedule_wrap(function(ev)
             for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                if states[win] then
-                    states[win]:update()
+                if _states[win] then
+                    _states[win]:update()
                 end
             end
         end),
@@ -285,7 +285,7 @@ function M.enable()
         callback = function(ev)
             if (ev.file == "/" or ev.file == "?") and vim.o.incsearch then
                 for _, win in ipairs(vim.fn.win_findbuf(ev.buf)) do
-                    reset_state(win)
+                    _reset_state(win)
                 end
             end
         end,
@@ -309,7 +309,7 @@ function M.enable()
         callback = function(args)
             local win = tonumber(args.match)
             if win then
-                reset_state(win)
+                _reset_state(win)
             end
         end,
     })
@@ -320,8 +320,8 @@ function M.disable()
         return
     end
     M.enabled = false
-    for _, state in pairs(states) do state:stop() end
-    states = {}
+    for _, state in pairs(_states) do state:stop() end
+    _states = {}
     vim.on_key(nil, vim.api.nvim_create_namespace(_ns_name_onkey))
     vim.api.nvim_del_augroup_by_name(_augroup_name)
 end
@@ -330,7 +330,7 @@ end
 ---@param win number
 ---@private
 function M.check(win)
-    local state = get_state(win)
+    local state = _get_state(win)
     if not state then
         return
     end
@@ -344,26 +344,26 @@ function M.check(win)
     -- if delta is 0, then we're animating.
     -- also skip if the difference is less than the mousescroll value,
     -- since most terminals support smooth mouse scrolling.
-    if mouse_scrolling then
+    if _mouse_scrolling then
         state:stop()
-        mouse_scrolling = false
-        stats.mousescroll = stats.mousescroll + 1
+        _mouse_scrolling = false
+        _stats.mousescroll = _stats.mousescroll + 1
         state.current = vim.deepcopy(state.view)
         return
     elseif math.abs(state.view.topline - state.current.topline) <= 1 then
-        stats.skipped = stats.skipped + 1
+        _stats.skipped = _stats.skipped + 1
         state.current = vim.deepcopy(state.view)
         return
     end
-    stats.scrolls = stats.scrolls + 1
+    _stats.scrolls = _stats.scrolls + 1
 
     -- new target
-    stats.targets = stats.targets + 1
+    _stats.targets = _stats.targets + 1
     state.target = vim.deepcopy(state.view)
     state:stop() -- stop any ongoing animation
     state:wo({ virtualedit = "all", scrolloff = 0 })
 
-    local now = uv.hrtime()
+    local now = _uv.hrtime()
     state.last = now
 
     local opts = {}
@@ -414,7 +414,7 @@ function M.check(win)
             local scroll = scroll_target - scrolled --[[@as number]]
             if scroll > 0 then
                 scrolled = scrolled + scroll
-                commands[#commands + 1] = ("%d%s"):format(scroll, down and SCROLL_DOWN or SCROLL_UP)
+                commands[#commands + 1] = ("%d%s"):format(scroll, down and _SCROLL_DOWN or _SCROLL_UP)
             end
 
             -- move the cursor vertically

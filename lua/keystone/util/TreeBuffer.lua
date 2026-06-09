@@ -81,21 +81,21 @@ end
 
 ---@param item keystone.util.TreeBuffer.ItemDef
 ---@return keystone.util.TreeBuffer.ItemData
-local function to_itemdata(item)
+local function _to_itemdata(item)
     return { userdata = item.data, expandable = item.expandable, expanded = item.expanded }
 end
 
 ---@param id any
 ---@param data keystone.util.TreeBuffer.ItemData
 ---@return keystone.util.TreeBuffer.Item
-local function to_item(id, data)
+local function _to_item(id, data)
     return { id = id, data = data.userdata, expandable = data.expandable, expanded = data.expanded }
 end
 
 ---@param tree keystone.util.Tree
 ---@param starting_id any?  -- nil = whole tree
 ---@return keystone.util.Tree.FlatNode[]
-local function flatten(tree, starting_id)
+local function _flatten(tree, starting_id)
     local out = {}
     local function visit(id, data, depth)
         out[#out + 1] = { id = id, data = data, depth = depth }
@@ -112,7 +112,7 @@ end
 ---@param tree keystone.util.Tree
 ---@param starting_id any?  -- nil = whole tree
 ---@return integer
-local function tree_size(tree, starting_id)
+local function _tree_size(tree, starting_id)
     local n = 0
     local function visit(_, data, _)
         n = n + 1
@@ -265,7 +265,7 @@ function TreeBuffer:_full_render()
     self._flat_ids = {}
     self._id_to_idx = {}
 
-    for _, flatnode in ipairs(flatten(self._tree, nil)) do
+    for _, flatnode in ipairs(_flatten(self._tree, nil)) do
         local row = #lines
         local line, hls, exts = self:_render_node(flatnode, row)
         lines[#lines + 1] = line
@@ -410,7 +410,7 @@ end
 function TreeBuffer:get_cursor_item()
     local id, data = self:_get_cur_item()
     if not id or not data then return nil end
-    return to_item(id, data)
+    return _to_item(id, data)
 end
 
 ---@return boolean
@@ -427,7 +427,7 @@ end
 function TreeBuffer:get_item(id)
     local data = self._tree:get_data(id)
     if not data then return nil end
-    return to_item(id, data)
+    return _to_item(id, data)
 end
 
 ---@return any?
@@ -439,7 +439,7 @@ end
 function TreeBuffer:get_children(parent_id)
     local items = {}
     for _, ti in ipairs(self._tree:get_children(parent_id)) do
-        items[#items + 1] = to_item(ti.id, ti.data)
+        items[#items + 1] = _to_item(ti.id, ti.data)
     end
     return items
 end
@@ -474,11 +474,11 @@ end
 function TreeBuffer:set_children(parent_id, children)
     if parent_id and not self._tree:have_item(parent_id) then return false end
 
-    local old_visible_size = parent_id and tree_size(self._tree, parent_id) or nil
+    local old_visible_size = parent_id and _tree_size(self._tree, parent_id) or nil
 
     local baseitems = {}
     for _, c in ipairs(children) do
-        baseitems[#baseitems + 1] = { id = c.id, data = to_itemdata(c) }
+        baseitems[#baseitems + 1] = { id = c.id, data = _to_itemdata(c) }
     end
     self._tree:set_children(parent_id, baseitems)
 
@@ -489,7 +489,7 @@ function TreeBuffer:set_children(parent_id, children)
             local parent_idx = self._id_to_idx[parent_id]
             if parent_idx then
                 local base_depth = self._tree:get_depth(parent_id)
-                local new_flat = flatten(self._tree, parent_id)
+                local new_flat = _flatten(self._tree, parent_id)
                 for _, node in ipairs(new_flat) do
                     node.depth = base_depth + node.depth
                 end
@@ -510,7 +510,7 @@ end
 ---@return boolean
 function TreeBuffer:add_item(parent_id, item)
     if parent_id and not self._tree:have_item(parent_id) then return false end
-    local item_data = to_itemdata(item)
+    local item_data = _to_itemdata(item)
     self._tree:add_item(parent_id, item.id, item_data)
 
     if self._bufnr > 0 then
@@ -523,7 +523,7 @@ function TreeBuffer:add_item(parent_id, item)
                 local parent_data = self._tree:get_data(parent_id)
                 self:_render_line(parent_id, parent_data)
                 if parent_data and parent_data.expanded then
-                    local subtree_size = tree_size(self._tree, parent_id)
+                    local subtree_size = _tree_size(self._tree, parent_id)
                     local node = { id = item.id, data = item_data, depth = self._tree:get_depth(item.id) }
                     self:_render_range(parent_idx + subtree_size - 1, 0, { node })
                 end
@@ -539,13 +539,13 @@ end
 ---@return boolean
 function TreeBuffer:add_sibling(reference_id, item, before)
     if not self._tree:have_item(reference_id) then return false end
-    local item_data = to_itemdata(item)
+    local item_data = _to_itemdata(item)
     self._tree:add_sibling(reference_id, item.id, item_data, before)
 
     if self._bufnr > 0 then
         local ref_idx = self._id_to_idx[reference_id]
         if ref_idx then
-            local insert_idx = before and ref_idx or (ref_idx + tree_size(self._tree, reference_id))
+            local insert_idx = before and ref_idx or (ref_idx + _tree_size(self._tree, reference_id))
             local node = { id = item.id, data = item_data, depth = self._tree:get_depth(item.id) }
             self:_render_range(insert_idx, 0, { node })
         end
@@ -558,7 +558,7 @@ end
 function TreeBuffer:remove_item(id)
     if not self._tree:have_item(id) then return false end
     local parent_id = self._tree:get_parent_id(id)
-    local visible_size = tree_size(self._tree, id)
+    local visible_size = _tree_size(self._tree, id)
     self._tree:remove_item(id)
     local idx = self._id_to_idx[id]
     if idx then
@@ -614,7 +614,7 @@ function TreeBuffer:expand(id)
     local idx = self._id_to_idx[id]
     if idx then
         local base_depth = self._tree:get_depth(id)
-        local new_flat = flatten(self._tree, id)
+        local new_flat = _flatten(self._tree, id)
         for _, node in ipairs(new_flat) do node.depth = base_depth + node.depth end
         self:_render_range(idx, 1, new_flat)
     end
@@ -624,7 +624,7 @@ end
 function TreeBuffer:collapse(id)
     local data = self._tree:get_data(id)
     if not data or not data.expanded then return end
-    local visible_size = tree_size(self._tree, id)
+    local visible_size = _tree_size(self._tree, id)
     data.expanded = false
     local idx = self._id_to_idx[id]
     if idx then
@@ -668,7 +668,7 @@ end
 function TreeBuffer:get_items()
     local items = {}
     for _, ti in ipairs(self._tree:get_items()) do
-        items[#items + 1] = to_item(ti.id, ti.data)
+        items[#items + 1] = _to_item(ti.id, ti.data)
     end
     return items
 end
@@ -677,7 +677,7 @@ end
 function TreeBuffer:get_roots()
     local items = {}
     for _, ti in ipairs(self._tree:get_roots()) do
-        items[#items + 1] = to_item(ti.id, ti.data)
+        items[#items + 1] = _to_item(ti.id, ti.data)
     end
     return items
 end
@@ -688,7 +688,7 @@ function TreeBuffer:get_parent_item(id)
     if not par_id then return nil end
     local data = self._tree:get_data(par_id)
     if not data then return nil end
-    return to_item(par_id, data)
+    return _to_item(par_id, data)
 end
 
 ---@param winid integer
@@ -701,7 +701,7 @@ function TreeBuffer:get_visible_items(winid)
         local id = self._flat_ids[i]
         if id then
             local data = self._tree:get_data(id)
-            if data then items[#items + 1] = to_item(id, data) end
+            if data then items[#items + 1] = _to_item(id, data) end
         end
     end
     return items

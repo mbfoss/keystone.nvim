@@ -1,6 +1,6 @@
 local M = {}
 
-local function tree()
+local function _tree()
     return require("keystone.filetree.tree")
 end
 
@@ -25,11 +25,11 @@ function M.run_command(cmd, args, opts)
         local command = args[1]
         local name = args[2]
         if command == nil or command == "" or command == "toggle" then
-            tree().toggle()
+            _tree().toggle()
         elseif command == "open" then
-            tree().open()
+            _tree().open()
         elseif command == "close" then
-            tree().close()
+            _tree().close()
         else
             vim.notify("Invalid Filetree command: " .. tostring(command))
         end

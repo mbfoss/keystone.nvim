@@ -6,7 +6,7 @@ local fsutil = require("keystone.util.fsutil")
 ---@param positions integer[] Matched indices
 ---@param hl_group string? Optional override for the match highlight
 ---@return table[] chunks
-local function build_highlight_chunks(text, positions, hl_group)
+local function _build_highlight_chunks(text, positions, hl_group)
     if not positions or #positions == 0 then
         return { { text } }
     end
@@ -43,18 +43,18 @@ end
 ---@return {score:number,chunks:string[][]}?
 function M.match_label(text, query)
     if query == "" then
-        return { score = 0, chunks = build_highlight_chunks(text, {}) }
+        return { score = 0, chunks = _build_highlight_chunks(text, {}) }
     end
     local result = vim.fn.matchfuzzypos({ text }, query)
     if #result[1] == 0 then return nil end
     local raw_positions = result[2][1]
     local positions = {}
     for _, p in ipairs(raw_positions) do
-        positions[#positions + 1] = p + 1 -- matchfuzzypos is 0-based; build_highlight_chunks expects 1-based
+        positions[#positions + 1] = p + 1 -- matchfuzzypos is 0-based; _build_highlight_chunks expects 1-based
     end
     return {
         score = result[3][1],
-        chunks = build_highlight_chunks(text, positions)
+        chunks = _build_highlight_chunks(text, positions)
     }
 end
 
