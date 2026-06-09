@@ -69,3 +69,7 @@ Add Lua annotations (`---@param`, `---@return`, `---@class`, etc.) whenever poss
 Class-based modules are named in PascalCase and functional modules are named in snake_case.
 
 Module local variable names that are not required module names or function names are to be prefixed with underscore
+
+### Naming conventions
+
+All module-scope `local` variables that are not `require()` calls must be prefixed with `_`. The only exception is the primary exported table returned at the end of the file (typically `M`, or the class table itself for class modules like `Signal`, `Tree`, `StatusTree`, etc.).
