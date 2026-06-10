@@ -87,8 +87,7 @@ function M.file_preview(data, _, callback)
                 callback({
                     content   = content,
                     filepath  = _filepath,
-                    lnum      = data.lnum,
-                    col       = data.col,
+                    pos       = data.lnum and { data.lnum, data.col or 0 } or nil,
                     error_msg = load_err,
                 })
             end)

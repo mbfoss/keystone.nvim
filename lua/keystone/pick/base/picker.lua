@@ -58,7 +58,7 @@ local _antiflicker_delay = 200
 ---@field viewport_width number
 ---@field viewport_height number
 
----@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?,bufnr:integer?}
+---@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,pos?:{[1]:integer,[2]:integer},pos_end?:{[1]:integer,[2]:integer},error_msg:string?,bufnr:integer?}
 ---@alias keystone.Picker.AsyncPreviewLoader fun(data:keystone.picker.ItemData, opts:keystone.Picker.AsyncPreviewOpts, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Picker.opts
@@ -658,9 +658,9 @@ function Picker:update_preview()
 				if self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
-					if preview.lnum then
-						local lnum = _clamp(preview.lnum, 1, vim.api.nvim_buf_line_count(preview.bufnr))
-						_place_preview_cursor(self.vwin, lnum, preview.col)
+					if preview.pos then
+						local lnum = _clamp(preview.pos[1], 1, vim.api.nvim_buf_line_count(preview.bufnr))
+						_place_preview_cursor(self.vwin, lnum, preview.pos[2])
 					end
 				end
 				return
@@ -695,15 +695,20 @@ function Picker:update_preview()
 						filetype = vim.filetype.match({ filename = preview.filepath })
 					end
 					vim.bo[self.vbuf].filetype = filetype or ""
-					if preview.lnum then
-						local lnum = _clamp(preview.lnum, 1, #lines)
-						_place_preview_cursor(self.vwin, lnum)
+					if preview.pos then
+						local lnum = _clamp(preview.pos[1], 1, #lines)
+						_place_preview_cursor(self.vwin, lnum, preview.pos[2])
 						vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
-						vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, 0, {
-							end_row = lnum,
+						local end_row = preview.pos_end
+							and (_clamp(preview.pos_end[1], lnum, #lines + 1) - 1)
+							or lnum
+						local end_col = preview.pos_end and preview.pos_end[2] or nil
+						vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, preview.pos[2], {
+							end_row  = end_row,
+							end_col  = end_col,
 							hl_group = "Visual",
-							hl_eol = true,
-							hl_mode = "blend",
+							hl_eol   = true,
+							hl_mode  = "blend",
 						})
 					else
 						vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
