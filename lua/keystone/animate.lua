@@ -11,6 +11,8 @@ local _augroup_name = "keystone_animate"
 ---@field enabled boolean?
 ---@field filter function?
 ---@field easing keysstone.animate.easing_fn?
+---@field duration number? Total animation duration in milliseconds (default: 120)
+---@field step number? Frame interval in milliseconds (default: 16)
 
 local function _get_default_config()
     ---@type keystone.animate.Config
@@ -18,6 +20,8 @@ local function _get_default_config()
         enabled = true,
         filter = nil,
         easing = nil,
+        duration = 250,
+        step = 16,
     }
 end
 
@@ -366,8 +370,6 @@ function M.check(win)
     local now = _uv.hrtime()
     state.last = now
 
-    local opts = {}
-
     local scrolls = 0
     local col_from, col_to = 0, 0
     local move_from, move_to = 0, 0
@@ -386,6 +388,15 @@ function M.check(win)
         state:stop()
         return
     end
+
+    -- scale duration with distance so rapid large scrolls (e.g. holding <C-d>)
+    -- don't feel sluggish — each line contributes ~8ms, capped at config.duration
+    local duration = math.min(M.config.duration, math.max(math.floor(M.config.duration / 5), scrolls * 8))
+    local opts = {
+        duration = duration,
+        step = M.config.step,
+        easing = M.config.easing,
+    }
 
     local down = state.target.topline > state.current.topline
         or (state.target.topline == state.current.topline and state.target.topfill < state.current.topfill)
