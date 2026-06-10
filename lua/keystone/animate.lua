@@ -11,7 +11,8 @@ local _augroup_name = "keystone_animate"
 ---@field enabled boolean?
 ---@field filter function?
 ---@field easing keysstone.animate.easing_fn?
----@field duration number? Total animation duration in milliseconds (default: 120)
+---@field speed number? Animation speed in milliseconds per line (default: 8)
+---@field duration number? Hard cap on animation duration in milliseconds (default: 300)
 ---@field step number? Frame interval in milliseconds (default: 16)
 
 local function _get_default_config()
@@ -20,6 +21,7 @@ local function _get_default_config()
         enabled = true,
         filter = nil,
         easing = nil,
+        speed = 20,
         duration = 300,
         step = 16,
     }
@@ -363,12 +365,13 @@ function M.check(win)
 
     -- new target
     _stats.targets = _stats.targets + 1
+    local _was_animating = state.anim ~= nil
+    local _now = _uv.hrtime()
+    local _since_last = (_now - state.last) / 1e6  -- ms since previous scroll event
+    state.last = _now
     state.target = vim.deepcopy(state.view)
     state:stop() -- stop any ongoing animation
     state:wo({ virtualedit = "all", scrolloff = 0 })
-
-    local now = _uv.hrtime()
-    state.last = now
 
     local scrolls = 0
     local col_from, col_to = 0, 0
@@ -389,9 +392,13 @@ function M.check(win)
         return
     end
 
-    -- scale duration with distance so rapid large scrolls (e.g. holding <C-d>)
-    -- don't feel sluggish — each line contributes ~8ms, capped at config.duration
-    local duration = math.min(M.config.duration, math.max(math.floor(M.config.duration / 5), scrolls * 8))
+    -- when holding a key, new scrolls arrive faster than the animation completes;
+    -- cap to the inter-event interval so each frame finishes before the next one starts
+    local _max_dur = M.config.duration or 300
+    if _was_animating and _since_last < _max_dur then
+        _max_dur = math.max(_since_last, (M.config.step or 16) * 2)
+    end
+    local duration = math.min(_max_dur, scrolls * (M.config.speed or 20))
     local opts = {
         duration = duration,
         step = M.config.step,
