@@ -80,13 +80,14 @@ local _easing = {
 ---@param to number
 ---@param cb fun(value:number, ctx:{done:boolean})
 ---@param opts? { duration?:number, step?:number, easing?:keysstone.animate.easing_fn }
----@return {stop:function}
+---@return {stop:function, extend:fun(new_to:number, new_duration?:number, new_easing?:keysstone.animate.easing_fn)}
 local function _animate(from, to, cb, opts)
     opts = opts or {}
 
+    local _to = to
     local duration = opts.duration or 120 -- total ms
     local step = opts.step or 16          -- frame interval
-    local easing = opts.easing or _easing.in_out
+    local _easing_fn = opts.easing or _easing.in_out
 
     local timer = assert(vim.uv.new_timer())
     local start = vim.uv.hrtime() / 1e6
@@ -99,8 +100,7 @@ local function _animate(from, to, cb, opts)
         local elapsed = now - start
         local t = math.min(elapsed / duration, 1)
 
-        local eased = easing(t)
-        local value = from + (to - from) * eased
+        local value = from + (_to - from) * _easing_fn(t)
 
         cb(value, { done = t >= 1 })
 
@@ -108,14 +108,31 @@ local function _animate(from, to, cb, opts)
             stop()
         end
     end))
-    return { stop = stop }
+    -- extend: retarget and restart the clock without touching the timer
+    local function extend(new_to, new_duration, new_easing)
+        _to = new_to
+        if new_duration then duration = new_duration end
+        if new_easing then _easing_fn = new_easing end
+        start = vim.uv.hrtime() / 1e6
+    end
+    return { stop = stop, extend = extend }
 end
 
 
 ---@alias keystone.animate.View {topline:number, lnum:number}
 
+---@class keystone.animate.AnimParams
+---@field scrolls number
+---@field move_from number
+---@field move_to number
+---@field col_from number
+---@field col_to number
+---@field down boolean
+---@field scrolled number
+
 ---@class keystone.animate.State
----@field anim? table
+---@field anim? {stop:function, extend:fun(new_to:number, new_duration?:number, new_easing?:keysstone.animate.easing_fn)}
+---@field _anim_params? keystone.animate.AnimParams
 ---@field win number
 ---@field buf number
 ---@field view vim.fn.winsaveview.ret
@@ -123,7 +140,6 @@ end
 ---@field target vim.fn.winsaveview.ret
 ---@field scrolloff number
 ---@field changedtick number
----@field last number vim.uv.hrtime of last scroll
 ---@field _wo vim.wo Backup of window options
 local State = {}
 State.__index = State
@@ -133,7 +149,6 @@ local _mouse_scrolling = false
 M.enabled = false
 local _SCROLL_UP, _SCROLL_DOWN = _keycode("<c-y>"), _keycode("<c-e>")
 
-local _uv = vim.uv or vim.loop
 local _stats = { targets = 0, animating = 0, reset = 0, skipped = 0, mousescroll = 0, scrolls = 0 }
 local _states = {} ---@type table<number, keystone.animate.State>
 
@@ -208,7 +223,6 @@ local function _get_state(win)
         ret._wo = {}
         ret.changedtick = vim.api.nvim_buf_get_changedtick(buf)
         ret.current = vim.deepcopy(view)
-        ret.last = 0
         ret.target = vim.deepcopy(view)
         ret.win = win
     end
@@ -365,52 +379,41 @@ function M.check(win)
 
     -- new target
     _stats.targets = _stats.targets + 1
-    local _was_animating = state.anim ~= nil
-    local _now = _uv.hrtime()
-    local _since_last = (_now - state.last) / 1e6  -- ms since previous scroll event
-    state.last = _now
     state.target = vim.deepcopy(state.view)
-    state:stop() -- stop any ongoing animation
-    state:wo({ virtualedit = "all", scrolloff = 0 })
 
-    local scrolls = 0
-    local col_from, col_to = 0, 0
-    local move_from, move_to = 0, 0
+    -- recompute animation parameters from the current visual position to the new target
+    ---@type keystone.animate.AnimParams
+    local p = { scrolls = 0, move_from = 0, move_to = 0, col_from = 0, col_to = 0, down = false, scrolled = 0 }
     vim.api.nvim_win_call(state.win, function()
-        move_to = vim.fn.winline()
-        vim.fn.winrestview(state.current) -- reset to current state
-        move_from = vim.fn.winline()
+        p.move_to = vim.fn.winline()
+        vim.fn.winrestview(state.current) -- rewind to current animated position
+        p.move_from = vim.fn.winline()
         state:update()
-        -- calculate the amount of lines to scroll, taking folds into account
-        scrolls = _scroll_lines(state.win, state.current, state.target)
-        col_from = vim.fn.virtcol({ state.current.lnum, state.current.col }) --[[@as integer]]
-        col_to = vim.fn.virtcol({ state.target.lnum, state.target.col }) --[[@as integer]]
+        p.scrolls = _scroll_lines(state.win, state.current, state.target)
+        p.col_from = vim.fn.virtcol({ state.current.lnum, state.current.col }) --[[@as integer]]
+        p.col_to = vim.fn.virtcol({ state.target.lnum, state.target.col }) --[[@as integer]]
     end)
+    p.down = state.target.topline > state.current.topline
+        or (state.target.topline == state.current.topline and state.target.topfill < state.current.topfill)
 
-    if scrolls == 0 then
+    if p.scrolls == 0 then
         state:stop()
         return
     end
 
-    -- when holding a key, new scrolls arrive faster than the animation completes;
-    -- cap to the inter-event interval so each frame finishes before the next one starts
-    local _max_dur = M.config.duration or 300
-    if _was_animating and _since_last < _max_dur then
-        _max_dur = math.max(_since_last, (M.config.step or 16) * 2)
+    local duration = math.min(M.config.duration or 300, p.scrolls * (M.config.speed or 20))
+
+    -- if an animation is already running, just retarget it — no stop/start gap
+    if state.anim then
+        state._anim_params = p
+        state.anim.extend(p.scrolls, duration, _easing.linear)
+        return
     end
-    local duration = math.min(_max_dur, scrolls * (M.config.speed or 20))
-    local opts = {
-        duration = duration,
-        step = M.config.step,
-        easing = M.config.easing,
-    }
 
-    local down = state.target.topline > state.current.topline
-        or (state.target.topline == state.current.topline and state.target.topfill < state.current.topfill)
+    state:wo({ virtualedit = "all", scrolloff = 0 })
+    state._anim_params = p
 
-    local scrolled = 0
-
-    state.anim = _animate(0, scrolls, function(value, ctx)
+    state.anim = _animate(0, p.scrolls, function(value, ctx)
         if not state:valid() then
             state:stop()
             return
@@ -424,24 +427,25 @@ function M.check(win)
                 return
             end
 
+            local _p = state._anim_params ---@type keystone.animate.AnimParams
             local count = vim.v.count -- backup count
             local commands = {} ---@type string[]
 
             -- scroll
             local scroll_target = math.floor(value)
-            local scroll = scroll_target - scrolled --[[@as number]]
+            local scroll = scroll_target - _p.scrolled --[[@as number]]
             if scroll > 0 then
-                scrolled = scrolled + scroll
-                commands[#commands + 1] = ("%d%s"):format(scroll, down and _SCROLL_DOWN or _SCROLL_UP)
+                _p.scrolled = _p.scrolled + scroll
+                commands[#commands + 1] = ("%d%s"):format(scroll, _p.down and _SCROLL_DOWN or _SCROLL_UP)
             end
 
             -- move the cursor vertically
-            local move = math.floor(value * math.abs(move_to - move_from) / scrolls)   -- delta to move this step
-            local move_target = move_from + ((move_to < move_from) and -1 or 1) * move -- target line
+            local move = math.floor(value * math.abs(_p.move_to - _p.move_from) / _p.scrolls)
+            local move_target = _p.move_from + ((_p.move_to < _p.move_from) and -1 or 1) * move
             commands[#commands + 1] = ("%dH"):format(move_target)
 
             -- move the cursor horizontally
-            local virtcol = math.floor(col_from + (col_to - col_from) * value / scrolls)
+            local virtcol = math.floor(_p.col_from + (_p.col_to - _p.col_from) * value / _p.scrolls)
             commands[#commands + 1] = ("%d|"):format(virtcol + 1)
 
             -- execute all commands in one go
@@ -456,7 +460,7 @@ function M.check(win)
 
             state:update()
         end)
-    end, opts)
+    end, { duration = duration, step = M.config.step, easing = M.config.easing })
 end
 
 ---@param opts keystone.animate.Config?
