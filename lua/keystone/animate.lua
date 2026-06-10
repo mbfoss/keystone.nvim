@@ -20,7 +20,7 @@ local function _get_default_config()
         enabled = true,
         filter = nil,
         easing = nil,
-        duration = 250,
+        duration = 300,
         step = 16,
     }
 end
@@ -380,8 +380,8 @@ function M.check(win)
         state:update()
         -- calculate the amount of lines to scroll, taking folds into account
         scrolls = _scroll_lines(state.win, state.current, state.target)
-        col_from = vim.fn.virtcol({ state.current.lnum, state.current.col })
-        col_to = vim.fn.virtcol({ state.target.lnum, state.target.col })
+        col_from = vim.fn.virtcol({ state.current.lnum, state.current.col }) --[[@as integer]]
+        col_to = vim.fn.virtcol({ state.target.lnum, state.target.col }) --[[@as integer]]
     end)
 
     if scrolls == 0 then
