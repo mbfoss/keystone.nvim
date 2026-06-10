@@ -125,10 +125,11 @@ end
 
 ---@param modifiable boolean
 ---@param on_delete fun()
-local function _create_buffer(modifiable, on_delete)
+---@param bufhidden string?
+local function _create_buffer(modifiable, on_delete, bufhidden)
 	return uitool.create_sratch_buffer(false, {
 			buftype = "nofile",
-			bufhidden = "wipe",
+			bufhidden = bufhidden or "wipe",
 			modifiable = modifiable,
 			swapfile = false,
 			undolevels = -1,
@@ -143,10 +144,41 @@ end
 ---@param lnum integer
 ---@param col integer?
 local function _place_preview_cursor(win, lnum, col)
-	vim.api.nvim_win_set_cursor(win, { lnum, col or 0 })
 	vim.api.nvim_win_call(win, function()
+		if not col or col < 0 then col = 0 end
+		vim.api.nvim_win_set_cursor(win, { lnum, col })
 		vim.cmd("normal! zz")
 	end)
+end
+
+---@param win integer
+---@param buf integer
+---@param pos {[1]:integer,[2]:integer}?
+---@param pos_end {[1]:integer,[2]:integer}?
+local function _apply_preview_pos(win, buf, pos, pos_end)
+	vim.api.nvim_buf_clear_namespace(buf, _NS_PREVIEW, 0, -1)
+	if not pos then
+		vim.api.nvim_win_set_cursor(win, { 1, 0 })
+		return
+	end
+	local lnum = _clamp(pos[1], 1, vim.api.nvim_buf_line_count(buf))
+	_place_preview_cursor(win, lnum, pos[2])
+	if pos_end then
+		vim.api.nvim_buf_set_extmark(buf, _NS_PREVIEW, lnum - 1, pos[2], {
+			end_row  = _clamp(pos_end[1], lnum, vim.api.nvim_buf_line_count(buf) + 1) - 1,
+			end_col  = pos_end[2],
+			hl_group = "Visual",
+			hl_eol   = true,
+			hl_mode  = "blend",
+		})
+	else
+		vim.api.nvim_buf_set_extmark(buf, _NS_PREVIEW, lnum - 1, 0, {
+			end_row  = lnum,
+			hl_group = "Visual",
+			hl_eol   = true,
+			hl_mode  = "blend",
+		})
+	end
 end
 
 ---@param msg string
@@ -483,7 +515,7 @@ function Picker:relayout(action)
 			if not self.vbuf then
 				self.vbuf = _create_buffer(false, function()
 					self.vbuf = nil
-				end)
+				end, "hide")
 				local vbuf_key_opts = _key_opts_of(self.vbuf)
 				vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
 				vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
@@ -658,10 +690,7 @@ function Picker:update_preview()
 				if self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
-					if preview.pos then
-						local lnum = _clamp(preview.pos[1], 1, vim.api.nvim_buf_line_count(preview.bufnr))
-						_place_preview_cursor(self.vwin, lnum, preview.pos[2])
-					end
+					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
 				end
 				return
 			end
@@ -689,34 +718,11 @@ function Picker:update_preview()
 				vim.bo[self.vbuf].modifiable = true
 				vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
 				vim.bo[self.vbuf].modifiable = false
-				if content and preview then
-					local filetype = preview.filetype
-					if not filetype and preview.filepath then
-						filetype = vim.filetype.match({ filename = preview.filepath })
-					end
-					vim.bo[self.vbuf].filetype = filetype or ""
-					if preview.pos then
-						local lnum = _clamp(preview.pos[1], 1, #lines)
-						_place_preview_cursor(self.vwin, lnum, preview.pos[2])
-						vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
-						local end_row = preview.pos_end
-							and (_clamp(preview.pos_end[1], lnum, #lines + 1) - 1)
-							or lnum
-						local end_col = preview.pos_end and preview.pos_end[2] or nil
-						vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, preview.pos[2], {
-							end_row  = end_row,
-							end_col  = end_col,
-							hl_group = "Visual",
-							hl_eol   = true,
-							hl_mode  = "blend",
-						})
-					else
-						vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
-					end
-				else
-					vim.bo[self.vbuf].filetype = ""
-					vim.api.nvim_win_set_cursor(self.vwin, { 1, 0 })
-				end
+				local filetype = content and (preview.filetype
+					or (preview.filepath and vim.filetype.match({ filename = preview.filepath }))
+					or "") or ""
+				vim.bo[self.vbuf].filetype = filetype
+				_apply_preview_pos(self.vwin, self.vbuf, content and preview.pos or nil, content and preview.pos_end or nil)
 			end
 		end)
 	)

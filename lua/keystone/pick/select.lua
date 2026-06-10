@@ -1,7 +1,7 @@
-local M = {}
+local M           = {}
 
 local picker      = require("keystone.pick.base.picker")
-local pickertools  = require("keystone.pick.base.pickertools")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@return number,number
 local function _compute_dimentions(items)
@@ -16,17 +16,23 @@ local function _compute_dimentions(items)
 end
 
 ---@generic T
----@param items T[]
----@param opts table
+---@param items T[] Arbitrary items
+---@param opts vim.ui.select.Opts Additional options
 ---@param on_choice fun(item: T|nil, idx: integer|nil)
+---               Called once the user made a choice.
+---               `idx` is the 1-based index of `item` within `items`.
+---               `nil` if the user aborted the dialog.
 function M.select(items, opts, on_choice)
     vim.validate("on_choice", on_choice, "function")
-    opts = opts or {}
+    opts               = opts or {}
 
     local format_item  = opts.format_item or tostring
-    local preview_item = opts.preview_item ---@type (fun(item:any):{buf:integer?,pos:{[1]:integer,[2]:integer}?,pos_end:{[1]:integer,[2]:integer}?})?
 
-    local _cached = {}
+    ---@type (fun(item:any):{buf:integer?,pos:{[1]:integer,[2]:integer}?,pos_end:{[1]:integer,[2]:integer}?})?
+    ---@diagnostic disable-next-line: undefined-field
+    local preview_item = opts.preview_item
+
+    local _cached      = {}
     for i, item in ipairs(items) do
         local ok, label = pcall(format_item, item)
         _cached[i] = {
@@ -61,17 +67,19 @@ function M.select(items, opts, on_choice)
             callback(results)
         end,
 
-        previewer = preview_item and function(data, _, callback)
-            local result = preview_item(data)
-            if not result or not result.buf then
-                callback(nil)
-                return
-            end
-            callback({
-                bufnr   = result.buf,
-                pos     = result.pos,
-                pos_end = result.pos_end,
-            })
+        previewer      = preview_item and function(data, _, callback)
+            vim.schedule(function()
+                local result = preview_item(data)
+                if not result or not result.buf then
+                    callback(nil)
+                    return
+                end
+                callback({
+                    bufnr   = result.buf,
+                    pos     = result.pos,
+                    pos_end = result.pos_end,
+                })
+            end)
         end or nil,
     }, function(choice)
         if not choice then
