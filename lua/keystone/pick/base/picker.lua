@@ -4,18 +4,18 @@ local uitool             = require("keystone.util.uitool")
 local floatwin           = require("keystone.util.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 local queryflags         = require("keystone.pick.base.queryflags")
-local pickertools         = require("keystone.pick.base.pickertools")
+local pickertools        = require("keystone.pick.base.pickertools")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
 local M                  = {}
 
-local _NS_CURSOR          = vim.api.nvim_create_namespace("keystone_PickerCursor")
-local _NS_CONTENT         = vim.api.nvim_create_namespace("keystone_PickerContent")
-local _NS_SPINNER         = vim.api.nvim_create_namespace("keystone_PickerSpinner")
-local _NS_PREVIEW         = vim.api.nvim_create_namespace("keystone_PickerPreview")
-local _NS_FILTER          = vim.api.nvim_create_namespace("keystone_PickerFilter")
+local _NS_CURSOR         = vim.api.nvim_create_namespace("keystone_PickerCursor")
+local _NS_CONTENT        = vim.api.nvim_create_namespace("keystone_PickerContent")
+local _NS_SPINNER        = vim.api.nvim_create_namespace("keystone_PickerSpinner")
+local _NS_PREVIEW        = vim.api.nvim_create_namespace("keystone_PickerPreview")
+local _NS_FILTER         = vim.api.nvim_create_namespace("keystone_PickerFilter")
 
 local _antiflicker_delay = 200
 
@@ -227,33 +227,33 @@ local _active_picker = nil
 ---@param b table
 ---@return boolean
 local function _flags_equal(a, b)
-    for k, v in pairs(a) do
-        if type(v) == "table" then
-            if type(b[k]) ~= "table" or #v ~= #b[k] then return false end
-            for i, x in ipairs(v) do if b[k][i] ~= x then return false end end
-        elseif b[k] ~= v then
-            return false
-        end
-    end
-    for k in pairs(b) do if a[k] == nil then return false end end
-    return true
+	for k, v in pairs(a) do
+		if type(v) == "table" then
+			if type(b[k]) ~= "table" or #v ~= #b[k] then return false end
+			for i, x in ipairs(v) do if b[k][i] ~= x then return false end end
+		elseif b[k] ~= v then
+			return false
+		end
+	end
+	for k in pairs(b) do if a[k] == nil then return false end end
+	return true
 end
 
 ---@param query_text string
 ---@param filter_text string
 ---@return string
 local function _encode_history(query_text, filter_text)
-    return vim.json.encode({ q = query_text, f = filter_text ~= "" and filter_text or nil })
+	return vim.json.encode({ q = query_text, f = filter_text ~= "" and filter_text or nil })
 end
 
 ---@param entry string
 ---@return string, string
 local function _decode_history(entry)
-    local ok, t = pcall(vim.json.decode, entry)
-    if ok and type(t) == "table" then
-        return t.q or "", t.f or ""
-    end
-    return entry, ""
+	local ok, t = pcall(vim.json.decode, entry)
+	if ok and type(t) == "table" then
+		return t.q or "", t.f or ""
+	end
+	return entry, ""
 end
 
 ---@param item keystone.picker.ListItem
@@ -286,6 +286,7 @@ end
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
 ---@field _preview_external_buf integer?
+---@field _preview_buf_watch_ctx integer
 ---@field preview_timer table?
 ---@field resize_augroup number?
 ---@field current_query string?
@@ -306,32 +307,33 @@ function Picker:init(opts, callback)
 	vim.validate("opts", opts, "table")
 	vim.validate("callback", callback, "function")
 
-	self.opts                  = opts and vim.deepcopy(opts) or {}
-	self.opts.flags            = self.opts.flags or {}
-	self.callback              = callback
+	self.opts                   = opts and vim.deepcopy(opts) or {}
+	self.opts.flags             = self.opts.flags or {}
+	self.callback               = callback
 
-	self.preview_enabled       = opts.enable_preview
-	self.preview_default       = opts.preview_default
+	self.preview_enabled        = opts.enable_preview
+	self.preview_default        = opts.preview_default
 
-	self.list_items            = {} ---@type keystone.picker.ListItem[]
+	self.list_items             = {} ---@type keystone.picker.ListItem[]
 
-	self.closed                = false
+	self.closed                 = false
 
-	self.async_fetch_context   = 0
-	self.async_fetch_cancel    = nil
+	self.async_fetch_context    = 0
+	self.async_fetch_cancel     = nil
 
-	self.async_preview_context = 0
-	self.async_preview_cancel  = nil
+	self.async_preview_context  = 0
+	self.async_preview_cancel   = nil
+	self._preview_buf_watch_ctx = 0
 
-	self.spinner               = nil
+	self.spinner                = nil
 
-	self.query_text            = ""
-	self.filter_text           = ""
-	self.filter_mode           = false
+	self.query_text             = ""
+	self.filter_text            = ""
+	self.filter_mode            = false
 
-	self.history               = {}
-	self.history_idx           = 0
-	self.history_saved_query   = nil
+	self.history                = {}
+	self.history_idx            = 0
+	self.history_saved_query    = nil
 
 	if self.opts.history_provider then
 		self.history = self.opts.history_provider.load() or {}
@@ -656,6 +658,7 @@ function Picker:update_preview()
 	if self.closed then return end
 	if not self.vbuf then return end
 
+	self:_clear_preview_buf_watch()
 	self:request_clear_preview()
 
 	if self.async_preview_cancel then
@@ -691,6 +694,7 @@ function Picker:update_preview()
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
 					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
+					self:_watch_preview_buf(preview.bufnr, preview.pos, preview.pos_end, preview_context)
 				end
 				return
 			end
@@ -722,10 +726,41 @@ function Picker:update_preview()
 					or (preview.filepath and vim.filetype.match({ filename = preview.filepath }))
 					or "") or ""
 				vim.bo[self.vbuf].filetype = filetype
-				_apply_preview_pos(self.vwin, self.vbuf, content and preview.pos or nil, content and preview.pos_end or nil)
+				_apply_preview_pos(self.vwin, self.vbuf, content and preview.pos or nil,
+					content and preview.pos_end or nil)
 			end
 		end)
 	)
+end
+
+function Picker:_clear_preview_buf_watch()
+	self._preview_buf_watch_ctx = self._preview_buf_watch_ctx + 1
+end
+
+---@param bufnr integer
+---@param pos {[1]:integer,[2]:integer}?
+---@param pos_end {[1]:integer,[2]:integer}?
+---@param preview_ctx number
+function Picker:_watch_preview_buf(bufnr, pos, pos_end, preview_ctx)
+	self:_clear_preview_buf_watch()
+	local watch_ctx = self._preview_buf_watch_ctx
+	local detached = false
+	vim.api.nvim_buf_attach(bufnr, false, {
+		on_lines = function()
+			assert(not detached) -- should not happen, just for extra security
+			if watch_ctx ~= self._preview_buf_watch_ctx then
+				-- returning true here is very imporant because in cancel the attach
+				detached = true
+				return true
+			end
+			vim.schedule(function()
+				if self.closed or preview_ctx ~= self.async_preview_context then return end
+				if not self.vwin or not vim.api.nvim_win_is_valid(self.vwin) then return end
+				if not vim.api.nvim_buf_is_valid(bufnr) then return end
+				_apply_preview_pos(self.vwin, bufnr, pos, pos_end)
+			end)
+		end,
+	})
 end
 
 function Picker:start_spinner()
@@ -944,8 +979,8 @@ function Picker:toggle_filter_mode()
 end
 
 function Picker:run_fetch()
-	local query_text  = self.query_text
-	local filter_text = self.filter_text
+	local query_text   = self.query_text
+	local filter_text  = self.filter_text
 	self.current_query = query_text
 
 	if self.async_fetch_cancel then
@@ -963,14 +998,14 @@ function Picker:run_fetch()
 
 	local clean_query, flags
 	if #self.opts.flags > 0 and filter_text ~= "" then
-		local parsed   = queryflags.parse(self.opts.flags, filter_text)
-		clean_query    = query_text
-		flags          = parsed.flags
+		local parsed      = queryflags.parse(self.opts.flags, filter_text)
+		clean_query       = query_text
+		flags             = parsed.flags
 		fetch_opts.parsed = parsed
 	elseif #self.opts.flags > 0 then
-		local parsed   = queryflags.parse(self.opts.flags, query_text)
-		clean_query    = parsed.query
-		flags          = parsed.flags
+		local parsed      = queryflags.parse(self.opts.flags, query_text)
+		clean_query       = parsed.query
+		flags             = parsed.flags
 		fetch_opts.parsed = parsed
 	else
 		clean_query = query_text
@@ -980,8 +1015,8 @@ function Picker:run_fetch()
 	if clean_query == self._last_clean_query and _flags_equal(flags, self._last_flags or {}) then
 		return
 	end
-	self._last_clean_query = clean_query
-	self._last_flags       = flags
+	self._last_clean_query   = clean_query
+	self._last_flags         = flags
 
 	self.async_fetch_context = self.async_fetch_context + 1
 	local context            = self.async_fetch_context
@@ -1061,9 +1096,9 @@ function Picker:history_next()
 		self.history_idx = new_idx
 		self:_apply_history_entry(_decode_history(self.history[self.history_idx]))
 	elseif new_idx == #self.history + 1 then
-		self.history_idx = new_idx
-		local q = self.history_saved_query  or ""
-		local f = self.history_saved_filter or ""
+		self.history_idx          = new_idx
+		local q                   = self.history_saved_query or ""
+		local f                   = self.history_saved_filter or ""
 		self.history_saved_query  = nil
 		self.history_saved_filter = nil
 		self:_apply_history_entry(q, f)
@@ -1123,6 +1158,7 @@ function Picker:close(selected_data)
 	if _active_picker == self then _active_picker = nil end
 
 	self:stop_spinner()
+	self:_clear_preview_buf_watch()
 
 	self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 
@@ -1240,8 +1276,8 @@ function Picker:setup_input()
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
 			buffer = self.pbuf,
 			callback = function()
-				local text        = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
-				local prev        = self.filter_mode and self.filter_text or self.query_text
+				local text = vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or ""
+				local prev = self.filter_mode and self.filter_text or self.query_text
 				if text ~= prev then
 					if self.filter_mode then
 						self.filter_text = text
@@ -1283,7 +1319,7 @@ function M.repeat_last()
 	local opts       = vim.tbl_extend("force", session.opts, {
 		initial_query  = session.query,
 		initial_filter = session.filter,
-		finder        = function(query, flags, fetch_opts, callback)
+		finder         = function(query, flags, fetch_opts, callback)
 			if first_call then
 				first_call = false
 				return session.opts.finder(query, flags, fetch_opts, function(items)
