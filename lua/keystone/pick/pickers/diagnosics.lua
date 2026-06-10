@@ -48,7 +48,7 @@ function M.spec(opts)
 
     if vim.tbl_isempty(diagnostics) then
         vim.notify("No diagnostics found", vim.log.levels.INFO)
-        return nil
+        return {}
     end
 
     table.sort(diagnostics, function(a, b) return a.lnum < b.lnum end)

@@ -80,7 +80,7 @@ local function build_rg_cmd(parsed, opts)
     for _, val in ipairs(flags.dir or {}) do
         local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
         if p ~= "" then
-            table.insert(include_globs, "**/" .. p .. "/**")
+            table.insert(include_globs, "**/*" .. p .. "*/**")
         end
     end
 

@@ -1,4 +1,4 @@
-local M = {}
+local M           = {}
 
 local picker      = require("keystone.pick.base.picker")
 local registry    = require("keystone.pick.registry")
@@ -89,8 +89,10 @@ function M.pick(picker_type, initial_filter)
 
     local spec = registry.get(picker_type)
     if spec then
-        spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
-        _open_spec(spec, initial_filter)
+        if next(spec) ~= nil then
+            spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
+            _open_spec(spec, initial_filter)
+        end
     else
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
     end
