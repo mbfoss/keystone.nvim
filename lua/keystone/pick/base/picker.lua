@@ -58,7 +58,7 @@ local _antiflicker_delay = 200
 ---@field viewport_width number
 ---@field viewport_height number
 
----@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
+---@alias keystone.Picker.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?,bufnr:integer?}
 ---@alias keystone.Picker.AsyncPreviewLoader fun(data:keystone.picker.ItemData, opts:keystone.Picker.AsyncPreviewOpts, callback:fun(preview:keystone.Picker.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Picker.opts
@@ -137,6 +137,16 @@ local function _create_buffer(modifiable, on_delete)
 			spelloptions = "noplainbuffer",
 		},
 		on_delete)
+end
+
+---@param win integer
+---@param lnum integer
+---@param col integer?
+local function _place_preview_cursor(win, lnum, col)
+	vim.api.nvim_win_set_cursor(win, { lnum, col or 0 })
+	vim.api.nvim_win_call(win, function()
+		vim.cmd("normal! zz")
+	end)
 end
 
 ---@param msg string
@@ -243,6 +253,7 @@ end
 ---@field async_fetch_cancel fun()?
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
+---@field _preview_external_buf integer?
 ---@field preview_timer table?
 ---@field resize_augroup number?
 ---@field current_query string?
@@ -641,6 +652,25 @@ function Picker:update_preview()
 				return
 			end
 			preview = preview or {}
+			self:cancel_clear_preview_req()
+
+			if preview.bufnr and vim.api.nvim_buf_is_valid(preview.bufnr) then
+				if self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
+					self._preview_external_buf = preview.bufnr
+					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
+					if preview.lnum then
+						local lnum = _clamp(preview.lnum, 1, vim.api.nvim_buf_line_count(preview.bufnr))
+						_place_preview_cursor(self.vwin, lnum, preview.col)
+					end
+				end
+				return
+			end
+
+			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
+				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
+				self._preview_external_buf = nil
+			end
+
 			local content = preview.content
 			local lines ---@type string[]
 			if content then
@@ -656,7 +686,6 @@ function Picker:update_preview()
 			end
 			lines = lines or {}
 			if self.vbuf then
-				self:cancel_clear_preview_req()
 				vim.bo[self.vbuf].modifiable = true
 				vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, lines)
 				vim.bo[self.vbuf].modifiable = false
@@ -668,10 +697,7 @@ function Picker:update_preview()
 					vim.bo[self.vbuf].filetype = filetype or ""
 					if preview.lnum then
 						local lnum = _clamp(preview.lnum, 1, #lines)
-						vim.api.nvim_win_set_cursor(self.vwin, { lnum, 0 })
-						vim.api.nvim_win_call(self.vwin, function()
-							vim.cmd("normal! zz")
-						end)
+						_place_preview_cursor(self.vwin, lnum)
 						vim.api.nvim_buf_clear_namespace(self.vbuf, _NS_PREVIEW, 0, -1)
 						vim.api.nvim_buf_set_extmark(self.vbuf, _NS_PREVIEW, lnum - 1, 0, {
 							end_row = lnum,
@@ -725,6 +751,10 @@ end
 function Picker:request_clear_preview(immediate)
 	local clear = function()
 		if self.vbuf and not self.closed then
+			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
+				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
+				self._preview_external_buf = nil
+			end
 			vim.bo[self.vbuf].modifiable = true
 			vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
 			vim.bo[self.vbuf].modifiable = false
