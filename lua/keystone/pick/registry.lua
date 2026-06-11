@@ -1,6 +1,6 @@
 local M = {}
 
----@type table<string, fun(): keystone.PickerSpec?>
+---@type table<string, keystone.PickerSpec | fun(): keystone.PickerSpec?>
 local _pickers = {
     files                 = function() return require("keystone.pick.pickers.files").spec() end,
     live_grep             = function() return require("keystone.pick.pickers.livegrep").spec() end,
@@ -35,6 +35,18 @@ local _pickers = {
     parse_debug           = function() return require("keystone.pick.pickers.parse_debug").spec() end,
 }
 
+---@param name string
+---@param spec keystone.PickerSpec | fun(): keystone.PickerSpec?
+function M.register(name, spec)
+    _pickers[name] = spec
+end
+
+---@param name string
+---@return boolean
+function M.has(name)
+    return _pickers[name] ~= nil
+end
+
 ---@return string[]
 function M.keys()
     return vim.tbl_keys(_pickers)
@@ -43,8 +55,10 @@ end
 ---@param name string
 ---@return keystone.PickerSpec?
 function M.get(name)
-    local factory = _pickers[name]
-    return factory and factory() or nil
+    local entry = _pickers[name]
+    if entry == nil then return nil end
+    if type(entry) == "function" then return entry() end
+    return entry
 end
 
 ---@param name string

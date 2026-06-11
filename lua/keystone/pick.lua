@@ -89,13 +89,17 @@ function M.pick(picker_type, initial_filter)
 
     local spec = registry.get(picker_type)
     if spec then
-        if next(spec) ~= nil then
-            spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
-            _open_spec(spec, initial_filter)
-        end
-    else
+        spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
+        _open_spec(spec, initial_filter)
+    elseif not registry.has(picker_type) then
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
     end
+end
+
+---@param name string
+---@param spec keystone.PickerSpec | fun(): keystone.PickerSpec?
+function M.register(name, spec)
+    registry.register(name, spec)
 end
 
 ---@param opts keystone.pick.Config?

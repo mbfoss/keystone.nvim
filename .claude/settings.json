@@ -9,7 +9,13 @@
       "Bash(git stash *)",
       "Read(//Users/Dev/.config/nvim/pack/plugins/opt/easytasks-debug.nvim/lua/easytasks-debug/ui/**)",
       "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/extmarks.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/extmarks.lua)",
-      "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/signs.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/signs.lua)"
+      "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/signs.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/signs.lua)",
+      "Bash(find /Users/Dev/.config/nvim/pack/plugins/opt -maxdepth 1 -type d | head -20)",
+      "Read(//Users/Dev/.config/nvim/pack/plugins/opt/**)",
+      "Bash(mkdir -p /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/colors /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/lua/pastelstone)"
+    ],
+    "additionalDirectories": [
+      "/Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim"
     ]
   }
 }
