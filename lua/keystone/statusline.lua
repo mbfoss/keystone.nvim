@@ -46,7 +46,9 @@ local _MODE_MAP = {
 
 local function _setup_highlights()
   local function def(name, opts)
-    vim.api.nvim_set_hl(0, name, opts)
+    if next(vim.api.nvim_get_hl(0, { name = name })) == nil then
+      vim.api.nvim_set_hl(0, name, opts)
+    end
   end
 
   def("KeystoneSLModeNormal",  { fg = "#6E94C9", bold = true })
@@ -55,8 +57,8 @@ local function _setup_highlights()
   def("KeystoneSLModeReplace", { fg = "#B87A90", bold = true })
   def("KeystoneSLModeCommand", { fg = "#CDCDCD", bold = true })
   def("KeystoneSLGit",         { link = "" })
-  def("KeystoneSLLspProgress", { link = "" })
-  def("KeystoneSLSymbol",      { link = "Comment" })
+  def("KeystoneSLLspProgress", { link = "Statusbar" })
+  def("KeystoneSLSymbol",      { link = "Statusbar" })
   def("KeystoneSLDiagError",   { link = "DiagnosticError" })
   def("KeystoneSLDiagWarn",    { link = "DiagnosticWarn" })
   def("KeystoneSLDiagHint",    { link = "DiagnosticHint" })
