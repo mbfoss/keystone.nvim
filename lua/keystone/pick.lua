@@ -99,8 +99,7 @@ end
 ---@param name string
 ---@param spec keystone.PickerSpec | fun(): keystone.PickerSpec?
 function M.register(name, spec)
-    registry.register(name, spec)
-end
+    registry.register(name, spec) end
 
 ---@param opts keystone.pick.Config?
 function M.setup(opts)

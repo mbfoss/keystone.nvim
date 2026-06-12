@@ -164,9 +164,10 @@ local function _close(id)
   _schedule_layout()
 end
 
+
 ---@param msg string|string[]
 ---@param opts? keystone.notify.NotifyOpts
-function M.notify(msg, opts)
+local function _notify(msg, opts)
   if vim.v.exiting ~= vim.NIL then return end
 
   ---@diagnostic disable-next-line: param-type-mismatch
@@ -254,6 +255,14 @@ function M.notify(msg, opts)
     end, timeout)
   end
   return id
+end
+
+---@param msg string|string[]
+---@param opts? keystone.notify.NotifyOpts
+function M.notify(msg, opts)
+  vim.schedule(function()
+    _notify(msg, opts)
+  end)
 end
 
 ---@param id string|integer
