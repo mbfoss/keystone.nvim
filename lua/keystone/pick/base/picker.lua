@@ -976,6 +976,9 @@ function Picker:toggle_filter_mode()
 	self:render_mode_indicator()
 	self:render_prompt_highlight(new_text)
 	self:run_fetch()
+	if self.filter_mode and new_text == "" then
+		vim.schedule(function() self:trigger_flag_completion("") end)
+	end
 end
 
 function Picker:run_fetch()
@@ -1286,6 +1289,9 @@ function Picker:setup_input()
 					end
 					self:render_prompt_highlight(text)
 					self:run_fetch()
+					if self.filter_mode then
+						vim.schedule(function() self:trigger_flag_completion(text) end)
+					end
 				end
 			end
 		})
