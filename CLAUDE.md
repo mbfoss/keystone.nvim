@@ -76,3 +76,5 @@ module-scope `local` variables should be prefixed with `_` with exception:
 - a local module name from `require()`
 - the typical `M` module table.
 -  class types like `MyType`
+
+Inside a class, private members are prefixed with `_`
