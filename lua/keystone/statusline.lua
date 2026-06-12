@@ -1,7 +1,7 @@
 local M = {}
 
-local _icons     = require("keystone.icons")
-local _lspsymbol = require("keystone.util.lspsymbol")
+local icons     = require("keystone.icons")
+local lspsymbol = require("keystone.util.lspsymbol")
 
 ---A section can be a builtin name or a function returning a statusline string.
 ---Builtin names: "mode" | "git" | "filename" | "lsp_progress" | "diagnostics" | "filetype" | "position"
@@ -116,7 +116,7 @@ local function _section_filename(bufnr)
 
   local filename = vim.fn.fnamemodify(name, ":t")
   local rel      = vim.fn.fnamemodify(name, ":~:.")
-  local icon, _  = _icons.get_icon(filename)
+  local icon, _  = icons.get_icon(filename)
   local icon_str = icon ~= "" and ("%* " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
@@ -247,7 +247,7 @@ function M.enable()
   _setup_highlights()
   vim.o.statusline = '%{%v:lua.require("keystone.statusline").render()%}'
 
-  _lspsymbol_unsub = _lspsymbol.subscribe(function(bufnr, chain)
+  _lspsymbol_unsub = lspsymbol.subscribe(function(bufnr, chain)
     _symbol_chains[bufnr] = chain
     vim.schedule(vim.cmd.redrawstatus)
   end)

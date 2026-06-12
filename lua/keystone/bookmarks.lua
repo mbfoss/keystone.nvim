@@ -13,11 +13,11 @@ local M = {}
 
 local _SIGN_NAME = "bookmark"
 
-local _store      = require("keystone.bookmarks.store")
-local _inputwin   = require("keystone.util.inputwin")
-local _uitool     = require("keystone.util.uitool")
-local _picker     = require("keystone.pick.base.picker")
-local _pickertools = require("keystone.pick.base.pickertools")
+local store      = require("keystone.bookmarks.store")
+local inputwin   = require("keystone.util.inputwin")
+local uitool     = require("keystone.util.uitool")
+local picker     = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@type keystone.bookmarks.signs.Group
 local _sign_group
@@ -64,7 +64,7 @@ local function _read_entries()
 end
 
 local function _persist()
-    _store.save(_config, _read_entries())
+    store.save(_config, _read_entries())
 end
 
 ---@param name string
@@ -92,7 +92,7 @@ end
 ----------- PUBLIC API -----------
 
 function M.set_at_cursor()
-    local file, lnum = _uitool.get_current_file_and_line()
+    local file, lnum = uitool.get_current_file_and_line()
     if not file or not lnum then
         vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
         return
@@ -100,7 +100,7 @@ function M.set_at_cursor()
     file = _norm(file)
     local existing = _sign_group.get_sign_by_location(file, lnum, true)
     local default = existing and existing.user_data.name or ""
-    _inputwin.open({ prompt = "Bookmark name", default_text = default }, function(name)
+    inputwin.open({ prompt = "Bookmark name", default_text = default }, function(name)
         if not name or name:match("^%s*$") then return end
         name = name:match("^%s*(.-)%s*$")
         _upsert(name, file, lnum)
@@ -108,7 +108,7 @@ function M.set_at_cursor()
 end
 
 function M.delete_at_cursor()
-    local file, lnum = _uitool.get_current_file_and_line()
+    local file, lnum = uitool.get_current_file_and_line()
     if not file or not lnum then return end
     file = _norm(file)
     local sign = _sign_group.get_sign_by_location(file, lnum, true)
@@ -138,7 +138,7 @@ function M.clear_file()
     if not vim.api.nvim_buf_is_valid(buf) then return end
     local file = _norm(vim.api.nvim_buf_get_name(buf))
     if not file or file == "" then return end
-    _uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
+    uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
         local before = #_sign_group.get_file_signs(file, false)
         _sign_group.remove_file_signs(file)
@@ -154,7 +154,7 @@ function M.clear_all()
         vim.notify("[keystone] No bookmarks to clear")
         return
     end
-    _uitool.confirm_action("Clear all bookmarks", false, function(accepted)
+    uitool.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
         _sign_group.remove_signs()
         _persist()
@@ -174,7 +174,7 @@ function M.pick()
         return
     end
 
-    local cur_file, cur_lnum = _uitool.get_current_file_and_line()
+    local cur_file, cur_lnum = uitool.get_current_file_and_line()
     if cur_file then cur_file = _norm(cur_file) end
 
     table.sort(entries, function(a, b)
@@ -182,13 +182,13 @@ function M.pick()
         return a.lnum < b.lnum
     end)
 
-    _picker.open({
+    picker.open({
         prompt        = "Bookmarks",
         enable_preview = true,
         finder        = function(query, _, _fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
-                local match = _pickertools.match_label(entry.name, query)
+                local match = pickertools.match_label(entry.name, query)
                 if match then
                     local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
                     local loc_chunk = { "  " .. relpath .. ":" .. entry.lnum, "Comment" }
@@ -213,7 +213,7 @@ function M.pick()
         end,
     }, function(data)
         if data and data.filepath then
-            _uitool.smart_open_file(data.filepath, data.lnum, data.col)
+            uitool.smart_open_file(data.filepath, data.lnum, data.col)
         end
     end)
 end
@@ -228,7 +228,7 @@ function M.setup(opts)
     _sign_group = require("keystone.bookmarks.signs").define_group("bookmarks", { priority = 20 })
     _sign_group.define_sign(_SIGN_NAME, _config.sign_text, _config.sign_hl)
 
-    local stored = _store.load(_config)
+    local stored = store.load(_config)
     for _, e in ipairs(stored) do
         _sign_group.set_file_sign(_new_id(), e.file, e.lnum, _SIGN_NAME, { name = e.name })
     end

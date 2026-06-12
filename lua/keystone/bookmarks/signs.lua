@@ -1,4 +1,4 @@
-local _extmarks = require("keystone.bookmarks.extmarks")
+local extmarks = require("keystone.bookmarks.extmarks")
 
 local M = {}
 
@@ -33,7 +33,7 @@ function M.define_group(group, opts)
     local _priority = opts.priority
     local _sign_defs = {} ---@type table<string, { text:string, texthl:string }>
 
-    local _ext = _extmarks.define_group(group, { priority = _priority })
+    local _ext = extmarks.define_group(group, { priority = _priority })
 
     local function _convert_mark(mark)
         if not mark then return nil end
