@@ -244,7 +244,7 @@ function M.setup(opts)
         callback = _persist,
     })
 
-    require("keystone.util.usercmd").register_user_cmd("Bookmarks",
+    require("keystone.util.usercmd").register_user_cmd("Bookmark",
         function(cmd, args, cmd_opts)
             require("keystone.bookmarks.command").run_command(cmd, args, cmd_opts)
         end,
