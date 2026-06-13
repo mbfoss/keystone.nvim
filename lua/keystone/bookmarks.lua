@@ -64,7 +64,7 @@ local function _read_entries()
 end
 
 local function _persist()
-    store.save(_config, _read_entries())
+    store.save(_config)
 end
 
 ---@param name string
@@ -83,8 +83,12 @@ local function _upsert(name, file, lnum)
     if by_loc then _sign_group.remove_sign(by_loc.id) end
 
     local by_name = _find_by_name(name)
-    if by_name then _sign_group.remove_sign(by_name.id) end
+    if by_name then
+        store.delete(by_name.file, by_name.lnum)
+        _sign_group.remove_sign(by_name.id)
+    end
 
+    store.add({ name = name, file = file, lnum = lnum })
     _sign_group.set_file_sign(_new_id(), file, lnum, _SIGN_NAME, { name = name })
     _persist()
 end
@@ -117,6 +121,7 @@ function M.delete_at_cursor()
         return
     end
     local name = sign.user_data.name
+    store.delete(file, lnum)
     _sign_group.remove_sign(sign.id)
     _persist()
     vim.notify("[keystone] Deleted bookmark: " .. name)
@@ -129,6 +134,7 @@ function M.delete_by_name(name)
         vim.notify("[keystone] No bookmark named: " .. name, vim.log.levels.WARN)
         return
     end
+    store.delete(sign.file, sign.lnum)
     _sign_group.remove_sign(sign.id)
     _persist()
 end
@@ -140,7 +146,9 @@ function M.clear_file()
     if not file or file == "" then return end
     uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
-        local before = #_sign_group.get_file_signs(file, false)
+        local signs = _sign_group.get_file_signs(file, false)
+        local before = #signs
+        for _, s in ipairs(signs) do store.delete(s.file, s.lnum) end
         _sign_group.remove_file_signs(file)
         _persist()
         if before > 0 then
@@ -156,6 +164,7 @@ function M.clear_all()
     end
     uitool.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
+        for _, s in ipairs(_sign_group.get_signs(false)) do store.delete(s.file, s.lnum) end
         _sign_group.remove_signs()
         _persist()
         vim.notify("[keystone] All bookmarks cleared")
@@ -183,7 +192,7 @@ function M.pick()
     end)
 
     picker.open({
-        prompt        = "Bookmarks",
+        prompt        = "Bookmark",
         enable_preview = true,
         finder        = function(query, _, _fetch_opts, callback)
             local items = {}
