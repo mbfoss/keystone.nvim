@@ -27,6 +27,13 @@ local _config
 
 local _next_id = 0
 
+-- Tracks every bookmark name this instance has ever loaded or set.
+-- Stays in _known_names even after deletion so that a delete in this instance
+-- is not silently undone by a concurrent save from another instance that still
+-- has the same name on disk.
+---@type table<string, true>
+local _known_names = {}
+
 local function _new_id()
     _next_id = _next_id + 1
     return _next_id
@@ -64,7 +71,21 @@ local function _read_entries()
 end
 
 local function _persist()
-    store.save(_config, _read_entries())
+    local current = _read_entries()
+    -- Merge in any entries added by other Neovim instances that this instance
+    -- never knew about.  We only preserve names outside _known_names so that
+    -- explicit deletes in this instance are not resurrected from disk.
+    local disk = store.load(_config)
+    local merged = {}
+    for _, e in ipairs(disk) do
+        if not _known_names[e.name] then
+            merged[#merged + 1] = e
+        end
+    end
+    for _, e in ipairs(current) do
+        merged[#merged + 1] = e
+    end
+    store.save(_config, merged)
 end
 
 ---@param name string
@@ -85,6 +106,7 @@ local function _upsert(name, file, lnum)
     local by_name = _find_by_name(name)
     if by_name then _sign_group.remove_sign(by_name.id) end
 
+    _known_names[name] = true
     _sign_group.set_file_sign(_new_id(), file, lnum, _SIGN_NAME, { name = name })
     _persist()
 end
@@ -183,7 +205,7 @@ function M.pick()
     end)
 
     picker.open({
-        prompt        = "Bookmarks",
+        prompt        = "Bookmark",
         enable_preview = true,
         finder        = function(query, _, _fetch_opts, callback)
             local items = {}
@@ -230,6 +252,7 @@ function M.setup(opts)
 
     local stored = store.load(_config)
     for _, e in ipairs(stored) do
+        _known_names[e.name] = true
         _sign_group.set_file_sign(_new_id(), e.file, e.lnum, _SIGN_NAME, { name = e.name })
     end
 

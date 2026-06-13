@@ -50,10 +50,14 @@ function M.save(config, entries)
     vim.fn.mkdir(dir, "p")
     local ok, encoded = pcall(vim.json.encode, entries)
     if not ok then return end
-    local f = io.open(path, "w")
+    -- Write to a PID-unique temp file then rename atomically to avoid
+    -- partial writes being visible to other instances reading concurrently.
+    local tmp = string.format("%s.%s.tmp", path, vim.uv.os_getpid())
+    local f = io.open(tmp, "w")
     if not f then return end
     f:write(encoded)
     f:close()
+    os.rename(tmp, path)
 end
 
 return M
