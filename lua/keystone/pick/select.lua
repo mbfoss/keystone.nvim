@@ -68,7 +68,7 @@ function M.select(items, opts, on_choice)
         end,
 
         previewer      = preview_item and function(data, _, callback)
-            local co = coroutine.create(function()
+            vim.schedule(function()
                 local result = preview_item(data)
                 if not result or not result.buf then
                     callback(nil)
@@ -80,13 +80,6 @@ function M.select(items, opts, on_choice)
                     pos_end = result.pos_end,
                 })
             end)
-
-            local function step(...)
-                local ok, val = coroutine.resume(co, ...)
-                if not ok then callback(nil) elseif type(val) == "function" then val(step) end
-            end
-
-            step()
         end or nil,
     }, function(choice)
         if not choice then
