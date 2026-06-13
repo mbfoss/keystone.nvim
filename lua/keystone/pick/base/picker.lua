@@ -130,6 +130,7 @@ local function _create_buffer(modifiable, on_delete, bufhidden)
 	return uitool.create_sratch_buffer(false, {
 			modifiable = modifiable,
 			spelloptions = "noplainbuffer",
+			bufhidden = bufhidden,
 		},
 		on_delete)
 end
