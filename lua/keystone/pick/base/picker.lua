@@ -280,7 +280,6 @@ end
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
 ---@field _preview_external_buf integer?
----@field _preview_buf_watch_ctx integer
 ---@field preview_timer table?
 ---@field resize_augroup number?
 ---@field current_query string?
@@ -301,33 +300,32 @@ function Picker:init(opts, callback)
 	vim.validate("opts", opts, "table")
 	vim.validate("callback", callback, "function")
 
-	self.opts                   = opts and vim.deepcopy(opts) or {}
-	self.opts.flags             = self.opts.flags or {}
-	self.callback               = callback
+	self.opts                  = opts and vim.deepcopy(opts) or {}
+	self.opts.flags            = self.opts.flags or {}
+	self.callback              = callback
 
-	self.preview_enabled        = opts.enable_preview
-	self.preview_default        = opts.preview_default
+	self.preview_enabled       = opts.enable_preview
+	self.preview_default       = opts.preview_default
 
-	self.list_items             = {} ---@type keystone.picker.ListItem[]
+	self.list_items            = {} ---@type keystone.picker.ListItem[]
 
-	self.closed                 = false
+	self.closed                = false
 
-	self.async_fetch_context    = 0
-	self.async_fetch_cancel     = nil
+	self.async_fetch_context   = 0
+	self.async_fetch_cancel    = nil
 
-	self.async_preview_context  = 0
-	self.async_preview_cancel   = nil
-	self._preview_buf_watch_ctx = 0
+	self.async_preview_context = 0
+	self.async_preview_cancel  = nil
 
-	self.spinner                = nil
+	self.spinner               = nil
 
-	self.query_text             = ""
-	self.filter_text            = ""
-	self.filter_mode            = false
+	self.query_text            = ""
+	self.filter_text           = ""
+	self.filter_mode           = false
 
-	self.history                = {}
-	self.history_idx            = 0
-	self.history_saved_query    = nil
+	self.history               = {}
+	self.history_idx           = 0
+	self.history_saved_query   = nil
 
 	if self.opts.history_provider then
 		self.history = self.opts.history_provider.load() or {}
@@ -652,7 +650,6 @@ function Picker:update_preview()
 	if self.closed then return end
 	if not self.vbuf then return end
 
-	self:_clear_preview_buf_watch()
 	self:request_clear_preview()
 
 	if self.async_preview_cancel then
@@ -688,7 +685,6 @@ function Picker:update_preview()
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
 					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
-					self:_watch_preview_buf(preview.bufnr, preview.pos, preview.pos_end, preview_context)
 				end
 				return
 			end
@@ -725,36 +721,6 @@ function Picker:update_preview()
 			end
 		end)
 	)
-end
-
-function Picker:_clear_preview_buf_watch()
-	self._preview_buf_watch_ctx = self._preview_buf_watch_ctx + 1
-end
-
----@param bufnr integer
----@param pos {[1]:integer,[2]:integer}?
----@param pos_end {[1]:integer,[2]:integer}?
----@param preview_ctx number
-function Picker:_watch_preview_buf(bufnr, pos, pos_end, preview_ctx)
-	self:_clear_preview_buf_watch()
-	local watch_ctx = self._preview_buf_watch_ctx
-	local detached = false
-	vim.api.nvim_buf_attach(bufnr, false, {
-		on_lines = function()
-			assert(not detached) -- should not happen, just for extra security
-			if watch_ctx ~= self._preview_buf_watch_ctx then
-				-- returning true here is very imporant because in cancel the attach
-				detached = true
-				return true
-			end
-			vim.schedule(function()
-				if self.closed or preview_ctx ~= self.async_preview_context then return end
-				if not self.vwin or not vim.api.nvim_win_is_valid(self.vwin) then return end
-				if not vim.api.nvim_buf_is_valid(bufnr) then return end
-				_apply_preview_pos(self.vwin, bufnr, pos, pos_end)
-			end)
-		end,
-	})
 end
 
 function Picker:start_spinner()
@@ -1155,7 +1121,6 @@ function Picker:close(selected_data)
 	if _active_picker == self then _active_picker = nil end
 
 	self:stop_spinner()
-	self:_clear_preview_buf_watch()
 
 	self.preview_timer = common.stop_and_close_timer(self.preview_timer)
 
