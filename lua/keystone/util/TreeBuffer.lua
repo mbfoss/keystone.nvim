@@ -140,14 +140,10 @@ function TreeBuffer:create_buffer(on_deleted)
 
     self._bufnr = uitool.create_sratch_buffer(false, {
         buftype      = "nofile",
-        bufhidden    = "wipe",
         filetype     = self._filetype or "keystone-tree",
         modifiable   = false,
         swapfile     = false,
         undolevels   = -1,
-        buflisted    = false,
-        modeline     = false,
-        spelloptions = "noplainbuffer",
     }, function()
         self._bufnr = -1
         on_deleted()

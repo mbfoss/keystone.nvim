@@ -295,9 +295,9 @@ end
 function M.create_sratch_buffer(listed, buffer_options, on_delete)
     local buf = vim.api.nvim_create_buf(listed, true)
     local bo = { ---@type vim.bo
-        buftype = "nofile",
-        swapfile = false,
-        modeline = false,
+        buftype   = "nofile",
+        buflisted = listed,
+        swapfile  = false,
     }
     if not listed then
         bo.bufhidden = 'wipe'

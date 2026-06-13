@@ -125,16 +125,10 @@ end
 
 ---@param modifiable boolean
 ---@param on_delete fun()
----@param bufhidden string?
+---@param bufhidden 'hide'|'wipe'?
 local function _create_buffer(modifiable, on_delete, bufhidden)
 	return uitool.create_sratch_buffer(false, {
-			buftype = "nofile",
-			bufhidden = bufhidden or "wipe",
 			modifiable = modifiable,
-			swapfile = false,
-			undolevels = -1,
-			buflisted = false,
-			modeline = false,
 			spelloptions = "noplainbuffer",
 		},
 		on_delete)
