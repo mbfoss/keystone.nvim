@@ -80,12 +80,9 @@ end
 ---@param lnum integer
 local function _upsert(name, file, lnum)
     local by_loc = _sign_group.get_sign_by_location(file, lnum, true)
-    if by_loc then _sign_group.remove_sign(by_loc.id) end
-
-    local by_name = _find_by_name(name)
-    if by_name then
-        store.delete(by_name.file, by_name.lnum)
-        _sign_group.remove_sign(by_name.id)
+    if by_loc then
+        store.delete(file, lnum)
+        _sign_group.remove_sign(by_loc.id)
     end
 
     store.add({ name = name, file = file, lnum = lnum })
