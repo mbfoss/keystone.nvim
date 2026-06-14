@@ -3,6 +3,7 @@ local common = require "keystone.util.timer"
 ---@field win_id integer
 ---@field buf_id integer
 ---@field height integer
+---@field width integer
 ---@field timer uv.uv_timer_t?
 
 ---@class keystone.notify.Config
@@ -71,7 +72,7 @@ local _log_level_map = {
 local function _get_defaults()
   return {
     enabled = true,
-    width = 0.2,
+    width = 0.3,
     border = "rounded",
     timeout = 3000,
     lsp_progress = false,
@@ -87,9 +88,16 @@ local function _get_offset()
   return vim.o.cmdheight + (vim.o.laststatus ~= 0 and 1 or 0) + 2
 end
 
+---@param lines string[]
+---@param title string
 ---@return integer
-local function _get_width()
-  return math.max(1, math.floor(vim.o.columns * M.config.width))
+local function _get_width(lines, title)
+  local max_width = math.max(1, math.floor(vim.o.columns * M.config.width))
+  local content = vim.fn.strdisplaywidth(title)
+  for _, line in ipairs(lines) do
+    content = math.max(content, vim.fn.strdisplaywidth(line))
+  end
+  return math.min(content, max_width)
 end
 
 ---@param entry keystone.notify.HistoryEntry
@@ -115,8 +123,9 @@ local function _layout()
 
       vim.api.nvim_win_set_config(n.win_id, {
         relative = "editor",
+        width = n.width,
         row = row,
-        col = vim.o.columns - _get_width() - 2,
+        col = vim.o.columns - n.width - 2,
       })
 
       running_height = running_height + n.height + 2
@@ -203,6 +212,7 @@ local function _notify(msg, opts)
     timestamp = vim.uv.now(),
   })
 
+  local width = _get_width(lines, title)
   local n = _active[id]
 
   if not n then
@@ -210,7 +220,7 @@ local function _notify(msg, opts)
 
     local win = vim.api.nvim_open_win(buf, false, {
       relative = "editor",
-      width = _get_width(),
+      width = width,
       height = #lines,
       row = 0,
       col = 0,
@@ -235,6 +245,7 @@ local function _notify(msg, opts)
       win_id = win,
       buf_id = buf,
       height = #lines,
+      width = width,
       level = level,
     }
 
@@ -246,6 +257,7 @@ local function _notify(msg, opts)
       n.timer = nil
     end
     n.height = #lines
+    n.width = width
   end
 
   vim.bo[n.buf_id].modifiable = true
