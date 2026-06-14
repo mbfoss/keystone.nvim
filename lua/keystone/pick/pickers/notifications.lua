@@ -65,7 +65,7 @@ function M.spec()
         end,
         on_confirm = function(data)
             if not data then return end
-            local bufnr = uitool.create_sratch_buffer(true, {})
+            local bufnr = uitool.create_scratch_buffer(true, {})
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, data.message)
             vim.api.nvim_set_current_buf(bufnr)
         end,

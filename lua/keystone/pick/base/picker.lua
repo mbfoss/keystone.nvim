@@ -127,7 +127,7 @@ end
 ---@param on_delete fun()
 ---@param bufhidden 'hide'|'wipe'?
 local function _create_buffer(modifiable, on_delete, bufhidden)
-	return uitool.create_sratch_buffer(false, {
+	return uitool.create_scratch_buffer(false, {
 			modifiable = modifiable,
 			spelloptions = "noplainbuffer",
 			bufhidden = bufhidden,
