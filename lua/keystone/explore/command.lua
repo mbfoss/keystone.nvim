@@ -2,8 +2,8 @@ local M        = {}
 
 local _uv      = vim.uv
 local explorer = require("keystone.explore.explorer")
-local fsutil  = require("keystone.util.fsutil")
-local uitool  = require("keystone.util.uitool")
+local fsutil   = require("keystone.util.fsutil")
+local uitool   = require("keystone.util.uitool")
 local icons    = require("keystone.icons")
 local inputwin = require("keystone.util.inputwin")
 
@@ -39,6 +39,7 @@ local function _fs_create(type, location, on_done)
             validate = function(name) return check_name(name) end
         },
         function(name)
+            if not name then return end
             local name_ok, name_err, new_path = check_name(name)
             if not name_ok or not new_path then
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
@@ -80,6 +81,7 @@ local function _fs_rename(path, on_done)
             validate = function(name) return check_name(name) end
         },
         function(name)
+            if not name then return end
             local name_ok, name_err, new_path = check_name(name)
             if not name_ok or not new_path then
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)

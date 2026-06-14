@@ -50,7 +50,7 @@ function M.open(opts, on_confirm)
 
     vim.wo[win].wrap = true
     vim.wo[win].winfixbuf = true
-    vim.wo[win].winhighlight = "Normal:Normal,NormalNC:Normal,EndOfBuffer:Normal,FloatBorder:Normal"
+    vim.wo[win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder,FloatTitle:FloatTitle"
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { initial_text })
 
     local initial_col = #initial_text

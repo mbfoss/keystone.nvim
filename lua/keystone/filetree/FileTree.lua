@@ -1,6 +1,6 @@
-local strutil       = require("keystone.util.strutil")
-local uitool        = require("keystone.util.uitool")
-local fsutil        = require("keystone.util.fsutil")
+local strutil        = require("keystone.util.strutil")
+local uitool         = require("keystone.util.uitool")
+local fsutil         = require("keystone.util.fsutil")
 local TreeBuffer     = require("keystone.util.TreeBuffer")
 local LRU            = require("keystone.util.LRU")
 local floatwin       = require("keystone.util.floatwin")
@@ -585,18 +585,6 @@ function FileTree:_read_dir(path, reload_counter, recursive)
     if not item then return end
     ---@type keystone.FileTree.ItemData
     local data = item.data
-    do
-        local realpath = vim.uv.fs_realpath(path)
-        if realpath then
-            local normalized = vim.fs.normalize(realpath)
-            if normalized ~= path and self._treebuf:have_item(normalized) then
-                data.error_flag = true
-                data.error_icon = "↺"
-                self._treebuf:refresh_item(path)
-                return -- do not scan to avoid infinite recursion
-            end
-        end
-    end
 
     local req_id = (data.childrenload_req_id or 0) + 1
     data.childrenload_req_id = req_id
@@ -856,6 +844,7 @@ function FileTree:_create_node(item, as_dir, force_parent)
             end
         },
         function(name)
+            if not name then return end
             local name_ok, name_err, new_path = check_name(name)
             if not name_ok or not new_path then
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
@@ -912,6 +901,7 @@ function FileTree:_rename_node(item)
         },
         ---@param new_name string
         function(new_name)
+            if not new_name then return end
             local name_ok, name_err, final_path = check_name(new_name)
             if not name_ok or not final_path then
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
