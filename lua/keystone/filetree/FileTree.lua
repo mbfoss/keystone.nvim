@@ -203,7 +203,7 @@ function FileTree:_on_buffer_created()
         })
     end
 
-    self._cancel_viewport_timer = common.start_timer(1000, self._viewport_monitor_fn)
+    self._cancel_viewport_timer = common.start_timer(1000, false, self._viewport_monitor_fn)
 
     self:_set_root(self._opts.dir or vim.fn.getcwd())
 end

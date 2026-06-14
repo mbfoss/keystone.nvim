@@ -12,7 +12,13 @@
       "Bash(cp /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/util/signs.lua /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim/lua/keystone/bookmarks/signs.lua)",
       "Bash(find /Users/Dev/.config/nvim/pack/plugins/opt -maxdepth 1 -type d | head -20)",
       "Read(//Users/Dev/.config/nvim/pack/plugins/opt/**)",
-      "Bash(mkdir -p /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/colors /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/lua/pastelstone)"
+      "Bash(mkdir -p /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/colors /Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim/lua/pastelstone)",
+      "Bash(git -C /Users/Dev/.config/nvim/pack/plugins/opt/keystone.nvim diff lua/keystone/util/timer.lua)",
+      "Bash(git --no-pager diff -- lua/keystone/util/timer.lua)",
+      "Bash(git --no-pager diff --cached -- lua/keystone/util/timer.lua)",
+      "Bash(git --no-pager log --oneline -3 -- lua/keystone/util/timer.lua)",
+      "Bash(git --no-pager show 7e27ba8 -- lua/keystone/util/timer.lua)",
+      "Bash(nvim --headless --noplugin -c \"lua assert\\(loadfile\\('lua/keystone/util/Spinner.lua'\\)\\); assert\\(loadfile\\('lua/keystone/filetree/FileTree.lua'\\)\\); assert\\(loadfile\\('lua/keystone/util/timer.lua'\\)\\); print\\('PARSE OK'\\)\" -c \"qa\")"
     ],
     "additionalDirectories": [
       "/Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim"

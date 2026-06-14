@@ -44,13 +44,12 @@ function Spinner:start()
         return
     end
     self.running = true
-    self.cancel_timer = timer.start_timer(self.interval,
-        vim.schedule_wrap(function()
-            if not self.running then return end
-            local frame = self.frames[self.frame]
-            if self.on_update then self.on_update(frame, self.frame) end
-            self.frame = (self.frame % #self.frames) + 1
-        end))
+    self.cancel_timer = timer.start_timer(self.interval, false, function()
+        if not self.running then return end
+        local frame = self.frames[self.frame]
+        if self.on_update then self.on_update(frame, self.frame) end
+        self.frame = (self.frame % #self.frames) + 1
+    end)
 end
 
 function Spinner:stop()
