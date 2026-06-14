@@ -101,7 +101,7 @@ function M.set_at_cursor()
     file = _norm(file)
     local existing = _sign_group.get_sign_by_location(file, lnum, true)
     local default = existing and existing.user_data.name or ""
-    inputwin.open({ prompt = "Bookmark name", default_text = default }, function(name)
+    inputwin.open({ prompt = "Bookmark", default = default }, function(name)
         if not name or name:match("^%s*$") then return end
         name = name:match("^%s*(.-)%s*$")
         _upsert(name, file, lnum)
@@ -122,18 +122,6 @@ function M.delete_at_cursor()
     _sign_group.remove_sign(sign.id)
     _persist()
     vim.notify("[keystone] Deleted bookmark: " .. name)
-end
-
----@param name string
-function M.delete_by_name(name)
-    local sign = _find_by_name(name)
-    if not sign then
-        vim.notify("[keystone] No bookmark named: " .. name, vim.log.levels.WARN)
-        return
-    end
-    store.delete(sign.file, sign.lnum)
-    _sign_group.remove_sign(sign.id)
-    _persist()
 end
 
 function M.clear_file()

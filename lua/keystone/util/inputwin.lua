@@ -3,7 +3,7 @@ local M = {}
 
 ---@class keystone.util.inputwin.Opts
 ---@field prompt? string
----@field default_text? string
+---@field default? string
 ---@field default_width? number
 ---@field row_offset? number
 ---@field col_offset? number
@@ -22,7 +22,7 @@ function M.open(opts, on_confirm)
     }
     for k, v in pairs(buf_opts) do vim.bo[buf][k] = v end
 
-    local initial_text = opts.default_text or ""
+    local initial_text = opts.default or ""
     if initial_text:match("\n") then initial_text = "" end
 
     local min_width = math.max(opts.default_width or 20, vim.fn.strdisplaywidth(opts.prompt or "") + 2)

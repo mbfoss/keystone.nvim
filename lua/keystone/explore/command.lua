@@ -76,7 +76,7 @@ local function _fs_rename(path, on_done)
     local is_dir = fsutil.dir_exists(path)
     inputwin.open({
             prompt = "New " .. (is_dir and "directory" or "file") .. " name",
-            default_text = vim.fn.fnamemodify(path, ":t"),
+            default = vim.fn.fnamemodify(path, ":t"),
             validate = function(name) return check_name(name) end
         },
         function(name)

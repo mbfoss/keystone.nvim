@@ -905,7 +905,7 @@ function FileTree:_rename_node(item)
     end
     inputwin.open({
             prompt = ("Rename `%s`"):format(old_name),
-            default_text = old_name,
+            default = old_name,
             validate = function(name)
                 return check_name(name)
             end
