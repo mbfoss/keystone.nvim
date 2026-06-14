@@ -7,7 +7,7 @@ local common = require "keystone.util.timer"
 
 ---@class keystone.notify.Config
 ---@field enabled boolean
----@field width integer
+---@field width number fraction of the editor width (0-1)
 ---@field border string|table
 ---@field timeout integer
 ---@field lsp_progress boolean
@@ -71,7 +71,7 @@ local _log_level_map = {
 local function _get_defaults()
   return {
     enabled = true,
-    width = 50,
+    width = 0.2,
     border = "rounded",
     timeout = 3000,
     lsp_progress = false,
@@ -85,6 +85,11 @@ M.config = _get_defaults()
 ---@return integer
 local function _get_offset()
   return vim.o.cmdheight + (vim.o.laststatus ~= 0 and 1 or 0) + 2
+end
+
+---@return integer
+local function _get_width()
+  return math.max(1, math.floor(vim.o.columns * M.config.width))
 end
 
 ---@param entry keystone.notify.HistoryEntry
@@ -111,7 +116,7 @@ local function _layout()
       vim.api.nvim_win_set_config(n.win_id, {
         relative = "editor",
         row = row,
-        col = vim.o.columns - M.config.width - 2,
+        col = vim.o.columns - _get_width() - 2,
       })
 
       running_height = running_height + n.height + 2
@@ -205,7 +210,7 @@ local function _notify(msg, opts)
 
     local win = vim.api.nvim_open_win(buf, false, {
       relative = "editor",
-      width = M.config.width,
+      width = _get_width(),
       height = #lines,
       row = 0,
       col = 0,
