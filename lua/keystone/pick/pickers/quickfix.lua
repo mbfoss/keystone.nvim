@@ -1,7 +1,6 @@
 local M            = {}
 
 local pickertools  = require("keystone.pick.base.pickertools")
-local uitool       = require("keystone.util.uitool")
 local fsutil       = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
@@ -32,7 +31,7 @@ local function matches_filter(qf, filter)
 end
 
 ---@param item table
----@return {filepath:string,relpath:string,lnum:number,col:number,bufnr:number,type:string,text:string}?
+---@return {filepath:string,relpath:string,lnum:number,col:number,bufnr:number,type:string,text:string,qfidx:number}?
 local function read_qf_item(item)
     local bufnr = item.bufnr
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
@@ -53,14 +52,18 @@ end
 ---@return keystone.PickerSpec?
 function M.spec(opts)
     opts = opts or {}
-    local filter = opts.filter or "all"
-    local qflist = vim.fn.getqflist()
+    local filter      = opts.filter or "all"
+    local qflist      = vim.fn.getqflist()
+    local current_idx = vim.fn.getqflist({ idx = 0 }).idx
 
     local entries = {}
-    for _, qf in ipairs(qflist) do
+    for idx, qf in ipairs(qflist) do
         if matches_filter(qf, filter) then
             local data = read_qf_item(qf)
-            if data then table.insert(entries, data) end
+            if data then
+                data.qfidx = idx
+                table.insert(entries, data)
+            end
         end
     end
 
@@ -117,6 +120,7 @@ function M.spec(opts)
                         score        = match.score,
                         virt_lines   = virt_lines,
                         data         = data,
+                        initial      = data.qfidx == current_idx,
                     })
                 end
                 ::continue::
@@ -128,7 +132,7 @@ function M.spec(opts)
             return data
         end,
         on_confirm         = function(data)
-            if data then uitool.smart_open_file(data.filepath, data.lnum, data.col) end
+            if data then vim.cmd("cc " .. data.qfidx) end
         end,
     }
 end
