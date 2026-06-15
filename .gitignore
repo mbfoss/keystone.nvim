@@ -42,3 +42,4 @@ luac.out
 .DS_Store
 /.vscode
 /.loop
+.claude/settings.json

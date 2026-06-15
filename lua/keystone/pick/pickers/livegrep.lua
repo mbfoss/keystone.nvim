@@ -7,15 +7,15 @@ local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
 
 ---@class keystone.livegrep.opts
----@field cwd             string?
----@field include_globs   string[]?
----@field exclude_globs   string[]?
----@field history_provider keystone.Picker.QueryHistoryProvider?
----@field max_results      number?
----@field follow_symlinks  boolean?
+---@field max_results number?
+
+---@class keystone.livegrep.grep_opts
+---@field cwd         string
+---@field max_results number?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
+    { name = "cwd",    type = "value",                              desc = "search root directory" },
     { name = "glob",   type = "value",   multi = true,              desc = "raw glob pattern"   },
     { name = "file",   type = "value",   multi = true,              desc = "filter by filename"  },
     { name = "dir",    type = "value",   multi = true,              desc = "filter by directory" },
@@ -58,13 +58,12 @@ local function parse_rg_json(line)
 end
 
 ---@param parsed keystone.queryflags.ParseResult
----@param opts   keystone.livegrep.opts
 ---@return string cmd, string[] args, string cleaned_query
-local function build_rg_cmd(parsed, opts)
+local function build_rg_cmd(parsed)
     local query = parsed.query
     local flags = parsed.flags
 
-    local include_globs = vim.deepcopy(opts.include_globs or {})
+    local include_globs = {}
 
     for _, g in ipairs(flags.glob or {}) do
         table.insert(include_globs, g)
@@ -86,7 +85,7 @@ local function build_rg_cmd(parsed, opts)
 
     local args = { "--json", "--no-heading", "--glob-case-insensitive" }
 
-    if opts.follow_symlinks or flags.follow then
+    if flags.follow then
         table.insert(args, "--follow")
     end
 
@@ -105,11 +104,6 @@ local function build_rg_cmd(parsed, opts)
         table.insert(args, g)
     end
 
-    for _, g in ipairs(opts.exclude_globs or {}) do
-        table.insert(args, "-g")
-        table.insert(args, "!" .. g)
-    end
-
     table.insert(args, "--")
     table.insert(args, query)
     table.insert(args, ".")
@@ -118,12 +112,12 @@ local function build_rg_cmd(parsed, opts)
 end
 
 ---@param parsed     keystone.queryflags.ParseResult
----@param grep_opts  keystone.livegrep.opts
+---@param grep_opts  keystone.livegrep.grep_opts
 ---@param fetch_opts keystone.Picker.FetcherOpts
 ---@param callback   fun(items:table[]?)
 ---@return fun()? cancel
 local function async_grep(parsed, grep_opts, fetch_opts, callback)
-    local cmd, args, query = build_rg_cmd(parsed, grep_opts)
+    local cmd, args, query = build_rg_cmd(parsed)
     if query == "" then
         callback()
         return
@@ -143,15 +137,13 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
         })
     end
 
-    local cwd           = vim.fn.getcwd()
-
     local buffered_feed = strutil.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
             if stop_read then return end
             local file, lnum, col, chunks = parse_rg_json(line)
             if chunks then
                 local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
-                local rel_path = fsutil.get_relative_path(abs_path, cwd)
+                local rel_path = fsutil.get_relative_path(abs_path, grep_opts.cwd)
                 local location = fsutil.smart_crop_path(
                     string.format("%s:%s", rel_path, lnum),
                     fetch_opts.list_width
@@ -204,8 +196,7 @@ end
 ---@param opts keystone.livegrep.opts?
 ---@return keystone.PickerSpec
 function M.spec(opts)
-    opts      = opts or {}
-    local cwd = opts.cwd or vim.fn.getcwd()
+    opts = opts or {}
 
     return {
         prompt          = "Live Grep",
@@ -213,13 +204,11 @@ function M.spec(opts)
         enable_preview  = true,
         enable_list_sep = true,
         finder           = function(query, flags, fetch_opts, callback, _)
-            local parsed = { query = query, flags = flags }
+            local parsed     = { query = query, flags = flags }
+            local target_cwd = flags.cwd and vim.fn.expand(flags.cwd) or vim.fn.getcwd()
             return async_grep(parsed, {
-                cwd             = cwd,
-                include_globs   = opts.include_globs or {},
-                exclude_globs   = opts.exclude_globs or {},
-                max_results     = opts.max_results or 10000,
-                follow_symlinks = opts.follow_symlinks,
+                cwd         = target_cwd,
+                max_results = opts.max_results or 10000,
             }, fetch_opts, callback)
         end,
         on_confirm = function(data)

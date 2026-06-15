@@ -5,8 +5,18 @@ local fsutil       = require("keystone.util.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS        = {
-    { name = "type", type = "value", multi = true, desc = "filter by type: E, W, I, N", values = { "E", "W", "I", "N" } },
-    { name = "file", type = "value", multi = true, desc = "filter by filename" },
+    { name = "type",  type = "value",   multi = true, desc = "filter by type: error, warn, info, hint", values = { "error", "warn", "info", "hint" } },
+    { name = "file",  type = "value",   multi = true, desc = "filter by filename" },
+    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
+    { name = "valid", type = "boolean",               desc = "only items with a resolved location" },
+}
+
+-- Map friendly type names (and the native single-letter codes) onto qf `type`.
+local _type_alias  = {
+    error = "E", e = "E",
+    warn  = "W", warning = "W", w = "W",
+    info  = "I", i = "I",
+    hint  = "N", note = "N", n = "N",
 }
 
 ---@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
@@ -31,7 +41,7 @@ local function matches_filter(qf, filter)
 end
 
 ---@param item table
----@return {filepath:string,relpath:string,lnum:number,col:number,bufnr:number,type:string,text:string,qfidx:number}?
+---@return {filepath:string,relpath:string,filename:string,dir:string,lnum:number,col:number,bufnr:number,type:string,text:string,valid:boolean,qfidx:number}?
 local function read_qf_item(item)
     local bufnr = item.bufnr
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
@@ -41,10 +51,13 @@ local function read_qf_item(item)
         bufnr    = bufnr,
         filepath = filepath,
         relpath  = relpath,
+        filename = vim.fn.fnamemodify(relpath, ":t"):lower(),
+        dir      = vim.fn.fnamemodify(relpath, ":h"):lower(),
         lnum     = item.lnum,
         col      = item.col > 0 and item.col - 1 or 0,
         type     = (item.type or ""):upper(),
         text     = item.text or "",
+        valid    = item.valid == 1 and item.lnum and item.lnum > 0,
     }
 end
 
@@ -84,21 +97,30 @@ function M.spec(opts)
         finder             = function(query, flags, _, callback)
             local items = {}
             for _, data in ipairs(entries) do
+                if flags.valid and not data.valid then goto continue end
+
                 local skip       = false
                 local type_flags = flags.type or {}
                 if #type_flags > 0 then
                     local matched = false
                     for _, v in ipairs(type_flags) do
-                        if data.type == v:upper() then
+                        local code = _type_alias[v:lower()] or v:upper()
+                        if data.type == code then
                             matched = true; break
                         end
                     end
                     if not matched then skip = true end
                 end
                 if not skip then
-                    local filename = vim.fn.fnamemodify(data.relpath, ":t"):lower()
                     for _, v in ipairs(flags.file or {}) do
-                        if not filename:find(v:lower(), 1, true) then
+                        if not data.filename:find(v:lower(), 1, true) then
+                            skip = true; break
+                        end
+                    end
+                end
+                if not skip then
+                    for _, v in ipairs(flags.dir or {}) do
+                        if not data.dir:find(v:lower(), 1, true) then
                             skip = true; break
                         end
                     end

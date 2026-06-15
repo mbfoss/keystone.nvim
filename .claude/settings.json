@@ -18,7 +18,13 @@
       "Bash(git --no-pager diff --cached -- lua/keystone/util/timer.lua)",
       "Bash(git --no-pager log --oneline -3 -- lua/keystone/util/timer.lua)",
       "Bash(git --no-pager show 7e27ba8 -- lua/keystone/util/timer.lua)",
-      "Bash(nvim --headless --noplugin -c \"lua assert\\(loadfile\\('lua/keystone/util/Spinner.lua'\\)\\); assert\\(loadfile\\('lua/keystone/filetree/FileTree.lua'\\)\\); assert\\(loadfile\\('lua/keystone/util/timer.lua'\\)\\); print\\('PARSE OK'\\)\" -c \"qa\")"
+      "Bash(nvim --headless --noplugin -c \"lua assert\\(loadfile\\('lua/keystone/util/Spinner.lua'\\)\\); assert\\(loadfile\\('lua/keystone/filetree/FileTree.lua'\\)\\); assert\\(loadfile\\('lua/keystone/util/timer.lua'\\)\\); print\\('PARSE OK'\\)\" -c \"qa\")",
+      "Bash(luacheck lua/keystone/pick/pickers/quickfix.lua)",
+      "Bash(nvim --headless -c \"luafile lua/keystone/pick/pickers/quickfix.lua\" -c \"qa\")",
+      "Bash(luac -p lua/keystone/pick/pickers/quickfix.lua)",
+      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/quickfix.lua'\\)\\)\" -c \"qa\")",
+      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/quickfix.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")",
+      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/livegrep.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")"
     ],
     "additionalDirectories": [
       "/Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim"
