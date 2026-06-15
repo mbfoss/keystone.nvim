@@ -25,8 +25,10 @@ end
 -- Tokens split on whitespace.  ':' is a flag separator.
 --
 -- Schema-driven flags:
---   boolean flag:  "flagname"   → flags.flagname = true  (bare token matching a boolean def)
---   value flag:    "key:value"  → flags.key = value  (or string[] if multi)
+--   boolean flag:  "flagname"      → flags.flagname = true  (bare token matching a boolean def)
+--   value flag:    "key:value"     → flags.key = value  (or string[] if multi)
+--   value flag:    'key:"a b c"'   → flags.key = "a b c"  (quote a value to include spaces;
+--                                     ' or " both work, and an unterminated quote runs to EOS)
 --   anything else: accumulated into query
 
 ---@class keystone.queryflags.Token
@@ -52,16 +54,33 @@ local function _tokenize(str)
         local chars         = {}
         local colon_pos     = nil
         local colon_raw_pos = nil
+        local quote         = nil  -- active quote char while inside a quoted span
 
         while i <= len do
             local c = str:sub(i, i)
-            if c:match("%s") then break end
-            if c == ":" and colon_pos == nil then
-                colon_pos     = #chars + 1
-                colon_raw_pos = i - tok_start + 1
+            if quote then
+                -- inside a quoted value: whitespace is literal, quote chars are
+                -- stripped from `text` but remain in `raw`.
+                if c == quote then
+                    quote = nil
+                else
+                    table.insert(chars, c)
+                end
+                i = i + 1
+            elseif c:match("%s") then
+                break
+            elseif (c == '"' or c == "'") and colon_pos ~= nil then
+                -- opening quote (only meaningful in a value, i.e. after a ':')
+                quote = c
+                i = i + 1
+            else
+                if c == ":" and colon_pos == nil then
+                    colon_pos     = #chars + 1
+                    colon_raw_pos = i - tok_start + 1
+                end
+                table.insert(chars, c)
+                i = i + 1
             end
-            table.insert(chars, c)
-            i = i + 1
         end
 
         local text = table.concat(chars)
@@ -177,7 +196,10 @@ function M.get_completions(schema, line, cursor_byte)
             local items = {}
             for _, v in ipairs(def.values) do
                 if vim.startswith(v, partial) then
-                    table.insert(items, { word = prefix .. ":" .. v, abbr = v })
+                    local word = v:find("%s")
+                        and (prefix .. ':"' .. v .. '"')
+                        or (prefix .. ":" .. v)
+                    table.insert(items, { word = word, abbr = v })
                 end
             end
             return #items > 0 and { startcol = word_start_1, items = items } or nil
