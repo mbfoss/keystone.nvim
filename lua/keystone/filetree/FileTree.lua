@@ -88,6 +88,7 @@ MANAGEMENT
 
 OTHER
 =====
+`gh`      Toggle hidden files
 `K`       Hover info (type, size, modified)
 `R`       Refresh tree
 `g?`      Show this help]]
@@ -127,6 +128,7 @@ function FileTree:init(opts)
         end,
     })
 
+    self._show_hidden = self._opts.show_hidden == true
     self._viewport_monitor_fn = self:_get_viewport_monitor_fn()
     self._toggle_counter = 0
     self._reload_counter = 0
@@ -317,6 +319,12 @@ function FileTree:create_buffer()
             end,
             "Permanently delete file or empty directory",
         },
+        ["gh"] = {
+            function()
+                self:_toggle_hidden()
+            end,
+            "Toggle hidden files",
+        },
         ["K"] = {
             function()
                 with_item(function(i) self:_show_hover(i) end)
@@ -395,7 +403,7 @@ end
 ---@param exclude_globs string[]?
 ---@param follow_symlinks boolean?
 function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
-    if self._opts.show_hidden ~= true then
+    if not self._show_hidden then
         exclude_globs = exclude_globs and vim.copy(exclude_globs) or {}
         table.insert(exclude_globs, ".*")
         table.insert(exclude_globs, "**/.*")
@@ -471,6 +479,11 @@ function FileTree:_on_refresh_by_user()
             self:_reload()
         end
     end, 300)
+end
+
+function FileTree:_toggle_hidden()
+    self._show_hidden = not self._show_hidden
+    self:_set_root(self._root)
 end
 
 ---@private

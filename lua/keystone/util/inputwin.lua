@@ -1,4 +1,4 @@
-local uitool = require "keystone.util.uitool"
+local ui_util = require("easydap.util.ui_util")
 local M = {}
 
 ---@class keystone.util.inputwin.Opts
@@ -35,7 +35,7 @@ function M.open(opts, on_confirm)
     local current_height = 1
 
     local win, win_augroup
-    win, win_augroup = uitool.create_window(buf, true, {
+    win, win_augroup = ui_util.create_window(buf, true, {
         relative = "cursor",
         row = opts.row_offset or 1,
         col = opts.col_offset or 0,
@@ -115,7 +115,7 @@ function M.open(opts, on_confirm)
     vim.api.nvim_create_autocmd("WinLeave", {
         group = win_augroup,
         once = true,
-        callback = close,
+        callback = function() close(nil) end,
     })
 end
 
