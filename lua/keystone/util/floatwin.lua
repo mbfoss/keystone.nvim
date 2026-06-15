@@ -6,48 +6,12 @@ local M = {}
 
 ---@class keystone.floatwin.FloatwinOpts
 ---@field title? string
----@field is_hover? boolean
----@field move_to_bot? boolean
 ---@field is_markdown boolean?
-
-
----@param text string
-local function _open_hoverwindow(text)
-    local lines              = vim.split(text, "\n", { plain = true, trimempty = true })
-    local bufnr, winnr       = vim.lsp.util.open_floating_preview(
-        lines,
-        "markdown", -- or "plaintext"
-        {
-            focusable  = false,
-            border     = "rounded",
-            max_width  = 80,
-            max_height = 15,
-        }
-    )
-    vim.bo[bufnr].modifiable = false
-    vim.bo[bufnr].buftype    = "nofile"
-    vim.wo[winnr].wrap       = true
-    local aug                = vim.api.nvim_create_augroup("keystone_ToolHoverClose", { clear = true })
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-        group    = aug,
-        once     = true,
-        callback = function()
-            if vim.api.nvim_win_is_valid(winnr) then
-                vim.api.nvim_win_close(winnr, false)
-            end
-        end,
-    })
-end
 
 ---@param text string
 ---@param opts keystone.floatwin.FloatwinOpts?
 function M.open(text, opts)
     opts = opts or {}
-    if opts.is_hover then
-        _open_hoverwindow(text)
-        return
-    end
-
     local lines = vim.split(text, "\n", { trimempty = false })
     local ui_width = vim.o.columns
     local ui_height = vim.o.lines
@@ -115,14 +79,6 @@ function M.open(text, opts)
     local key_opts = { buffer = buf, silent = true }
     vim.keymap.set("n", "q", close, key_opts)
     vim.keymap.set("n", "<Esc>", close, key_opts)
-
-    if opts.move_to_bot then
-        vim.api.nvim_win_call(win, function()
-            local b = vim.api.nvim_win_get_buf(0)
-            local l = vim.api.nvim_buf_line_count(b)
-            vim.api.nvim_win_set_cursor(0, { l, 0 })
-        end)
-    end
 end
 
 return M
