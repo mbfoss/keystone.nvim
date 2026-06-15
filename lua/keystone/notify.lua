@@ -185,7 +185,7 @@ local function _notify(msg, opts)
   if vim.v.exiting ~= vim.NIL then return end
 
   ---@diagnostic disable-next-line: param-type-mismatch
-  local lines = type(msg) == "table" and msg or vim.split(msg, "\n")
+  local lines = type(msg) == "table" and msg or vim.split(tostring(msg), "\n")
 
   if not _enabled then
     vim.api.nvim_echo({ { table.concat(lines, "\n"), "" } }, false, {})
