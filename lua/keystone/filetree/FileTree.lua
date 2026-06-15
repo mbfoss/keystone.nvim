@@ -88,6 +88,7 @@ MANAGEMENT
 
 OTHER
 =====
+`K`       Hover info (type, size, modified)
 `R`       Refresh tree
 `g?`      Show this help]]
     }
@@ -315,6 +316,12 @@ function FileTree:create_buffer()
                 with_item(function(i) self:_delete_node(i) end)
             end,
             "Permanently delete file or empty directory",
+        },
+        ["K"] = {
+            function()
+                with_item(function(i) self:_show_hover(i) end)
+            end,
+            "Show hover info",
         },
         ["R"] = {
             function()
@@ -924,6 +931,65 @@ function FileTree:_rename_node(item)
                 vim.notify("Operation failed: " .. (err or "unknown error"), vim.log.levels.ERROR)
             end
         end)
+end
+
+---@private
+---@param item keystone.util.TreeBuffer.ItemDef
+function FileTree:_show_hover(item)
+    local data = item.data ---@type keystone.FileTree.ItemData
+    local path = data.path
+
+    local function fmt_size(bytes)
+        if bytes < 1024 then return bytes .. " B"
+        elseif bytes < 1048576 then return ("%.1f KB"):format(bytes / 1024)
+        elseif bytes < 1073741824 then return ("%.1f MB"):format(bytes / 1048576)
+        else return ("%.1f GB"):format(bytes / 1073741824) end
+    end
+
+    local function perm_str(mode)
+        local chars = "rwxrwxrwx"
+        local result = ""
+        for i = 8, 0, -1 do
+            if math.floor(mode / (2 ^ i)) % 2 == 1 then
+                result = result .. chars:sub(9 - i, 9 - i)
+            else
+                result = result .. "-"
+            end
+        end
+        return result
+    end
+
+    vim.uv.fs_stat(path, function(_, stat)
+        vim.schedule(function()
+            local type_label = data.is_dir and "Directory" or (data.is_link and "Symlink" or "File")
+            local lines = { "# " .. data.name, "" }
+
+            if stat then
+                table.insert(lines, "**Type** " .. type_label)
+                if not data.is_dir then
+                    table.insert(lines, "**Size** " .. fmt_size(stat.size))
+                end
+                if stat.mtime then
+                    local t = os.date("*t", stat.mtime.sec) --[[@as osdate]]
+                    table.insert(lines, ("**Modified** %04d-%02d-%02d %02d:%02d"):format(
+                        t.year, t.month, t.day, t.hour, t.min))
+                end
+                table.insert(lines, "**Mode** " .. perm_str(stat.mode % 512))
+            else
+                table.insert(lines, "*" .. type_label .. "*")
+            end
+
+            table.insert(lines, "")
+            table.insert(lines, "*" .. path .. "*")
+
+            vim.lsp.util.open_floating_preview(lines, "markdown", {
+                border = "rounded",
+                focusable = false,
+                close_events = { "CursorMoved", "BufHidden", "BufLeave" },
+                max_width = 70,
+            })
+        end)
+    end)
 end
 
 ---@param item table The TreeBuffer item
