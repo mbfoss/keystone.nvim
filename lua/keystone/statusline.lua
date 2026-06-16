@@ -2,6 +2,9 @@ local M = {}
 
 local icons     = require("keystone.icons")
 local lspsymbol = require("keystone.util.lspsymbol")
+local throttle  = require("keystone.util.throttle")
+
+local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
 
 ---A section can be a builtin name or a function returning a statusline string.
 ---Builtin names: "mode" | "git" | "filename" | "lsp_progress" | "diagnostics" | "filetype" | "position"
@@ -249,7 +252,7 @@ function M.enable()
 
   _lspsymbol_unsub = lspsymbol.subscribe(function(bufnr, chain)
     _symbol_chains[bufnr] = chain
-    vim.schedule(vim.cmd.redrawstatus)
+    _redrawstatus()
   end)
 
   local group = vim.api.nvim_create_augroup("keystone_statusline", { clear = true })
@@ -273,7 +276,7 @@ function M.enable()
       else
         _lsp_progress[token] = { name = client.name, client_id = ev.data.client_id, percentage = val.percentage }
       end
-      vim.cmd.redrawstatus()
+      _redrawstatus()
     end,
   })
 end

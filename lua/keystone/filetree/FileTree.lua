@@ -170,7 +170,6 @@ end
 function FileTree:_on_buffer_created()
     assert(not self._bufenter_autocmd_id)
     assert(not self._dirchanged_autocmd_id)
-    assert(not self._cancel_viewport_timer)
 
     local track_config = self._opts.track_current_file or {}
     local track_collapse_others = track_config.auto_collapse_others ~= false
@@ -205,9 +204,6 @@ function FileTree:_on_buffer_created()
             callback = on_dir_changed,
         })
     end
-
-    self._cancel_viewport_timer = common.start_timer(1000, false, self._viewport_monitor_fn)
-
     self:_set_root(self._opts.dir or vim.fn.getcwd())
 end
 
@@ -220,11 +216,6 @@ function FileTree:_on_buffer_deleted()
         vim.api.nvim_del_autocmd(self._dirchanged_autocmd_id)
         self._dirchanged_autocmd_id = nil
     end
-    if self._cancel_viewport_timer then
-        self._cancel_viewport_timer()
-        self._cancel_viewport_timer = nil
-    end
-
     self:_clear_all_monitors()
 end
 

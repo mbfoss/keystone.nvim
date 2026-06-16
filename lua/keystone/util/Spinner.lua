@@ -44,7 +44,7 @@ function Spinner:start()
         return
     end
     self.running = true
-    self.cancel_timer = timer.start_timer(self.interval, false, function()
+    self.cancel_timer = timer.every(self.interval, function()
         if not self.running then return end
         local frame = self.frames[self.frame]
         if self.on_update then self.on_update(frame, self.frame) end
