@@ -24,7 +24,14 @@
       "Bash(luac -p lua/keystone/pick/pickers/quickfix.lua)",
       "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/quickfix.lua'\\)\\)\" -c \"qa\")",
       "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/quickfix.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")",
-      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/livegrep.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")"
+      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/livegrep.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")",
+      "Bash(rg --json -r 'X$0X' foo _rgtest.txt)",
+      "Bash(python3 -c 'import sys,json *)",
+      "Bash(rg --no-heading -r 'X$0X' foo _rgtest.txt)",
+      "Bash(rg --passthru -N -r 'X$0X' foo _rgtest.txt)",
+      "Bash(rg --json -r '${0}_X' 'wo\\(rl\\)d' _rgtest.txt)",
+      "Bash(nvim --headless --clean -c \"lua assert\\(loadfile\\('lua/keystone/pick/pickers/searchreplace.lua'\\)\\); print\\('LOAD OK'\\)\" -c \"qa\")",
+      "Bash(nvim --headless --clean -u NONE -c \"set rtp+=.\" -l /dev/stdin)"
     ],
     "additionalDirectories": [
       "/Users/Dev/.config/nvim/pack/plugins/opt/pastelstone.nvim"

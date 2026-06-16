@@ -1,10 +1,11 @@
 local M           = {}
 
 local uitool      = require("keystone.util.uitool")
-local strutil = require("keystone.util.strutil")
-local fsutil  = require("keystone.util.fsutil")
+local strutil     = require("keystone.util.strutil")
+local fsutil      = require("keystone.util.fsutil")
 local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
+local rg_util     = require("keystone.pick.pickers.shared.rg_util")
 
 ---@class keystone.livegrep.opts
 ---@field max_results number?
@@ -24,38 +25,6 @@ local FLAGS       = {
     { name = "follow", type = "boolean", desc = "follow symlinks"   },
 }
 
----@param line string
----@return string|nil file, integer|nil lnum, integer|nil col, string[]? chunks
-local function parse_rg_json(line)
-    local ok, decoded = pcall(vim.json.decode, line)
-    if not ok or not decoded then return end
-    if decoded.type ~= "match" then return end
-
-    local data       = decoded.data
-    local path       = data.path and data.path.text or nil
-    local lnum       = data.line_number
-    local submatches = data.submatches or {}
-    local text       = data.lines.text or data.lines.bytes or ""
-    local chunks     = {}
-    local last_idx   = 1
-
-    for _, m in ipairs(submatches) do
-        local s = m.start + 1
-        local e = m["end"]
-        if s > last_idx then
-            table.insert(chunks, { text:sub(last_idx, s - 1) })
-        end
-        table.insert(chunks, { text:sub(s, e), "Label" })
-        last_idx = e + 1
-    end
-
-    if last_idx <= #text then
-        table.insert(chunks, { text:sub(last_idx) })
-    end
-
-    local col = submatches[1] and (submatches[1].start + 1) or 1
-    return path, lnum, col, chunks
-end
 
 ---@param parsed keystone.queryflags.ParseResult
 ---@return string cmd, string[] args, string cleaned_query
@@ -140,19 +109,19 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
     local buffered_feed = strutil.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
             if stop_read then return end
-            local file, lnum, col, chunks = parse_rg_json(line)
-            if chunks then
-                local abs_path = vim.fs.joinpath(grep_opts.cwd, file or "")
+            local m = rg_util.parse_match(line)
+            if m then
+                local abs_path = vim.fs.joinpath(grep_opts.cwd, m.path)
                 local rel_path = fsutil.get_relative_path(abs_path, grep_opts.cwd)
                 local location = fsutil.smart_crop_path(
-                    string.format("%s:%s", rel_path, lnum),
+                    string.format("%s:%s", rel_path, m.lnum),
                     fetch_opts.list_width
                 )
                 ---@type keystone.Picker.Item
                 table.insert(items, {
-                    label_chunks = chunks,
+                    label_chunks = rg_util.build_chunks(m.text, m.subs, "Label", false),
                     virt_lines   = { { { location, "Special" } } },
-                    data         = { filepath = abs_path, lnum = tonumber(lnum), col = tonumber(col) },
+                    data         = { filepath = abs_path, lnum = m.lnum, col = m.col },
                 })
                 count = count + 1
                 if count >= max_results then
