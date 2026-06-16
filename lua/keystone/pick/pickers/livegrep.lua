@@ -120,7 +120,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
                 ---@type keystone.Picker.Item
                 table.insert(items, {
                     label_chunks = rg_util.build_chunks(m.text, m.subs, "Label", false),
-                    virt_lines   = { { { location, "Special" } } },
+                    virt_lines   = { { { location, "KeystonePickPath" } } },
                     data         = { filepath = abs_path, lnum = m.lnum, col = m.col },
                 })
                 count = count + 1

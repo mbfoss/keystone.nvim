@@ -122,7 +122,7 @@ function M.references_spec()
                     ---@type keystone.Picker.Item
                     table.insert(picker_items, {
                         label_chunks = match.chunks,
-                        virt_lines   = { { { loc, "Special" } } },
+                        virt_lines   = { { { loc, "KeystonePickPath" } } },
                         score        = match.score,
                         data         = {
                             filepath = ref.filename,

@@ -72,4 +72,38 @@ function M.build_chunks(text, subs, match_hl, use_repl)
     return chunks
 end
 
+---Build a single line of chunks that represents a search/replace change inline:
+---surrounding context is shown once, and each match is rendered as the removed
+---text immediately followed by its added (replacement) text, e.g.
+---   local <foo><bar> = 1     -- foo highlighted `removed_hl`, bar `added_hl`
+---Matches whose replacement is empty (deletions) show only the removed span.
+---@param text       string
+---@param subs       keystone.rgutil.Submatch[]
+---@param removed_hl string
+---@param added_hl   string
+---@return {[1]:string,[2]:string?}[]
+function M.build_diff_chunks(text, subs, removed_hl, added_hl)
+    local chunks = {}
+    local last   = 1
+    for _, sm in ipairs(subs) do
+        local s = sm.s + 1
+        local e = sm.e
+        if s > last then
+            chunks[#chunks + 1] = { text:sub(last, s - 1) }
+        end
+        local removed = text:sub(s, e)
+        if #removed > 0 then
+            chunks[#chunks + 1] = { removed, removed_hl }
+        end
+        if sm.repl and #sm.repl > 0 then
+            chunks[#chunks + 1] = { sm.repl, added_hl }
+        end
+        last = e + 1
+    end
+    if last <= #text then
+        chunks[#chunks + 1] = { text:sub(last) }
+    end
+    return chunks
+end
+
 return M

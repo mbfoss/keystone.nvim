@@ -252,20 +252,21 @@ function M.spec(opts)
                             subs     = m.subs,
                         }
 
-                        local vlines   = {}
-                        if is_replace then
-                            vlines[#vlines + 1] = rg_util.build_chunks(m.text, m.subs, "DiffAdd", true)
-                        end
                         local location = fsutil.smart_crop_path(
                             string.format("%s:%d", rel_path, m.lnum),
                             fetch_opts.list_width
                         )
-                        vlines[#vlines + 1] = { { location, "Special" } }
+
+                        -- Replace mode: a single line showing each match as
+                        -- removed-then-added inline.  Grep mode: matched text.
+                        local label_chunks = is_replace
+                            and rg_util.build_diff_chunks(m.text, m.subs, "Removed", "Added")
+                            or rg_util.build_chunks(m.text, m.subs, "Label", false)
 
                         ---@type keystone.Picker.Item
                         items[#items + 1] = {
-                            label_chunks = rg_util.build_chunks(m.text, m.subs, is_replace and "DiffDelete" or "Label", false),
-                            virt_lines   = vlines,
+                            label_chunks = label_chunks,
+                            virt_lines   = { { { location, "KeystonePickPath" } } },
                             data         = { filepath = abs_path, lnum = m.lnum, col = m.col },
                         }
 

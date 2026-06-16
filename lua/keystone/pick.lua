@@ -105,6 +105,8 @@ function M.register(name, spec)
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
+    pickertools.setup_hl()
+
     vim.api.nvim_create_user_command("Pick", function(cmd_opts)
         local picker_type    = cmd_opts.fargs[1]
         local initial_filter = #cmd_opts.fargs > 1 and cmd_opts.args:match("^%S+%s+(.+)$") or nil

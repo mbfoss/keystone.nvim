@@ -110,7 +110,7 @@ function M.spec(opts)
                 if res then
                     local chunks     = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)
-                    local virt_lines = multi_buf and { { { entry.relpath, "Special" } } } or nil
+                    local virt_lines = multi_buf and { { { entry.relpath, "KeystonePickPath" } } } or nil
                     table.insert(items, {
                         label_chunks = chunks,
                         virt_lines   = virt_lines,

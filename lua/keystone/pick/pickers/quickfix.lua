@@ -134,7 +134,7 @@ function M.spec(opts)
                     vim.list_extend(chunks, match.chunks)
                     local virt_lines = nil
                     if data.relpath and #data.relpath > 0 then
-                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "Special" } } }
+                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "KeystonePickPath" } } }
                     end
                     ---@type keystone.Picker.Item
                     table.insert(items, {
