@@ -61,14 +61,14 @@ local function _tokenize(str)
         while i <= len and str:sub(i, i):match("%s") do i = i + 1 end
         if i > len then break end
 
-        local tok_start      = i
-        local chars          = {}
-        local colon_pos      = nil
-        local colon_raw_pos  = nil
-        local quote          = nil  -- active quote char while inside a quoted span
-        local quote_idx      = nil  -- index in `chars` where the active quote opened
-        local _quote_spans   = {}
-        local _quote_open_raw = nil  -- raw-relative 1-indexed position of the active opening quote
+        local tok_start       = i
+        local chars           = {}
+        local colon_pos       = nil
+        local colon_raw_pos   = nil
+        local quote           = nil -- active quote char while inside a quoted span
+        local quote_idx       = nil -- index in `chars` where the active quote opened
+        local _quote_spans    = {}
+        local _quote_open_raw = nil -- raw-relative 1-indexed position of the active opening quote
 
         while i <= len do
             local c = str:sub(i, i)
@@ -78,8 +78,8 @@ local function _tokenize(str)
                 if c == quote then
                     table.insert(_quote_spans, { open = _quote_open_raw, close = i - tok_start + 1 })
                     _quote_open_raw = nil
-                    quote     = nil
-                    quote_idx = nil
+                    quote           = nil
+                    quote_idx       = nil
                 else
                     table.insert(chars, c)
                 end
@@ -89,9 +89,9 @@ local function _tokenize(str)
             elseif c == '"' or c == "'" then
                 -- opening quote: allows whitespace within the token
                 _quote_open_raw = i - tok_start + 1
-                quote     = c
-                quote_idx = #chars + 1
-                i = i + 1
+                quote           = c
+                quote_idx       = #chars + 1
+                i               = i + 1
             else
                 if c == ":" and colon_pos == nil then
                     colon_pos     = #chars + 1
@@ -223,7 +223,7 @@ function M.highlight(schema, raw)
             if token.quotes then
                 for _, q in ipairs(token.quotes) do
                     if q.close then
-                        table.insert(hls, { start = s0 + q.open - 1,  finish = s0 + q.open,  hl = "Delimiter" })
+                        table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
                         table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
                     end
                 end
@@ -245,8 +245,8 @@ function M.get_completions(schema, line, cursor_byte, auto)
     local char_after = line:sub(cursor_byte + 1, cursor_byte + 1)
     if char_after ~= "" and not char_after:match("%s") then return nil end
 
-    local before = line:sub(1, cursor_byte)
-    local tokens = _tokenize(before)
+    local before       = line:sub(1, cursor_byte)
+    local tokens       = _tokenize(before)
 
     local last         = tokens[#tokens]
     local word_start_1 = #before + 1
@@ -259,10 +259,27 @@ function M.get_completions(schema, line, cursor_byte, auto)
     local colon = last and last.finish == #before and last.colon_pos
     if colon and colon > 1 then
         local prefix  = current_word:sub(1, colon - 1)
-        -- a leading quote marks an in-progress quoted value; drop it for matching
-        -- (the inserted completion re-wraps the value in quotes as needed).
         local partial = current_word:sub(colon + 1):gsub("^[\"']", "")
-        local def     = _build_map(schema)[prefix]
+
+        local defs    = _build_map(schema)
+
+        -- Case 1: Inside an "is:<partial_boolean_flag>" block
+        if prefix == "is" then
+            local items = {}
+            for _, def in ipairs(schema) do
+                if def.type == "boolean" and vim.startswith(def.name, partial) then
+                    table.insert(items, {
+                        word = "is:" .. def.name,
+                        abbr = def.name,
+                        menu = def.desc or "[flag]",
+                    })
+                end
+            end
+            return #items > 0 and { startcol = word_start_1, items = items } or nil
+        end
+
+        -- Case 2: Inside a "value_flag:<partial_value>" block
+        local def = defs[prefix]
         if def and def.type == "value" and def.values then
             local items = {}
             for _, v in ipairs(def.values) do
@@ -283,6 +300,15 @@ function M.get_completions(schema, line, cursor_byte, auto)
     if auto then return nil end
 
     local items = {}
+    -- If they have already started typing "is", suggest "is:" right away
+    if vim.startswith("is:", current_word) and #current_word > 0 then
+        table.insert(items, {
+            word = "is:",
+            abbr = "is:",
+            menu = "[boolean prefix]",
+        })
+    end
+
     for _, def in ipairs(schema) do
         if def.type == "value" and vim.startswith(def.name, current_word) then
             table.insert(items, {
@@ -290,12 +316,17 @@ function M.get_completions(schema, line, cursor_byte, auto)
                 abbr = def.name,
                 menu = def.desc or "[filter]",
             })
-        elseif def.type == "boolean" and vim.startswith(def.name, current_word) then
-            table.insert(items, {
-                word = def.name,
-                abbr = def.name,
-                menu = def.desc or "[flag]",
-            })
+        elseif def.type == "boolean" then
+            -- Boolean flags are generated dynamically behind "is:<name>".
+            -- We can suggest the full "is:<name>" string matching current_word.
+            local full_bool = "is:" .. def.name
+            if vim.startswith(full_bool, current_word) then
+                table.insert(items, {
+                    word = full_bool,
+                    abbr = full_bool,
+                    menu = def.desc or "[flag]",
+                })
+            end
         end
     end
     return #items > 0 and { startcol = word_start_1, items = items } or nil
