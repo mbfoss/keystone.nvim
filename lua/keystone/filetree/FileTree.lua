@@ -43,26 +43,6 @@ local icons          = require("keystone.icons")
 
 local _error_node_id = {} -- unique id for the error node
 
----@param id string
----@param data keystone.FileTree.ItemData
-local function _file_formatter(id, data)
-    if not data then return {}, {} end
-    local virt_chunks = {}
-    if data.is_link then
-        table.insert(virt_chunks, { "↗", "Special" })
-    end
-    if data.error_flag then
-        table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
-    end
-    local chunks = {
-        { data.icon, data.icon_hl },
-        { " " },
-        { data.name, data.is_current and "Type" or nil }
-    }
-    return chunks, virt_chunks
-end
-
-
 local function _show_help()
     local help_text = { [[
 NAVIGATION
@@ -98,6 +78,32 @@ OTHER
         title = "File Tree",
         is_markdown = true,
     })
+end
+
+---@param id string
+---@param data keystone.FileTree.ItemData
+local function _file_formatter(id, data)
+    if not data then return {}, {} end
+    local virt_chunks = {}
+    if data.is_link then
+        table.insert(virt_chunks, { "↗", "Special" })
+    end
+    if data.error_flag then
+        table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
+    end
+    local chunks = {
+        { data.icon, data.icon_hl },
+        { " " },
+        { data.name, data.is_current and "Type" or nil }
+    }
+    return chunks, virt_chunks
+end
+
+
+local function _is_regular_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then return false end
+    if vim.bo[bufnr].buftype ~= '' then return false end
+    return true
 end
 
 ---@class keystone.FileTree.Opts
@@ -178,7 +184,7 @@ function FileTree:_on_buffer_created()
             return
         end
         local buf = vim.api.nvim_get_current_buf()
-        if uitool.is_regular_buffer(buf) then
+        if _is_regular_buffer(buf) then
             local path = vim.api.nvim_buf_get_name(buf)
             if path ~= "" then
                 vim.schedule(function()
@@ -807,7 +813,7 @@ end
 ---@param collapse_others boolean?
 function FileTree:reveal_current_file(collapse_others)
     local buf = vim.api.nvim_get_current_buf()
-    if uitool.is_regular_buffer(buf) then
+    if _is_regular_buffer(buf) then
         local path = vim.api.nvim_buf_get_name(buf)
         if path ~= "" then
             self:_reveal(path, collapse_others or false, true)
