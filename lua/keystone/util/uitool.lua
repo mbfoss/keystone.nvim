@@ -171,5 +171,25 @@ function M.smart_open_file(filepath, line, col, activate)
     return winid, bufnr
 end
 
+---@param msg string
+---@param default_yes boolean
+---@param callback fun(confirmed: boolean|nil)
+function M.confirm_action(msg, default_yes, callback)
+    local choices = "&Yes\n&No"
+    local default = default_yes and 1 or 2
+
+    local ok, choice = pcall(vim.fn.confirm, msg, choices, default)
+    if not ok then
+        callback(nil)
+        return
+    end
+    if choice == 1 then
+        callback(true)
+    elseif choice == 2 then
+        callback(false)
+    else
+        callback(nil)
+    end
+end
 
 return M
