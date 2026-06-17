@@ -30,17 +30,21 @@ end
 -- Schema-driven flags:
 --   boolean flag:  "is:flagname"   → flags.flagname = true  (flagname matching a boolean def)
 --   value flag:    "key:value"     → flags.key = value  (or string[] if multi)
---   value flag:    'key:"a b c"'   → flags.key = "a b c"  (quote a value to include spaces;
---                                     ' or " both work, and an unterminated quote runs to EOS)
 --   anything else: accumulated into query
+--
+-- Quoting (' or ") works uniformly anywhere in the raw string to include spaces in a token:
+--   'key:"a b c"'   → flags.key = "a b c"
+--   '"foo bar" baz' → query = "foo bar baz"
+-- An unterminated quote runs to end-of-string.
 
 ---@class keystone.queryflags.Token
----@field text          string   -- verbatim token text
----@field raw           string   -- verbatim slice of source
----@field start         integer  -- 1-indexed start in source
----@field finish        integer  -- 1-indexed finish in source (inclusive)
----@field colon_pos     integer? -- 1-indexed position of first ':' in text
----@field colon_raw_pos integer? -- 1-indexed position of first ':' in raw (for buffer offsets)
+---@field text          string                           -- verbatim token text
+---@field raw           string                           -- verbatim slice of source
+---@field start         integer                          -- 1-indexed start in source
+---@field finish        integer                          -- 1-indexed finish in source (inclusive)
+---@field colon_pos     integer?                         -- 1-indexed position of first ':' in text
+---@field colon_raw_pos integer?                         -- 1-indexed position of first ':' in raw (for buffer offsets)
+---@field quotes        {open:integer,close:integer?}[]? -- raw-relative 1-indexed positions of each quote char; close=nil when unterminated
 
 ---@param str string
 ---@return keystone.queryflags.Token[]
@@ -53,19 +57,23 @@ local function _tokenize(str)
         while i <= len and str:sub(i, i):match("%s") do i = i + 1 end
         if i > len then break end
 
-        local tok_start     = i
-        local chars         = {}
-        local colon_pos     = nil
-        local colon_raw_pos = nil
-        local quote         = nil  -- active quote char while inside a quoted span
-        local quote_idx     = nil  -- index in `chars` where the active quote opened
+        local tok_start      = i
+        local chars          = {}
+        local colon_pos      = nil
+        local colon_raw_pos  = nil
+        local quote          = nil  -- active quote char while inside a quoted span
+        local quote_idx      = nil  -- index in `chars` where the active quote opened
+        local _quote_spans   = {}
+        local _quote_open_raw = nil  -- raw-relative 1-indexed position of the active opening quote
 
         while i <= len do
             local c = str:sub(i, i)
             if quote then
-                -- inside a quoted value: whitespace is literal, matching quote
+                -- inside a quoted span: whitespace is literal, matching quote
                 -- chars are stripped from `text` but remain in `raw`.
                 if c == quote then
+                    table.insert(_quote_spans, { open = _quote_open_raw, close = i - tok_start + 1 })
+                    _quote_open_raw = nil
                     quote     = nil
                     quote_idx = nil
                 else
@@ -74,8 +82,9 @@ local function _tokenize(str)
                 i = i + 1
             elseif c:match("%s") then
                 break
-            elseif (c == '"' or c == "'") and colon_pos ~= nil then
-                -- opening quote (only meaningful in a value, i.e. after a ':')
+            elseif c == '"' or c == "'" then
+                -- opening quote: allows whitespace within the token
+                _quote_open_raw = i - tok_start + 1
                 quote     = c
                 quote_idx = #chars + 1
                 i = i + 1
@@ -93,6 +102,9 @@ local function _tokenize(str)
         -- char instead of silently swallowing it.
         if quote and quote_idx then
             table.insert(chars, quote_idx, quote)
+            if _quote_open_raw then
+                table.insert(_quote_spans, { open = _quote_open_raw, close = nil })
+            end
         end
 
         local text = table.concat(chars)
@@ -104,6 +116,7 @@ local function _tokenize(str)
                 finish        = i - 1,
                 colon_pos     = colon_pos,
                 colon_raw_pos = colon_raw_pos,
+                quotes        = #_quote_spans > 0 and _quote_spans or nil,
             }
         end
     end
@@ -178,6 +191,16 @@ function M.highlight(schema, raw)
                     if #val > 0 then
                         table.insert(hls, { start = s0 + token.colon_raw_pos, finish = e0,                        hl = "String"  })
                     end
+                end
+            end
+        end
+        if token.quotes then
+            local s0 = token.start - 1
+            for _, q in ipairs(token.quotes) do
+                if q.close then
+                    -- properly closed pair: highlight both delimiter chars
+                    table.insert(hls, { start = s0 + q.open - 1,  finish = s0 + q.open,  hl = "Delimiter" })
+                    table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
                 end
             end
         end
