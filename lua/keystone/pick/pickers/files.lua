@@ -15,7 +15,7 @@ local icons       = require("keystone.icons")
 ---@field cwd string The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
----@field dir_filters string[]? Plain substrings matched against the relative path
+---@field in_globs string[]? rg-style glob patterns; file must match at least one
 ---@field max_results number?
 ---@field use_regex boolean?
 ---@field case_sensitive boolean?
@@ -23,11 +23,11 @@ local icons       = require("keystone.icons")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",    type = "value",   desc = "override search root directory" },
-    { name = "dir",    type = "value",   multi = true,                           desc = "filter by directory" },
-    { name = "regex",  type = "boolean", desc = "enable regex mode" },
-    { name = "case",   type = "boolean", desc = "case-sensitive" },
-    { name = "follow", type = "boolean", desc = "follow symlinks" },
+    { name = "cwd",    type = "value",   desc = "override search root directory"    },
+    { name = "in",     type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
+    { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
+    { name = "case",   type = "boolean", desc = "case-sensitive"                    },
+    { name = "follow", type = "boolean", desc = "follow symlinks"                   },
 }
 
 ---@param filename string
@@ -73,15 +73,12 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 vim.cmd("redraw")
             end,
             on_file            = function(filepath, filename, relative_path)
-                if opts.dir_filters then
-                    local ldir = relative_path:sub(1, #relative_path - #filename):lower()
-                    local ok = false
-                    for _, d in ipairs(opts.dir_filters) do
-                        if ldir:find(d:lower(), 1, true) then
-                            ok = true; break
-                        end
+                if opts.in_globs then
+                    local matched = false
+                    for _, g in ipairs(opts.in_globs) do
+                        if pickertools.match_glob(g, relative_path) then matched = true; break end
                     end
-                    if not ok then return end
+                    if not matched then return end
                 end
                 local res = do_match(filename, query, opts.use_regex, opts.case_sensitive)
                 if not res then return end
@@ -124,20 +121,16 @@ function M.spec(opts)
                 return
             end
 
-            local dir_filters = {}
-            for _, val in ipairs(flags.dir or {}) do
-                local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
-                if p ~= "" then table.insert(dir_filters, p) end
-            end
-
             local target_cwd = flags.cwd or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
+
+            local in_globs = flags["in"] or {}
 
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
                 cwd             = target_cwd,
                 include_globs   = nil,
-                dir_filters     = #dir_filters > 0 and dir_filters or nil,
+                in_globs        = #in_globs > 0 and in_globs or nil,
                 exclude_globs   = nil,
                 max_results     = opts.max_results,
                 use_regex       = flags.regex,

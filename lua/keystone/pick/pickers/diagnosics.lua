@@ -8,7 +8,7 @@ local fsutil      = require("keystone.util.fsutil")
 local FLAGS = {
     { name = "sev",  type = "value", multi = true, desc = "filter by severity: error, warn, info, hint" },
     { name = "src",  type = "value", multi = true, desc = "filter by diagnostic source"                 },
-    { name = "file", type = "value", multi = true, desc = "filter by filename"                          },
+    { name = "in",   type = "value", multi = true, desc = "glob filter: *.txt, **/dir/**"               },
 }
 
 local SEV_MAP = {
@@ -99,10 +99,13 @@ function M.spec(opts)
                 for _, v in ipairs(flags.src or {}) do
                     if not entry.source:find(v:lower(), 1, true) then skip = true; break end
                 end
-                if not skip then
-                    for _, v in ipairs(flags.file or {}) do
-                        if not entry.filename:find(v:lower(), 1, true) then skip = true; break end
+                local in_globs = flags["in"] or {}
+                if not skip and #in_globs > 0 then
+                    local matched = false
+                    for _, g in ipairs(in_globs) do
+                        if pickertools.match_glob(g, entry.relpath) then matched = true; break end
                     end
+                    if not matched then skip = true end
                 end
                 if skip then goto continue end
 

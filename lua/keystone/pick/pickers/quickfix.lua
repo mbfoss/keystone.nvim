@@ -6,8 +6,7 @@ local fsutil       = require("keystone.util.fsutil")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS        = {
     { name = "type",  type = "value",   multi = true, desc = "filter by type: error, warn, info, hint", values = { "error", "warn", "info", "hint" } },
-    { name = "file",  type = "value",   multi = true, desc = "filter by filename" },
-    { name = "dir",   type = "value",   multi = true, desc = "filter by directory" },
+    { name = "in",    type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
     { name = "valid", type = "boolean",               desc = "only items with a resolved location" },
 }
 
@@ -111,19 +110,13 @@ function M.spec(opts)
                     end
                     if not matched then skip = true end
                 end
-                if not skip then
-                    for _, v in ipairs(flags.file or {}) do
-                        if not data.filename:find(v:lower(), 1, true) then
-                            skip = true; break
-                        end
+                local in_globs = flags["in"] or {}
+                if not skip and #in_globs > 0 then
+                    local matched = false
+                    for _, g in ipairs(in_globs) do
+                        if pickertools.match_glob(g, data.relpath) then matched = true; break end
                     end
-                end
-                if not skip then
-                    for _, v in ipairs(flags.dir or {}) do
-                        if not data.dir:find(v:lower(), 1, true) then
-                            skip = true; break
-                        end
-                    end
+                    if not matched then skip = true end
                 end
                 if skip then goto continue end
 

@@ -22,7 +22,7 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local REF_FLAGS = {
-    { name = "file", type = "value", multi = true, desc = "filter by filename" },
+    { name = "in", type = "value", multi = true, desc = "glob filter: *.txt, **/dir/**" },
 }
 
 ---@type keystone.queryflags.FlagDef[]
@@ -105,14 +105,14 @@ function M.references_spec()
             local picker_items = {}
             for _, ref in ipairs(data.lsp_items) do
                 local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
-                local filename     = vim.fn.fnamemodify(display_path, ":t"):lower()
-                local skip         = false
-                for _, v in ipairs(flags.file or {}) do
-                    if not filename:find(v:lower(), 1, true) then
-                        skip = true; break
+                local in_globs     = flags["in"] or {}
+                if #in_globs > 0 then
+                    local matched = false
+                    for _, g in ipairs(in_globs) do
+                        if strutil.match_glob(g, display_path) then matched = true; break end
                     end
+                    if not matched then goto continue end
                 end
-                if skip then goto continue end
 
                 local text  = ref.text and vim.fn.trim(ref.text) or ""
                 local match = pickertools.match_label(text, query)

@@ -81,13 +81,11 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",    type = "value",                              desc = "search root directory" },
-    { name = "glob",   type = "value",   multi = true,              desc = "raw glob pattern"   },
-    { name = "file",   type = "value",   multi = true,              desc = "filter by filename"  },
-    { name = "dir",    type = "value",   multi = true,              desc = "filter by directory" },
-    { name = "regex",  type = "boolean", desc = "enable regex mode" },
-    { name = "case",   type = "boolean", desc = "case-sensitive"    },
-    { name = "follow", type = "boolean", desc = "follow symlinks"   },
+    { name = "cwd",    type = "value",                              desc = "search root directory"              },
+    { name = "in",     type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
+    { name = "regex",  type = "boolean", desc = "enable regex mode"                                             },
+    { name = "case",   type = "boolean", desc = "case-sensitive"                                                },
+    { name = "follow", type = "boolean", desc = "follow symlinks"                                               },
 }
 
 
@@ -97,25 +95,7 @@ local function build_rg_cmd(parsed)
     local query = parsed.query
     local flags = parsed.flags
 
-    local include_globs = {}
-
-    for _, g in ipairs(flags.glob or {}) do
-        table.insert(include_globs, g)
-    end
-
-    for _, val in ipairs(flags.file or {}) do
-        local p = val:gsub("[/*]", "")
-        if p ~= "" then
-            table.insert(include_globs, "*" .. p .. "*")
-        end
-    end
-
-    for _, val in ipairs(flags.dir or {}) do
-        local p = val:gsub("%*", ""):gsub("^/+", ""):gsub("/+$", "")
-        if p ~= "" then
-            table.insert(include_globs, "**/*" .. p .. "*/**")
-        end
-    end
+    local include_globs = vim.list_extend({}, flags["in"] or {})
 
     local args = { "--json", "--no-heading", "--glob-case-insensitive" }
 

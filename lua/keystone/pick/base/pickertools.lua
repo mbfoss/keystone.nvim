@@ -76,6 +76,20 @@ function M.match_label(text, query)
     }
 end
 
+---@param pattern string  rg-style glob (e.g. "*.txt", "**/src/**", "*a.txt")
+---@param relpath string  relative file path (e.g. "lua/keystone/util/foo.lua")
+---@return boolean
+function M.match_glob(pattern, relpath)
+    local has_slash = pattern:find("/", 1, true) ~= nil
+    local target    = has_slash and relpath:lower() or vim.fn.fnamemodify(relpath, ":t"):lower()
+    local p         = pattern:lower()
+        :gsub("([%.%+%-%?%(%[%]%^%$%%])", "%%%1")
+        :gsub("%*%*", "\0")
+        :gsub("%*", "[^/]*")
+        :gsub("\0", ".*")
+    return target:match("^" .. p .. "$") ~= nil
+end
+
 ---@type keystone.Picker.AsyncPreviewLoader
 function M.file_preview(data, _, callback)
     local _max_size = 10124 * 10124
