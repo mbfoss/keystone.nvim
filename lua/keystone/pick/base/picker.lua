@@ -335,7 +335,14 @@ function Picker:init(opts, callback)
 	vim.api.nvim_set_current_win(self.pwin)
 
 	if opts.initial_query and opts.initial_query ~= "" then
-		self:set_prompt_text(opts.initial_query)
+		local text = opts.initial_query --[[@as string]]
+		if #self.opts.flags > 0 then
+			local parsed = queryflags.parse(self.opts.flags, text)
+			if parsed.sep_start_0 == nil then
+				text = text .. " -- "
+			end
+		end
+		self:set_prompt_text(text)
 	else
 		self:run_fetch()
 	end

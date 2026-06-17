@@ -8,6 +8,7 @@ local icons       = require("keystone.icons")
 
 ---@class keystone.filepicker.Opts
 ---@field prompt string?
+---@field cwd string?
 ---@field max_results number?
 
 ---@class keystone.filepicker.SearchOpts
@@ -115,7 +116,7 @@ function M.spec(opts)
     opts = opts or {}
     return {
         prompt         = opts.prompt or "Files",
-        flags          = FLAGS,
+        flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "cwd" end, FLAGS) or FLAGS,
         enable_preview = true,
         finder         = function(query, flags, fetch_opts, callback, _)
             if not query or query == "" then
@@ -129,7 +130,7 @@ function M.spec(opts)
                 if p ~= "" then table.insert(dir_filters, p) end
             end
 
-            local target_cwd = flags.cwd or vim.fn.getcwd()
+            local target_cwd = flags.cwd or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
 
             ---@type keystone.filepicker.SearchOpts
