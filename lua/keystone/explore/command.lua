@@ -148,9 +148,11 @@ local function _explore_files()
             end
             local path = table.concat(path_parts, '/')
             if path == "" then path = "/" end
+            local show_hidden = fetch_opts.show_hidden
             local raw_entries = {}
             local cancel = fsutil.async_scan_dir(path, nil, nil,
                 function(name, ftype)
+                    if not show_hidden and name:sub(1, 1) == "." then return end
                     table.insert(raw_entries, { name = name, ftype = ftype, full_path = vim.fs.joinpath(path, name) })
                 end,
                 vim.schedule_wrap(function()

@@ -36,6 +36,7 @@ local _antiflicker_delay = 200
 ---@class keystone.Explorer.FetcherOpts
 ---@field list_width number
 ---@field list_height number
+---@field show_hidden boolean Whether hidden items should be included (interpretation is finder-defined)
 
 ---@alias keystone.Explorer.Finder fun(path:string[],opts:keystone.Explorer.FetcherOpts,callback:fun(new_items:keystone.Explorer.Item[]?)):fun()?
 
@@ -62,6 +63,7 @@ local _antiflicker_delay = 200
 ---@field initial_cursor string?
 ---@field finder keystone.Explorer.Finder?
 ---@field enable_preview boolean?
+---@field show_hidden boolean? Initial visibility of hidden items (default false). Toggled at runtime.
 ---@field previewer keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
@@ -180,6 +182,7 @@ end
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
 ---@field nav_history string[]
+---@field show_hidden boolean
 local Explorer = {}
 Explorer.__index = Explorer
 
@@ -216,6 +219,8 @@ function Explorer:init(opts, callback)
     end
 
     self.closed = false
+
+    self.show_hidden = opts.show_hidden or false
 
     self.async_fetch_context = 0
     self.async_fetch_cancel = nil
@@ -534,6 +539,11 @@ function Explorer:toggle_preview()
     self:relayout(self.vwin ~= nil and "hide_preview" or "show_preview")
 end
 
+function Explorer:toggle_hidden()
+    self.show_hidden = not self.show_hidden
+    self:run_fetch(nil)
+end
+
 function Explorer:start_spinner()
     if self.spinner then return end
 
@@ -698,6 +708,7 @@ function Explorer:run_fetch(direction, on_complete)
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2), -- -2 for borders
         list_height = math.max(1, self.layout.list_height - 2),
+        show_hidden = self.show_hidden,
     }
 
     self.async_fetch_context = self.async_fetch_context + 1
@@ -799,6 +810,7 @@ function Explorer:setup_input()
     vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, opts)
     vim.keymap.set("n", "<Esc>", function() self:close() end, opts)
     vim.keymap.set("n", "<Tab>", function() self:toggle_preview() end, opts)
+    vim.keymap.set("n", ".", function() self:toggle_hidden() end, opts)
     vim.keymap.set("n", "a", function() self:_action_create(false) end, opts)
     vim.keymap.set("n", "A", function() self:_action_create(true) end, opts)
     vim.keymap.set("n", "r", function() self:_action_rename() end, opts)
