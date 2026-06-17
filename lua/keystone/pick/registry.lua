@@ -4,7 +4,6 @@ local M = {}
 local _pickers = {
     files                 = function() return require("keystone.pick.pickers.files").spec() end,
     live_grep             = function() return require("keystone.pick.pickers.livegrep").spec() end,
-    search_replace        = function() return require("keystone.pick.pickers.searchreplace").spec() end,
     recent_files          = function() return require("keystone.pick.pickers.recentfiles").spec() end,
     config_files          = function()
         return require("keystone.pick.pickers.files").spec({

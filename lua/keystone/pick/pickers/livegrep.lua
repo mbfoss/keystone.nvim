@@ -3,9 +3,74 @@ local M           = {}
 local uitool      = require("keystone.util.uitool")
 local strutil     = require("keystone.util.strutil")
 local fsutil      = require("keystone.util.fsutil")
-local throttle    = require("keystone.util.throttle")
 local spawn       = require("keystone.util.spawn")
-local rg_util     = require("keystone.pick.pickers.shared.rg_util")
+
+---@class keystone.rgutil.Submatch
+---@field s    integer  -- 0-indexed byte start in the line
+---@field e    integer  -- 0-indexed byte end (exclusive) in the line
+---@field repl string?  -- rg-computed replacement text (nil unless --replace was used)
+
+---@class keystone.rgutil.Match
+---@field path string
+---@field lnum integer
+---@field col  integer  -- 1-indexed byte column of the first submatch
+---@field text string
+---@field subs keystone.rgutil.Submatch[]
+
+---@param line string
+---@return keystone.rgutil.Match?
+local function parse_match(line)
+    local ok, decoded = pcall(vim.json.decode, line)
+    if not ok or not decoded or decoded.type ~= "match" then return end
+
+    local data = decoded.data
+    local path = data.path and data.path.text
+    if not path then return end
+
+    local text = data.lines.text or data.lines.bytes or ""
+    text       = text:gsub("\r?\n$", "")
+
+    local subs = {}
+    for _, m in ipairs(data.submatches or {}) do
+        subs[#subs + 1] = {
+            s    = m.start,
+            e    = m["end"],
+            repl = m.replacement and m.replacement.text or nil,
+        }
+    end
+
+    local col = (subs[1] and subs[1].s + 1) or 1
+    return { path = path, lnum = data.line_number, col = col, text = text, subs = subs }
+end
+
+---@param text     string
+---@param subs     keystone.rgutil.Submatch[]
+---@param match_hl string
+---@param use_repl boolean?
+---@return {[1]:string,[2]:string?}[]
+local function build_chunks(text, subs, match_hl, use_repl)
+    local chunks = {}
+    local last   = 1
+    for _, sm in ipairs(subs) do
+        local s = sm.s + 1
+        local e = sm.e
+        if s > last then
+            chunks[#chunks + 1] = { text:sub(last, s - 1) }
+        end
+        if use_repl then
+            if sm.repl and #sm.repl > 0 then
+                chunks[#chunks + 1] = { sm.repl, match_hl }
+            end
+        else
+            chunks[#chunks + 1] = { text:sub(s, e), match_hl }
+        end
+        last = e + 1
+    end
+    if last <= #text then
+        chunks[#chunks + 1] = { text:sub(last) }
+    end
+    return chunks
+end
 
 ---@class keystone.livegrep.opts
 ---@field max_results number?
@@ -109,7 +174,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
     local buffered_feed = strutil.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
             if stop_read then return end
-            local m = rg_util.parse_match(line)
+            local m = parse_match(line)
             if m then
                 local abs_path = vim.fs.joinpath(grep_opts.cwd, m.path)
                 local rel_path = fsutil.get_relative_path(abs_path, grep_opts.cwd)
@@ -119,7 +184,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
                 )
                 ---@type keystone.Picker.Item
                 table.insert(items, {
-                    label_chunks = rg_util.build_chunks(m.text, m.subs, "Label", false),
+                    label_chunks = build_chunks(m.text, m.subs, "Label", false),
                     virt_lines   = { { { location, "KeystonePickPath" } } },
                     data         = { filepath = abs_path, lnum = m.lnum, col = m.col },
                 })

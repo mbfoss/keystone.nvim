@@ -25,9 +25,15 @@ describe("queryflags quoted values", function()
         assert.are.equal("hello world", r.query)
     end)
 
-    it("treats an unterminated quote as running to end of string", function()
+    it("keeps an unterminated quote as a literal char (not a delimiter)", function()
         local r = qf.parse(schema, 'path:"foo ba')
-        assert.are.equal("foo ba", r.flags.path)
+        assert.are.equal('"foo ba', r.flags.path)
+        assert.are.equal("", r.query)
+    end)
+
+    it("keeps an unterminated quote in place when content precedes it", function()
+        local r = qf.parse(schema, 'path:ab"cd')
+        assert.are.equal('ab"cd', r.flags.path)
         assert.are.equal("", r.query)
     end)
 
@@ -40,6 +46,52 @@ describe("queryflags quoted values", function()
     it("collects quoted values for multi flags", function()
         local r = qf.parse(schema, 'kind:"a b" kind:c')
         assert.are.same({ "a b", "c" }, r.flags.kind)
+    end)
+end)
+
+describe("queryflags boolean flags", function()
+    it("sets a boolean flag via the is: prefix", function()
+        local r = qf.parse(schema, "hello is:fixed world")
+        assert.is_true(r.flags.fixed)
+        assert.are.equal("hello world", r.query)
+    end)
+
+    it("treats a bare boolean name as query text", function()
+        local r = qf.parse(schema, "fixed")
+        assert.is_nil(r.flags.fixed)
+        assert.are.equal("fixed", r.query)
+    end)
+
+    it("treats is: with an unknown name as query text", function()
+        local r = qf.parse(schema, "is:nope")
+        assert.is_nil(r.flags.nope)
+        assert.are.equal("is:nope", r.query)
+    end)
+
+    it("completes boolean names after is:", function()
+        local line  = "is:fi"
+        local comps = qf.get_completions(schema, line, #line)
+        assert.is_not_nil(comps)
+        local found = false
+        for _, item in ipairs(comps.items) do
+            if item.word == "is:fixed" then found = true end
+        end
+        assert.is_true(found)
+    end)
+
+    it("offers is: among bare-word completions when booleans exist", function()
+        local comps = qf.get_completions(schema, "", 0)
+        assert.is_not_nil(comps)
+        local found = false
+        for _, item in ipairs(comps.items) do
+            if item.word == "is:" then found = true end
+        end
+        assert.is_true(found)
+    end)
+
+    it("suppresses bare-word completions when auto is set", function()
+        local comps = qf.get_completions(schema, "fi", 2, true)
+        assert.is_nil(comps)
     end)
 end)
 

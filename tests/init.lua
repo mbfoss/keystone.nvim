@@ -8,7 +8,4 @@ end
 vim.opt.rtp:append(".")
 vim.opt.rtp:append(plenary_dir)
 
-local keystone = require('keystone')
-keystone.setup()
-
 vim.cmd("runtime plugin/plenary.vim")

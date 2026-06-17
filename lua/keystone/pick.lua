@@ -35,8 +35,8 @@ M.config = _get_default_config()
 
 ---@param spec keystone.PickerSpec
 ---@param data table?
----@param initial_filter string?
-local function _do_open(spec, data, initial_filter)
+---@param initial_query string?
+local function _do_open(spec, data, initial_query)
     picker.open({
         prompt             = spec.prompt,
         flags              = spec.flags,
@@ -49,7 +49,7 @@ local function _do_open(spec, data, initial_filter)
         history_provider   = spec.history_provider,
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
-        initial_filter     = initial_filter,
+        initial_query      = initial_query,
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,
@@ -57,21 +57,21 @@ local function _do_open(spec, data, initial_filter)
 end
 
 ---@param spec keystone.PickerSpec?
----@param initial_filter string?
-local function _open_spec(spec, initial_filter)
+---@param initial_query string?
+local function _open_spec(spec, initial_query)
     if not spec then return end
     if spec.setup then
         spec.setup(function(data)
-            if data ~= nil then _do_open(spec, data, initial_filter) end
+            if data ~= nil then _do_open(spec, data, initial_query) end
         end)
     else
-        _do_open(spec, nil, initial_filter)
+        _do_open(spec, nil, initial_query)
     end
 end
 
 ---@param picker_type string?
----@param initial_filter string?
-function M.pick(picker_type, initial_filter)
+---@param initial_query string?
+function M.pick(picker_type, initial_query)
     if not picker_type or picker_type == "" then
         local keys = registry.keys()
         table.insert(keys, "repeat_last")
@@ -90,7 +90,7 @@ function M.pick(picker_type, initial_filter)
     local spec = registry.get(picker_type)
     if spec then
         spec.history_provider = spec.history_provider or pickertools.make_history_provider(picker_type)
-        _open_spec(spec, initial_filter)
+        _open_spec(spec, initial_query)
     elseif not registry.has(picker_type) then
         vim.notify("Invalid picker type: " .. tostring(picker_type), vim.log.levels.WARN)
     end
@@ -108,9 +108,9 @@ function M.setup(opts)
     pickertools.setup_hl()
 
     vim.api.nvim_create_user_command("Pick", function(cmd_opts)
-        local picker_type    = cmd_opts.fargs[1]
-        local initial_filter = #cmd_opts.fargs > 1 and cmd_opts.args:match("^%S+%s+(.+)$") or nil
-        M.pick(picker_type, initial_filter)
+        local picker_type   = cmd_opts.fargs[1]
+        local initial_query = #cmd_opts.fargs > 1 and cmd_opts.args:match("^%S+%s+(.+)$") or nil
+        M.pick(picker_type, initial_query)
     end, {
         nargs    = "*",
         desc     = "Picker for files, grep etc...",
