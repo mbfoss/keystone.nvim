@@ -76,7 +76,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 if opts.in_globs then
                     local matched = false
                     for _, g in ipairs(opts.in_globs) do
-                        if pickertools.match_glob(g, relative_path) then matched = true; break end
+                        if pickertools.match_glob(g, relative_path, true) then matched = true; break end
                     end
                     if not matched then return end
                 end

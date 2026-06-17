@@ -1,7 +1,6 @@
 local M                  = {}
 
 local uitool             = require("keystone.util.uitool")
-local strutil            = require("keystone.util.strutil")
 local pickertools        = require("keystone.pick.base.pickertools")
 local fsutil             = require("keystone.util.fsutil")
 
@@ -109,7 +108,7 @@ function M.references_spec()
                 if #in_globs > 0 then
                     local matched = false
                     for _, g in ipairs(in_globs) do
-                        if strutil.match_glob(g, display_path) then matched = true; break end
+                        if pickertools.match_glob(g, display_path, true) then matched = true; break end
                     end
                     if not matched then goto continue end
                 end

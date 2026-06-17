@@ -114,7 +114,7 @@ function M.spec(opts)
                 if not skip and #in_globs > 0 then
                     local matched = false
                     for _, g in ipairs(in_globs) do
-                        if pickertools.match_glob(g, data.relpath) then matched = true; break end
+                        if pickertools.match_glob(g, data.relpath, true) then matched = true; break end
                     end
                     if not matched then skip = true end
                 end

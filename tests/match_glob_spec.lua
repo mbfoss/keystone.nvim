@@ -1,0 +1,128 @@
+local pickertools = require("keystone.pick.base.pickertools")
+
+local match = pickertools.match_glob
+
+describe("match_glob basename patterns (no slash)", function()
+    it("matches a basename glob at any depth", function()
+        assert.is_true(match("*.txt", "foo.txt"))
+        assert.is_true(match("*.txt", "a/b/foo.txt"))
+        assert.is_true(match("*.lua", "lua/keystone/util/foo.lua"))
+    end)
+
+    it("anchors the extension", function()
+        assert.is_false(match("*.txt", "foo.txtx"))
+        assert.is_false(match("*.txt", "foo.txt.bak"))
+    end)
+
+    it("matches a bare name at any depth, the whole component only", function()
+        assert.is_true(match("foo", "foo"))
+        assert.is_true(match("foo", "a/foo"))
+        assert.is_false(match("foo", "foobar"))
+        assert.is_false(match("foo", "a/foo/bar")) -- foo is not the final component
+    end)
+
+    it("does not let * cross a separator", function()
+        assert.is_false(match("*.txt", "a/foo.txt/bar"))
+    end)
+end)
+
+describe("match_glob anchored patterns (with slash)", function()
+    it("anchors to the path root", function()
+        assert.is_true(match("src/*.lua", "src/foo.lua"))
+        assert.is_false(match("src/*.lua", "lua/src/foo.lua"))
+    end)
+
+    it("treats a leading slash as a root anchor", function()
+        assert.is_true(match("/foo.txt", "foo.txt"))
+        assert.is_false(match("/foo.txt", "a/foo.txt"))
+    end)
+
+    it("keeps a single * within one component", function()
+        assert.is_true(match("src/*", "src/foo"))
+        assert.is_false(match("src/*", "src/foo/bar"))
+    end)
+end)
+
+describe("match_glob globstar (**)", function()
+    it("leading **/ matches zero or more directories", function()
+        assert.is_true(match("**/foo", "foo"))
+        assert.is_true(match("**/foo", "a/foo"))
+        assert.is_true(match("**/foo", "a/b/foo"))
+        assert.is_false(match("**/foo", "a/foobar"))
+    end)
+
+    it("trailing /** matches everything inside a directory", function()
+        assert.is_true(match("src/**", "src/foo"))
+        assert.is_true(match("src/**", "src/a/b/c"))
+        assert.is_false(match("src/**", "src"))   -- not the directory itself
+        assert.is_false(match("src/**", "x/src/foo"))
+    end)
+
+    it("interior /**/ matches zero or more directories", function()
+        assert.is_true(match("a/**/b", "a/b"))
+        assert.is_true(match("a/**/b", "a/x/b"))
+        assert.is_true(match("a/**/b", "a/x/y/b"))
+        assert.is_false(match("a/**/b", "a/b/c"))
+        assert.is_false(match("a/**/b", "x/a/b"))
+    end)
+
+    it("combines ** with trailing globs", function()
+        assert.is_true(match("src/**/*.lua", "src/foo.lua"))
+        assert.is_true(match("src/**/*.lua", "src/a/b/foo.lua"))
+        assert.is_false(match("src/**/*.lua", "src/foo.txt"))
+    end)
+end)
+
+describe("match_glob single character (?)", function()
+    it("matches exactly one character", function()
+        assert.is_true(match("?.txt", "a.txt"))
+        assert.is_false(match("?.txt", "ab.txt"))
+        assert.is_false(match("?.txt", ".txt"))
+    end)
+
+    it("does not cross a separator", function()
+        assert.is_false(match("a?b", "a/b"))
+    end)
+end)
+
+describe("match_glob character classes", function()
+    it("matches a set", function()
+        assert.is_true(match("[abc].txt", "a.txt"))
+        assert.is_true(match("[abc].txt", "c.txt"))
+        assert.is_false(match("[abc].txt", "d.txt"))
+    end)
+
+    it("matches a range", function()
+        assert.is_true(match("[a-z].lua", "m.lua"))
+        assert.is_false(match("[a-z].lua", "0.lua"))
+    end)
+
+    it("negates with ! or ^", function()
+        assert.is_false(match("[!abc].txt", "a.txt"))
+        assert.is_true(match("[!abc].txt", "d.txt"))
+        assert.is_true(match("[^abc].txt", "d.txt"))
+    end)
+end)
+
+describe("match_glob case sensitivity", function()
+    it("is case-sensitive like ripgrep --glob", function()
+        assert.is_false(match("*.TXT", "foo.txt"))
+        assert.is_true(match("*.TXT", "foo.TXT"))
+    end)
+
+    it("matches case-insensitively when nocase is set", function()
+        assert.is_true(match("*.TXT", "foo.txt", true))
+        assert.is_true(match("SRC/*.LUA", "src/foo.lua", true))
+        assert.is_true(match("[A-Z].lua", "m.lua", true))
+    end)
+end)
+
+describe("match_glob edge cases", function()
+    it("returns false for an empty pattern", function()
+        assert.is_false(match("", "foo.txt"))
+    end)
+
+    it("ignores a trailing directory slash", function()
+        assert.is_true(match("foo", "a/foo"))
+    end)
+end)
