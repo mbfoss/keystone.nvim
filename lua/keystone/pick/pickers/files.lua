@@ -52,7 +52,6 @@ end
 ---@param fetch_opts keystone.Picker.FetcherOpts
 ---@param callback fun(items:keystone.Picker.Item[]?)
 local function async_lua_search(query, opts, fetch_opts, callback)
-    assert(query ~= "")
     local count              = 0
     local max_results        = opts.max_results or 10000
     local items              = {}
@@ -116,15 +115,15 @@ function M.spec(opts)
         flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "cwd" end, FLAGS) or FLAGS,
         enable_preview = true,
         finder         = function(query, flags, fetch_opts, callback, _)
-            if not query or query == "" then
+            local in_globs = flags.glob or {}
+            if (not query or query == "") and #in_globs == 0 then
                 callback()
                 return
             end
+            query = query or ""
 
             local target_cwd = flags.cwd or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
-
-            local in_globs = flags.glob or {}
 
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
