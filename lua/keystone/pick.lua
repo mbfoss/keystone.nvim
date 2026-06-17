@@ -127,7 +127,7 @@ function M.setup(opts)
             local out = {}
             for _, flag in ipairs(flags) do
                 if flag.type == "boolean" then
-                    table.insert(out, "is:" .. flag.name)
+                    table.insert(out, flag.name)
                 else
                     table.insert(out, flag.name .. ":")
                 end
