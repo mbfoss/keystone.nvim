@@ -1,13 +1,13 @@
-local Spinner    = require("keystone.util.Spinner")
-local common     = require("keystone.util.timer")
-local fsutil    = require("keystone.util.fsutil")
-local uitool    = require("keystone.util.uitool")
-local layouts    = require("keystone.explore.layouts")
+local Spinner     = require("keystone.util.Spinner")
+local common      = require("keystone.util.timer")
+local fsutil      = require("keystone.util.fsutil")
+local uitool      = require("keystone.util.uitool")
+local layouts     = require("keystone.explore.layouts")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
 
-local M          = {}
+local M           = {}
 
 local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
 local _NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
@@ -804,13 +804,12 @@ end
 
 function Explorer:setup_input()
     local opts = _key_opts_of(self.lbuf)
-
     vim.keymap.set("n", "l", function() self:run_fetch("in") end, opts)
     vim.keymap.set("n", "h", function() self:run_fetch("out") end, opts)
     vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, opts)
     vim.keymap.set("n", "<Esc>", function() self:close() end, opts)
     vim.keymap.set("n", "<Tab>", function() self:toggle_preview() end, opts)
-    vim.keymap.set("n", ".", function() self:toggle_hidden() end, opts)
+    vim.keymap.set("n", "gh", function() self:toggle_hidden() end, opts)
     vim.keymap.set("n", "a", function() self:_action_create(false) end, opts)
     vim.keymap.set("n", "A", function() self:_action_create(true) end, opts)
     vim.keymap.set("n", "r", function() self:_action_rename() end, opts)

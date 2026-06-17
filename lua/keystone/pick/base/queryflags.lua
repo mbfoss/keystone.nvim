@@ -27,15 +27,17 @@ end
 --
 -- The input is a flat list of whitespace-separated tokens with no separator;
 -- flags and query text may appear in any order. Each token is classified:
---   boolean flag:  "flagname"   → flags.flagname = true   (matching a boolean def)
---   value flag:    "key:value"  → flags.key = value       (or string[] if multi)
+--   boolean flag:  "is:flagname" → flags.flagname = true  (matching a boolean def)
+--   value flag:    "key:value"   → flags.key = value      (or string[] if multi)
 --   anything else: query text
 -- The query is every non-flag token joined back together with single spaces.
+-- Boolean flags have no standalone form — "flagname" alone is always query
+-- text; the "is:" prefix is what distinguishes a flag from a query word.
 --
 -- Quoting (' or ") lets a token contain spaces, and forces a token to be
 -- literal query text even when it would otherwise look like a flag:
 --   'path:"foo bar"' → value flag whose value contains a space
---   '"fixed"'        → query text "fixed" (not the boolean flag)
+--   '"is:fixed"'     → query text "is:fixed" (the key is quoted, so not a flag)
 --   '"path:foo"'     → query text "path:foo" (the key is quoted, so not a flag)
 -- An unterminated quote runs to the end of the token.
 
@@ -129,42 +131,44 @@ end
 -- Classify a single token against the flag schema.
 --
 -- A value flag is a "key:value" token whose key is unquoted and matches a value
--- def; the value may be quoted to contain spaces. A boolean flag is a wholly
--- unquoted token matching a boolean def. Everything else is query text. Quoting
--- the key part forces a token to be query text even if it looks like a flag.
+-- def; the value may be quoted to contain spaces. A boolean flag is an
+-- "is:flagname" token whose flagname matches a boolean def — there is no
+-- standalone form. Everything else is query text. Quoting the key part forces
+-- a token to be query text even if it looks like a flag.
 ---@param defs  table<string, keystone.queryflags.FlagDef>
 ---@param token keystone.queryflags.Token
 ---@return "boolean"|"value"|nil kind, string? key, string? value
 local function _classify(defs, token)
     local colon = token.colon_pos
-    if colon and colon > 1 then
-        -- "key:value" shape; only a flag when the key is not quoted.
-        local key_quoted = false
-        if token.quotes then
-            for _, q in ipairs(token.quotes) do
-                if q.open <= (token.colon_raw_pos or 0) then
-                    key_quoted = true
-                    break
-                end
+    if not colon or colon <= 1 then return nil end
+
+    -- "key:value" shape; only a flag when the key is not quoted.
+    local key_quoted = false
+    if token.quotes then
+        for _, q in ipairs(token.quotes) do
+            if q.open <= (token.colon_raw_pos or 0) then
+                key_quoted = true
+                break
             end
         end
-        if not key_quoted then
-            local key = token.text:sub(1, colon - 1)
-            local def = defs[key]
-            if def and def.type == "value" then
-                return "value", key, token.text:sub(colon + 1)
-            end
+    end
+    if key_quoted then return nil end
+
+    local key  = token.text:sub(1, colon - 1)
+    local rest = token.text:sub(colon + 1)
+
+    if key == "is" then
+        local def = defs[rest]
+        if def and def.type == "boolean" then
+            return "boolean", rest, nil
         end
         return nil
     end
 
-    if not token.quotes then
-        local def = defs[token.text]
-        if def and def.type == "boolean" then
-            return "boolean", token.text, nil
-        end
+    local def = defs[key]
+    if def and def.type == "value" then
+        return "value", key, rest
     end
-
     return nil
 end
 
