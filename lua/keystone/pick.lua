@@ -11,7 +11,6 @@ local pickertools = require("keystone.pick.base.pickertools")
 ---@field prompt string
 ---@field flags keystone.queryflags.FlagDef[]?
 ---@field enable_preview boolean?
----@field preview_default "visible"|"hidden"|nil
 ---@field enable_list_sep boolean?
 ---@field height_ratio number?
 ---@field width_ratio number?
@@ -41,7 +40,6 @@ local function _do_open(spec, data, initial_query)
         prompt             = spec.prompt,
         flags              = spec.flags,
         enable_preview     = spec.enable_preview,
-        preview_default    = spec.preview_default,
         enable_list_sep    = spec.enable_list_sep,
         height_ratio       = spec.height_ratio,
         width_ratio        = spec.width_ratio,

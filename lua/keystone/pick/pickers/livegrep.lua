@@ -86,6 +86,7 @@ local FLAGS       = {
     { name = "regex",  type = "boolean", desc = "enable regex mode"                                             },
     { name = "case",   type = "boolean", desc = "case-sensitive"                                                },
     { name = "follow", type = "boolean", desc = "follow symlinks"                                               },
+    { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"                                     },
 }
 
 
@@ -101,6 +102,10 @@ local function build_rg_cmd(parsed)
 
     if flags.follow then
         table.insert(args, "--follow")
+    end
+
+    if flags.hidden then
+        table.insert(args, "--hidden")
     end
 
     if flags.case then

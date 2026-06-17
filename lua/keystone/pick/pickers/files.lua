@@ -20,6 +20,7 @@ local icons       = require("keystone.icons")
 ---@field use_regex boolean?
 ---@field case_sensitive boolean?
 ---@field follow_symlinks boolean?
+---@field show_hidden boolean?
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
@@ -28,6 +29,7 @@ local FLAGS       = {
     { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
     { name = "case",   type = "boolean", desc = "case-sensitive"                    },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
+    { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"         },
 }
 
 ---@param filename string
@@ -56,7 +58,8 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results        = opts.max_results or 10000
     local items              = {}
 
-    local exclude_globs      = vim.list_extend({ ".*", "**/.*" }, opts.exclude_globs or {})
+    local base_excludes      = opts.show_hidden and {} or { ".*", "**/.*" }
+    local exclude_globs      = vim.list_extend(base_excludes, opts.exclude_globs or {})
     local include_regex_list = (opts.include_globs and #opts.include_globs > 0)
         and strutil.compile_globs(opts.include_globs) or nil
     local exclude_regex_list = strutil.compile_globs(exclude_globs)
@@ -135,6 +138,7 @@ function M.spec(opts)
                 use_regex       = flags.regex,
                 case_sensitive  = flags.case,
                 follow_symlinks = flags.follow,
+                show_hidden     = flags.hidden,
             }
             return async_lua_search(query, search_opts, fetch_opts, callback)
         end,

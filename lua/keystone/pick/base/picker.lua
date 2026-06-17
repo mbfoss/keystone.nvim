@@ -65,7 +65,6 @@ local _antiflicker_delay = 200
 ---@field flags keystone.queryflags.FlagDef[]?
 ---@field finder keystone.Picker.Finder?
 ---@field enable_preview boolean?
----@field preview_default "visible"|"hidden"|?
 ---@field previewer keystone.Picker.AsyncPreviewLoader?
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
@@ -94,7 +93,7 @@ local function _show_help()
 	local help_text = [[
 `<CR>`        Confirm
 `<Esc>`       Close picker
-`<Tab>`       Toggle preview window
+`<C-t>`       Toggle preview window
 `<C-n>`       Next item
 `<C-p>`       Previous item
 `<C-d>`       Scroll down half page
@@ -298,7 +297,7 @@ function Picker:init(opts, callback)
 	self.callback              = callback
 
 	self.preview_enabled       = opts.enable_preview
-	self.preview_default       = opts.preview_default
+	self.preview_default       = "visible" ---@type "visible"|"hidden"
 
 	self.list_items            = {} ---@type keystone.picker.ListItem[]
 
@@ -1150,7 +1149,7 @@ function Picker:setup_input()
 
 		vim.keymap.set({ "n", "i" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
-		vim.keymap.set({ "n", "i" }, "<Tab>", function() self:toggle_preview() end, pbuf_key_opts)
+		vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
 		vim.keymap.set("i", "<C-Space>", function()
 			self:trigger_flag_completion(self.query_text, false)

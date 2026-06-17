@@ -15,7 +15,7 @@ local FLAGS = {
 
 local function format_lhs(lhs)
     if not lhs then return "" end
-    return lhs:gsub(" ", "<space>"):gsub("\t", "<tab>")
+    return lhs:gsub(" ", "<space>"):gsub("\t", "<C-t>")
 end
 
 ---@param km vim.api.keyset.get_keymap

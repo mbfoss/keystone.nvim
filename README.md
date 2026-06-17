@@ -124,7 +124,7 @@ Opens in the directory of the current buffer (or cwd). Supports symlink resoluti
 | `l` | Enter directory |
 | `h` | Go up to parent |
 | `<Esc>` | Close |
-| `<Tab>` | Toggle preview |
+| `<C-t>` | Toggle preview |
 | `a` | Create file |
 | `A` | Create directory |
 | `r` | Rename |

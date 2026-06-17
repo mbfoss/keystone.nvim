@@ -73,7 +73,6 @@ function M.references_spec()
         flags           = REF_FLAGS,
         enable_list_sep = true,
         enable_preview  = true,
-        preview_default = "visible",
         setup           = function(callback)
             local action = "textDocument/references"
             vim.lsp.buf_request_all(0, action, params, function(results_per_client)
@@ -156,7 +155,6 @@ function M.document_symbols_spec(opts)
         prompt          = opts.prompt or "Document Symbols",
         flags           = SYMBOL_FLAGS,
         enable_preview  = true,
-        preview_default = "visible",
         setup           = function(callback)
             vim.lsp.buf_request(0, "textDocument/documentSymbol", params, function(err, result, _)
                 if err or not result then
