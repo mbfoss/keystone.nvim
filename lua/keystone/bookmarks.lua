@@ -11,16 +11,17 @@ local M = {}
 ---@field file string   -- absolute path
 ---@field lnum integer  -- 1-based line number
 
-local _SIGN_NAME = "bookmark"
-
 local store      = require("keystone.bookmarks.store")
 local inputwin   = require("keystone.util.inputwin")
 local uitool     = require("keystone.util.uitool")
 local picker     = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 
----@type keystone.bookmarks.signs.Group
-local _sign_group
+---@type keystone.bookmarks.extmarks.GroupFunctions
+local _mark_group
+
+---@type vim.api.keyset.set_extmark
+local _mark_opts
 
 ---@type keystone.bookmarks.Config
 local _config
@@ -51,14 +52,16 @@ end
 
 ---@return keystone.bookmarks.Entry[]
 local function _read_entries()
-    local signs = _sign_group.get_signs(true)
+    local marks = _mark_group.get_extmarks(true)
     local entries = {}
-    for _, s in ipairs(signs) do
-        entries[#entries + 1] = {
-            name = s.user_data.name,
-            file = s.file,
-            lnum = s.lnum,
-        }
+    for _, m in ipairs(marks) do
+        if m.user_data and m.user_data.name then
+            entries[#entries + 1] = {
+                name = m.user_data.name,
+                file = m.file,
+                lnum = m.lnum,
+            }
+        end
     end
     return entries
 end
@@ -68,10 +71,10 @@ local function _persist()
 end
 
 ---@param name string
----@return keystone.bookmarks.signs.SignInfo?
+---@return keystone.bookmarks.extmarks.MarkInfo?
 local function _find_by_name(name)
-    for _, s in ipairs(_sign_group.get_signs(false)) do
-        if s.user_data.name == name then return s end
+    for _, m in ipairs(_mark_group.get_extmarks(false)) do
+        if m.user_data and m.user_data.name == name then return m end
     end
 end
 
@@ -79,14 +82,14 @@ end
 ---@param file string
 ---@param lnum integer
 local function _upsert(name, file, lnum)
-    local by_loc = _sign_group.get_sign_by_location(file, lnum, true)
+    local by_loc = _mark_group.get_extmark_by_location(file, lnum, true)
     if by_loc then
         store.delete(file, lnum)
-        _sign_group.remove_sign(by_loc.id)
+        _mark_group.remove_extmark(by_loc.id)
     end
 
     store.add({ name = name, file = file, lnum = lnum })
-    _sign_group.set_file_sign(_new_id(), file, lnum, _SIGN_NAME, { name = name })
+    _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { name = name })
     _persist()
 end
 
@@ -99,7 +102,7 @@ function M.set_at_cursor()
         return
     end
     file = _norm(file)
-    local existing = _sign_group.get_sign_by_location(file, lnum, true)
+    local existing = _mark_group.get_extmark_by_location(file, lnum, true)
     local default = existing and existing.user_data.name or ""
     inputwin.open({ prompt = "Bookmark", default = default }, function(name)
         if not name or name:match("^%s*$") then return end
@@ -112,14 +115,14 @@ function M.delete_at_cursor()
     local file, lnum = uitool.get_current_file_and_line()
     if not file or not lnum then return end
     file = _norm(file)
-    local sign = _sign_group.get_sign_by_location(file, lnum, true)
-    if not sign then
+    local mark = _mark_group.get_extmark_by_location(file, lnum, true)
+    if not mark then
         vim.notify("[keystone] No bookmark at current line", vim.log.levels.WARN)
         return
     end
-    local name = sign.user_data.name
+    local name = mark.user_data.name
     store.delete(file, lnum)
-    _sign_group.remove_sign(sign.id)
+    _mark_group.remove_extmark(mark.id)
     _persist()
     vim.notify("[keystone] Deleted bookmark: " .. name)
 end
@@ -131,10 +134,10 @@ function M.clear_file()
     if not file or file == "" then return end
     uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
-        local signs = _sign_group.get_file_signs(file, false)
-        local before = #signs
-        for _, s in ipairs(signs) do store.delete(s.file, s.lnum) end
-        _sign_group.remove_file_signs(file)
+        local marks = _mark_group.get_file_extmarks(file, false)
+        local before = #marks
+        for _, m in ipairs(marks) do store.delete(m.file, m.lnum) end
+        _mark_group.remove_file_extmarks(file)
         _persist()
         if before > 0 then
             vim.notify(string.format("[keystone] Cleared %d bookmark(s) from file", before))
@@ -143,14 +146,14 @@ function M.clear_file()
 end
 
 function M.clear_all()
-    if #_sign_group.get_signs(false) == 0 then
+    if #_mark_group.get_extmarks(false) == 0 then
         vim.notify("[keystone] No bookmarks to clear")
         return
     end
     uitool.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
-        for _, s in ipairs(_sign_group.get_signs(false)) do store.delete(s.file, s.lnum) end
-        _sign_group.remove_signs()
+        for _, m in ipairs(_mark_group.get_extmarks(false)) do store.delete(m.file, m.lnum) end
+        _mark_group.remove_extmarks()
         _persist()
         vim.notify("[keystone] All bookmarks cleared")
     end)
@@ -219,12 +222,12 @@ function M.setup(opts)
 
     if not _config.enabled then return end
 
-    _sign_group = require("keystone.bookmarks.signs").define_group("bookmarks", { priority = 20 })
-    _sign_group.define_sign(_SIGN_NAME, _config.sign_text, _config.sign_hl)
+    _mark_group = require("keystone.bookmarks.extmarks").define_group("bookmarks", { priority = 20 })
+    _mark_opts  = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
 
     local stored = store.load(_config)
     for _, e in ipairs(stored) do
-        _sign_group.set_file_sign(_new_id(), e.file, e.lnum, _SIGN_NAME, { name = e.name })
+        _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { name = e.name })
     end
 
     vim.api.nvim_create_autocmd("VimLeave", {
