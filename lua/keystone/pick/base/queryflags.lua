@@ -1,8 +1,5 @@
 local M = {}
 
--- Token that separates the optional flags prefix from the literal query.
-local _SEP = "--"
-
 ---@class keystone.queryflags.FlagDef
 ---@field name   string
 ---@field type   "boolean"|"value"
@@ -11,9 +8,8 @@ local _SEP = "--"
 ---@field desc   string?    -- shown in the completion menu
 
 ---@class keystone.queryflags.ParseResult
----@field query       string    -- the literal query (everything after the `--` separator)
----@field flags       table     -- {[name] = true | string | string[]}
----@field sep_start_0 integer?  -- 0-indexed byte where the query begins, nil when no separator
+---@field query string  -- the literal query (all non-flag tokens, joined by space)
+---@field flags table   -- {[name] = true | string | string[]}
 
 ---@class keystone.queryflags.Completions
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
@@ -27,22 +23,21 @@ end
 
 -- Syntax:
 --
---   <flags> -- <query>
+--   <token> <token> ...
 --
--- A bare `--` token separates an optional flags prefix from the query. When no
--- separator is present the entire input is the literal query and no flags are
--- parsed. Because the query is taken verbatim, it never needs quoting: spaces,
--- colons and quote characters are all literal there.
---
--- Flags (before the separator) are whitespace-separated tokens:
+-- The input is a flat list of whitespace-separated tokens with no separator;
+-- flags and query text may appear in any order. Each token is classified:
 --   boolean flag:  "flagname"   → flags.flagname = true   (matching a boolean def)
 --   value flag:    "key:value"  → flags.key = value       (or string[] if multi)
---   anything else: ignored
+--   anything else: query text
+-- The query is every non-flag token joined back together with single spaces.
 --
--- Quoting (' or ") in the flags prefix lets a value contain spaces, e.g.
--- 'key:"a b c"', and lets a literal `--` token appear among the flags (`"--"`)
--- without being mistaken for the separator. An unterminated quote runs to the
--- end of the token.
+-- Quoting (' or ") lets a token contain spaces, and forces a token to be
+-- literal query text even when it would otherwise look like a flag:
+--   'path:"foo bar"' → value flag whose value contains a space
+--   '"fixed"'        → query text "fixed" (not the boolean flag)
+--   '"path:foo"'     → query text "path:foo" (the key is quoted, so not a flag)
+-- An unterminated quote runs to the end of the token.
 
 ---@class keystone.queryflags.Token
 ---@field text          string                           -- verbatim token text
@@ -131,103 +126,96 @@ local function _tokenize(str)
     return tokens
 end
 
--- Index of the first bare (unquoted) `--` token, or nil. A quoted `"--"` keeps
--- its `quotes` field and is therefore not treated as the separator.
----@param tokens keystone.queryflags.Token[]
----@return integer?
-local function _separator_index(tokens)
-    for i, t in ipairs(tokens) do
-        if t.text == _SEP and not t.quotes then return i end
-    end
-    return nil
-end
-
--- Apply a single flags-prefix token to the flags table.
+-- Classify a single token against the flag schema.
+--
+-- A value flag is a "key:value" token whose key is unquoted and matches a value
+-- def; the value may be quoted to contain spaces. A boolean flag is a wholly
+-- unquoted token matching a boolean def. Everything else is query text. Quoting
+-- the key part forces a token to be query text even if it looks like a flag.
 ---@param defs  table<string, keystone.queryflags.FlagDef>
----@param flags table
 ---@param token keystone.queryflags.Token
-local function _apply_flag(defs, flags, token)
+---@return "boolean"|"value"|nil kind, string? key, string? value
+local function _classify(defs, token)
     local colon = token.colon_pos
     if colon and colon > 1 then
-        local key = token.text:sub(1, colon - 1)
-        local val = token.text:sub(colon + 1)
-        local def = defs[key]
-        if def and def.type == "value" and val ~= "" then
-            if def.multi then
-                flags[key] = flags[key] or {}
-                table.insert(flags[key], val)
-            else
-                flags[key] = val
+        -- "key:value" shape; only a flag when the key is not quoted.
+        local key_quoted = false
+        if token.quotes then
+            for _, q in ipairs(token.quotes) do
+                if q.open <= (token.colon_raw_pos or 0) then
+                    key_quoted = true
+                    break
+                end
             end
         end
-    else
+        if not key_quoted then
+            local key = token.text:sub(1, colon - 1)
+            local def = defs[key]
+            if def and def.type == "value" then
+                return "value", key, token.text:sub(colon + 1)
+            end
+        end
+        return nil
+    end
+
+    if not token.quotes then
         local def = defs[token.text]
         if def and def.type == "boolean" then
-            flags[token.text] = true
+            return "boolean", token.text, nil
         end
     end
+
+    return nil
 end
 
 ---@param schema keystone.queryflags.FlagDef[]
 ---@param raw    string
 ---@return keystone.queryflags.ParseResult
 function M.parse(schema, raw)
-    local defs    = _build_map(schema)
-    local flags   = {}
-    local tokens  = _tokenize(raw)
-    local sep_idx = _separator_index(tokens)
+    local defs   = _build_map(schema)
+    local flags  = {}
+    local tokens = _tokenize(raw)
+    local parts  = {}
 
-    if not sep_idx then
-        return { query = raw, flags = flags, sep_start_0 = nil }
+    for _, token in ipairs(tokens) do
+        local kind, key, value = _classify(defs, token)
+        if kind == "value" and key then
+            if value and value ~= "" then
+                if defs[key].multi then
+                    flags[key] = flags[key] or {}
+                    table.insert(flags[key], value)
+                else
+                    flags[key] = value
+                end
+            end
+        elseif kind == "boolean" and key then
+            flags[key] = true
+        else
+            parts[#parts + 1] = token.text
+        end
     end
 
-    for i = 1, sep_idx - 1 do
-        _apply_flag(defs, flags, tokens[i])
-    end
-
-    local sep   = tokens[sep_idx]
-    local query = raw:sub(sep.finish + 1):gsub("^%s+", "")
-    return { query = query, flags = flags, sep_start_0 = sep.finish }
+    return { query = table.concat(parts, " "), flags = flags }
 end
 
 ---@param schema keystone.queryflags.FlagDef[]
 ---@param raw    string
 ---@return {start:integer, finish:integer, hl:string}[]
 function M.highlight(schema, raw)
-    local defs    = _build_map(schema)
-    local hls     = {}
-    local tokens  = _tokenize(raw)
-    local sep_idx = _separator_index(tokens)
+    local defs   = _build_map(schema)
+    local hls    = {}
+    local tokens = _tokenize(raw)
 
-    -- No separator: the whole input is the literal query, nothing to highlight.
-    if not sep_idx then return hls end
+    for _, token in ipairs(tokens) do
+        local kind, _, value = _classify(defs, token)
+        local s0 = token.start - 1
+        local e0 = token.finish
 
-    for i = 1, sep_idx do
-        local token = tokens[i]
-        local s0    = token.start - 1
-        local e0    = token.finish
-
-        if i == sep_idx then
-            table.insert(hls, { start = s0, finish = e0, hl = "Delimiter" })
-        else
-            local colon = token.colon_pos
-            if colon and colon > 1 then
-                local key = token.text:sub(1, colon - 1)
-                local val = token.text:sub(colon + 1)
-                local def = defs[key]
-                if def and def.type == "value" then
-                    table.insert(hls, { start = s0, finish = s0 + token.colon_raw_pos, hl = "Keyword" })
-                    if #val > 0 then
-                        table.insert(hls, { start = s0 + token.colon_raw_pos, finish = e0, hl = "String" })
-                    end
-                end
-            else
-                local def = defs[token.text]
-                if def and def.type == "boolean" then
-                    table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
-                end
+        if kind == "value" then
+            table.insert(hls, { start = s0, finish = s0 + token.colon_raw_pos, hl = "Keyword" })
+            if value and #value > 0 then
+                table.insert(hls, { start = s0 + token.colon_raw_pos, finish = e0, hl = "String" })
             end
-
             if token.quotes then
                 for _, q in ipairs(token.quotes) do
                     if q.close then
@@ -236,6 +224,8 @@ function M.highlight(schema, raw)
                     end
                 end
             end
+        elseif kind == "boolean" then
+            table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
         end
     end
 
@@ -253,10 +243,6 @@ function M.get_completions(schema, line, cursor_byte, auto)
 
     local before = line:sub(1, cursor_byte)
     local tokens = _tokenize(before)
-
-    -- Once the separator has been typed, the remainder is the literal query;
-    -- there are no more flags to complete.
-    if _separator_index(tokens) then return nil end
 
     local last         = tokens[#tokens]
     local word_start_1 = #before + 1
@@ -307,10 +293,6 @@ function M.get_completions(schema, line, cursor_byte, auto)
                 menu = def.desc or "[flag]",
             })
         end
-    end
-    -- Offer the separator once the user starts typing a dash.
-    if current_word:match("^%-") and vim.startswith(_SEP, current_word) then
-        table.insert(items, { word = _SEP, abbr = _SEP, menu = "[end flags]" })
     end
     return #items > 0 and { startcol = word_start_1, items = items } or nil
 end
