@@ -28,20 +28,21 @@ local _usercmd = require("keystone.util.usercmd")
 local function _get_default_config()
   ---@type keystone.lspconfig.Config
   return {
-    enabled     = true,
-    servers     = "all",
-    auto_enable = true,
-    format = {
+    enabled      = true,
+    servers      = "all",
+    auto_enable  = true,
+    format       = {
       on_save    = false,
       async      = false,
       timeout_ms = 2000,
       filter     = nil,
     },
-    inlay_hints = true,
-    diagnostics = {
+    inlay_hints  = true,
+    diagnostics  = {
       virtual_text     = { spacing = 2, prefix = "●" },
-      signs            = true,
-      underline        = true,
+      --virtual_lines    = { current_line = true, },
+      signs            = false,
+      underline        = false,
       update_in_insert = false,
       severity_sort    = true,
       float            = { border = "rounded", source = true },
@@ -106,8 +107,8 @@ end
 local function _setup_format_on_save(client, bufnr)
   if not M.config.format.on_save or not _can_format(client) then return end
   vim.api.nvim_create_autocmd("BufWritePre", {
-    group  = vim.api.nvim_create_augroup(_group .. "_format_" .. bufnr, { clear = true }),
-    buffer = bufnr,
+    group    = vim.api.nvim_create_augroup(_group .. "_format_" .. bufnr, { clear = true }),
+    buffer   = bufnr,
     callback = function()
       vim.lsp.buf.format({
         bufnr      = bufnr,
@@ -123,8 +124,8 @@ end
 ---@param bufnr integer
 local function _on_attach(client, bufnr)
   if M.config.inlay_hints
-    and client:supports_method("textDocument/inlayHint")
-    and vim.lsp.inlay_hint
+      and client:supports_method("textDocument/inlayHint")
+      and vim.lsp.inlay_hint
   then
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
   end

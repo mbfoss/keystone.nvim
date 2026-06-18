@@ -11,6 +11,7 @@ A quality-of-life Neovim plugin. Requires Neovim >= 0.10.
 - **Statusline** — mode, git branch, filename, diagnostics, filetype, position
 - **Breadcrumbs** — LSP symbol breadcrumb trail in the winbar, shown only when LSP is active
 - **Animate** — smooth scroll animation
+- **Treesitter** — auto-start treesitter highlighting and folds for any language with an installed parser
 - **LSP Words** — auto-highlight word under cursor via LSP
 - **Focus** — fullscreen floating overlay for the current buffer
 - **Text Objects** — treesitter and bracket-based text objects (`ia`, `if`, `ic`, `ib`, …)
@@ -31,6 +32,7 @@ require("keystone.statusline").setup()
 require("keystone.breadcrumbs").setup()
 require("keystone.animate").setup()
 require("keystone.lspwords").setup()
+require("keystone.tsconfig").setup()
 require("keystone.focus").setup()
 require("keystone.objects").setup()
 ```
@@ -219,6 +221,36 @@ require("keystone.lspwords").setup({
 ```
 
 **API:** `require("keystone.lspwords").enable()` / `.disable()` / `.clear()`
+
+---
+
+## Treesitter
+
+Vanilla Neovim only swaps regex syntax for treesitter highlighting on the
+handful of languages it bundles parsers for (c, lua, markdown, vim, …). For
+every other language, even with a parser installed, you stay on regex unless
+something calls `vim.treesitter.start()`. This module is that something: on
+`FileType` it starts treesitter highlighting and folds for any buffer whose
+language has an installed parser. It does **not** install parsers — pair it
+with `nvim-treesitter` (or bundled/`packadd`'d parsers) for that.
+
+```lua
+require("keystone.tsconfig").setup({
+  enabled   = true,
+  highlight = true,                 -- start treesitter highlighting (replaces regex)
+  fold      = true,                 -- foldmethod=expr + treesitter foldexpr
+  fold_open = true,                 -- start with folds open (foldlevel=99)
+  aliases   = {                     -- filetype -> parser language
+    -- typescriptreact = "tsx",
+  },
+  disable   = {},                   -- list of langs, or fun(lang, bufnr) -> boolean
+  on_attach = nil,                  -- fun(bufnr, lang), run after start
+})
+```
+
+**Command:** `:Treesitter <cmd>` — `info` (default), `start`, `stop`, `restart`, `enable`, `disable`.
+
+**API:** `require("keystone.tsconfig").attach(bufnr)` / `.stop(bufnr)` / `.enable()` / `.disable()` / `.info()`
 
 ---
 
