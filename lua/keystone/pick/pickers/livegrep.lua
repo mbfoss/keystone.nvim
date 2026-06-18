@@ -43,12 +43,12 @@ local function parse_match(line)
     return { path = path, lnum = data.line_number, col = col, text = text, subs = subs }
 end
 
----@param text     string
----@param subs     keystone.rgutil.Submatch[]
----@param match_hl string
----@param use_repl boolean?
+---@param text      string
+---@param subs      keystone.rgutil.Submatch[]
+---@param match_hl  string
+---@param show_repl boolean?  -- render "old → new" diff chunks instead of a single highlighted match
 ---@return {[1]:string,[2]:string?}[]
-local function build_chunks(text, subs, match_hl, use_repl)
+local function build_chunks(text, subs, match_hl, show_repl)
     local chunks = {}
     local last   = 1
     for _, sm in ipairs(subs) do
@@ -57,9 +57,10 @@ local function build_chunks(text, subs, match_hl, use_repl)
         if s > last then
             chunks[#chunks + 1] = { text:sub(last, s - 1) }
         end
-        if use_repl then
-            if sm.repl and #sm.repl > 0 then
-                chunks[#chunks + 1] = { sm.repl, match_hl }
+        if show_repl and sm.repl then
+            chunks[#chunks + 1] = { text:sub(s, e), "KeystoneReplaceOld" }
+            if #sm.repl > 0 then
+                chunks[#chunks + 1] = { sm.repl, "KeystoneReplaceNew" }
             end
         else
             chunks[#chunks + 1] = { text:sub(s, e), match_hl }
@@ -72,6 +73,71 @@ local function build_chunks(text, subs, match_hl, use_repl)
     return chunks
 end
 
+---@param text string
+---@param subs keystone.rgutil.Submatch[]
+---@return string
+local function apply_subs(text, subs)
+    local parts = {}
+    local last  = 1
+    for _, sm in ipairs(subs) do
+        local s = sm.s + 1
+        local e = sm.e
+        parts[#parts + 1] = text:sub(last, s - 1)
+        parts[#parts + 1] = sm.repl or text:sub(s, e)
+        last              = e + 1
+    end
+    parts[#parts + 1] = text:sub(last)
+    return table.concat(parts)
+end
+
+---@param items keystone.Picker.Item[]
+---@return integer total_occurrences, integer file_count
+local function count_matches(items)
+    local files = {}
+    local total = 0
+    for _, item in ipairs(items) do
+        local d = item.data
+        if d and d.filepath and d.subs then
+            files[d.filepath] = true
+            total             = total + #d.subs
+        end
+    end
+    return total, vim.tbl_count(files)
+end
+
+---@param items keystone.Picker.Item[]
+local function apply_replace_all(items)
+    local by_file = {}
+    local order   = {}
+    for _, item in ipairs(items) do
+        local d = item.data
+        if d and d.filepath and d.lnum and d.subs then
+            if not by_file[d.filepath] then
+                by_file[d.filepath] = {}
+                order[#order + 1]   = d.filepath
+            end
+            table.insert(by_file[d.filepath], { lnum = d.lnum, subs = d.subs })
+        end
+    end
+
+    for _, filepath in ipairs(order) do
+        local bufnr = vim.fn.bufadd(filepath)
+        vim.fn.bufload(bufnr)
+        for _, edit in ipairs(by_file[filepath]) do
+            local lnum = edit.lnum
+            if lnum >= 1 and lnum <= vim.api.nvim_buf_line_count(bufnr) then
+                local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+                if line then
+                    local new_line = apply_subs(line, edit.subs)
+                    if new_line ~= line then
+                        vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, { new_line })
+                    end
+                end
+            end
+        end
+    end
+end
+
 ---@class keystone.livegrep.opts
 ---@field max_results number?
 
@@ -81,12 +147,13 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",    type = "value",                              desc = "search root directory"              },
-    { name = "in",     type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
-    { name = "regex",  type = "boolean", desc = "enable regex mode"                                             },
-    { name = "case",   type = "boolean", desc = "case-sensitive"                                                },
-    { name = "follow", type = "boolean", desc = "follow symlinks"                                               },
-    { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"                                     },
+    { name = "cwd",     type = "value",                              desc = "search root directory"              },
+    { name = "in",      type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
+    { name = "regex",   type = "boolean", desc = "enable regex mode"                                             },
+    { name = "case",    type = "boolean", desc = "case-sensitive"                                                },
+    { name = "follow",  type = "boolean", desc = "follow symlinks"                                               },
+    { name = "hidden",  type = "boolean", desc = "include hidden (dotfiles)"                                     },
+    { name = "replace", type = "value",                              desc = "replacement text (enables search & replace)" },
 }
 
 
@@ -118,6 +185,11 @@ local function build_rg_cmd(parsed)
         table.insert(args, "--fixed-strings")
     end
 
+    if flags.replace then
+        table.insert(args, "--replace")
+        table.insert(args, flags.replace)
+    end
+
     for _, g in ipairs(include_globs) do
         table.insert(args, "-g")
         table.insert(args, g)
@@ -142,6 +214,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
         return
     end
 
+    local show_repl   = parsed.flags.replace ~= nil
     local max_results = grep_opts.max_results or 10000
     local stop_read   = false
     local items       = {}
@@ -169,9 +242,9 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
                 )
                 ---@type keystone.Picker.Item
                 table.insert(items, {
-                    label_chunks = build_chunks(m.text, m.subs, "Label", false),
+                    label_chunks = build_chunks(m.text, m.subs, "Label", show_repl),
                     virt_lines   = { { { location, "KeystonePickPath" } } },
-                    data         = { filepath = abs_path, lnum = m.lnum, col = m.col },
+                    data         = { filepath = abs_path, lnum = m.lnum, col = m.col, subs = m.subs },
                 })
                 count = count + 1
                 if count >= max_results then
@@ -217,6 +290,9 @@ end
 function M.spec(opts)
     opts = opts or {}
 
+    local _last_items    = {} ---@type keystone.Picker.Item[]
+    local _replace_value ---@type string?
+
     return {
         prompt          = "Live Grep",
         flags           = FLAGS,
@@ -225,12 +301,36 @@ function M.spec(opts)
         finder           = function(query, flags, fetch_opts, callback, _)
             local parsed     = { query = query, flags = flags }
             local target_cwd = flags.cwd and vim.fn.expand(flags.cwd) or vim.fn.getcwd()
+            _replace_value   = flags.replace
             return async_grep(parsed, {
                 cwd         = target_cwd,
                 max_results = opts.max_results or 10000,
-            }, fetch_opts, callback)
+            }, fetch_opts, function(items)
+                _last_items = items or {}
+                callback(items)
+            end)
         end,
         on_confirm = function(data)
+            if _replace_value then
+                local total, file_count = count_matches(_last_items)
+                if total == 0 then return end
+                uitool.confirm_action(
+                    string.format("Replace %d occurrence(s) across %d file(s)?", total, file_count),
+                    true,
+                    function(confirmed)
+                        if not confirmed then return end
+                        apply_replace_all(_last_items)
+                        vim.notify(
+                            string.format(
+                                "Replaced %d occurrence(s) in %d file(s) (buffers modified, not saved)",
+                                total, file_count
+                            ),
+                            vim.log.levels.INFO
+                        )
+                    end
+                )
+                return
+            end
             if data and data.filepath and data.lnum and data.col then
                 uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
             end

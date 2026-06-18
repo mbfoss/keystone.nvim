@@ -7,11 +7,18 @@ local fsutil = require("keystone.util.fsutil")
 --- `default` link so users can override it, but it can be restyled freely.
 M.PATH_HL = "KeystonePickPath"
 
+--- Highlight groups for the old/new text shown in search & replace mode
+--- (e.g. live grep's `replace:` flag).
+M.REPLACE_OLD_HL = "KeystoneReplaceOld"
+M.REPLACE_NEW_HL = "KeystoneReplaceNew"
+
 --- Register keystone picker highlight groups.  Re-applied on `ColorScheme`
 --- since linked `default` groups are cleared when the colorscheme changes.
 function M.setup_hl()
     local function apply()
         vim.api.nvim_set_hl(0, M.PATH_HL, { default = true, link = "@namespace" })
+        vim.api.nvim_set_hl(0, M.REPLACE_OLD_HL, { default = true, link = "DiffDelete" })
+        vim.api.nvim_set_hl(0, M.REPLACE_NEW_HL, { default = true, link = "DiffAdd" })
     end
     apply()
     vim.api.nvim_create_autocmd("ColorScheme", {

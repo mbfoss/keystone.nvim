@@ -14,27 +14,27 @@ describe("queryflags query", function()
     end)
 
     it("pulls flags out from anywhere, leaving the rest as the query", function()
-        local r = qf.parse(schema, "fixed hello path:src world")
+        local r = qf.parse(schema, "is:fixed hello path:src world")
         assert.is_true(r.flags.fixed)
         assert.are.equal("src", r.flags.path)
         assert.are.equal("hello world", r.query)
     end)
 
     it("accepts flags and query in any order", function()
-        local r = qf.parse(schema, "hello path:src fixed world")
+        local r = qf.parse(schema, "hello path:src is:fixed world")
         assert.is_true(r.flags.fixed)
         assert.are.equal("src", r.flags.path)
         assert.are.equal("hello world", r.query)
     end)
 
     it("keeps a quoted query token with spaces as one piece", function()
-        local r = qf.parse(schema, 'fixed "foo bar" baz')
+        local r = qf.parse(schema, 'is:fixed "foo bar" baz')
         assert.is_true(r.flags.fixed)
         assert.are.equal("foo bar baz", r.query)
     end)
 
     it("yields an empty query when only flags are present", function()
-        local r = qf.parse(schema, "fixed path:src")
+        local r = qf.parse(schema, "is:fixed path:src")
         assert.is_true(r.flags.fixed)
         assert.are.equal("src", r.flags.path)
         assert.are.equal("", r.query)
@@ -42,10 +42,10 @@ describe("queryflags query", function()
 end)
 
 describe("queryflags quoting as a flag escape", function()
-    it("treats a quoted boolean name as query text", function()
-        local r = qf.parse(schema, '"fixed" hello')
+    it("treats a quoted boolean flag as query text", function()
+        local r = qf.parse(schema, '"is:fixed" hello')
         assert.is_nil(r.flags.fixed)
-        assert.are.equal("fixed hello", r.query)
+        assert.are.equal("is:fixed hello", r.query)
     end)
 
     it("treats a quoted key:value token as query text", function()
@@ -62,16 +62,22 @@ describe("queryflags quoting as a flag escape", function()
 end)
 
 describe("queryflags boolean flags", function()
-    it("sets a bare boolean flag name", function()
-        local r = qf.parse(schema, "fixed hello world")
+    it("sets a boolean flag via the is: prefix", function()
+        local r = qf.parse(schema, "is:fixed hello world")
         assert.is_true(r.flags.fixed)
         assert.are.equal("hello world", r.query)
     end)
 
-    it("leaves an unknown bare token in the query", function()
-        local r = qf.parse(schema, "nope hello")
+    it("treats a bare boolean flag name as query text", function()
+        local r = qf.parse(schema, "fixed hello world")
+        assert.is_nil(r.flags.fixed)
+        assert.are.equal("fixed hello world", r.query)
+    end)
+
+    it("leaves an unknown is: token in the query", function()
+        local r = qf.parse(schema, "is:nope hello")
         assert.is_nil(r.flags.nope)
-        assert.are.equal("nope hello", r.query)
+        assert.are.equal("is:nope hello", r.query)
     end)
 end)
 
@@ -117,7 +123,7 @@ end)
 
 describe("queryflags highlight", function()
     it("highlights flags wherever they appear", function()
-        local hls = qf.highlight(schema, "hello fixed path:foo")
+        local hls = qf.highlight(schema, "hello is:fixed path:foo")
         local has_keyword = false
         local has_string  = false
         for _, h in ipairs(hls) do
@@ -129,17 +135,17 @@ describe("queryflags highlight", function()
     end)
 
     it("does not highlight quoted (escaped) flag tokens", function()
-        assert.are.same({}, qf.highlight(schema, '"fixed" "path:foo"'))
+        assert.are.same({}, qf.highlight(schema, '"is:fixed" "path:foo"'))
     end)
 end)
 
 describe("queryflags completion", function()
-    it("completes a bare boolean name", function()
-        local comps = qf.get_completions(schema, "fi", 2)
+    it("completes a partial is:<boolean> token", function()
+        local comps = qf.get_completions(schema, "is:fi", 5)
         assert.is_not_nil(comps)
         local found = false
         for _, item in ipairs(comps.items) do
-            if item.word == "fixed" then found = true end
+            if item.word == "is:fixed" then found = true end
         end
         assert.is_true(found)
     end)
