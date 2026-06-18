@@ -122,6 +122,7 @@ local function apply_replace_all(items)
 
     for _, filepath in ipairs(order) do
         local bufnr = vim.fn.bufadd(filepath)
+        vim.bo[bufnr].buflisted = true
         vim.fn.bufload(bufnr)
         for _, edit in ipairs(by_file[filepath]) do
             local lnum = edit.lnum
