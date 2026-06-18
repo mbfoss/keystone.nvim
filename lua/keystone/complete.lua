@@ -14,6 +14,7 @@ local M = {}
 ---@field delay integer
 ---@field lsp_completion keystone.complete.LspConfig
 ---@field key string
+---@field confirm_key string
 ---@field fallback_action string|function
 
 ---@return keystone.complete.Config
@@ -29,6 +30,7 @@ local function default_config()
       snippet_insert = nil,
     },
     key = "<C-Space>",
+    confirm_key = "<Tab>", -- e.g. "<Tab>" to accept the selected item, VSCode-style; falls back to the key's normal action when no menu is open
     fallback_action = "", -- "<C-n>",
   }
 end
@@ -43,6 +45,8 @@ local keys = {
   completefunc = vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true),
   omnifunc     = vim.api.nvim_replace_termcodes("<C-x><C-o>", true, false, true),
   ctrl_n       = vim.api.nvim_replace_termcodes("<C-g><C-g><C-n>", true, false, true),
+  select_next  = vim.api.nvim_replace_termcodes("<C-n>", true, false, true),
+  confirm      = vim.api.nvim_replace_termcodes("<C-y>", true, false, true),
 }
 
 local change_tick = 0
@@ -651,6 +655,7 @@ local function apply_config(config)
   end
 
   map(config.key, M.complete, { desc = "Complete with two-stage" })
+  map(config.confirm_key, function() M.confirm(config.confirm_key) end, { desc = "Confirm completion" })
 
   ---@param opt string
   ---@param val fun()
@@ -809,6 +814,26 @@ end
 --- Stop completion.
 M.stop = function()
   stop_completion()
+end
+
+--- Accept the highlighted completion entry, selecting the first one if none is
+--- highlighted yet. If no completion menu is open, jumps to the next snippet
+--- placeholder when one is active, otherwise sends `fallback_keys` -- so the
+--- same key can be mapped for VSCode-style Tab-to-accept behavior without
+--- breaking native snippet navigation.
+---@param fallback_keys string
+M.confirm = function(fallback_keys)
+  if pumvisible() then
+    if vim.fn.complete_info({ "selected" }).selected == -1 then
+      vim.api.nvim_feedkeys(keys.select_next, "n", false)
+    end
+    vim.api.nvim_feedkeys(keys.confirm, "n", false)
+    return
+  end
+  if vim.fn.has("nvim-0.10") == 1 and vim.snippet.active({ direction = 1 }) then
+    return vim.snippet.jump(1)
+  end
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(fallback_keys, true, false, true), "n", false)
 end
 
 ---@param opts keystone.complete.Config?
