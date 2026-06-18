@@ -66,6 +66,18 @@ local function _parser_available(lang)
   return #vim.api.nvim_get_runtime_file("parser/" .. lang .. ".*", false) > 0
 end
 
+-- True when `lang` has a query of the given kind on the runtimepath. Starting
+-- highlighting without a `highlights` query attaches a highlighter that colours
+-- nothing *and* disables regex syntax -- strictly worse than leaving regex on
+-- (this is the usual "parser installed but no queries" trap). So we gate on it.
+---@param lang string
+---@param kind string e.g. "highlights" | "folds"
+---@return boolean
+local function _has_query(lang, kind)
+  local ok, q = pcall(vim.treesitter.query.get, lang, kind)
+  return ok and q ~= nil
+end
+
 ---@param lang string
 ---@param bufnr integer
 ---@return boolean
@@ -103,7 +115,7 @@ function M.attach(bufnr)
   ---@cast lang string
   if _is_disabled(lang, bufnr) then return end
 
-  if M.config.highlight then
+  if M.config.highlight and _has_query(lang, "highlights") then
     -- pcall: a parser file can exist but fail to load (ABI mismatch); don't
     -- let one bad parser break the FileType autocmd.
     pcall(vim.treesitter.start, bufnr, lang)
@@ -111,7 +123,7 @@ function M.attach(bufnr)
 
   -- Fold options are window-local, so only apply them when this buffer is the
   -- one in the current window. The FileType autocmd always satisfies this.
-  if M.config.fold and vim.api.nvim_get_current_buf() == bufnr then
+  if M.config.fold and _has_query(lang, "folds") and vim.api.nvim_get_current_buf() == bufnr then
     _apply_fold()
   end
 
@@ -186,11 +198,24 @@ function M.info()
   end
   table.sort(names)
 
+  -- Explain *why* the buffer is on regex when it is: no parser, vs. a parser
+  -- present but missing its highlights query (the common "looks broken" case).
+  local status
+  if active then
+    status = "treesitter"
+  elseif not (lang and _parser_available(lang)) then
+    status = "regex (no parser)"
+  elseif not _has_query(lang, "highlights") then
+    status = "regex (parser present, but no highlights query -- install queries/nvim-treesitter)"
+  else
+    status = "regex (treesitter not started)"
+  end
+
   local lines = {
     "keystone.tsconfig",
     "  this buffer: ft=" .. (ft ~= "" and ft or "none")
       .. " lang=" .. (lang or "none")
-      .. " highlight=" .. (active and "treesitter" or (lang and _parser_available(lang) and "regex (parser available)" or "regex/none")),
+      .. " highlight=" .. status,
     "  installed parsers (" .. #names .. "): " .. (next(names) and table.concat(names, ", ") or "none"),
   }
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
