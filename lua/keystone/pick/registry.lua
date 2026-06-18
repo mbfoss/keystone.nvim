@@ -17,8 +17,6 @@ local _pickers = {
     document_symbols      = function() return require("keystone.pick.pickers.lsp").document_symbols_spec() end,
     document_diagnostics  = function() return require("keystone.pick.pickers.diagnosics").spec({ bufnr = 0 }) end,
     workspace_diagnostics = function() return require("keystone.pick.pickers.diagnosics").spec() end,
-    git_diff              = function() return require("keystone.pick.pickers.git_diff").spec() end,
-    git_history           = function() return require("keystone.pick.pickers.git_history").spec() end,
     buffers               = function() return require("keystone.pick.pickers.buffers").spec() end,
     all_buffers           = function()
         return require("keystone.pick.pickers.buffers").spec({
@@ -33,7 +31,6 @@ local _pickers = {
     keymaps               = function() return require("keystone.pick.pickers.keymaps").spec() end,
     notifications         = function() return require("keystone.pick.pickers.notifications").spec() end,
     commands              = function() return require("keystone.pick.pickers.commands").spec() end,
-    parse_debug           = function() return require("keystone.pick.pickers.parse_debug").spec() end,
 }
 
 ---@param name string
