@@ -17,8 +17,8 @@ M.REPLACE_NEW_HL = "KeystoneReplaceNew"
 function M.setup_hl()
     local function apply()
         vim.api.nvim_set_hl(0, M.PATH_HL, { default = true, link = "@namespace" })
-        vim.api.nvim_set_hl(0, M.REPLACE_OLD_HL, { default = true, link = "DiffDelete" })
-        vim.api.nvim_set_hl(0, M.REPLACE_NEW_HL, { default = true, link = "DiffAdd" })
+        vim.api.nvim_set_hl(0, M.REPLACE_OLD_HL, { default = true, link = "NonText" })
+        vim.api.nvim_set_hl(0, M.REPLACE_NEW_HL, { default = true, link = "Added" })
     end
     apply()
     vim.api.nvim_create_autocmd("ColorScheme", {
