@@ -166,7 +166,7 @@ local function build_rg_cmd(parsed)
 
     local include_globs = vim.list_extend({}, flags["in"] or {})
 
-    local args = { "--json", "--no-heading", "--glob-case-insensitive" }
+    local args = { "--json", "--no-heading", "--glob-case-insensitive", "--sort", "path" }
 
     if flags.follow then
         table.insert(args, "--follow")

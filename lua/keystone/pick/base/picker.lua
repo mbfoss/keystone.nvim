@@ -93,7 +93,6 @@ local function _show_help()
 	local help_text = [[
 `<CR>`        Confirm
 `<Esc>`       Close picker
-`<C-t>`       Toggle preview window
 `<C-n>`       Next item
 `<C-p>`       Previous item
 `<C-d>`       Scroll down half page
@@ -1148,8 +1147,6 @@ function Picker:setup_input()
 		vim.keymap.set("n", "k", function() self:history_prev() end, pbuf_key_opts)
 
 		vim.keymap.set({ "n", "i" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
-
-		vim.keymap.set({ "n", "i" }, "<C-t>", function() self:toggle_preview() end, pbuf_key_opts)
 
 		vim.keymap.set("i", "<C-Space>", function()
 			self:trigger_flag_completion(self.query_text, false)
