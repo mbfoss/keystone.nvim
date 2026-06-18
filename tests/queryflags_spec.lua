@@ -192,3 +192,38 @@ describe("queryflags completion", function()
         assert.is_true(found)
     end)
 end)
+
+describe("queryflags value completion type", function()
+    local sources = {
+        { name = "tag",  type = "value", complete = function(partial)
+            return vim.tbl_filter(
+                function(v) return vim.startswith(v, partial) end,
+                { "alpha", "beta", "gamma" }
+            )
+        end },
+        { name = "lang", type = "value", values = { "lua", "vim" }, complete = function() return { "rust" } end },
+        { name = "win",  type = "value", complete = "with spaces source" },
+    }
+
+    local function words(s, line)
+        local comps = qf.get_completions(s, line, #line)
+        if not comps then return {} end
+        return vim.tbl_map(function(it) return it.word end, comps.items)
+    end
+
+    it("completes values from a function source, filtered by the partial", function()
+        assert.are.same({ "tag:beta" }, words(sources, "tag:be"))
+    end)
+
+    it("merges static values with a dynamic complete source", function()
+        local got = words(sources, "lang:")
+        assert.is_true(vim.tbl_contains(got, "lang:lua"))
+        assert.is_true(vim.tbl_contains(got, "lang:vim"))
+        assert.is_true(vim.tbl_contains(got, "lang:rust"))
+    end)
+
+    it("does not error on an unknown getcompletion type", function()
+        local schema = { { name = "x", type = "value", complete = "definitely_not_a_type" } }
+        assert.has_no.errors(function() qf.get_completions(schema, "x:foo", 5) end)
+    end)
+end)

@@ -1,11 +1,17 @@
 local M = {}
 
+---A source for a value flag's completion candidates: either a
+---`vim.fn.getcompletion()` type (e.g. "file", "dir", "buffer", "color"), or a
+---function returning candidates for the partial value typed so far.
+---@alias keystone.queryflags.CompleteSpec string|fun(partial:string):string[]
+
 ---@class keystone.queryflags.FlagDef
----@field name   string
----@field type   "boolean"|"value"
----@field multi  boolean?   -- allow multiple occurrences (type=value only)
----@field values string[]?  -- known values offered in completion (type=value only)
----@field desc   string?    -- shown in the completion menu
+---@field name     string
+---@field type     "boolean"|"value"
+---@field multi    boolean?   -- allow multiple occurrences (type=value only)
+---@field values   string[]?  -- known static values offered in completion (type=value only)
+---@field complete keystone.queryflags.CompleteSpec?  -- dynamic value completion source (type=value only)
+---@field desc     string?    -- shown in the completion menu
 
 ---@class keystone.queryflags.ParseResult
 ---@field query string  -- the literal query (all non-flag tokens, joined by space)
@@ -278,18 +284,35 @@ function M.get_completions(schema, line, cursor_byte, auto)
             return #items > 0 and { startcol = word_start_1, items = items } or nil
         end
 
-        -- Case 2: Inside a "value_flag:<partial_value>" block
+        -- Case 2: Inside a "value_flag:<partial_value>" block. Candidates come
+        -- from the flag's static `values` and/or its dynamic `complete` source
+        -- (e.g. file/dir completion); the value is quoted when it contains a space.
         local def = defs[prefix]
-        if def and def.type == "value" and def.values then
+        if def and def.type == "value" and (def.values or def.complete) then
             local items = {}
-            for _, v in ipairs(def.values) do
-                if vim.startswith(v, partial) then
-                    local word = v:find("%s")
-                        and (prefix .. ':"' .. v .. '"')
-                        or (prefix .. ":" .. v)
-                    table.insert(items, { word = word, abbr = v })
-                end
+            local function add(v)
+                local word = v:find("%s")
+                    and (prefix .. ':"' .. v .. '"')
+                    or (prefix .. ":" .. v)
+                table.insert(items, { word = word, abbr = v })
             end
+
+            for _, v in ipairs(def.values or {}) do
+                if vim.startswith(v, partial) then add(v) end
+            end
+
+            if def.complete then
+                local cands
+                if type(def.complete) == "function" then
+                    cands = def.complete(partial)
+                else
+                    -- getcompletion already filters by `partial`; trust its output.
+                    local ok, res = pcall(vim.fn.getcompletion, partial, def.complete)
+                    cands = ok and res or nil
+                end
+                for _, v in ipairs(cands or {}) do add(v) end
+            end
+
             return #items > 0 and { startcol = word_start_1, items = items } or nil
         end
         return nil

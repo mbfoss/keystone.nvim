@@ -111,8 +111,8 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
-    { name = "cwd",       type = "value",                 desc = "search root directory (inside the repo)" },
-    { name = "in",        type = "value",   multi = true, desc = "limit to pathspec(s): *.lua, src/"       },
+    { name = "cwd",       type = "value",   complete = "dir",  desc = "search root directory (inside the repo)" },
+    { name = "in",        type = "value",   multi = true, complete = "file", desc = "limit to pathspec(s): *.lua, src/" },
     { name = "regex",     type = "boolean",               desc = "treat query as a POSIX extended regex"   },
     { name = "case",      type = "boolean",               desc = "case-sensitive"                          },
     { name = "word",      type = "boolean",               desc = "match whole words only"                  },

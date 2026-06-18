@@ -8,14 +8,13 @@ local M = {}
 
 ---@class keystone.complete.MappingsConfig
 ---@field force_twostep string
----@field force_fallback string
 
 ---@class keystone.complete.Config
 ---@field enabled boolean
 ---@field delay integer
 ---@field lsp_completion keystone.complete.LspConfig
+---@field key string
 ---@field fallback_action string|function
----@field mappings keystone.complete.MappingsConfig
 
 local function default_config()
   ---@type keystone.complete.Config
@@ -28,11 +27,8 @@ local function default_config()
       process_items  = nil,
       snippet_insert = nil,
     },
+    key = "<C-Space>",
     fallback_action = "", -- "<C-n>",
-    mappings        = {
-      force_twostep  = "<C-Space>",
-      force_fallback = "<A-Space>",
-    },
   }
 end
 
@@ -90,16 +86,6 @@ local function in_float()
   return vim.api.nvim_win_get_config(0).relative ~= ""
 end
 
-local function tbl_get(t, id)
-  if type(id) ~= "table" then return tbl_get(t, { id }) end
-  local ok, res = true, t
-  for _, i in ipairs(id) do
-    ok, res = pcall(function() return res[i] end)
-    if not ok or res == nil then return nil end
-  end
-  return res
-end
-
 local function pop_extmark(id, delete_text)
   local data = vim.api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true })
   vim.api.nvim_buf_del_extmark(0, ns, id)
@@ -120,7 +106,7 @@ local function has_lsp_clients(capability)
   if vim.tbl_isempty(clients) then return false end
   if not capability then return true end
   for _, c in pairs(clients) do
-    if tbl_get(c.server_capabilities, capability) then return true end
+    if vim.tbl_get(c.server_capabilities, capability) then return true end
   end
   return false
 end
@@ -133,7 +119,7 @@ end
 local function is_trigger_char(char, kind)
   local providers = { completion = "completionProvider", signature = "signatureHelpProvider" }
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
-    local triggers = tbl_get(client, { "server_capabilities", providers[kind], "triggerCharacters" })
+    local triggers = vim.tbl_get(client, "server_capabilities", providers[kind], "triggerCharacters")
     if vim.tbl_contains(triggers or {}, char) then return true end
   end
   return false
@@ -164,7 +150,7 @@ end
 
 local function lsp_edit_range(rd)
   if rd.err or rd.error or type(rd.result) ~= "table" then return end
-  local er = tbl_get(rd.result, { "itemDefaults", "editRange" })
+  local er = vim.tbl_get(rd.result, "itemDefaults", "editRange")
   if type(er) == "table" then return er.insert or er end
   local items = rd.result.items or rd.result
   for _, item in ipairs(items) do
@@ -203,7 +189,7 @@ end
 
 local function lsp_filter_word(x) return x.filterText or x.label end
 local function lsp_word(item)
-  return tbl_get(item, { "textEdit", "newText" }) or item.insertText or lsp_filter_word(item) or ""
+  return vim.tbl_get(item, "textEdit", "newText") or item.insertText or lsp_filter_word(item) or ""
 end
 
 local function apply_defaults(items, defaults)
@@ -242,10 +228,11 @@ local function to_vim_items(items)
     local is_snippet   = (is_sk or is_sf) and snip_body
 
     local details      = item.labelDetails or {}
-    local sm           = is_snippet and "S" or ""
-    local detail, desc = details.detail or "", details.description or ""
-    local menu         = sm .. ((sm ~= "" and detail ~= "") and " " or "") .. detail
-    menu               = menu .. ((menu ~= "" and desc ~= "") and " " or "") .. desc
+    local menu_parts   = {}
+    if is_snippet then menu_parts[#menu_parts + 1] = "S" end
+    if details.detail and details.detail ~= "" then menu_parts[#menu_parts + 1] = details.detail end
+    if details.description and details.description ~= "" then menu_parts[#menu_parts + 1] = details.description end
+    local menu         = table.concat(menu_parts, " ")
 
     table.insert(res, {
       word = is_snippet and lsp_filter_word(item) or word,
@@ -487,7 +474,7 @@ local function show_doc_content(documentation)
 end
 
 local function on_complete_changed()
-  local lsp_data = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
+  local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
   if not lsp_data then
     show_doc_content(nil); return
   end
@@ -499,7 +486,7 @@ local function on_complete_changed()
   end
 
   local client = vim.lsp.get_client_by_id(item.client_id)
-  if not client or not tbl_get(client, { "server_capabilities", "completionProvider", "resolveProvider" }) then
+  if not client or not vim.tbl_get(client, "server_capabilities", "completionProvider", "resolveProvider") then
     show_doc_content(nil)
     return
   end
@@ -510,7 +497,7 @@ local function on_complete_changed()
     state.lsp.resolved[item_id] = result
     vim.schedule(function()
       if not pumvisible() then return end
-      local cur = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
+      local cur = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
       if cur and cur.item_id == item_id then show_doc_content(result.documentation) end
     end)
   end, vim.api.nvim_get_current_buf())
@@ -520,7 +507,7 @@ local function show_signature_help()
   if in_float() then return end
   local client
   for _, c in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
-    if tbl_get(c, { "server_capabilities", "signatureHelpProvider" }) then
+    if vim.tbl_get(c, "server_capabilities", "signatureHelpProvider") then
       client = c
       break
     end
@@ -580,7 +567,7 @@ end
 
 local function on_complete_done()
   if state.lsp.status == "received" then return end
-  local lsp_data = tbl_get(vim.v.completed_item, { "user_data", "lsp" })
+  local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
   if lsp_data ~= nil then apply_completion_extras(lsp_data) end
   M.stop()
 end
@@ -597,8 +584,7 @@ local function apply_config(config)
     vim.keymap.set("i", lhs, rhs, vim.tbl_extend("force", { silent = true }, opts or {}))
   end
 
-  map(config.mappings.force_twostep, M.complete_twostage, { desc = "Complete with two-stage" })
-  map(config.mappings.force_fallback, M.complete_fallback, { desc = "Complete with fallback" })
+  map(config.key, M.complete, { desc = "Complete with two-stage" })
 
   local function set_if_unset(opt, val)
     if not vim.api.nvim_get_option_info2(opt, { scope = "global" }).was_set then val() end
@@ -656,7 +642,7 @@ M.completefunc_lsp = function(findstart, base)
   local is_incomplete     = false
   local all_items         = collect_lsp_results(state.lsp.result, function(response, client_id)
     is_incomplete = is_incomplete or (response.isIncomplete == true)
-    local items   = tbl_get(response, { "items" }) or response
+    local items   = response.items or response
     if type(items) ~= "table" then return {} end
     items = apply_defaults(items, response.itemDefaults)
     for _, item in ipairs(items) do item.client_id = client_id end
@@ -735,19 +721,12 @@ M.get_lsp_capabilities = function()
 end
 
 --- Force two-stage completion.
-M.complete_twostage = function(fallback, force)
+M.complete = function(fallback, force)
   if fallback == nil then fallback = true end
   if force == nil then force = true end
   stop_completion()
   state.fallback, state.force = fallback, force
   trigger_auto()
-end
-
---- Force fallback completion.
-M.complete_fallback = function()
-  stop_completion()
-  state.fallback, state.force = true, true
-  trigger_fallback()
 end
 
 --- Stop completion.

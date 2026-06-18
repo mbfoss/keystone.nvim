@@ -24,7 +24,7 @@ local icons       = require("keystone.icons")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",    type = "value",   desc = "override search root directory"    },
+    { name = "cwd",    type = "value",   complete = "dir", desc = "override search root directory"    },
     { name = "glob",   type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
     { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
     { name = "case",   type = "boolean", desc = "case-sensitive"                    },

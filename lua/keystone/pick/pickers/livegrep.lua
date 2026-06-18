@@ -148,7 +148,7 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",     type = "value",                              desc = "search root directory"              },
+    { name = "cwd",     type = "value",   complete = "dir",          desc = "search root directory"              },
     { name = "in",      type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
     { name = "regex",   type = "boolean", desc = "enable regex mode"                                             },
     { name = "case",    type = "boolean", desc = "case-sensitive"                                                },
