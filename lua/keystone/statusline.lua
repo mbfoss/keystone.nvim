@@ -4,25 +4,27 @@ local icons    = require("keystone.icons")
 local throttle = require("keystone.util.throttle")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
+local _enabled = false
 
----A section provider is a self-contained module (one per file under
----`keystone/statusline/`) that owns its state, highlights and lifecycle.
+---A section provider renders one statusline section and optionally owns its own
+---highlights and lifecycle. The built-in sections are registered exactly like
+---user-provided ones — see `M.register`.
+---
+---  - `render`     returns the section text (statusline syntax); `""` to omit it.
+---  - `highlights` highlight groups to define on enable / `ColorScheme`. They are
+---                 only set if not already defined, so users can override them.
+---  - `enable`     sets up any state/autocmds. Receives an `on_change` callback to
+---                 invoke whenever the section's state changes, triggering a
+---                 throttled `redrawstatus`.
+---  - `disable`    tears down whatever `enable` set up.
 ---@class keystone.statusline.Provider
 ---@field render     fun(bufnr: integer): string
 ---@field highlights table<string, vim.api.keyset.highlight>?
 ---@field enable     fun(on_change: fun())?
 ---@field disable    fun()?
 
----Complex sections live in their own provider files; simple stateless sections
----are defined inline below.
----@type table<string, keystone.statusline.Provider>
-local _providers = {
-  lsp_progress = require("keystone.statusline.lsp_progress"),
-  symbol       = require("keystone.statusline.symbol"),
-}
-
----A section can be a builtin name or a function returning a statusline string.
----Builtin names: "mode" | "git" | "filename" | "symbol" | "lsp_progress" | "diagnostics" | "filetype" | "position"
+---A section is either the name of a registered provider or an inline function
+---returning a statusline string.
 ---@alias keystone.statusline.Section string | fun(bufnr: integer): string
 
 ---@class keystone.statusline.Sections
@@ -32,6 +34,62 @@ local _providers = {
 ---@class keystone.statusline.Config
 ---@field enabled  boolean
 ---@field sections keystone.statusline.Sections
+
+-- ---------------------------------------------------------------------------
+-- Provider registry
+-- ---------------------------------------------------------------------------
+
+---@type table<string, keystone.statusline.Provider>
+local _registry = {}
+
+---Define a highlight group only if it is not already defined, so user/colorscheme
+---definitions win.
+local function _def(name, opts)
+  if next(vim.api.nvim_get_hl(0, { name = name })) == nil then
+    vim.api.nvim_set_hl(0, name, opts)
+  end
+end
+
+---@param provider keystone.statusline.Provider
+local function _apply_highlights(provider)
+  for name, opts in pairs(provider.highlights or {}) do
+    _def(name, opts)
+  end
+end
+
+---Register a section provider under `name` so it can be referenced from
+---`config.sections`. A bare function is treated as a render-only provider.
+---
+---May be called at any time: if the statusline is already enabled, the
+---provider's highlights are applied and its `enable` hook is run immediately.
+---
+---@param name     string
+---@param provider keystone.statusline.Provider | fun(bufnr: integer): string
+function M.register(name, provider)
+  if type(provider) == "function" then
+    provider = { render = provider }
+  end
+  assert(type(provider) == "table" and type(provider.render) == "function",
+    "keystone.statusline: provider must have a `render` function")
+  _registry[name] = provider
+  if _enabled then
+    _apply_highlights(provider)
+    if provider.enable then provider.enable(_redrawstatus) end
+  end
+end
+
+---Remove a previously registered section provider, tearing it down if enabled.
+---@param name string
+function M.unregister(name)
+  local provider = _registry[name]
+  if not provider then return end
+  if _enabled and provider.disable then provider.disable() end
+  _registry[name] = nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Config
+-- ---------------------------------------------------------------------------
 
 local function _get_default_config()
   ---@type keystone.statusline.Config
@@ -48,7 +106,7 @@ end
 M.config = _get_default_config()
 
 -- ---------------------------------------------------------------------------
--- Simple builtin sections (stateless)
+-- Built-in simple sections (stateless). Complex ones live in their own files.
 -- ---------------------------------------------------------------------------
 
 local _MODE_MAP = {
@@ -70,13 +128,6 @@ local function _section_mode(_)
   local raw  = vim.fn.mode()
   local info = _MODE_MAP[raw] or { label = "?", hl = "KeystoneSLModeNormal" }
   return "%#" .. info.hl .. "# " .. info.label .. " %*"
-end
-
----@param bufnr integer
-local function _section_git(bufnr)
-  local branch = vim.b[bufnr].gitsigns_head or vim.g.gitsigns_head
-  if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit#  " .. branch:gsub("%%", "%%%%") .. " %*"
 end
 
 ---@param bufnr integer
@@ -126,58 +177,43 @@ local function _section_position(_)
   return "%* %4l:%-3c "
 end
 
----@type table<string, vim.api.keyset.highlight>
-local _BASE_HIGHLIGHTS = {
-  KeystoneSLModeNormal  = { fg = "#6E94C9", bold = true },
-  KeystoneSLModeInsert  = { fg = "#7BA87A", bold = true },
-  KeystoneSLModeVisual  = { fg = "#9D82C7", bold = true },
-  KeystoneSLModeReplace = { fg = "#B87A90", bold = true },
-  KeystoneSLModeCommand = { fg = "#CDCDCD", bold = true },
-  KeystoneSLGit         = { link = "" },
-  KeystoneSLDiagError   = { link = "DiagnosticError" },
-  KeystoneSLDiagWarn    = { link = "DiagnosticWarn" },
-  KeystoneSLDiagHint    = { link = "DiagnosticHint" },
-}
-
----Renderers for the simple builtin sections, merged with provider renderers
----in `_builtins()`.
----@type table<string, fun(bufnr: integer): string>
-local _SIMPLE = {
-  mode        = _section_mode,
-  git         = _section_git,
-  filename    = _section_filename,
-  diagnostics = _section_diagnostics,
-  filetype    = _section_filetype,
-  position    = _section_position,
-}
-
----@return table<string, fun(bufnr: integer): string>
-local function _builtins()
-  local builtins = vim.tbl_extend("error", {}, _SIMPLE)
-  for name, provider in pairs(_providers) do
-    builtins[name] = provider.render
-  end
-  return builtins
+---Register the built-in sections through the same public registry users use.
+local function _register_builtins()
+  M.register("mode", {
+    render = _section_mode,
+    highlights = {
+      KeystoneSLModeNormal  = { fg = "#6E94C9", bold = true },
+      KeystoneSLModeInsert  = { fg = "#7BA87A", bold = true },
+      KeystoneSLModeVisual  = { fg = "#9D82C7", bold = true },
+      KeystoneSLModeReplace = { fg = "#B87A90", bold = true },
+      KeystoneSLModeCommand = { fg = "#CDCDCD", bold = true },
+    },
+  })
+  M.register("git", require("keystone.statusline.git"))
+  M.register("filename", _section_filename)
+  M.register("diagnostics", {
+    render = _section_diagnostics,
+    highlights = {
+      KeystoneSLDiagError = { link = "DiagnosticError" },
+      KeystoneSLDiagWarn  = { link = "DiagnosticWarn" },
+      KeystoneSLDiagHint  = { link = "DiagnosticHint" },
+    },
+  })
+  M.register("filetype", _section_filetype)
+  M.register("position", _section_position)
+  M.register("lsp_progress", require("keystone.statusline.lsp_progress"))
+  M.register("symbol", require("keystone.statusline.symbol"))
 end
+
+_register_builtins()
 
 -- ---------------------------------------------------------------------------
 -- Highlights
 -- ---------------------------------------------------------------------------
 
 local function _setup_highlights()
-  local function def(name, opts)
-    if next(vim.api.nvim_get_hl(0, { name = name })) == nil then
-      vim.api.nvim_set_hl(0, name, opts)
-    end
-  end
-
-  for name, opts in pairs(_BASE_HIGHLIGHTS) do
-    def(name, opts)
-  end
-  for _, provider in pairs(_providers) do
-    for name, opts in pairs(provider.highlights or {}) do
-      def(name, opts)
-    end
+  for _, provider in pairs(_registry) do
+    _apply_highlights(provider)
   end
 end
 
@@ -186,18 +222,17 @@ end
 -- ---------------------------------------------------------------------------
 
 ---@param section_list keystone.statusline.Section[]
----@param builtins      table<string, fun(bufnr: integer): string>
 ---@param bufnr        integer
 ---@return string
-local function _render_sections(section_list, builtins, bufnr)
+local function _render_sections(section_list, bufnr)
   local out = {}
   for _, section in ipairs(section_list) do
     local chunk
     if type(section) == "function" then
       chunk = section(bufnr)
     elseif type(section) == "string" then
-      local fn = builtins[section]
-      chunk = fn and fn(bufnr) or ""
+      local provider = _registry[section]
+      chunk = provider and provider.render(bufnr) or ""
     end
     if chunk and chunk ~= "" then
       table.insert(out, chunk)
@@ -217,10 +252,9 @@ function M.render()
     if cfg.relative ~= "" then return "" end
     local bufnr = vim.api.nvim_win_get_buf(winid)
 
-    local builtins = _builtins()
-    local secs     = M.config.sections
-    local left     = _render_sections(secs.left,  builtins, bufnr)
-    local right    = _render_sections(secs.right, builtins, bufnr)
+    local secs  = M.config.sections
+    local left  = _render_sections(secs.left,  bufnr)
+    local right = _render_sections(secs.right, bufnr)
 
     return left .. "%=" .. right
   end)
@@ -231,8 +265,6 @@ end
 -- Lifecycle
 -- ---------------------------------------------------------------------------
 
-local _enabled = false
-
 function M.enable()
   if _enabled then return end
   _enabled = true
@@ -240,7 +272,7 @@ function M.enable()
   _setup_highlights()
   vim.o.statusline = '%{%v:lua.require("keystone.statusline").render()%}'
 
-  for _, provider in pairs(_providers) do
+  for _, provider in pairs(_registry) do
     if provider.enable then provider.enable(_redrawstatus) end
   end
 
@@ -255,7 +287,7 @@ function M.disable()
   if not _enabled then return end
   _enabled = false
 
-  for _, provider in pairs(_providers) do
+  for _, provider in pairs(_registry) do
     if provider.disable then provider.disable() end
   end
 
