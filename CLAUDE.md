@@ -29,7 +29,7 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `explore` | `:FileSelector <cmd>` | Floating file explorer/selector |
 | `notify` | — | Replaces `vim.notify` with floating notifications + LSP progress |
 | `lspconfig` | `:Lsp <cmd>` | Auto-enable LSP servers (`vim.lsp.enable`) + diagnostics, format-on-save, inlay hints |
-| `tsconfig` | `:Treesitter <cmd>` | Auto-start treesitter highlight (`vim.treesitter.start`) + folds on `FileType` for parser-backed buffers; filetype→parser aliases |
+| `tsconfig` | — | Auto-start treesitter highlight (`vim.treesitter.start`) + folds on `FileType` for parser-backed buffers; filetype→parser aliases. Diagnose with `:checkhealth keystone.tsconfig` |
 | `lspwords` | — | Document highlight (LSP word references) on cursor move |
 | `animate` | — | Scroll/cursor animation |
 | `focus` | — | Float preview of current buffer |

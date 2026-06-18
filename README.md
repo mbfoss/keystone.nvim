@@ -248,9 +248,9 @@ require("keystone.tsconfig").setup({
 })
 ```
 
-**Command:** `:Treesitter <cmd>` — `info` (default), `start`, `stop`, `restart`, `enable`, `disable`.
+**Health:** `:checkhealth keystone.tsconfig` — reports installed parsers, which are missing highlights queries (the usual "parser but no colors" trap), and the current buffer's highlight status.
 
-**API:** `require("keystone.tsconfig").attach(bufnr)` / `.stop(bufnr)` / `.enable()` / `.disable()` / `.info()`
+**API:** `require("keystone.tsconfig").attach(bufnr)` / `.stop(bufnr)` / `.enable()` / `.disable()` / `.is_enabled()`
 
 ---
 

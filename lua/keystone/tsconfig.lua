@@ -1,7 +1,5 @@
 local M = {}
 
-local _usercmd = require("keystone.util.usercmd")
-
 -- ---------------------------------------------------------------------------
 -- Config
 -- ---------------------------------------------------------------------------
@@ -143,7 +141,7 @@ function M.enable()
   if _enabled then return end
   if not _has_api() then
     vim.notify(
-      "[keystone.nvim] tsconfig module requires Neovim >= 0.10 (vim.treesitter.start). Module disabled.",
+      "[keystone.nvim] tsconfig requires Neovim >= 0.10 (vim.treesitter.start)",
       vim.log.levels.WARN
     )
     return
@@ -180,77 +178,11 @@ function M.disable()
   pcall(vim.api.nvim_del_augroup_by_name, _group)
 end
 
--- Print a short summary: installed parsers, and this buffer's language + which
--- highlighter (treesitter vs. regex) is currently driving it.
-function M.info()
-  local buf = vim.api.nvim_get_current_buf()
-  local ft = vim.bo[buf].filetype
-  local lang = _lang_for(buf)
-  local active = vim.treesitter.highlighter.active[buf] ~= nil
-
-  local seen, names = {}, {}
-  for _, f in ipairs(vim.api.nvim_get_runtime_file("parser/*.so", true)) do
-    local name = vim.fn.fnamemodify(f, ":t:r")
-    if not seen[name] then
-      seen[name] = true
-      table.insert(names, name)
-    end
-  end
-  table.sort(names)
-
-  -- Explain *why* the buffer is on regex when it is: no parser, vs. a parser
-  -- present but missing its highlights query (the common "looks broken" case).
-  local status
-  if active then
-    status = "treesitter"
-  elseif not (lang and _parser_available(lang)) then
-    status = "regex (no parser)"
-  elseif not _has_query(lang, "highlights") then
-    status = "regex (parser present, but no highlights query -- install queries/nvim-treesitter)"
-  else
-    status = "regex (treesitter not started)"
-  end
-
-  local lines = {
-    "keystone.tsconfig",
-    "  this buffer: ft=" .. (ft ~= "" and ft or "none")
-      .. " lang=" .. (lang or "none")
-      .. " highlight=" .. status,
-    "  installed parsers (" .. #names .. "): " .. (next(names) and table.concat(names, ", ") or "none"),
-  }
-  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
-end
-
--- ---------------------------------------------------------------------------
--- User command
--- ---------------------------------------------------------------------------
-
-local _subcommands = {
-  info    = function() M.info() end,
-  start   = function() M.attach() end,
-  stop    = function() M.stop() end,
-  restart = function() M.stop(); M.attach() end,
-  enable  = function() M.enable() end,
-  disable = function() M.disable() end,
-}
-
----@param _cmd string
----@param args string[]
-local function _run(_cmd, args)
-  local sub = args[1] or "info"
-  local fn = _subcommands[sub]
-  if not fn then
-    vim.notify("[keystone.nvim] :Treesitter unknown subcommand '" .. sub .. "'", vim.log.levels.ERROR)
-    return
-  end
-  fn()
-end
-
----@param _cmd string
----@param rest string[]
-local function _complete(_cmd, rest)
-  if #rest > 0 then return {} end
-  return vim.tbl_keys(_subcommands)
+-- Whether the module is active (FileType autocmd installed). Used by the
+-- `:checkhealth keystone.tsconfig` report.
+---@return boolean
+function M.is_enabled()
+  return _enabled
 end
 
 -- ---------------------------------------------------------------------------
@@ -260,11 +192,6 @@ end
 ---@param opts keystone.tsconfig.Config?
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
-
-  _usercmd.register_user_cmd("Treesitter", _run, {
-    desc = "keystone treesitter control",
-    subcommand_fn = _complete,
-  })
 
   if M.config.enabled then
     M.enable()
