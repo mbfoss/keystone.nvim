@@ -16,6 +16,7 @@ local M = {}
 ---@field key string
 ---@field fallback_action string|function
 
+---@return keystone.complete.Config
 local function default_config()
   ---@type keystone.complete.Config
   return {
@@ -64,28 +65,40 @@ local state = {
   init_base = { lnum = nil, col = nil, length = nil },
 }
 
+---@type table<integer, string>?
 local kind_map -- lazily built by build_kind_map()
-local doc_win  -- floating documentation window
+---@type integer? floating documentation window
+local doc_win
 
 -- Utilities ------------------------------------------------------------------
 
+---@return keystone.complete.Config
 local function get_config()
   return vim.tbl_deep_extend("force", M.config, vim.b.keystone_complete_config or {})
 end
 
+---@return boolean
 local function pumvisible() return vim.fn.pumvisible() > 0 end
+
+---@param c string
+---@return boolean
 local function is_keyword(c) return vim.fn.match(c, "[[:keyword:]]") >= 0 end
 
+---@return string
 local function get_left_char()
   local line = vim.api.nvim_get_current_line()
   local col  = vim.api.nvim_win_get_cursor(0)[2]
   return string.sub(line, col, col)
 end
 
+---@return boolean
 local function in_float()
   return vim.api.nvim_win_get_config(0).relative ~= ""
 end
 
+---@param id integer
+---@param delete_text? boolean
+---@return table
 local function pop_extmark(id, delete_text)
   local data = vim.api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true })
   vim.api.nvim_buf_del_extmark(0, ns, id)
@@ -101,6 +114,8 @@ end
 
 -- LSP helpers ----------------------------------------------------------------
 
+---@param capability? string
+---@return boolean
 local function has_lsp_clients(capability)
   local clients = vim.lsp.get_clients({ bufnr = 0 })
   if vim.tbl_isempty(clients) then return false end
@@ -111,11 +126,15 @@ local function has_lsp_clients(capability)
   return false
 end
 
+---@return boolean
 local function lsp_func_set()
   local sf = get_config().lsp_completion.source_func
   return vim.bo[sf] == "v:lua.require'keystone.complete'.completefunc_lsp"
 end
 
+---@param char string
+---@param kind "completion"|"signature"
+---@return boolean
 local function is_trigger_char(char, kind)
   local providers = { completion = "completionProvider", signature = "signatureHelpProvider" }
   for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
@@ -133,10 +152,15 @@ local function cancel_lsp()
   state.lsp.result, state.lsp.cancel_fn = nil, nil
 end
 
+---@param id integer
+---@return boolean
 local function lsp_request_current(id)
   return state.lsp.id == id and state.lsp.status == "sent"
 end
 
+---@param request_result table
+---@param processor fun(result: table, client_id: integer): table?
+---@return table
 local function collect_lsp_results(request_result, processor)
   if not request_result then return {} end
   local res = {}
@@ -148,6 +172,8 @@ local function collect_lsp_results(request_result, processor)
   return res
 end
 
+---@param rd table
+---@return table?
 local function lsp_edit_range(rd)
   if rd.err or rd.error or type(rd.result) ~= "table" then return end
   local er = vim.tbl_get(rd.result, "itemDefaults", "editRange")
@@ -158,6 +184,9 @@ local function lsp_edit_range(rd)
   end
 end
 
+---@param lsp_result table
+---@return table from
+---@return table to
 local function completion_range(lsp_result)
   local pos = vim.api.nvim_win_get_cursor(0)
   for _, rd in pairs(lsp_result or {}) do
@@ -168,6 +197,7 @@ local function completion_range(lsp_result)
   return { pos[1], vim.fn.match(line:sub(1, pos[2]), "\\k*$") }, pos
 end
 
+---@type fun(context: table): function|table
 local position_params
 if vim.fn.has("nvim-0.11") == 1 then
   position_params = function(context)
@@ -187,11 +217,19 @@ end
 
 -- Item processing ------------------------------------------------------------
 
+---@param x table
+---@return string
 local function lsp_filter_word(x) return x.filterText or x.label end
+
+---@param item table
+---@return string
 local function lsp_word(item)
   return vim.tbl_get(item, "textEdit", "newText") or item.insertText or lsp_filter_word(item) or ""
 end
 
+---@param items table
+---@param defaults table
+---@return table
 local function apply_defaults(items, defaults)
   if type(defaults) ~= "table" then return items end
   local er, has_er = defaults.editRange, type(defaults.editRange) == "table"
@@ -212,6 +250,8 @@ local function apply_defaults(items, defaults)
   return items
 end
 
+---@param items table
+---@return table
 local function to_vim_items(items)
   if vim.tbl_count(items) == 0 then return {} end
 
@@ -259,17 +299,23 @@ local function build_kind_map()
   end
 end
 
+---@param items table
+---@param kind_priority table
+---@return table
 local function sort_by_kind(items, kind_priority)
   build_kind_map()
+  local map = kind_map --[[@as table<integer, string>]]
   local raw = {}
   for i, item in ipairs(items) do
-    local priority = kind_priority[kind_map[item.kind]] or 100
+    local priority = kind_priority[map[item.kind]] or 100
     if priority >= 0 then table.insert(raw, { priority, i, item }) end
   end
   table.sort(raw, function(a, b) return a[1] > b[1] or (a[1] == b[1] and a[2] < b[2]) end)
   return vim.tbl_map(function(x) return x[3] end, raw)
 end
 
+---@param items table
+---@return table
 local function add_hlgroups(items)
   local deprecated_tag = vim.lsp.protocol.CompletionTag.Deprecated
   for _, item in ipairs(items) do
@@ -283,6 +329,9 @@ end
 
 -- Completion flow ------------------------------------------------------------
 
+---@param keep_source? boolean
+---@param keep_lsp_incomplete? boolean
+---@param keep_lsp_resolved? boolean
 local function stop_completion(keep_source, keep_lsp_incomplete, keep_lsp_resolved)
   state.timer:stop()
   cancel_lsp()
@@ -309,6 +358,7 @@ local function trigger_fallback()
 end
 
 -- forward declaration: request_completion and trigger_lsp mutually reference each other
+---@type function
 local trigger_lsp
 
 local function request_completion()
@@ -346,12 +396,16 @@ end
 
 -- LSP extra actions (snippet insert, additional text edits, commands) --------
 
+---@param client_id? integer
+---@param text_edits? table
 local function apply_text_edits(client_id, text_edits)
   if text_edits == nil then return end
   local enc = client_id and vim.lsp.get_client_by_id(client_id).offset_encoding or "utf-16"
   vim.lsp.util.apply_text_edits(text_edits, vim.api.nvim_get_current_buf(), enc)
 end
 
+---@param client_id? integer
+---@param command? table
 local function exec_command(client_id, command)
   if command == nil or client_id == nil then return end
   local client = vim.lsp.get_client_by_id(client_id)
@@ -360,6 +414,12 @@ local function exec_command(client_id, command)
   end
 end
 
+---@param client_id? integer
+---@param text_edits? table
+---@param from table
+---@param to table
+---@return table from
+---@return table to
 local function tracked_text_edits(client_id, text_edits, from, to)
   if text_edits == nil then return from, to end
 
@@ -378,6 +438,7 @@ local function tracked_text_edits(client_id, text_edits, from, to)
   return { fd[1] + 1, fd[2] }, { td[1] + 1, td[2] }
 end
 
+---@param lsp_data table
 local function apply_completion_extras(lsp_data)
   local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
   if item.additionalTextEdits == nil and item.command == nil and not lsp_data.needs_snippet_insert then return end
@@ -445,6 +506,7 @@ local function close_doc_win()
   doc_win = nil
 end
 
+---@param documentation? string|table
 local function show_doc_content(documentation)
   local lines
   if documentation then
@@ -578,7 +640,11 @@ local function setup_hl()
   vim.api.nvim_set_hl(0, "KeystoneCompletionDeprecated", { default = true, link = "DiagnosticDeprecated" })
 end
 
+---@param config keystone.complete.Config
 local function apply_config(config)
+  ---@param lhs string
+  ---@param rhs function
+  ---@param opts? table
   local function map(lhs, rhs, opts)
     if lhs == "" then return end
     vim.keymap.set("i", lhs, rhs, vim.tbl_extend("force", { silent = true }, opts or {}))
@@ -586,6 +652,8 @@ local function apply_config(config)
 
   map(config.key, M.complete, { desc = "Complete with two-stage" })
 
+  ---@param opt string
+  ---@param val fun()
   local function set_if_unset(opt, val)
     if not vim.api.nvim_get_option_info2(opt, { scope = "global" }).was_set then val() end
   end
@@ -596,8 +664,12 @@ local function apply_config(config)
   end
 end
 
+---@param config keystone.complete.Config
 local function setup_autocmds(config)
   local gr = vim.api.nvim_create_augroup("keystone_complete", { clear = true })
+  ---@param event string|string[]
+  ---@param pattern string
+  ---@param cb function
   local function au(event, pattern, cb)
     vim.api.nvim_create_autocmd(event, { group = gr, pattern = pattern, callback = cb })
   end
@@ -623,6 +695,9 @@ end
 -- Public API -----------------------------------------------------------------
 
 --- Two-stage LSP → fallback completion function. Set as completefunc/omnifunc.
+---@param findstart 0|1
+---@param base string
+---@return integer|table|nil
 M.completefunc_lsp = function(findstart, base)
   if not has_lsp_clients("completionProvider") or state.lsp.status == "sent" then
     return findstart == 1 and -3 or {}
@@ -721,6 +796,8 @@ M.get_lsp_capabilities = function()
 end
 
 --- Force two-stage completion.
+---@param fallback? boolean
+---@param force? boolean
 M.complete = function(fallback, force)
   if fallback == nil then fallback = true end
   if force == nil then force = true end
