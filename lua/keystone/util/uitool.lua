@@ -171,6 +171,27 @@ function M.smart_open_file(filepath, line, col, activate)
     return winid, bufnr
 end
 
+---@param bufnr integer
+---@param line? integer 1-based line number (nil = just open)
+---@param col?  integer 0-based column (nil = column 0)
+---@return number winid
+function M.smart_open_buffer(bufnr, line, col)
+    local tabpage = vim.api.nvim_get_current_tabpage()
+    for _, winid in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+        if vim.api.nvim_win_get_buf(winid) == bufnr then
+            vim.api.nvim_set_current_win(winid)
+            _safe_set_cursor_pos(winid, line, col)
+            return winid
+        end
+    end
+
+    local winid = _get_regular_window()
+    vim.api.nvim_set_current_win(winid)
+    vim.fn.win_execute(winid, "buffer " .. bufnr)
+    _safe_set_cursor_pos(winid, line, col)
+    return winid
+end
+
 ---@param msg string
 ---@param default_yes boolean
 ---@param callback fun(confirmed: boolean|nil)
