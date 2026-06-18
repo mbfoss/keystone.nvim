@@ -28,6 +28,7 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `filetree` | `:FileTree <cmd>` | Sidebar file tree |
 | `explore` | `:FileSelector <cmd>` | Floating file explorer/selector |
 | `notify` | — | Replaces `vim.notify` with floating notifications + LSP progress |
+| `lspconfig` | `:Lsp <cmd>` | Auto-enable LSP servers (`vim.lsp.enable`) + diagnostics, format-on-save, inlay hints |
 | `lspwords` | — | Document highlight (LSP word references) on cursor move |
 | `animate` | — | Scroll/cursor animation |
 | `focus` | — | Float preview of current buffer |
