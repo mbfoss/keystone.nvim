@@ -55,19 +55,31 @@ function M.check()
   end
 
   _h.info(("%d installed: %s"):format(#parsers, table.concat(parsers, ", ")))
+  -- Only flag a query type the module actually uses: highlights gate the
+  -- regex->treesitter swap, folds gate foldexpr. A disabled feature is not a fault.
+  local cfg = tsconfig.config
   local missing = 0
   for _, lang in ipairs(parsers) do
-    if _has_query(lang, "highlights") then
-      _h.ok(lang .. ": highlights query present")
-    else
-      missing = missing + 1
+    local no_hl = cfg.highlight and not _has_query(lang, "highlights")
+    local no_fold = cfg.fold and not _has_query(lang, "folds")
+    if no_hl then
       _h.warn(lang .. ": no highlights query", {
         "add queries/" .. lang .. "/highlights.scm to runtimepath",
       })
     end
+    if no_fold then
+      _h.warn(lang .. ": no folds query", {
+        "add queries/" .. lang .. "/folds.scm to runtimepath",
+      })
+    end
+    if no_hl or no_fold then
+      missing = missing + 1
+    else
+      _h.ok(lang .. ": queries present")
+    end
   end
   if missing == 0 then
-    _h.ok("all parsers have highlights queries")
+    _h.ok("all parsers have required queries")
   end
 end
 
