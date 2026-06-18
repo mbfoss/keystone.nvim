@@ -1,7 +1,5 @@
 local M = {}
 
-local pickertools = require("keystone.pick.base.pickertools")
-
 ---@param name string
 ---@param hl table
 ---@param query string
@@ -18,7 +16,7 @@ local function highlight_to_item(name, hl, query, list_width)
 
     local link = hl.link
     if link then
-        table.insert(chunks, { " → ", "Comment" })
+        table.insert(chunks, { " → ", "NonText" })
         table.insert(chunks, { link, link })
     end
 

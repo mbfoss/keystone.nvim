@@ -572,7 +572,7 @@ function Picker:render_position()
 	local cur = self:get_cursor() or 1
 	local text = string.format("%d/%d", cur, total)
 	vim.api.nvim_buf_set_extmark(self.pbuf, _NS_CURSOR, 0, 0, {
-		virt_text = { { text, "Comment" } },
+		virt_text = { { text, "NonText" } },
 		virt_text_pos = "eol_right_align",
 		hl_mode = "blend",
 		priority = 50,
@@ -717,7 +717,7 @@ function Picker:start_spinner()
 			if not self.pbuf then return end
 			vim.api.nvim_buf_clear_namespace(self.pbuf, _NS_SPINNER, 0, -1)
 			vim.api.nvim_buf_set_extmark(self.pbuf, _NS_SPINNER, 0, 0, {
-				virt_text = { { frame .. " ", "Comment" } },
+				virt_text = { { frame .. " ", "NonText" } },
 				virt_text_pos = "eol_right_align",
 				priority = 1,
 			})

@@ -42,6 +42,23 @@ local _enabled = false
 ---@type table<string, keystone.statusline.Provider>
 local _registry = {}
 
+---Names of providers whose `enable` hook is currently running, so `disable`
+---tears down exactly those — not whatever `M.config.sections` says *now*,
+---which may have already changed by the time `disable` runs (see `M.setup`).
+---@type table<string, true>
+local _active = {}
+
+---Whether `name` is referenced anywhere in the current config's sections, i.e.
+---whether its `enable`/`disable` lifecycle should actually run.
+---@param name string
+---@return boolean
+local function _is_used(name)
+  for _, list in pairs(M.config.sections) do
+    if vim.tbl_contains(list, name) then return true end
+  end
+  return false
+end
+
 ---Define a highlight group only if it is not already defined, so user/colorscheme
 ---definitions win.
 local function _def(name, opts)
@@ -72,8 +89,9 @@ function M.register(name, provider)
   assert(type(provider) == "table" and type(provider.render) == "function",
     "keystone.statusline: provider must have a `render` function")
   _registry[name] = provider
-  if _enabled then
+  if _enabled and _is_used(name) then
     _apply_highlights(provider)
+    _active[name] = true
     if provider.enable then provider.enable(_redrawstatus) end
   end
 end
@@ -83,7 +101,8 @@ end
 function M.unregister(name)
   local provider = _registry[name]
   if not provider then return end
-  if _enabled and provider.disable then provider.disable() end
+  if _active[name] and provider.disable then provider.disable() end
+  _active[name] = nil
   _registry[name] = nil
 end
 
@@ -212,8 +231,8 @@ _register_builtins()
 -- ---------------------------------------------------------------------------
 
 local function _setup_highlights()
-  for _, provider in pairs(_registry) do
-    _apply_highlights(provider)
+  for name, provider in pairs(_registry) do
+    if _is_used(name) then _apply_highlights(provider) end
   end
 end
 
@@ -272,8 +291,11 @@ function M.enable()
   _setup_highlights()
   vim.o.statusline = '%{%v:lua.require("keystone.statusline").render()%}'
 
-  for _, provider in pairs(_registry) do
-    if provider.enable then provider.enable(_redrawstatus) end
+  for name, provider in pairs(_registry) do
+    if _is_used(name) then
+      _active[name] = true
+      if provider.enable then provider.enable(_redrawstatus) end
+    end
   end
 
   local group = vim.api.nvim_create_augroup("keystone_statusline", { clear = true })
@@ -287,9 +309,11 @@ function M.disable()
   if not _enabled then return end
   _enabled = false
 
-  for _, provider in pairs(_registry) do
-    if provider.disable then provider.disable() end
+  for name in pairs(_active) do
+    local provider = _registry[name]
+    if provider and provider.disable then provider.disable() end
   end
+  _active = {}
 
   vim.api.nvim_del_augroup_by_name("keystone_statusline")
   vim.o.statusline = ""
