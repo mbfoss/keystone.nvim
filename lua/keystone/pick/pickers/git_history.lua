@@ -188,7 +188,7 @@ end
 ---@param cwd    string
 ---@param parent string  -- parent rev (or empty-tree sha for a root commit)
 ---@param hash   string
----@return string? left_dir, string? right_dir
+---@return string? left_dir, string? right_dir, string? base_dir
 local function materialize_commit(cwd, parent, hash)
     local ns = vim.system(
         { "git", "diff", "--name-status", "-z", parent, hash },
@@ -240,8 +240,11 @@ local function materialize_commit(cwd, parent, hash)
         end
     end
 
-    if not any then return nil end
-    return left_dir, right_dir
+    if not any then
+        vim.fn.delete(base, "rf")
+        return nil
+    end
+    return left_dir, right_dir, base
 end
 
 ---@class keystone.githistory.opts
@@ -262,6 +265,11 @@ function M.spec(opts)
         vim.notify("Not inside a git work tree", vim.log.levels.ERROR)
         return nil
     end
+
+    -- Temp dirs from the previous diff session. Cleared lazily on the next
+    -- confirm (the prior `nvim.difftool` session has finished reading by then);
+    -- Neovim removes whatever remains when it exits.
+    local _last_base ---@type string?
 
     return {
         prompt          = "Git History",
@@ -309,11 +317,18 @@ function M.spec(opts)
                 parent = vim.trim(p.stdout)
             end
 
-            local left_dir, right_dir = materialize_commit(cwd, parent, data.hash)
+            -- Reclaim the previous diff session's temp dirs before starting a new one.
+            if _last_base then
+                vim.fn.delete(_last_base, "rf")
+                _last_base = nil
+            end
+
+            local left_dir, right_dir, base = materialize_commit(cwd, parent, data.hash)
             if not left_dir or not right_dir then
                 vim.notify("No file changes in commit " .. data.short, vim.log.levels.INFO)
                 return
             end
+            _last_base = base
 
             require("difftool").open(left_dir, right_dir, { rename = { detect = true } })
         end,
