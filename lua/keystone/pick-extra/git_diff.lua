@@ -96,7 +96,7 @@ function M.spec()
     ):wait()
 
     if result.code ~= 0 then
-        local err = result.stderr and strutil.crop_string_for_ui(result.stderr, 70) or ""
+        local err = result.stderr and strutil.crop_for_ui(result.stderr, 70) or ""
         vim.notify(
             ("git status failed (exit code %d): %s"):format(result.code, err ~= "" and err or "unknown error"),
             vim.log.levels.ERROR
