@@ -178,18 +178,6 @@ Requires [gitsigns.nvim](https://github.com/lewis6991/gitsigns.nvim) for the bra
 
 ---
 
-## Breadcrumbs
-
-```lua
-require("keystone.breadcrumbs").setup({
-  enabled = true,
-})
-```
-
-Displays a live LSP symbol breadcrumb trail in the winbar: `› SymbolKind Name › …`. The winbar is only set when an LSP client supporting `textDocument/documentSymbol` attaches to the buffer, and removed when the last such client detaches. An existing winbar from another plugin is never overridden.
-
----
-
 ## Animate
 
 Smooth scroll animation with configurable easing.
