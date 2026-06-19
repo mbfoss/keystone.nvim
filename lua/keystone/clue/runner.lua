@@ -52,20 +52,32 @@ local function _native(raw, count)
     vim.api.nvim_feedkeys(count .. raw, "n", false)
 end
 
---- Read one keypress. Returns the raw key, or `nil` on interrupt (`<C-c>`).
+--- A large millisecond value standing in for "wait indefinitely".
+local _FOREVER = 2 ^ 31
+
+--- Wait up to `timeout_ms` for a keypress, polling the input queue so the event
+--- loop keeps running (timers fire, the clue window redraws). Returns the raw
+--- key, or `nil` if the timeout elapsed without one. `getcharstr(0)` consumes a
+--- key only when one is available, so this never blocks the loop.
+---@param timeout_ms integer
 ---@return string?
-local function _wait_char()
-    local ok, ch = pcall(vim.fn.getcharstr)
-    if not ok or ch == nil or ch == "" then
-        return nil
-    end
-    return ch
+local function _wait_char(timeout_ms)
+    local key
+    vim.wait(timeout_ms, function()
+        local ok, ch = pcall(vim.fn.getcharstr, 0)
+        if ok and ch ~= nil and ch ~= "" then
+            key = ch
+            return true
+        end
+        return false
+    end, 5)
+    return key
 end
 
 ---@param mode string
 ---@param trigger_keys string
 local function _loop(mode, trigger_keys)
-    local config = M.config
+    local config = assert(M.config, "keystone.clue: config not set")
     local count = vim.v.count ~= 0 and tostring(vim.v.count) or ""
     local trigger_raw = keys.to_raw(trigger_keys)
     local prefix = keys.tokenize(trigger_raw)
@@ -79,18 +91,6 @@ local function _loop(mode, trigger_keys)
 
     local handle ---@type keystone.clue.WinHandle?
     local shown = false
-    local done = false
-    local timer ---@type uv.uv_timer_t?
-
-    local function clear_timer()
-        if timer then
-            timer:stop()
-            if not timer:is_closing() then
-                timer:close()
-            end
-            timer = nil
-        end
-    end
 
     local function title()
         return " " .. vim.fn.keytrans(typed_raw()) .. " "
@@ -110,29 +110,12 @@ local function _loop(mode, trigger_keys)
         vim.cmd("redraw")
     end
 
-    local function arm()
-        if shown or done then
-            return
-        end
-        if (config.delay or 0) <= 0 then
-            render()
-            return
-        end
-        clear_timer()
-        timer = vim.defer_fn(function()
-            timer = nil
-            if not shown and not done then
-                render()
-            end
-        end, config.delay)
-    end
-
     local function cleanup()
-        done = true
-        clear_timer()
         window.close(handle)
         handle = nil
     end
+
+    local timeoutlen = vim.o.timeoutlen
 
     while true do
         local exact = keys.exact_map(maps, prefix)
@@ -147,43 +130,66 @@ local function _loop(mode, trigger_keys)
             return
         end
 
+        -- Keep the window in sync with the current prefix, then decide how long
+        -- to wait for the next key:
+        --   * not shown yet  -> wait `delay`, then pop the window
+        --   * shown + exact   -> wait `timeoutlen`, then commit the exact map
+        --   * shown otherwise -> wait indefinitely for the next key
+        local timeout
         if shown then
             render()
+            timeout = (exact and timeoutlen > 0) and timeoutlen or _FOREVER
+        elseif (config.delay or 0) <= 0 then
+            render()
+            timeout = _FOREVER
         else
-            arm()
+            timeout = config.delay
         end
 
-        local ch = _wait_char()
+        local ch = _wait_char(timeout)
+
         if ch == nil then
-            cleanup()
-            return
-        end
-
-        local tok = keys.key_token(ch)
-        if tok == "<Esc>" then
-            cleanup()
-            return
-        end
-
-        local next_prefix = vim.list_extend({}, prefix)
-        table.insert(next_prefix, tok)
-
-        if keys.count_prefix(maps, next_prefix) == 0 then
-            -- the new key continues no tracked map
-            cleanup()
-            if exact then
-                -- the current prefix is itself a mapping (e.g. an operator like
-                -- `gc`): run it, then feed the breaking key as its motion.
+            if not shown then
+                render()
+            elseif exact then
+                -- `timeoutlen` elapsed on an exact-but-extendable map (e.g. an
+                -- operator like `gc` that is also a prefix of `gcc`): commit it.
+                cleanup()
                 _execute(exact)
-                vim.api.nvim_feedkeys(ch, "n", false)
+                return
             else
-                _native(typed_raw() .. ch, count)
+                -- indefinite wait returned without a key: interrupted.
+                cleanup()
+                return
             end
-            return
-        end
+        else
+            local tok = keys.key_token(ch)
+            if tok == "<Esc>" then
+                cleanup()
+                return
+            end
 
-        prefix = next_prefix
-        table.insert(typed, ch)
+            local next_prefix = vim.list_extend({}, prefix)
+            table.insert(next_prefix, tok)
+
+            if keys.count_prefix(maps, next_prefix) == 0 then
+                -- the new key continues no tracked map
+                cleanup()
+                if exact then
+                    -- the current prefix is itself a mapping (e.g. an operator
+                    -- like `gc`): run it, then feed the breaking key as its
+                    -- motion.
+                    _execute(exact)
+                    vim.api.nvim_feedkeys(ch, "n", false)
+                else
+                    _native(typed_raw() .. ch, count)
+                end
+                return
+            end
+
+            prefix = next_prefix
+            table.insert(typed, ch)
+        end
     end
 end
 
