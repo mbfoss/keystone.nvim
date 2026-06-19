@@ -71,13 +71,23 @@ local function _persist()
     store.save(_config)
 end
 
----@param name string
----@return keystone.bookmarks.extmarks.MarkInfo?
-local function _find_by_name(name)
-    for _, m in ipairs(_mark_group.get_extmarks(false)) do
-        if m.user_data and m.user_data.name == name then return m end
+---@return string|nil,number|nil
+local function _get_cur_loc()
+    local bufnr = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        return
     end
+    if vim.bo[bufnr].buftype ~= '' then
+        return
+    end
+    local file = vim.fn.expand("%:p")
+    if file == "" then
+        return
+    end
+    local lnum = vim.api.nvim_win_get_cursor(0)[1]
+    return file, lnum
 end
+
 
 ---@param name string
 ---@param file string
@@ -97,7 +107,7 @@ end
 ----------- PUBLIC API -----------
 
 function M.set_at_cursor()
-    local file, lnum = uitool.get_current_file_and_line()
+    local file, lnum = _get_cur_loc()
     if not file or not lnum then
         vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
         return
@@ -113,19 +123,17 @@ function M.set_at_cursor()
 end
 
 function M.delete_at_cursor()
-    local file, lnum = uitool.get_current_file_and_line()
+    local file, lnum = _get_cur_loc()
     if not file or not lnum then return end
     file = _norm(file)
     local mark = _mark_group.get_extmark_by_location(file, lnum, true)
     if not mark then
-        vim.notify("[keystone] No bookmark at current line", vim.log.levels.WARN)
         return
     end
     local name = mark.user_data.name
     store.delete(file, lnum)
     _mark_group.remove_extmark(mark.id)
     _persist()
-    vim.notify("[keystone] Deleted bookmark: " .. name)
 end
 
 function M.clear_file()
@@ -140,15 +148,11 @@ function M.clear_file()
         for _, m in ipairs(marks) do store.delete(m.file, m.lnum) end
         _mark_group.remove_file_extmarks(file)
         _persist()
-        if before > 0 then
-            vim.notify(string.format("[keystone] Cleared %d bookmark(s) from file", before))
-        end
     end)
 end
 
 function M.clear_all()
     if #_mark_group.get_extmarks(false) == 0 then
-        vim.notify("[keystone] No bookmarks to clear")
         return
     end
     uitool.confirm_action("Clear all bookmarks", false, function(accepted)
@@ -156,7 +160,6 @@ function M.clear_all()
         for _, m in ipairs(_mark_group.get_extmarks(false)) do store.delete(m.file, m.lnum) end
         _mark_group.remove_extmarks()
         _persist()
-        vim.notify("[keystone] All bookmarks cleared")
     end)
 end
 
@@ -172,7 +175,7 @@ function M.pick()
         return
     end
 
-    local cur_file, cur_lnum = uitool.get_current_file_and_line()
+    local cur_file, cur_lnum = _get_cur_loc()
     if cur_file then cur_file = _norm(cur_file) end
 
     table.sort(entries, function(a, b)
