@@ -1,4 +1,4 @@
-local M = {}
+local M           = {}
 
 ---@class keystone.bookmarks.Config
 ---@field enabled boolean
@@ -11,11 +11,12 @@ local M = {}
 ---@field file string   -- absolute path
 ---@field lnum integer  -- 1-based line number
 
-local store      = require("keystone.bookmarks.store")
-local inputwin   = require("keystone.util.inputwin")
-local uitool     = require("keystone.util.uitool")
-local picker     = require("keystone.pick.base.picker")
+local store       = require("keystone.bookmarks.store")
+local inputwin    = require("keystone.util.inputwin")
+local uitool      = require("keystone.util.uitool")
+local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
+local extmarks    = require("keystone.util.extmarks")
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
 local _mark_group
@@ -26,7 +27,7 @@ local _mark_opts
 ---@type keystone.bookmarks.Config
 local _config
 
-local _next_id = 0
+local _next_id    = 0
 
 local function _new_id()
     _next_id = _next_id + 1
@@ -36,10 +37,10 @@ end
 local function _get_default_config()
     ---@type keystone.bookmarks.Config
     return {
-        enabled    = true,
+        enabled     = true,
         persist_dir = nil,
-        sign_text  = "*",
-        sign_hl    = "DiagnosticInfo",
+        sign_text   = "*",
+        sign_hl     = "DiagnosticInfo",
     }
 end
 
@@ -180,9 +181,9 @@ function M.pick()
     end)
 
     picker.open({
-        prompt        = "Bookmark",
+        prompt         = "Bookmark",
         enable_preview = true,
-        finder        = function(query, _, _fetch_opts, callback)
+        finder         = function(query, _, _fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
                 local match = pickertools.match_label(entry.name, query)
@@ -222,8 +223,8 @@ function M.setup(opts)
 
     if not _config.enabled then return end
 
-    _mark_group = require("keystone.bookmarks.extmarks").define_group("bookmarks", { priority = 20 })
-    _mark_opts  = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
+    _mark_group  = extmarks.define_group("bookmarks", { priority = 20 })
+    _mark_opts   = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
 
     local stored = store.load(_config)
     for _, e in ipairs(stored) do

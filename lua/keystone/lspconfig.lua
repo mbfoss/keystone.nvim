@@ -19,6 +19,7 @@ local _usercmd = require("keystone.util.usercmd")
 ---@field auto_enable boolean enable `servers` automatically on setup (the main thing vanilla Neovim does not do)
 ---@field format keystone.lspconfig.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
+---@field log_level string|integer LSP client log level for `vim.lsp.set_log_level` (e.g. "ERROR", "WARN", "DEBUG", "OFF")
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
 ---@field capabilities? lsp.ClientCapabilities|fun():lsp.ClientCapabilities merged into every server's capabilities
 ---@field settings? table<string, vim.lsp.Config> per-server config overrides, e.g. { lua_ls = { settings = {...} } }
@@ -38,6 +39,7 @@ local function _get_default_config()
       filter     = nil,
     },
     inlay_hints  = true,
+    log_level    = "OFF",
     diagnostics  = {
       virtual_text     = { spacing = 2, prefix = "●" },
       --virtual_lines    = { current_line = true, },
@@ -144,7 +146,6 @@ end
 -- Enable LSP servers. With no argument, enables the configured `servers`
 -- (resolving "all" to whatever is on the runtimepath).
 ---@param servers? string[]|"all"
----@return string[] enabled the server names that were enabled
 function M.enable_servers(servers)
   if not _has_api() then return {} end
 
@@ -173,6 +174,10 @@ function M.enable()
     return
   end
   _enabled = true
+
+  if M.config.log_level ~= nil then
+    require("vim.lsp.log").set_level(M.config.log_level)
+  end
 
   if M.config.diagnostics ~= false then
     vim.diagnostic.config(M.config.diagnostics)
