@@ -15,6 +15,7 @@ A quality-of-life Neovim plugin. Requires Neovim >= 0.10.
 - **LSP Words** — auto-highlight word under cursor via LSP
 - **Focus** — fullscreen floating overlay for the current buffer
 - **Text Objects** — treesitter and bracket-based text objects (`ia`, `if`, `ic`, `ib`, …)
+- **Clue** — which-key-style popup hinting the keys that follow a prefix
 - **Colors** — semantic pastel colorscheme
 
 ---
@@ -35,6 +36,7 @@ require("keystone.lspwords").setup()
 require("keystone.tsconfig").setup()
 require("keystone.focus").setup()
 require("keystone.objects").setup()
+require("keystone.clue").setup()
 ```
 
 ---
@@ -272,6 +274,62 @@ require("keystone.objects").setup({
 | `if` / `af` | Inner / around function (treesitter) |
 | `ic` / `ac` | Inner / around class (treesitter) |
 | `ib` / `ab` | Inner / around block (treesitter) |
+
+---
+
+## Clue
+
+A which-key / mini.clue-style popup. When a configured **trigger** key is pressed,
+a floating window lists the keys that may follow it and their descriptions;
+pressing more keys narrows the list.
+
+It works as a **passive observer** via `vim.on_key` — it never consumes or replays
+keys, so Neovim resolves and executes everything itself. Counts, registers,
+operators and your existing mappings all behave exactly as without the plugin.
+
+```lua
+require("keystone.clue").setup({
+  enabled       = true,
+  builtin_clues = true,   -- hint built-in <C-w>/z/g sequences too
+  triggers = {            -- triggers must each be a single key
+    { mode = "n", keys = "<leader>" },
+    { mode = "n", keys = "<localleader>" },
+    { mode = "n", keys = "g" },
+    { mode = "n", keys = "z" },
+    { mode = "n", keys = "[" },
+    { mode = "n", keys = "]" },
+    { mode = "n", keys = "<C-w>" },
+    { mode = "x", keys = "<leader>" },
+    { mode = "x", keys = "<localleader>" },
+    { mode = "x", keys = "g" },
+    { mode = "x", keys = "z" },
+  },
+  groups = {              -- friendly labels for prefixes that lead to more keys
+    -- ["<leader>f"] = "find",
+  },
+  clues = {               -- extra hints for un-mapped (built-in) sequences
+    -- { mode = "n", keys = "<leader>x", desc = "diagnostics" },
+  },
+  win = {
+    border           = "rounded",
+    separator        = "  ",
+    width_ratio      = 0.9,
+    max_height_ratio = 0.4,
+    title            = true,
+  },
+})
+```
+
+**Command:** `:Clue [enable|disable|toggle]` (defaults to `toggle`)
+
+The popup appears as soon as a trigger is pressed and stays up until you act — it
+is dismissed when the sequence resolves to a mapping, no longer matches, the mode
+changes, or you press `<Esc>`. While a clue is pending, `'timeout'` is held off so
+Neovim waits for your next key instead of resolving the prefix on its own (it is
+restored as soon as the popup closes).
+
+**Highlight groups** (linked by default, override freely): `KeystoneClueKey`,
+`KeystoneClueDesc`, `KeystoneClueGroup`, `KeystoneClueSeparator`, `KeystoneClueTitle`.
 
 ---
 

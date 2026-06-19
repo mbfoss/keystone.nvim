@@ -154,7 +154,10 @@ end
 local function _apply_hl(buf, hls)
     for r, list in ipairs(hls) do
         for _, h in ipairs(list) do
-            vim.api.nvim_buf_add_highlight(buf, _ns, h[3], r - 1, h[1], h[2])
+            vim.api.nvim_buf_set_extmark(buf, _ns, r - 1, h[1], {
+                end_col = h[2],
+                hl_group = h[3],
+            })
         end
     end
 end
