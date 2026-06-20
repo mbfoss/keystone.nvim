@@ -2,14 +2,15 @@ local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
 
---- A command as returned by `nvim_get_commands`, plus the source flags this
---- picker tags each entry with.  `nvim_get_commands` never returns a `desc`
---- field: for Lua-callback commands the description is reported in `definition`,
---- while for `:command`-defined commands `definition` is the command body.
+--- A command entry: the raw info from `nvim_get_commands` (under `info`) tagged
+--- with the source flags this picker tracks.  `nvim_get_commands` never returns
+--- a `desc` field — for Lua-callback commands the description is reported in
+--- `info.definition`, while for `:command`-defined commands `info.definition` is
+--- the command body.
 ---@class keystone.pick.CommandEntry
 ---@field is_builtin boolean?
 ---@field is_buf boolean?
----@info vim.api.keyset.command_info
+---@field info vim.api.keyset.command_info
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -27,19 +28,17 @@ local function collect_commands()
     local by_name = {}
 
     for name, cmd in pairs(vim.api.nvim_get_commands({})) do
-        ---@cast cmd keystone.pick.CommandEntry
-        by_name[name] = cmd
+        by_name[name] = { info = cmd }
     end
     for name, cmd in pairs(vim.api.nvim_buf_get_commands(0, {})) do
-        ---@cast cmd keystone.pick.CommandEntry
-        cmd.is_buf    = true
-        by_name[name] = cmd
+        by_name[name] = { info = cmd, is_buf = true }
     end
 
     ---@type keystone.pick.CommandEntry[]
     local entries = {}
     for _, name in ipairs(vim.fn.getcompletion("", "command")) do
-        entries[#entries + 1] = by_name[name] or { name = name, is_builtin = true }
+        entries[#entries + 1] = by_name[name]
+            or { is_builtin = true, info = { name = name } --[[@as vim.api.keyset.command_info]] }
     end
     return entries
 end
@@ -63,14 +62,15 @@ function M.spec()
                 if flags.builtin and not cmd.is_builtin then goto continue end
                 if flags.user and cmd.is_builtin then goto continue end
 
-                local match = pickertools.match_label(cmd.name, query)
+                local info  = cmd.info
+                local match = pickertools.match_label(info.name, query)
                 if match then
                     local chunks = match.chunks
                     if not cmd.is_builtin then
                         -- `definition` is the human description for Lua callbacks
                         -- and the command body for `:command`-defined commands.
-                        if cmd.definition and cmd.definition ~= "" then
-                            table.insert(chunks, { "  " .. cmd.definition, "Comment" })
+                        if info.definition and info.definition ~= "" then
+                            table.insert(chunks, { "  " .. info.definition, "Comment" })
                         end
                         if cmd.is_buf then
                             table.insert(chunks, { " [buf]", "Special" })
@@ -89,8 +89,10 @@ function M.spec()
         end,
         on_confirm = function(data)
             if not data then return end
+            ---@type keystone.pick.CommandEntry
             local cmd     = data.cmd
-            local cmdline = (not cmd.is_builtin and cmd.nargs ~= "0") and (cmd.name .. " ") or cmd.name
+            local info    = cmd.info
+            local cmdline = (not cmd.is_builtin and info.nargs ~= "0") and (info.name .. " ") or info.name
             vim.api.nvim_feedkeys(":" .. cmdline, "n", false)
         end,
     }
