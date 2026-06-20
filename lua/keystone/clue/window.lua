@@ -24,7 +24,7 @@ end
 function M.setup_hl()
     local function apply()
         _def(M.KEY_HL, { default = true, link = "Special" })
-        _def(M.DESC_HL, { default = true, link = "Normal" })
+        _def(M.DESC_HL, { default = true, link = nil })
         _def(M.GROUP_HL, { default = true, link = "Function" })
         _def(M.SEP_HL, { default = true, link = "Comment" })
         _def(M.TITLE_HL, { default = true, link = "FloatTitle" })
@@ -165,19 +165,20 @@ end
 ---@param width integer
 ---@param height integer
 ---@param title string?
----@param win_cfg table
+---@param win_cfg vim.api.keyset.win_config
 ---@return vim.api.keyset.win_config
 local function _win_config(width, height, title, win_cfg)
-    local cfg = {
+    local cfg = { ---@type vim.api.keyset.win_config
         relative = "editor",
         width = width,
         height = height,
         row = math.max(0, vim.o.lines - height - _bottom_offset()),
         col = math.max(0, math.floor((vim.o.columns - width) / 2)),
+        border = win_cfg.border or "rounded",
     }
     if win_cfg.title ~= false and title then
-        cfg.title = { { title, M.TITLE_HL } }
-        cfg.title_pos = "center"
+        cfg.footer = { { title, M.TITLE_HL } }
+        cfg.footer_pos = "center"
     end
     return cfg
 end
@@ -204,7 +205,6 @@ function M.open(entries, title, win_cfg)
 
     local cfg = _win_config(width, height, title, win_cfg)
     cfg.style = "minimal"
-    cfg.border = win_cfg.border or "rounded"
     cfg.focusable = false
     cfg.noautocmd = true
     cfg.zindex = 200

@@ -1,9 +1,10 @@
 --- Built-in (non-mapped) key sequences worth hinting. These are *virtual* clue
 --- entries: `keystone.clue` never executes them — Neovim runs the built-in as
 --- usual — they exist only so the clue window has something to show for prefixes
---- like `<C-w>`, `z` and `g` that are not backed by user mappings.
+--- like `<C-w>`, `z`, `g` and the operator/text-object family (`ciw`, `da"`,
+--- `vi(` …) that are not backed by user mappings.
 ---@type keystone.clue.Clue[]
-return {
+local _clues = {
     -- window commands (<C-w>)
     { mode = "n", keys = "<C-w>s", desc = "split" },
     { mode = "n", keys = "<C-w>v", desc = "vsplit" },
@@ -54,3 +55,54 @@ return {
     { mode = "x", keys = "g~", desc = "swap case" },
     { mode = "x", keys = "gq", desc = "format" },
 }
+
+-- Text objects: the key that selects an object once an `i`/`a` selector has been
+-- pressed, paired with a readable name. Several keys map to the same object
+-- (`b`/`(`/`)`, `B`/`{`/`}`, …) — Neovim accepts any of them.
+---@type [string, string][]
+local _textobjects = {
+    { "w", "word" },
+    { "W", "WORD" },
+    { "s", "sentence" },
+    { "p", "paragraph" },
+    { "(", "parens" },
+    { ")", "parens" },
+    { "b", "parens" },
+    { "{", "braces" },
+    { "}", "braces" },
+    { "B", "braces" },
+    { "[", "brackets" },
+    { "]", "brackets" },
+    { "<", "angle" },
+    { ">", "angle" },
+    { "t", "tag" },
+    { '"', "double quotes" },
+    { "'", "single quotes" },
+    { "`", "backticks" },
+}
+
+-- Normal-mode operators that accept a text object, e.g. `c` in `ciw`. `v`
+-- (Visual) is deliberately omitted as a prefix: it enters a mode rather than
+-- pending on the next key, so we hint text objects from the Visual-mode `i`/`a`
+-- selectors instead (see the `x` pass below), and avoid intercepting it.
+local _operators = { "c", "d", "y" }
+
+--- Append `<prefix>i<obj>` / `<prefix>a<obj>` clues for every text object.
+---@param mode string
+---@param prefix string operator keys preceding the selector (empty in Visual)
+local function _emit(mode, prefix)
+    for _, sel in ipairs({ "i", "a" }) do
+        for _, obj in ipairs(_textobjects) do
+            table.insert(_clues, { mode = mode, keys = prefix .. sel .. obj[1], desc = obj[2] })
+        end
+    end
+end
+
+for _, op in ipairs(_operators) do
+    _emit("n", op)
+end
+-- Visual mode: an object is selected directly with `i`/`a` (already selecting),
+-- which also covers the `vi…`/`va…`/`Vi…` flows once Visual mode is entered.
+_emit("x", "")
+
+return _clues

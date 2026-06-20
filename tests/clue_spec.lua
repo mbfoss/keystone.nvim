@@ -77,13 +77,12 @@ describe("clue.keys raw-byte matching", function()
     end)
 end)
 
-describe("clue.observer state machine", function()
-    local clue = require("keystone.clue")
-    local observer = require("keystone.clue.observer")
+describe("clue.engine decision", function()
+    local engine = require("keystone.clue.engine")
+    local maps
 
-    -- `_handle_key` reads the current mode; these tests run in normal mode.
-    local function press(s)
-        observer._handle_key(keys.to_raw(s))
+    local function raw(s)
+        return keys.to_raw(s)
     end
 
     before_each(function()
@@ -91,68 +90,71 @@ describe("clue.observer state machine", function()
         vim.keymap.set("n", "<leader>ff", "<cmd>echo 1<cr>", { desc = "find files" })
         vim.keymap.set("n", "<leader>fg", "<cmd>echo 2<cr>", { desc = "live grep" })
         vim.keymap.set("n", "<leader>w", "<cmd>echo 3<cr>", { desc = "write" })
-        -- builtins off to isolate; the window renders synchronously
-        clue.setup({ builtin_clues = false, clues = {} })
-        observer.config = clue.config
-        observer._build()
-        observer._reset()
+        maps = keys.collect("n", {})
     end)
 
     after_each(function()
-        observer._reset()
-        clue.disable()
         for _, lhs in ipairs({ "<leader>ff", "<leader>fg", "<leader>w" }) do
             pcall(vim.keymap.del, "n", lhs)
         end
     end)
 
-    it("does not begin on a non-trigger key", function()
-        press("x")
-        assert.is_false(observer._state().active)
+    it("keeps querying while more keys may follow", function()
+        assert.are.equal("continue", engine._decide(maps, raw("<leader>"), raw("f")))
     end)
 
-    it("begins and shows on a trigger with children", function()
-        press("<leader>")
-        local s = observer._state()
-        assert.is_true(s.active)
-        assert.is_true(s.win) -- window opened synchronously
+    it("executes on a unique target (no continuation)", function()
+        assert.are.equal("exec", engine._decide(maps, raw("<leader>f"), raw("f")))
+        assert.are.equal("exec", engine._decide(maps, raw("<leader>"), raw("w")))
     end)
 
-    it("narrows the prefix as keys are pressed", function()
-        press("<leader>")
-        press("f")
-        local s = observer._state()
-        assert.is_true(s.active)
-        assert.are.equal(" f", s.raw)
+    it("executes on a broken sequence so Neovim still handles the keys", function()
+        assert.are.equal("exec", engine._decide(maps, raw("<leader>"), raw("z")))
     end)
 
-    it("resolves and tears down on a complete mapping", function()
-        press("<leader>")
-        press("w") -- exact <leader>w, no children
-        local s = observer._state()
-        assert.is_false(s.active)
-        assert.is_false(s.win)
+    it("cancels on <Esc> / <C-c> / interrupt", function()
+        assert.are.equal("cancel", engine._decide(maps, raw("<leader>"), "\27"))
+        assert.are.equal("cancel", engine._decide(maps, raw("<leader>"), "\3"))
+        assert.are.equal("cancel", engine._decide(maps, raw("<leader>"), ""))
     end)
 
-    it("tears down when the sequence breaks", function()
-        press("<leader>")
-        press("z") -- no <leader>z mapping
-        assert.is_false(observer._state().active)
+    it("accepts the current prefix on <CR> and pops on <BS>", function()
+        assert.are.equal("exec", engine._decide(maps, raw("<leader>f"), "\r"))
+        assert.are.equal("pop", engine._decide(maps, raw("<leader>f"), keys.to_raw("<BS>")))
     end)
+end)
 
-    it("cancels on <Esc>", function()
-        press("<leader>")
-        assert.is_true(observer._state().active)
-        press("<Esc>")
-        assert.is_false(observer._state().active)
-    end)
+describe("clue.engine integration", function()
+    -- The `getcharstr` loop can't be driven synchronously, so exercise the real
+    -- engine in a child Neovim: pre-queue keys with `nvim_input` (which feeds
+    -- `getcharstr`), let the sequence re-feed, and check the mappings ran.
+    local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 
-    it("holds 'timeout' off while pending and restores it on teardown", function()
-        vim.o.timeout = true
-        press("<leader>")
-        assert.is_false(vim.o.timeout) -- held so Neovim waits for the next key
-        press("w") -- resolves <leader>w
-        assert.is_true(vim.o.timeout) -- restored
+    it("executes mapped sequences via re-feed (counts, buffer-local, builtins)", function()
+        local out = vim.fn.tempname()
+        local script = vim.fn.tempname() .. ".lua"
+        vim.fn.writefile(vim.split(string.format(
+            [[
+vim.opt.rtp:append(%q)
+vim.g.mapleader = " "
+local OUT = %q
+vim.fn.writefile({}, OUT)
+local function log(s) vim.fn.writefile({ s }, OUT, "a") end
+vim.keymap.set("n", "<leader>ff", function() log("FF:" .. vim.v.count) end, { desc = "ff" })
+vim.keymap.set("n", "gd", function() log("GD") end, { buffer = 0, desc = "gd" })
+require("keystone.clue").setup({ builtin_clues = false })
+vim.defer_fn(function() vim.api.nvim_input(" ff") end, 30)
+vim.defer_fn(function() vim.api.nvim_input("2 ff") end, 130)
+vim.defer_fn(function() vim.api.nvim_input("gd") end, 230)
+vim.defer_fn(function() vim.cmd("qa!") end, 380)
+]],
+            root,
+            out
+        ), "\n"), script)
+
+        vim.fn.system({ vim.v.progpath, "--headless", "-u", "NONE", "-i", "NONE", "-c", "luafile " .. script })
+
+        assert.are.same({ "FF:0", "FF:2", "GD" }, vim.fn.readfile(out))
     end)
 end)
 

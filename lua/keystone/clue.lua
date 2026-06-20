@@ -1,29 +1,33 @@
 --- Keymap hints, in the style of which-key / mini.clue.
 ---
---- A configured set of *trigger* keys (e.g. `<leader>`, `g`, `z`, `<C-w>`) are
---- watched via `vim.on_key`. When one is pressed, a floating window lists the
---- keys that may follow and their descriptions; pressing further keys narrows
---- the list. The observer is passive — Neovim resolves and executes every key
---- itself, so counts, registers, operators and mappings all behave normally.
-local keys = require("keystone.clue.keys")
+--- A configured set of *trigger* keys (e.g. `<leader>`, `g`, `z`, `<C-w>`) is
+--- mapped with `nowait`. When one is pressed, the engine reads the following
+--- keys itself (`getcharstr`) and shows a floating window listing the keys that
+--- may follow; pressing further keys narrows the list. The resolved sequence is
+--- then re-fed to Neovim so the real mapping (or built-in) runs natively — with
+--- counts, registers, operators and dot-repeat intact (see `keystone.clue.engine`).
+--- Because the engine reads keys itself, a sequence resolves whether typed
+--- quickly or slowly.
+local engine = require("keystone.clue.engine")
 local window = require("keystone.clue.window")
-local observer = require("keystone.clue.observer")
+local keys = require("keystone.clue.keys")
 local usercmd = require("keystone.util.usercmd")
 
 local M = {}
 
---- A single key that, once pressed, may start a clue interaction. Triggers must
---- be a single key (e.g. `<leader>`, `g`, `<C-w>`).
+--- A single key that may start a clue interaction. Must be one key (e.g.
+--- `<leader>`, `g`, `<C-w>`).
 ---@class keystone.clue.Trigger
 ---@field mode string single-mode short name (`"n"`, `"x"`)
 ---@field keys string the trigger key, `<leader>` etc. allowed
 
 ---@class keystone.clue.WinConfig
----@field border          string|string[]
----@field separator       string text between a key and its description
----@field width_ratio     number max window width as a fraction of the editor
+---@field border           string|string[]
+---@field separator        string text between a key and its description
+---@field width_ratio      number max window width as a fraction of the editor
 ---@field max_height_ratio number max window height as a fraction of the editor
----@field title           boolean show the pressed-keys title
+---@field title            boolean show the pressed-keys title
+---@field delay            integer ms to wait before showing (so fast sequences don't flash)
 
 ---@class keystone.clue.Config
 ---@field enabled       boolean
@@ -46,12 +50,28 @@ local function _get_defaults()
             { mode = "n", keys = "[" },
             { mode = "n", keys = "]" },
             { mode = "n", keys = "<C-w>" },
+            -- operators, so `ciw`, `da"`, `yi(` … are hinted. Safe to intercept:
+            -- an operator already pends on the next key (operator-pending), which
+            -- is exactly what the engine does while it reads the text object.
+            { mode = "n", keys = "c" },
+            { mode = "n", keys = "d" },
+            { mode = "n", keys = "y" },
             { mode = "x", keys = "<leader>" },
             { mode = "x", keys = "<localleader>" },
             { mode = "x", keys = "g" },
             { mode = "x", keys = "z" },
+            -- text-object selectors in Visual mode (covers `vi(`, `va"` … too)
+            { mode = "x", keys = "i" },
+            { mode = "x", keys = "a" },
         },
-        groups = {},
+        groups = {
+            ["ci"] = "inner",
+            ["ca"] = "around",
+            ["di"] = "inner",
+            ["da"] = "around",
+            ["yi"] = "inner",
+            ["ya"] = "around",
+        },
         clues = {},
         builtin_clues = true,
         win = {
@@ -60,6 +80,7 @@ local function _get_defaults()
             width_ratio = 0.9,
             max_height_ratio = 0.4,
             title = true,
+            delay = 200,
         },
     }
 end
@@ -86,8 +107,7 @@ function M.enable()
         return
     end
     _enabled = true
-    observer.config = M.config
-    observer.enable()
+    engine.enable(M.config)
 end
 
 function M.disable()
@@ -95,7 +115,7 @@ function M.disable()
         return
     end
     _enabled = false
-    observer.disable()
+    engine.disable()
 end
 
 function M.toggle()
@@ -110,7 +130,6 @@ end
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})
     M.config._groups = _normalize_groups(M.config.groups)
-    observer.config = M.config
 
     window.setup_hl()
 
@@ -123,7 +142,7 @@ function M.setup(opts)
         elseif sub == "toggle" then
             M.toggle()
         else
-            error("unknown subcommand: " .. tostring(sub))
+            error("keystone.clue: unknown subcommand: " .. tostring(sub))
         end
     end, {
         desc = "keystone clue",
@@ -134,8 +153,7 @@ function M.setup(opts)
 
     -- re-enable from scratch so a fresh config takes effect
     if _enabled then
-        observer.disable()
-        _enabled = false
+        M.disable()
     end
     if M.config.enabled then
         M.enable()

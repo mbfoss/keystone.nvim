@@ -29,9 +29,9 @@ local function default_config()
       process_items  = nil,
       snippet_insert = nil,
     },
-    key = "<C-Space>",
-    tab_completion = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
-    fallback_action = "", -- "<C-n>",
+    key             = "<C-Space>",
+    tab_completion  = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
+    fallback_action = "",  -- "<C-n>",
   }
 end
 
@@ -268,18 +268,18 @@ local function to_vim_items(items)
   local snip_fmt   = vim.lsp.protocol.InsertTextFormat.Snippet
 
   for i, item in ipairs(items) do
-    local word         = lsp_word(item)
-    local is_sk        = item.kind == snip_kind
-    local is_sf        = item.insertTextFormat == snip_fmt
-    local snip_body    = (word:find("[^\\]%${?%w") or word:find("^%${?%w") or word:find("[\n\t]")) ~= nil
-    local is_snippet   = (is_sk or is_sf) and snip_body
+    local word       = lsp_word(item)
+    local is_sk      = item.kind == snip_kind
+    local is_sf      = item.insertTextFormat == snip_fmt
+    local snip_body  = (word:find("[^\\]%${?%w") or word:find("^%${?%w") or word:find("[\n\t]")) ~= nil
+    local is_snippet = (is_sk or is_sf) and snip_body
 
-    local details      = item.labelDetails or {}
-    local menu_parts   = {}
+    local details    = item.labelDetails or {}
+    local menu_parts = {}
     if is_snippet then menu_parts[#menu_parts + 1] = "S" end
     if details.detail and details.detail ~= "" then menu_parts[#menu_parts + 1] = details.detail end
     if details.description and details.description ~= "" then menu_parts[#menu_parts + 1] = details.description end
-    local menu         = table.concat(menu_parts, " ")
+    local menu = table.concat(menu_parts, " ")
 
     table.insert(res, {
       word = is_snippet and lsp_filter_word(item) or word,
@@ -833,10 +833,7 @@ end
 M.confirm = function(fallback_keys, direction)
   direction = direction == -1 and -1 or 1
   if pumvisible() then
-    if vim.fn.complete_info({ "selected" }).selected == -1 then
-      vim.api.nvim_feedkeys(direction == -1 and keys.select_prev or keys.select_next, "n", false)
-    end
-    vim.api.nvim_feedkeys(keys.confirm, "n", false)
+    vim.api.nvim_feedkeys(direction == -1 and keys.select_prev or keys.select_next, "n", false)
     return
   end
   if has_native_snippet and vim.snippet.active({ direction = direction }) then
