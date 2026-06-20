@@ -86,6 +86,7 @@ end
 M.config = _get_defaults()
 
 local _enabled = false
+local _initialized = false
 
 --- Pre-tokenize the configured group prefixes so the renderer can look them up
 --- by token-join (see `keys.clues`).
@@ -99,11 +100,44 @@ local function _normalize_groups(groups)
     return out
 end
 
+--- One-time, config-independent initialization (highlight groups + `:Clue`
+--- command). Idempotent, so calling `enable()` without `setup()` still works.
+local function _ensure_initialized()
+    if _initialized then
+        return
+    end
+    _initialized = true
+
+    window.setup_hl()
+
+    usercmd.register_user_cmd("Clue", function(_, args)
+        local sub = args[1] or "toggle"
+        if sub == "enable" then
+            M.enable()
+        elseif sub == "disable" then
+            M.disable()
+        elseif sub == "toggle" then
+            M.toggle()
+        else
+            error("keystone.clue: unknown subcommand: " .. tostring(sub))
+        end
+    end, {
+        desc = "keystone clue",
+        subcommand_fn = function()
+            return { "enable", "disable", "toggle" }
+        end,
+    })
+end
+
 function M.enable()
     if _enabled then
         return
     end
     _enabled = true
+    _ensure_initialized()
+    -- `setup()` normalizes groups; populate it here too so a bare `enable()`
+    -- with the default config still renders group labels.
+    M.config._groups = M.config._groups or _normalize_groups(M.config.groups)
     engine.enable(M.config)
 end
 
@@ -128,25 +162,7 @@ function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})
     M.config._groups = _normalize_groups(M.config.groups)
 
-    window.setup_hl()
-
-    usercmd.register_user_cmd("Clue", function(_, args)
-        local sub = args[1] or "toggle"
-        if sub == "enable" then
-            M.enable()
-        elseif sub == "disable" then
-            M.disable()
-        elseif sub == "toggle" then
-            M.toggle()
-        else
-            error("keystone.clue: unknown subcommand: " .. tostring(sub))
-        end
-    end, {
-        desc = "keystone clue",
-        subcommand_fn = function()
-            return { "enable", "disable", "toggle" }
-        end,
-    })
+    _ensure_initialized()
 
     -- re-enable from scratch so a fresh config takes effect
     if _enabled then
