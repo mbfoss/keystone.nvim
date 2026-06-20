@@ -6,7 +6,8 @@ local pickertools = require("keystone.pick.base.pickertools")
 --- with the source flags this picker tracks.  `nvim_get_commands` never returns
 --- a `desc` field — for Lua-callback commands the description is reported in
 --- `info.definition`, while for `:command`-defined commands `info.definition` is
---- the command body.
+--- the command body.  Built-ins have no info of their own, so we synthesize one
+--- and borrow a one-liner from Neovim's help index as the `definition`.
 ---@class keystone.pick.CommandEntry
 ---@field is_builtin boolean?
 ---@field is_buf boolean?
@@ -18,6 +19,40 @@ local FLAGS = {
     { name = "builtin",  type = "boolean", desc = "only built-in commands" },
     { name = "user",     type = "boolean", desc = "only user-defined commands" },
 }
+
+---@type table<string, string>?
+local _builtin_desc
+
+--- Short one-line descriptions for built-in Ex commands, parsed on demand from
+--- Neovim's bundled `doc/index.txt` (the `ex-cmd-index` table) so they stay in
+--- sync with the running version.  Built-ins expose no description of their own.
+--- Each entry there reads `|:tag|<tab>:ab[brev]<tab>description`; the full
+--- command name is the abbreviation with its `[...]` optional part flattened
+--- (`:a[ppend]` -> `append`).  Memoised after the first call.
+---@return table<string, string> name -> description
+local function builtin_descriptions()
+    if _builtin_desc then return _builtin_desc end
+    _builtin_desc = {}
+
+    local file = vim.api.nvim_get_runtime_file("doc/index.txt", false)[1]
+    if not file then return _builtin_desc end
+
+    local ok, lines = pcall(vim.fn.readfile, file)
+    if not ok then return _builtin_desc end
+
+    local in_section = false
+    for _, line in ipairs(lines) do
+        if not in_section then
+            in_section = line:find("*ex-cmd-index*", 1, true) ~= nil
+        else
+            local abbrev, desc = line:match("^|:[^|]*|%s+:(%S+)%s+(.+)$")
+            if abbrev then
+                _builtin_desc[(abbrev:gsub("[%[%]]", ""))] = vim.trim(desc)
+            end
+        end
+    end
+    return _builtin_desc
+end
 
 --- Collect every command available in the current buffer: user/buffer-local
 --- commands (with full info) merged over the names reported by completion, so
@@ -34,12 +69,16 @@ local function collect_commands()
         by_name[name] = { info = cmd, is_buf = true }
     end
 
+    local descs = builtin_descriptions()
+
     ---@type keystone.pick.CommandEntry[]
     local entries = {}
     for _, name in ipairs(vim.fn.getcompletion("", "command")) do
-        -- built-ins have no info entry; synthesize one carrying just the name
+        -- built-ins have no info entry; synthesize one and borrow its blurb
+        -- from the help index parsed above.
         ---@diagnostic disable-next-line: missing-fields
-        entries[#entries + 1] = by_name[name] or { is_builtin = true, info = { name = name } }
+        entries[#entries + 1] = by_name[name]
+            or { is_builtin = true, info = { name = name, definition = descs[name] } }
     end
     return entries
 end
@@ -67,15 +106,14 @@ function M.spec()
                 local match = pickertools.match_label(info.name, query)
                 if match then
                     local chunks = match.chunks
-                    if not cmd.is_builtin then
-                        -- `definition` is the human description for Lua callbacks
-                        -- and the command body for `:command`-defined commands.
-                        if info.definition and info.definition ~= "" then
-                            table.insert(chunks, { "  " .. info.definition, "Comment" })
-                        end
-                        if cmd.is_buf then
-                            table.insert(chunks, { " [buf]", "Special" })
-                        end
+                    -- `definition` is the description for Lua callbacks, the body
+                    -- for `:command`-defined commands, and the help one-liner for
+                    -- built-ins.
+                    if info.definition and info.definition ~= "" then
+                        table.insert(chunks, { "  " .. info.definition, "Comment" })
+                    end
+                    if cmd.is_buf then
+                        table.insert(chunks, { " [buf]", "Special" })
                     end
                     table.insert(items, {
                         label_chunks = chunks,
