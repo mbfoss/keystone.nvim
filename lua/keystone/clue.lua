@@ -50,12 +50,16 @@ local function _get_defaults()
             { mode = "n", keys = "[" },
             { mode = "n", keys = "]" },
             { mode = "n", keys = "<C-w>" },
-            -- operators, so `ciw`, `da"`, `yi(` … are hinted. Safe to intercept:
-            -- an operator already pends on the next key (operator-pending), which
-            -- is exactly what the engine does while it reads the text object.
-            { mode = "n", keys = "c" },
-            { mode = "n", keys = "d" },
-            { mode = "n", keys = "y" },
+            -- operator + selector, so `ciw`, `da"`, `yi(` … list their text
+            -- objects directly (no intermediate inner/around menu), mirroring the
+            -- Visual-mode `i`/`a` triggers below. Triggering on the two-key `ci`
+            -- (not bare `c`) leaves `cw`, `cc`, `cf{char}` … native.
+            { mode = "n", keys = "ci" },
+            { mode = "n", keys = "ca" },
+            { mode = "n", keys = "di" },
+            { mode = "n", keys = "da" },
+            { mode = "n", keys = "yi" },
+            { mode = "n", keys = "ya" },
             { mode = "x", keys = "<leader>" },
             { mode = "x", keys = "<localleader>" },
             { mode = "x", keys = "g" },
@@ -64,14 +68,7 @@ local function _get_defaults()
             { mode = "x", keys = "i" },
             { mode = "x", keys = "a" },
         },
-        groups = {
-            ["ci"] = "inner",
-            ["ca"] = "around",
-            ["di"] = "inner",
-            ["da"] = "around",
-            ["yi"] = "inner",
-            ["ya"] = "around",
-        },
+        groups = {},
         clues = {},
         builtin_clues = true,
         win = {
