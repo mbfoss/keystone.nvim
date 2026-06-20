@@ -37,8 +37,9 @@ local function collect_commands()
     ---@type keystone.pick.CommandEntry[]
     local entries = {}
     for _, name in ipairs(vim.fn.getcompletion("", "command")) do
-        entries[#entries + 1] = by_name[name]
-            or { is_builtin = true, info = { name = name } --[[@as vim.api.keyset.command_info]] }
+        -- built-ins have no info entry; synthesize one carrying just the name
+        ---@diagnostic disable-next-line: missing-fields
+        entries[#entries + 1] = by_name[name] or { is_builtin = true, info = { name = name } }
     end
     return entries
 end
