@@ -83,6 +83,156 @@ local function collect_commands()
     return entries
 end
 
+--- Index of `:help` tags -> { help file, in-file anchor }, parsed from the
+--- `doc/tags` files across the runtimepath (the same index `:help` consults).
+--- Each line reads `tag<tab>file<tab>/*tag*`; the anchor is the address with its
+--- leading `/` dropped (`/*:write*` -> `*:write*`), searched for literally since
+--- the surrounding `*` make it unique.  Rebuilt on each picker open rather than
+--- memoised, so nothing is retained in module memory between invocations.
+---@return table<string, { file: string, anchor: string }>
+local function help_tag_index()
+    local tags = {}
+    for _, tagfile in ipairs(vim.api.nvim_get_runtime_file("doc/tags", true)) do
+        local dir = vim.fs.dirname(tagfile)
+        local ok, lines = pcall(vim.fn.readfile, tagfile)
+        if ok then
+            for _, line in ipairs(lines) do
+                local tag, rel, addr = line:match("^([^\t]+)\t([^\t]+)\t(.+)$")
+                if tag then
+                    tags[tag] = { file = vim.fs.joinpath(dir, rel), anchor = (addr:gsub("^/", "")) }
+                end
+            end
+        end
+    end
+    return tags
+end
+
+--- Extract just the block documenting `name` from a full help file: from the
+--- command's tag anchor down to the line that begins a *different* known command,
+--- or the next `====` section rule.  A line begins another command when it
+--- defines a `*:tag*` anchor naming some other command; sub-anchors (`*:w_f*`)
+--- and error tags (`*E502*`) are not commands, so the block flows through them.
+---@param lines string[]                    full help file
+---@param anchor string                     the command's anchor, e.g. "*:write*"
+---@param name string                       command being previewed
+---@param commands table<string, boolean>   set of all known command names
+---@return string[]
+local function extract_help_section(lines, anchor, name, commands)
+    local start
+    for i, line in ipairs(lines) do
+        if line:find(anchor, 1, true) then
+            start = i
+            break
+        end
+    end
+    if not start then return lines end
+
+    local function starts_other_command(line)
+        for tag in line:gmatch("%*([^%*%s]+)%*") do
+            local other = tag:match("^:(.+)$")
+            if other and other ~= name and commands[other] then return true end
+        end
+        return false
+    end
+
+    local stop = #lines + 1
+    for i = start + 1, #lines do
+        if lines[i]:match("^====") or starts_other_command(lines[i]) then
+            stop = i
+            break
+        end
+    end
+
+    -- Trim back over trailing blank lines and the next command's leading
+    -- anchor/alias lines (e.g. `CTRL-W n` headers, which carry their own `*tag*`
+    -- anchors); this command's own trailing prose has none, so it is preserved.
+    local last = stop - 1
+    while last > start and (lines[last]:match("^%s*$") or lines[last]:find("%*[^%*%s]+%*")) do
+        last = last - 1
+    end
+
+    local section = {}
+    for i = start, last do
+        section[#section + 1] = lines[i]
+    end
+    return section
+end
+
+--- Build the `:help :<command>` previewer.  It closes over the freshly-parsed
+--- `help_tags` index and a per-session file cache (both discarded when the picker
+--- closes); the cache only avoids re-reading the same help file while scrolling.
+--- The preview is limited to the command's own help block (see
+--- `extract_help_section`).  Commands with no help tag (most user commands) fall
+--- back to their description.
+---@param help_tags table<string, { file: string, anchor: string }>
+---@param commands table<string, boolean>   set of all known command names
+---@return keystone.Picker.AsyncPreviewLoader
+local function make_help_previewer(help_tags, commands)
+    ---@type table<string, string[]>
+    local file_cache = {}
+
+    local function read_help_file(path)
+        local cached = file_cache[path]
+        if cached then return cached end
+        local ok, lines = pcall(vim.fn.readfile, path)
+        lines = (ok and lines) or {}
+        file_cache[path] = lines
+        return lines
+    end
+
+    return function(data, _, callback)
+        ---@type keystone.pick.CommandEntry
+        local cmd  = data.cmd
+        local info = cmd.info
+        local hit  = help_tags[":" .. info.name]
+        local lines = hit and read_help_file(hit.file) or {}
+
+        if not hit or #lines == 0 then
+            local fallback = { "No help available for  :" .. info.name }
+            if info.definition and info.definition ~= "" then
+                fallback[#fallback + 1] = ""
+                fallback[#fallback + 1] = info.definition
+            end
+            callback({ content = fallback })
+            return function() end
+        end
+
+        local section = extract_help_section(lines, hit.anchor, info.name, commands)
+        callback({ content = section, filepath = hit.file, filetype = "help" })
+        return function() end
+    end
+end
+
+--- Split a `match_label` chunk list at a character offset, so the matched
+--- name and description portions of a single fuzzy match (run together as
+--- one search string) can be styled independently.
+---@param chunks string[][]
+---@param split_at integer character offset to split at
+---@return string[][] left, string[][] right
+local function _split_chunks(chunks, split_at)
+    local left, right = {}, {}
+    local consumed = 0
+    for _, chunk in ipairs(chunks) do
+        local text, hl = chunk[1], chunk[2]
+        local len = vim.fn.strchars(text)
+        if consumed >= split_at then
+            right[#right + 1] = chunk
+        elseif consumed + len <= split_at then
+            left[#left + 1] = chunk
+        else
+            local left_len = split_at - consumed
+            left[#left + 1] = hl
+                and { vim.fn.strcharpart(text, 0, left_len), hl }
+                or { vim.fn.strcharpart(text, 0, left_len) }
+            right[#right + 1] = hl
+                and { vim.fn.strcharpart(text, left_len), hl }
+                or { vim.fn.strcharpart(text, left_len) }
+        end
+        consumed = consumed + len
+    end
+    return left, right
+end
+
 ---@return keystone.PickerSpec?
 function M.spec()
     local entries = collect_commands()
@@ -92,25 +242,41 @@ function M.spec()
         return nil
     end
 
+    ---@type table<string, boolean>
+    local command_names = {}
+    for _, entry in ipairs(entries) do
+        command_names[entry.info.name] = true
+    end
+
     return {
-        prompt     = "Commands",
-        flags      = FLAGS,
-        finder     = function(query, flags, _, callback)
+        prompt         = "Commands",
+        flags          = FLAGS,
+        enable_preview = true,
+        previewer      = make_help_previewer(help_tag_index(), command_names),
+        finder         = function(query, flags, _, callback)
             local items = {}
             for _, cmd in ipairs(entries) do
                 if flags.buflocal and not cmd.is_buf then goto continue end
                 if flags.builtin and not cmd.is_builtin then goto continue end
                 if flags.user and cmd.is_builtin then goto continue end
 
-                local info  = cmd.info
-                local match = pickertools.match_label(info.name, query)
+                local info = cmd.info
+                -- `definition` is the description for Lua callbacks, the body
+                -- for `:command`-defined commands, and the help one-liner for
+                -- built-ins. Matched against together with the name so the
+                -- query can hit either.
+                local has_desc = info.definition and info.definition ~= ""
+                local search_text = has_desc and (info.name .. "  " .. info.definition) or info.name
+                local match = pickertools.match_label(search_text, query)
                 if match then
                     local chunks = match.chunks
-                    -- `definition` is the description for Lua callbacks, the body
-                    -- for `:command`-defined commands, and the help one-liner for
-                    -- built-ins.
-                    if info.definition and info.definition ~= "" then
-                        table.insert(chunks, { "  " .. info.definition, "Comment" })
+                    if has_desc then
+                        local name_chunks, desc_chunks = _split_chunks(chunks, vim.fn.strchars(info.name))
+                        for _, c in ipairs(desc_chunks) do
+                            c[2] = c[2] or "Comment"
+                        end
+                        chunks = name_chunks
+                        vim.list_extend(chunks, desc_chunks)
                     end
                     if cmd.is_buf then
                         table.insert(chunks, { " [buf]", "Special" })
@@ -126,7 +292,7 @@ function M.spec()
             table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
-        on_confirm = function(data)
+        on_confirm     = function(data)
             if not data then return end
             ---@type keystone.pick.CommandEntry
             local cmd     = data.cmd
