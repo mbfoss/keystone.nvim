@@ -47,8 +47,7 @@ M.restore_cursor = {
         local buf = args.buf
         if vim.bo[buf].buftype ~= "" then return end
         local ft = vim.bo[buf].filetype
-        if ft == "gitcommit" or ft == "gitrebase" then return end
-
+        if ft ~= "" then return end
         local mark = vim.api.nvim_buf_get_mark(buf, '"')
         local line = mark[1]
         if line > 0 and line <= vim.api.nvim_buf_line_count(buf) then
