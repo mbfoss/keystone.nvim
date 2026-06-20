@@ -17,6 +17,7 @@ A quality-of-life Neovim plugin. Requires Neovim >= 0.10.
 - **Text Objects** — treesitter and bracket-based text objects (`ia`, `if`, `ic`, `ib`, …)
 - **Clue** — which-key-style popup hinting the keys that follow a prefix
 - **Colors** — semantic pastel colorscheme
+- **Tweaks** — essential editor behaviors (highlight on yank, restore cursor, auto-mkdir, …)
 
 ---
 
@@ -37,6 +38,7 @@ require("keystone.tsconfig").setup()
 require("keystone.focus").setup()
 require("keystone.objects").setup()
 require("keystone.clue").setup()
+require("keystone.tweaks").setup()
 ```
 
 ---
@@ -348,6 +350,51 @@ require("keystone.colors").setup({
 ```
 
 **Palette groups:** 15 neutrals (`bg_dark` → `bright`), 9 pastel core colors, 6 vivid extensions, 6 tinted backgrounds.
+
+---
+
+## Tweaks
+
+Essential editor behaviors you'd otherwise hand-roll in your config. Each is an
+independent toggle, so enable only the ones you want.
+
+```lua
+require("keystone.tweaks").setup({
+  enabled              = true,        -- master switch
+  highlight_on_yank    = true,        -- flash the yanked region
+  yank_hlgroup         = "IncSearch", -- highlight group for the flash
+  yank_timeout         = 200,         -- flash duration in ms
+  restore_cursor       = true,        -- reopen a file at its last cursor position
+  auto_create_dir      = true,        -- mkdir -p missing parents on :write
+  auto_reload          = true,        -- reload files changed outside Neovim
+  equalize_splits      = true,        -- re-balance splits on resize
+  quick_close          = false,       -- press q to close help/qf/man/... buffers
+  quick_close_filetypes = {           -- buffers quick_close applies to
+    "help", "qf", "man", "lspinfo", "checkhealth",
+    "startuptime", "query", "notify", "git",
+  },
+  disable_auto_comment = false,       -- no comment leader on the next line
+  trim_whitespace      = false,       -- strip trailing whitespace on save
+})
+```
+
+| Tweak | What it does |
+|-------|--------------|
+| `highlight_on_yank` | Briefly highlights the text you just yanked. |
+| `restore_cursor` | Jumps to the last cursor position when reopening a file (skips commit/rebase buffers). |
+| `auto_create_dir` | Creates missing parent directories when you save a new file. |
+| `auto_reload` | Reloads buffers changed on disk (`autoread` + `checktime` on focus/enter) and notifies you. |
+| `equalize_splits` | Re-balances split sizes on `VimResized`. |
+| `quick_close` | Maps `q` to close utility buffers (help, quickfix, man, …). |
+| `disable_auto_comment` | Stops Neovim continuing comment leaders onto new lines. |
+| `trim_whitespace` | Strips trailing whitespace on save (rewrites buffer contents). |
+
+Individual tweaks can be toggled at runtime from Lua:
+
+```lua
+require("keystone.tweaks").toggle_feature("highlight_on_yank")
+require("keystone.tweaks").disable_feature("auto_reload")
+```
 
 ---
 
