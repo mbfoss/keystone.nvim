@@ -157,6 +157,85 @@ function M.toggle()
     end
 end
 
+--- A which-key-style entry for `M.add`. Its `[1]` is the key sequence; the other
+--- fields describe what it is:
+---   * `group` — a prefix label shown in the clue window (a leading `+` is
+---     optional; the window prepends its own).
+---   * `[2]` (a command string or Lua function) — a real keymap, created with
+---     `vim.keymap.set`; map options (`silent`, `expr`, `buffer`, …) are forwarded.
+---   * neither — a virtual clue (`desc` only) for an otherwise unmapped key.
+---@class keystone.clue.AddSpec
+---@field [1] string the key sequence (lhs); `<leader>`/`<localleader>` allowed
+---@field [2]? string|function rhs: a `<cmd>`/`:` command string or a Lua callback
+---@field group? string group label (leading `+` optional)
+---@field desc? string description shown in the clue window
+---@field mode? string|string[] mode(s); defaults to `"n"`
+
+-- vim.keymap.set option keys we forward from an add spec (others, e.g. which-key
+-- extras like `icon`, are ignored so they don't trip nvim_set_keymap's validation).
+local _MAP_OPT_KEYS = {
+    desc = true,
+    silent = true,
+    noremap = true,
+    expr = true,
+    nowait = true,
+    buffer = true,
+    remap = true,
+    replace_keycodes = true,
+    unique = true,
+    script = true,
+}
+
+---@param mode string|string[]|nil
+---@return string[]
+local function _modes_list(mode)
+    if mode == nil then
+        return { "n" }
+    end
+    if type(mode) == "string" then
+        return { mode }
+    end
+    return mode
+end
+
+--- Register which-key-style entries: group labels, real keymaps, and/or virtual
+--- clues. Safe to call before or after `setup`/`enable`; group labels take effect
+--- immediately and added clues are picked up on the next interaction.
+---@param specs keystone.clue.AddSpec[]
+function M.add(specs)
+    local touched_clues = false
+
+    for _, spec in ipairs(specs) do
+        local lhs = spec[1]
+        if type(lhs) ~= "string" then
+            error("keystone.clue.add: each entry needs a key sequence at [1]")
+        end
+        local modes = _modes_list(spec.mode)
+
+        if spec.group ~= nil then
+            M.config.groups[lhs] = (tostring(spec.group):gsub("^%+", ""))
+        elseif spec[2] ~= nil then
+            local opts = {}
+            for k, v in pairs(spec) do
+                if _MAP_OPT_KEYS[k] then
+                    opts[k] = v
+                end
+            end
+            vim.keymap.set(modes, lhs, spec[2], opts)
+        else
+            for _, m in ipairs(modes) do
+                table.insert(M.config.clues, { mode = m, keys = lhs, desc = spec.desc or "" })
+            end
+            touched_clues = true
+        end
+    end
+
+    M.config._groups = _normalize_groups(M.config.groups)
+    if touched_clues and _enabled then
+        engine.refresh()
+    end
+end
+
 ---@param opts keystone.clue.Config?
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})

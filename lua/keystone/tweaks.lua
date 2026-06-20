@@ -27,7 +27,7 @@ local function _get_default_config()
     enabled              = true,
     highlight_on_yank    = true,
     yank_hlgroup         = "IncSearch",
-    yank_timeout         = 200,
+    yank_timeout         = 150,
     restore_cursor       = true,
     auto_create_dir      = true,
     auto_reload          = true,

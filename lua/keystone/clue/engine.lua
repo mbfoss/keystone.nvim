@@ -252,6 +252,15 @@ function M.disable()
     _unmap_all()
 end
 
+--- Rebuild the trigger and virtual-clue lookups from the current `M.config`,
+--- e.g. after `keystone.clue.add` mutates `config.clues`. Group labels are read
+--- live at show-time and need no rebuild.
+function M.refresh()
+    if M.config then
+        _build()
+    end
+end
+
 -- ---------------------------------------------------------------------------
 -- Test seam. The `getcharstr` loop can't be driven synchronously (it blocks on
 -- real input), so it is covered by an integration test that runs a child

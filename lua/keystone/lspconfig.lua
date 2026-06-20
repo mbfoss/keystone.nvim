@@ -19,6 +19,7 @@ local _usercmd = require("keystone.util.usercmd")
 ---@field auto_enable boolean enable `servers` automatically on setup (the main thing vanilla Neovim does not do)
 ---@field format keystone.lspconfig.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
+---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
 ---@field log_level string|integer LSP client log level for `vim.lsp.set_log_level` (e.g. "ERROR", "WARN", "DEBUG", "OFF")
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
 ---@field capabilities? lsp.ClientCapabilities|fun():lsp.ClientCapabilities merged into every server's capabilities
@@ -39,6 +40,7 @@ local function _get_default_config()
       filter     = nil,
     },
     inlay_hints  = true,
+    document_highlight = true,
     log_level    = "OFF",
     diagnostics  = {
       virtual_text     = { spacing = 2, prefix = "●" },
@@ -122,6 +124,18 @@ local function _setup_format_on_save(client, bufnr)
   })
 end
 
+---@param bufnr integer
+local function _setup_document_highlight(bufnr)
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    group    = vim.api.nvim_create_augroup(_group .. "_highlight_" .. bufnr, { clear = true }),
+    buffer   = bufnr,
+    callback = function()
+      vim.lsp.buf.clear_references()
+      vim.lsp.buf.document_highlight()
+    end,
+  })
+end
+
 ---@param client vim.lsp.Client
 ---@param bufnr integer
 local function _on_attach(client, bufnr)
@@ -133,6 +147,12 @@ local function _on_attach(client, bufnr)
   end
 
   _setup_format_on_save(client, bufnr)
+
+  if M.config.document_highlight
+      and client:supports_method("textDocument/documentHighlight")
+  then
+    _setup_document_highlight(bufnr)
+  end
 
   if M.config.on_attach then
     M.config.on_attach(client, bufnr)
