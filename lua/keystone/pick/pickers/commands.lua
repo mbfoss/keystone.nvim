@@ -2,6 +2,15 @@ local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
 
+--- A command as returned by `nvim_get_commands`, plus the source flags this
+--- picker tags each entry with.  `nvim_get_commands` never returns a `desc`
+--- field: for Lua-callback commands the description is reported in `definition`,
+--- while for `:command`-defined commands `definition` is the command body.
+---@class keystone.pick.CommandEntry
+---@field is_builtin boolean?
+---@field is_buf boolean?
+---@info vim.api.keyset.command_info
+
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
     { name = "buflocal", type = "boolean", desc = "only buffer-local commands" },
@@ -9,77 +18,35 @@ local FLAGS = {
     { name = "user",     type = "boolean", desc = "only user-defined commands" },
 }
 
----@param cmd table
----@return string
-local function format_preview(cmd)
-    if cmd.is_builtin then
-        return string.format("Built-in Neovim command\n\nRun  :help :%s  for documentation.", cmd.name)
+--- Collect every command available in the current buffer: user/buffer-local
+--- commands (with full info) merged over the names reported by completion, so
+--- built-ins that have no info entry still show up.
+---@return keystone.pick.CommandEntry[]
+local function collect_commands()
+    ---@type table<string, keystone.pick.CommandEntry>
+    local by_name = {}
+
+    for name, cmd in pairs(vim.api.nvim_get_commands({})) do
+        ---@cast cmd keystone.pick.CommandEntry
+        by_name[name] = cmd
+    end
+    for name, cmd in pairs(vim.api.nvim_buf_get_commands(0, {})) do
+        ---@cast cmd keystone.pick.CommandEntry
+        cmd.is_buf    = true
+        by_name[name] = cmd
     end
 
-    local function add(lines, label, value)
-        if value ~= nil and value ~= "" and value ~= 0 and value ~= false then
-            table.insert(lines, string.format("- %s: %s", label, tostring(value)))
-        end
+    ---@type keystone.pick.CommandEntry[]
+    local entries = {}
+    for _, name in ipairs(vim.fn.getcompletion("", "command")) do
+        entries[#entries + 1] = by_name[name] or { name = name, is_builtin = true }
     end
-
-    local lines = {}
-    add(lines, "Name", cmd.name)
-    add(lines, "Nargs", cmd.nargs)
-    add(lines, "Range", cmd.range)
-    add(lines, "Count", cmd.count)
-    add(lines, "Addr", cmd.addr)
-    add(lines, "Bang", cmd.bang)
-    add(lines, "Bar", cmd.bar)
-    add(lines, "Complete", cmd.complete or cmd.complete_arg)
-    add(lines, "Description", cmd.desc)
-
-    table.insert(lines, "")
-    table.insert(lines, "Action:")
-
-    if cmd.callback then
-        local info = debug.getinfo(cmd.callback, "S")
-        table.insert(lines, "- Type: Lua callback")
-        if info then
-            if info.short_src then table.insert(lines, string.format("- Source: `%s`", info.short_src)) end
-            if info.linedefined and info.linedefined > 0 then
-                table.insert(lines, string.format("- Line: %d", info.linedefined))
-            end
-        end
-    elseif cmd.definition and cmd.definition ~= "" then
-        table.insert(lines, "- Type: Vim command")
-        table.insert(lines, "- Definition: " .. cmd.definition)
-    else
-        table.insert(lines, "_No action defined_")
-    end
-
-    return table.concat(lines, "\n")
+    return entries
 end
 
 ---@return keystone.PickerSpec?
 function M.spec()
-    local user_cmds = {}
-
-    for name, cmd in pairs(vim.api.nvim_get_commands({})) do
-        cmd.name        = name
-        user_cmds[name] = cmd
-    end
-
-    for name, cmd in pairs(vim.api.nvim_buf_get_commands(0, {})) do
-        cmd.name        = name
-        cmd.is_buf      = true
-        user_cmds[name] = cmd
-    end
-
-    local all_names = vim.fn.getcompletion("", "command")
-
-    local entries = {}
-    for _, name in ipairs(all_names) do
-        if user_cmds[name] then
-            table.insert(entries, user_cmds[name])
-        else
-            table.insert(entries, { name = name, is_builtin = true, is_buf = false })
-        end
-    end
+    local entries = collect_commands()
 
     if vim.tbl_isempty(entries) then
         vim.notify("No commands found", vim.log.levels.WARN)
@@ -87,10 +54,9 @@ function M.spec()
     end
 
     return {
-        prompt         = "Commands",
-        flags          = FLAGS,
-        enable_preview = true,
-        finder         = function(query, flags, _, callback)
+        prompt     = "Commands",
+        flags      = FLAGS,
+        finder     = function(query, flags, _, callback)
             local items = {}
             for _, cmd in ipairs(entries) do
                 if flags.buflocal and not cmd.is_buf then goto continue end
@@ -101,8 +67,10 @@ function M.spec()
                 if match then
                     local chunks = match.chunks
                     if not cmd.is_builtin then
-                        if cmd.desc and cmd.desc ~= "" then
-                            table.insert(chunks, { "  " .. cmd.desc, "Comment" })
+                        -- `definition` is the human description for Lua callbacks
+                        -- and the command body for `:command`-defined commands.
+                        if cmd.definition and cmd.definition ~= "" then
+                            table.insert(chunks, { "  " .. cmd.definition, "Comment" })
                         end
                         if cmd.is_buf then
                             table.insert(chunks, { " [buf]", "Special" })
@@ -119,15 +87,10 @@ function M.spec()
             table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
-        previewer      = function(data, _, callback)
-            callback({ content = format_preview(data.cmd) })
-            return function() end
-        end,
-        on_confirm     = function(data)
+        on_confirm = function(data)
             if not data then return end
-            local name    = data.cmd.name
-            local nargs   = data.cmd.nargs
-            local cmdline = (not data.cmd.is_builtin and nargs ~= "0") and (name .. " ") or name
+            local cmd     = data.cmd
+            local cmdline = (not cmd.is_builtin and cmd.nargs ~= "0") and (cmd.name .. " ") or cmd.name
             vim.api.nvim_feedkeys(":" .. cmdline, "n", false)
         end,
     }
