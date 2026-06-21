@@ -11,7 +11,6 @@
 local engine = require("keystone.clue.engine")
 local window = require("keystone.clue.window")
 local keys = require("keystone.clue.keys")
-local usercmd = require("keystone.util.usercmd")
 
 local M = {}
 
@@ -107,26 +106,7 @@ local function _ensure_initialized()
         return
     end
     _initialized = true
-
     window.setup_hl()
-
-    usercmd.register_user_cmd("Clue", function(_, args)
-        local sub = args[1] or "toggle"
-        if sub == "enable" then
-            M.enable()
-        elseif sub == "disable" then
-            M.disable()
-        elseif sub == "toggle" then
-            M.toggle()
-        else
-            error("keystone.clue: unknown subcommand: " .. tostring(sub))
-        end
-    end, {
-        desc = "keystone clue",
-        subcommand_fn = function()
-            return { "enable", "disable", "toggle" }
-        end,
-    })
 end
 
 function M.enable()
