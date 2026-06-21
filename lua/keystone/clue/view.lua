@@ -26,7 +26,7 @@ function M.setup_hl()
     local function apply()
         vim.api.nvim_set_hl(0, HL_KEY, { default = true, link = "Constant" })
         vim.api.nvim_set_hl(0, HL_SEP, { default = true, link = "Comment" })
-        vim.api.nvim_set_hl(0, HL_DESC, { default = true, link = "Normal" })
+        vim.api.nvim_set_hl(0, HL_DESC, { default = true, link = nil })
         vim.api.nvim_set_hl(0, HL_GROUP, { default = true, link = "Function" })
     end
     apply()
