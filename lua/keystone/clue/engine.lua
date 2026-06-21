@@ -224,22 +224,31 @@ local function _loop(mode, root, node)
 
         -- Show the popup after `delay` ms (immediately if already visible). The
         -- timer fires while we block in getcharstr because that pumps the loop.
+        -- Skip it entirely while a macro is replaying: the resolve loop still runs
+        -- (reading from the macro typeahead) but no popup flickers mid-replay.
         local current = node
-        local timer = uv.new_timer()
-        timer:start(
-            View.visible() and 0 or delay,
-            0,
-            vim.schedule_wrap(function()
-                if M._active then
-                    View.show(current)
-                end
-            end)
-        )
+        local timer
+        if vim.fn.reg_executing() == "" then
+            timer = uv.new_timer()
+            if timer then
+                timer:start(
+                    View.visible() and 0 or delay,
+                    0,
+                    vim.schedule_wrap(function()
+                        if M._active then
+                            View.show(current)
+                        end
+                    end)
+                )
+            end
+        end
         local ok, char = pcall(vim.fn.getcharstr)
-        timer:stop()
-        pcall(function()
-            timer:close()
-        end)
+        if timer then
+            timer:stop()
+            pcall(function()
+                timer:close()
+            end)
+        end
 
         if not ok then
             return
