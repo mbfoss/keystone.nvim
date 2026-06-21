@@ -1,6 +1,7 @@
 --- The clue popup: a non-focusable floating window anchored to the bottom of
 --- the editor, rendering the children of the current node in auto-sized columns.
 local Tree = require("keystone.clue.tree")
+local Keys = require("keystone.clue.keys")
 
 local M = {}
 
@@ -24,7 +25,7 @@ local COL_GAP_W = 2
 --- sync across colorscheme changes.
 function M.setup_hl()
     local function apply()
-        vim.api.nvim_set_hl(0, HL_KEY, { default = true, link = "Constant" })
+        vim.api.nvim_set_hl(0, HL_KEY, { default = true, link = "DiagnosticHint" })
         vim.api.nvim_set_hl(0, HL_SEP, { default = true, link = "Comment" })
         vim.api.nvim_set_hl(0, HL_DESC, { default = true, link = nil })
         vim.api.nvim_set_hl(0, HL_GROUP, { default = true, link = "Function" })
@@ -38,7 +39,8 @@ end
 
 ---@type table<string, string>
 local _key_alias = {
-    [" "] = "␣",
+    [" "] = "⎵",
+    ["<Space>"] = "⎵",
 }
 
 ---@param token string
@@ -139,11 +141,31 @@ local function _render(entries, key_w, desc_w)
     return lines, highlights
 end
 
+--- Build centered footer chunks showing the pending key sequence (the keys
+--- typed so far to reach `node`), e.g. `<leader>f` → `␣f`. Nil when there is no
+--- prefix yet or the popup has no border to host a footer.
+---@param node keystone.clue.Node
+---@return table[]?
+local function _footer(node)
+    if not node.keys or node.keys == "" then
+        return nil
+    end
+    if M.border == "none" or M.border == "" or M.border == "shadow" then
+        return nil
+    end
+    local parts = {} ---@type string[]
+    for _, tok in ipairs(Keys.split(node.keys)) do
+        parts[#parts + 1] = _disp_key(tok)
+    end
+    return { { " " .. table.concat(parts) .. " ", nil} }
+end
+
 ---@param width integer
 ---@param height integer
 ---@param for_open boolean
+---@param footer table[]?
 ---@return vim.api.keyset.win_config
-local function _win_config(width, height, for_open)
+local function _win_config(width, height, for_open, footer)
     local cfg = {
         relative = "editor",
         width = width,
@@ -153,6 +175,8 @@ local function _win_config(width, height, for_open)
         zindex = 250,
         border = M.border or "rounded",
         focusable = false,
+        footer = footer,
+        footer_pos = footer and "center" or nil,
     }
     if for_open then
         cfg.style = "minimal"
@@ -205,10 +229,17 @@ function M.show(node)
         end
     end
 
+    local footer = _footer(node)
+    -- A footer can be wider than the content; widen so it is not clipped.
+    if footer then
+        local fw = _dw(footer[1][1])
+        width = math.min(math.max(width, fw), vim.o.columns - 2)
+    end
+
     if M.visible() then
-        vim.api.nvim_win_set_config(M._win, _win_config(width, height, false))
+        vim.api.nvim_win_set_config(M._win, _win_config(width, height, false, footer))
     else
-        M._win = vim.api.nvim_open_win(M._buf, false, _win_config(width, height, true))
+        M._win = vim.api.nvim_open_win(M._buf, false, _win_config(width, height, true, footer))
         vim.wo[M._win].wrap = false
         vim.wo[M._win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
     end
