@@ -18,54 +18,6 @@ Requires Neovim >= 0.10.
 
 ## Architecture
 
-keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as a public-API module at `lua/keystone/<feature>.lua` paired with a `lua/keystone/<feature>/` directory for implementation details. The entry point `plugin/keystone.lua` only does a version check.
-
-### Feature modules
-
-| Module | User command | Description |
-|--------|-------------|-------------|
-| `pick` | `:Pick <type>` | Floating async fuzzy picker; overrides `vim.ui.select` by default |
-| `filetree` | `:FileTree <cmd>` | Sidebar file tree |
-| `explore` | `:FileSelector <cmd>` | Floating file explorer/selector |
-| `notify` | — | Replaces `vim.notify` with floating notifications + LSP progress |
-| `lspconfig` | `:Lsp <cmd>` | Auto-enable LSP servers (`vim.lsp.enable`) + diagnostics, format-on-save, inlay hints, document highlight (`document_highlight` option) |
-| `tsconfig` | — | Auto-start treesitter highlight (`vim.treesitter.start`) + folds on `FileType` for parser-backed buffers; filetype→parser aliases. Diagnose with `:checkhealth keystone.tsconfig` |
-| `animate` | — | Scroll/cursor animation |
-| `focus` | — | Float preview of current buffer |
-| `colors` | — | Semantic pastel colorscheme (palette, highlight blending) |
-| `statusline` | — | Statusline: mode, git branch, filename+icon, LSP diagnostics, filetype, position |
-| `winbar` | — | Winbar: file path + LSP symbol breadcrumbs |
-| `clue` | — | which-key style popup of follow-up keys for trigger prefixes (`<leader>`, `g`, `z`, marks, registers, ...). Group labels via `clue.add()` |
-
-Each feature's `setup(opts)` merges opts with defaults and registers its user command via `util/usercmd.register_user_cmd`.
-
-### Picker engine (`lua/keystone/pick/base/`)
-
-`picker.lua` is the core: a floating window with a prompt, an async results list, and an optional preview pane. Callers supply a `finder` function `(query, opts, callback)` that calls `callback(items)` as results arrive. Items carry `label_chunks` (highlight-aware text segments) and `data`. Layout math lives in `layouts.lua`; fuzzy match scoring in `pickertools.lua`.
-
-Pickers in `lua/keystone/pick/pickers/` each call `picker.open(opts, callback)` and provide a finder backed by ripgrep, LSP, git, or Neovim APIs.
-
-### Clue engine (`lua/keystone/clue/`)
-
-Each configured trigger (`clue/config.lua`) is registered as a `nowait` keymap by `engine.lua`. On press, the engine builds a fresh keymap tree (`tree.lua`) from the live keymaps of the active mode — overlaid with group labels from `clue.add()` and builtin generators (`builtin.lua`, marks/registers) — then runs a synchronous `getcharstr` loop: it shows the popup (`view.lua`, a bottom float) after `delay` ms, descends on each key, and once a leaf or unknown key is reached **re-feeds** the resolved sequence with `nvim_feedkeys(..., "mit")` so the real mapping/builtin runs natively (preserving counts, registers, operators, dot-repeat). Triggers are briefly suspended around the re-feed to avoid re-entry. Key tokens are canonicalised to keytrans form by `keys.lua` so tokens read at runtime compare equal to tree keys. Default triggers are limited to safe prefix keys (no operators / mode-entering keys).
-
-### TreeBuffer (`lua/keystone/util/TreeBuffer.lua`)
-
-Reusable class that renders an indented, expandable tree into a Neovim buffer with virtual text. `FileTree` (`lua/keystone/filetree/FileTree.lua`) is its primary consumer — it wraps `TreeBuffer` with filesystem-aware expand/collapse logic, async directory loading, and LRU caching.
-
-### Utilities (`lua/keystone/util/`)
-
-- `spawn.lua` — async subprocess wrapper around `vim.uv`
-- `floatwin.lua` / `inputwin.lua` — helpers for creating floating windows and input prompts
-- `Tree.lua` — generic tree data structure used by `TreeBuffer`
-- `Signal.lua` — event/callback registration
-- `LRU.lua` — LRU cache
-- `Spinner.lua` — animated spinner for async operations
-- `throttle.lua` — throttle/debounce
-- `fsutil.lua` — filesystem helpers
-- `strutil.lua` — string utilities
-- `uitool.lua` — Neovim UI helpers
-- `usercmd.lua` — registers user commands with subcommand completion
 
 ### Styling
 
