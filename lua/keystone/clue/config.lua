@@ -3,6 +3,7 @@ local M = {}
 ---@class keystone.clue.Config
 ---@field delay integer                                ms to wait before the popup appears
 ---@field border string|string[]                       float border style
+---@field max_desc_width integer                       max display width of a hint's description (cropped with …)
 ---@field preset boolean                               register builtin g/z/window descriptions
 ---@field builtin { marks: boolean, registers: boolean } enable dynamic generators
 ---@field triggers keystone.clue.Trigger[]             keys that open the clue popup
@@ -12,6 +13,7 @@ function M.defaults()
     return {
         delay = 300,
         border = "rounded",
+        max_desc_width = 40,
         preset = true,
         builtin = { marks = true, registers = true },
         triggers = {

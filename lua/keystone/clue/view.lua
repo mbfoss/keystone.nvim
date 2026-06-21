@@ -11,6 +11,10 @@ M._buf = nil ---@type integer?
 M._win = nil ---@type integer?
 M._ns = vim.api.nvim_create_namespace("keystone_clue")
 
+--- Max display width of a hint description; longer ones are cropped with `…`.
+--- Set from `config.max_desc_width` by `clue.setup`. 0 disables cropping.
+M.max_desc_width = 40 ---@type integer
+
 local HL_KEY = "KeystoneClueKey"
 local HL_SEP = "KeystoneClueSep"
 local HL_DESC = "KeystoneClueDesc"
@@ -49,6 +53,24 @@ local function _disp_key(token)
     return _key_alias[token] or token
 end
 
+--- Sanitise newlines/tabs and crop `s` to at most `max_w` display columns,
+--- appending `…` when cropped. `max_w <= 0` only sanitises (no cropping).
+---@param s string
+---@param max_w integer
+---@return string
+local function _truncate(s, max_w)
+    s = s:gsub("[\r\n\t]", " ")
+    if max_w <= 0 or _dw(s) <= max_w then
+        return s
+    end
+    local limit = math.max(0, max_w - 1) -- leave one column for the ellipsis
+    local cut = vim.fn.strchars(s)
+    while cut > 0 and _dw(vim.fn.strcharpart(s, 0, cut)) > limit do
+        cut = cut - 1
+    end
+    return vim.fn.strcharpart(s, 0, cut) .. "…"
+end
+
 ---@class keystone.clue.Entry
 ---@field key string
 ---@field desc string
@@ -74,6 +96,7 @@ local function _entries(node)
         if is_group and not desc:match("^%+") then
             desc = "+" .. desc
         end
+        desc = _truncate(desc, M.max_desc_width)
         local key = _disp_key(child.key)
         out[#out + 1] = { key = key, desc = desc, group = is_group }
         key_w = math.max(key_w, _dw(key))

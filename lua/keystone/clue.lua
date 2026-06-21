@@ -99,8 +99,10 @@ function M.setup(opts)
     end
 
     M._clues = {}
-    require("keystone.clue.view").setup_hl()
-    require("keystone.clue.view").border = M.config.border
+    local view = require("keystone.clue.view")
+    view.setup_hl()
+    view.border = M.config.border
+    view.max_desc_width = M.config.max_desc_width
     _load_builtins(M.config)
     require("keystone.clue.engine").register_triggers(M.config.triggers)
 end

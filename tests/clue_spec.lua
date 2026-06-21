@@ -72,6 +72,22 @@ describe("keystone.clue.setup", function()
     clue.setup({ triggers = { { mode = "n", keys = "g" } } })
     assert.equal(1, #clue.config.triggers)
   end)
+
+  it("crops long hint descriptions to max_desc_width", function()
+    local View = require("keystone.clue.view")
+    clue.setup({ max_desc_width = 10 })
+
+    local node = { key = "", keys = "x", children = {} }
+    node.children["a"] = { key = "a", keys = "xa", desc = string.rep("z", 200), children = {} }
+
+    View.show(node)
+    local line = vim.api.nvim_buf_get_lines(View._buf, 0, -1, false)[1]
+    View.hide()
+
+    -- key (1) + " → " (3) + desc capped at 10 = at most 14 display columns.
+    assert.is_true(vim.fn.strdisplaywidth(line) <= 14)
+    assert.is_truthy(line:find("…", 1, true))
+  end)
 end)
 
 describe("keystone.clue engine", function()
