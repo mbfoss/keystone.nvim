@@ -3,6 +3,13 @@
 --- the tree (showing the popup after a delay), and once a leaf or unknown key is
 --- reached, re-feed the resolved sequence so the real mapping / builtin runs
 --- natively (preserving counts, registers, operators and dot-repeat).
+---
+--- Triggers are registered both globally and, on `BufEnter`/`LspAttach`, as
+--- buffer-local `nowait` shadows. The buffer-local copy is essential: `nowait`
+--- on a *global* mapping does not stop Neovim from waiting out `timeoutlen` when
+--- a buffer-local mapping shares the trigger as a prefix (e.g. LSP's `gd`/`gr`).
+--- A buffer-local `nowait` full match suppresses that wait, so the popup fires
+--- immediately instead of stalling in operator-pending.
 local Keys = require("keystone.clue.keys")
 local Tree = require("keystone.clue.tree")
 
@@ -12,9 +19,12 @@ local M = {}
 
 ---@type { mode: string, lhs: string }[]
 M._registered = {}
+---@type table<integer, { mode: string, lhs: string }[]>
+M._buf_registered = {}
 ---@type keystone.clue.Trigger[]
 M._triggers = {}
 M._active = false
+M._augroup = nil
 
 --- Resolve the live mode to a mapmode letter (n/x/o/i/c/...).
 ---@return string
@@ -67,15 +77,13 @@ local function _already_mapped(mode, lhs)
     return true
 end
 
----@param triggers keystone.clue.Trigger[]
-function M.register_triggers(triggers)
+--- (Re)register the global trigger keymaps from `M._triggers`.
+local function _register_globals()
     for _, r in ipairs(M._registered) do
         pcall(vim.keymap.del, r.mode, r.lhs)
     end
     M._registered = {}
-    M._triggers = triggers
-
-    for _, trig in ipairs(triggers) do
+    for _, trig in ipairs(M._triggers) do
         local mode, lhs = trig.mode, trig.keys
         if not _already_mapped(mode, lhs) then
             local norm = Keys.norm(lhs)
@@ -89,18 +97,90 @@ function M.register_triggers(triggers)
     end
 end
 
+--- Set buffer-local `nowait` trigger shadows for `bufnr`. These take precedence
+--- over the global triggers and, unlike them, fire immediately even when a
+--- buffer-local mapping shares the prefix (the operator-pending delay fix).
+---@param bufnr integer
+local function _apply_buf_triggers(bufnr)
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
+    local list = {} ---@type { mode: string, lhs: string }[]
+    for _, trig in ipairs(M._triggers) do
+        local mode, lhs = trig.mode, trig.keys
+        -- `_already_mapped` inspects the current buffer, so resolve it there.
+        local mapped = vim.api.nvim_buf_call(bufnr, function()
+            return _already_mapped(mode, lhs)
+        end)
+        if not mapped then
+            local norm = Keys.norm(lhs)
+            local ok = pcall(vim.keymap.set, mode, lhs, function()
+                M.start(norm)
+            end, { buffer = bufnr, nowait = true, silent = true, desc = "keystone-clue-trigger" })
+            if ok then
+                list[#list + 1] = { mode = mode, lhs = lhs }
+            end
+        end
+    end
+    M._buf_registered[bufnr] = list
+end
+
+---@param bufnr integer
+local function _remove_buf_triggers(bufnr)
+    local list = M._buf_registered[bufnr]
+    if not list then
+        return
+    end
+    if vim.api.nvim_buf_is_valid(bufnr) then
+        for _, r in ipairs(list) do
+            pcall(vim.keymap.del, r.mode, r.lhs, { buffer = bufnr })
+        end
+    end
+    M._buf_registered[bufnr] = nil
+end
+
+---@param triggers keystone.clue.Trigger[]
+function M.register_triggers(triggers)
+    M._triggers = triggers
+    _register_globals()
+
+    M._augroup = vim.api.nvim_create_augroup("keystone.clue.engine", { clear = true })
+    vim.api.nvim_create_autocmd({ "BufEnter", "LspAttach" }, {
+        group = M._augroup,
+        desc = "keystone-clue buffer-local triggers",
+        callback = function(ev)
+            _apply_buf_triggers(ev.buf)
+        end,
+    })
+    vim.api.nvim_create_autocmd("BufWipeout", {
+        group = M._augroup,
+        callback = function(ev)
+            M._buf_registered[ev.buf] = nil
+        end,
+    })
+    _apply_buf_triggers(vim.api.nvim_get_current_buf())
+end
+
 --- Temporarily remove the triggers, then restore them on the next tick. This
 --- prevents the about-to-be-fed key sequence from re-entering the engine: the
 --- fed typeahead is drained (running the real mapping) before the restore runs.
+--- Both the global triggers and the current buffer's shadows are dropped, since
+--- either could otherwise catch the re-fed prefix.
 local function _suspend()
+    local bufnr = vim.api.nvim_get_current_buf()
     local saved = M._registered
     M._registered = {}
     for _, r in ipairs(saved) do
         pcall(vim.keymap.del, r.mode, r.lhs)
     end
+    local had_buf = M._buf_registered[bufnr] ~= nil
+    _remove_buf_triggers(bufnr)
     vim.schedule(function()
         if #M._registered == 0 then
-            M.register_triggers(M._triggers)
+            _register_globals()
+        end
+        if had_buf then
+            _apply_buf_triggers(bufnr)
         end
     end)
 end

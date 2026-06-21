@@ -27,6 +27,8 @@ function M.defaults()
             { mode = "x", keys = "`" },
             { mode = "n", keys = '"' },
             { mode = "x", keys = '"' },
+            { mode = "n", keys = "]" },
+            { mode = "n", keys = "[" },
             { mode = "n", keys = "<C-w>" },
             { mode = "i", keys = "<C-x>" },
             { mode = "i", keys = "<C-r>" },
