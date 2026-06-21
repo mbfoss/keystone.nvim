@@ -102,11 +102,7 @@ function M.setup(opts)
     require("keystone.clue.view").setup_hl()
     require("keystone.clue.view").border = M.config.border
     _load_builtins(M.config)
-    -- Defer the initial registration of the triggers so that keys set by other
-    -- plugins during startup are not overridden by our trigger keys.
-    vim.schedule(function()
-        require("keystone.clue.engine").register_triggers(M.config.triggers)
-    end)
+    require("keystone.clue.engine").register_triggers(M.config.triggers)
 end
 
 return M

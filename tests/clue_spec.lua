@@ -80,9 +80,6 @@ describe("keystone.clue engine", function()
     clue._clues = {}
     clue.setup({ delay = 0 })
     clue.add({ { "<leader>f", group = "+Find" } })
-    -- setup() registers the triggers on a `vim.schedule`; drain it so the
-    -- synchronous `press` below sees them (and no stale callback fires mid-loop).
-    vim.wait(20)
   end)
 
   it("re-feeds resolved sequences to run the real mapping", function()
