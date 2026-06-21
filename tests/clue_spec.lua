@@ -61,12 +61,28 @@ describe("keystone.clue.tree", function()
   end)
 end)
 
+describe("keystone.clue.setup", function()
+  it("merges a partial builtin table with defaults", function()
+    clue.setup({ builtin = { marks = false } })
+    assert.is_false(clue.config.builtin.marks)
+    assert.is_true(clue.config.builtin.registers)
+  end)
+
+  it("replaces the triggers array wholesale", function()
+    clue.setup({ triggers = { { mode = "n", keys = "g" } } })
+    assert.equal(1, #clue.config.triggers)
+  end)
+end)
+
 describe("keystone.clue engine", function()
   before_each(function()
     vim.g.mapleader = " "
     clue._clues = {}
     clue.setup({ delay = 0 })
     clue.add({ { "<leader>f", group = "+Find" } })
+    -- setup() registers the triggers on a `vim.schedule`; drain it so the
+    -- synchronous `press` below sees them (and no stale callback fires mid-loop).
+    vim.wait(20)
   end)
 
   it("re-feeds resolved sequences to run the real mapping", function()

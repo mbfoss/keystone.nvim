@@ -37,6 +37,10 @@ local function _mapmode()
     if mode:sub(1, 1) == "v" then
         return "x"
     end
+    -- Replace / virtual-replace modes use insert-mode mappings.
+    if mode:sub(1, 1) == "r" then
+        return "i"
+    end
     return mode:sub(1, 1):match("[ncitsxo]") or "n"
 end
 M.mapmode = _mapmode
@@ -152,7 +156,9 @@ function M.register_triggers(triggers)
             _apply_buf_triggers(ev.buf)
         end,
     })
-    vim.api.nvim_create_autocmd("BufWipeout", {
+    -- Drop tracking when a buffer goes away. `BufDelete` covers `:bdelete`
+    -- (which unlists without wiping), so the table does not grow unbounded.
+    vim.api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
         group = M._augroup,
         callback = function(ev)
             M._buf_registered[ev.buf] = nil
@@ -204,9 +210,9 @@ end
 
 --- The interactive loop. Runs synchronously inside the trigger keymap.
 ---@param mode string
----@param root keystone.clue.Node
+---@param start keystone.clue.Node  the node the trigger resolved to; `<BS>` never ascends above it
 ---@param node keystone.clue.Node
-local function _loop(mode, root, node)
+local function _loop(mode, start, node)
     local View = require("keystone.clue.view")
     local delay = require("keystone.clue").config.delay
 
@@ -224,11 +230,12 @@ local function _loop(mode, root, node)
 
         -- Show the popup after `delay` ms (immediately if already visible). The
         -- timer fires while we block in getcharstr because that pumps the loop.
-        -- Skip it entirely while a macro is replaying: the resolve loop still runs
-        -- (reading from the macro typeahead) but no popup flickers mid-replay.
+        -- Skip it entirely while a macro is replaying (the resolve loop still runs,
+        -- reading from the macro typeahead, but no popup flickers mid-replay) and
+        -- in cmdline mode, where opening a float over the command line is unsafe.
         local current = node
         local timer
-        if vim.fn.reg_executing() == "" then
+        if vim.fn.reg_executing() == "" and mode ~= "c" then
             timer = uv.new_timer()
             if timer then
                 timer:start(
@@ -258,7 +265,8 @@ local function _loop(mode, root, node)
         if key == "" or key == "<Esc>" or key == "<C-C>" then
             return
         elseif key == "<BS>" then
-            node = node.parent or root
+            -- Ascend, but never past the node the trigger resolved to.
+            node = (node ~= start and node.parent) or start
         elseif key:find("Mouse") or key:find("Scroll") then
             -- ignore mouse / scroll-wheel events
         else
@@ -294,7 +302,7 @@ function M.start(prefix)
 
     local View = require("keystone.clue.view")
     M._active = true
-    local ok, err = pcall(_loop, mode, root, node)
+    local ok, err = pcall(_loop, mode, node, node)
     M._active = false
     View.hide()
     if not ok then

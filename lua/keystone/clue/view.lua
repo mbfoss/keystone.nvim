@@ -157,7 +157,10 @@ local function _footer(node)
     for _, tok in ipairs(Keys.split(node.keys)) do
         parts[#parts + 1] = _disp_key(tok)
     end
-    return { { " " .. table.concat(parts) .. " ", nil} }
+    local str = table.concat(parts)
+    if str == "'" then str = "' (marks)"
+    elseif str == '"' then str = '" (registers)' end
+    return { { " " .. str .. " ", nil} }
 end
 
 ---@param width integer

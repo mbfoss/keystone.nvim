@@ -91,19 +91,19 @@ end
 function M.setup(opts)
     opts = opts or {}
     M.config = vim.tbl_deep_extend("force", require("keystone.clue.config").defaults(), opts)
-    -- Array-valued options replace wholesale rather than merge by index.
+    -- `triggers` is an array, so it must replace wholesale rather than merge by
+    -- index. `builtin` is a dict and is correctly handled by the deep merge above
+    -- (a partial `{ marks = false }` must keep the default `registers = true`).
     if opts.triggers then
         M.config.triggers = opts.triggers
-    end
-    if opts.builtin then
-        M.config.builtin = opts.builtin
     end
 
     M._clues = {}
     require("keystone.clue.view").setup_hl()
     require("keystone.clue.view").border = M.config.border
     _load_builtins(M.config)
-    -- Defer the initial registration of the trigger so that other plugins their keys their keys will not overrite our trigger keys
+    -- Defer the initial registration of the triggers so that keys set by other
+    -- plugins during startup are not overridden by our trigger keys.
     vim.schedule(function()
         require("keystone.clue.engine").register_triggers(M.config.triggers)
     end)

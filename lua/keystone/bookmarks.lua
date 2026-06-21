@@ -184,19 +184,20 @@ function M.pick()
     end)
 
     picker.open({
-        prompt         = "Bookmark",
-        enable_preview = true,
-        finder         = function(query, _, _fetch_opts, callback)
+        prompt          = "Bookmark",
+        enable_preview  = true,
+        enable_list_sep = true,
+        finder          = function(query, _, _fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
                 local match = pickertools.match_label(entry.name, query)
                 if match then
                     local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
-                    local loc_chunk = { "  " .. relpath .. ":" .. entry.lnum, "Comment" }
-                    table.insert(match.chunks, loc_chunk)
+                    local loc_chunk = {relpath .. ":" .. entry.lnum, "@namspace" }
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = match.chunks,
+                        virt_lines   = { { loc_chunk } },
                         score        = match.score,
                         data         = {
                             filepath = entry.file,
