@@ -35,6 +35,7 @@ keystone.nvim is a quality-of-life Neovim plugin. Each feature is structured as 
 | `colors` | — | Semantic pastel colorscheme (palette, highlight blending) |
 | `statusline` | — | Statusline: mode, git branch, filename+icon, LSP diagnostics, filetype, position |
 | `winbar` | — | Winbar: file path + LSP symbol breadcrumbs |
+| `clue` | — | which-key style popup of follow-up keys for trigger prefixes (`<leader>`, `g`, `z`, marks, registers, ...). Group labels via `clue.add()` |
 
 Each feature's `setup(opts)` merges opts with defaults and registers its user command via `util/usercmd.register_user_cmd`.
 
@@ -43,6 +44,10 @@ Each feature's `setup(opts)` merges opts with defaults and registers its user co
 `picker.lua` is the core: a floating window with a prompt, an async results list, and an optional preview pane. Callers supply a `finder` function `(query, opts, callback)` that calls `callback(items)` as results arrive. Items carry `label_chunks` (highlight-aware text segments) and `data`. Layout math lives in `layouts.lua`; fuzzy match scoring in `pickertools.lua`.
 
 Pickers in `lua/keystone/pick/pickers/` each call `picker.open(opts, callback)` and provide a finder backed by ripgrep, LSP, git, or Neovim APIs.
+
+### Clue engine (`lua/keystone/clue/`)
+
+Each configured trigger (`clue/config.lua`) is registered as a `nowait` keymap by `engine.lua`. On press, the engine builds a fresh keymap tree (`tree.lua`) from the live keymaps of the active mode — overlaid with group labels from `clue.add()` and builtin generators (`builtin.lua`, marks/registers) — then runs a synchronous `getcharstr` loop: it shows the popup (`view.lua`, a bottom float) after `delay` ms, descends on each key, and once a leaf or unknown key is reached **re-feeds** the resolved sequence with `nvim_feedkeys(..., "mit")` so the real mapping/builtin runs natively (preserving counts, registers, operators, dot-repeat). Triggers are briefly suspended around the re-feed to avoid re-entry. Key tokens are canonicalised to keytrans form by `keys.lua` so tokens read at runtime compare equal to tree keys. Default triggers are limited to safe prefix keys (no operators / mode-entering keys).
 
 ### TreeBuffer (`lua/keystone/util/TreeBuffer.lua`)
 
