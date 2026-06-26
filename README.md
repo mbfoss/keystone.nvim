@@ -166,8 +166,6 @@ require("keystone.lspconfig").setup({
 })
 ```
 
-Diagnose with `:checkhealth keystone.tsconfig`.
-
 ### tsconfig
 
 Starts Treesitter highlighting and folds on `FileType` for buffers whose
@@ -182,6 +180,35 @@ require("keystone.tsconfig").setup({
   disable   = {},               -- list of languages or a predicate
 })
 ```
+
+Diagnose with `:checkhealth keystone.tsconfig`.
+
+#### Relationship to nvim-treesitter
+
+This module does **not** install or compile parsers — it only activates the
+parsers already on your `runtimepath`. Neovim core ships a handful (c, lua,
+vim, vimdoc, markdown, query, ...) and auto-starts highlighting for them; for
+anything else you still need a parser source such as
+[nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) to
+download and build it (`:TSInstall <lang>`).
+
+So it is **not** a drop-in replacement for nvim-treesitter; how the two relate
+depends on which branch you run:
+
+- **nvim-treesitter `main` (the rewrite)** — complementary. That branch
+  installs parsers and nothing else: it deliberately dropped the old
+  highlight/fold/indent modules and expects you to call `vim.treesitter.start()`
+  and set `foldexpr` yourself. `tsconfig` *is* that wiring, generalized to any
+  installed parser and hardened against the usual traps (parser present but no
+  `highlights` query, ABI-mismatched parsers, window-local fold leakage).
+  Use nvim-treesitter to install parsers, `tsconfig` to turn them on.
+- **nvim-treesitter `master` (classic)** — overlapping. Its
+  `configs.setup({ highlight = { enable = true }, fold = ... })` already enables
+  highlighting and folds, so running both duplicates the `FileType`/highlight
+  handling. Pick one: either the classic modules **or** `tsconfig`, not both.
+
+In short: keep `tsconfig` if you are on (or moving to) the `main` rewrite;
+disable it if you rely on classic nvim-treesitter's highlight/fold modules.
 
 ### notify
 

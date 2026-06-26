@@ -184,7 +184,7 @@ function M.pick()
     end)
 
     picker.open({
-        prompt          = "Bookmark",
+        prompt          = "Bookmarks",
         enable_preview  = true,
         enable_list_sep = true,
         finder          = function(query, _, _fetch_opts, callback)
@@ -193,7 +193,7 @@ function M.pick()
                 local match = pickertools.match_label(entry.name, query)
                 if match then
                     local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
-                    local loc_chunk = {relpath .. ":" .. entry.lnum, "@namspace" }
+                    local loc_chunk = {relpath .. ":" .. entry.lnum, "@namespace" }
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = match.chunks,
