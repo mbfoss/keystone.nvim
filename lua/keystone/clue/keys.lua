@@ -12,6 +12,9 @@ local _t_cache = {}
 ---@type table<string, string>
 local _norm_cache = {}
 
+---@type table<string, string>
+local _norm_raw_cache = {}
+
 ---@type table<string, string[]>
 local _split_cache = {}
 
@@ -25,8 +28,8 @@ function M.t(str)
     return _t_cache[str]
 end
 
---- Normalise an lhs (either `<...>` notation or raw bytes) to canonical
---- keytrans form.
+--- Normalise an lhs in `<...>` notation (e.g. `<leader>f`, `<C-w>s`) to
+--- canonical keytrans form.
 ---@param lhs string
 ---@return string
 function M.norm(lhs)
@@ -34,6 +37,20 @@ function M.norm(lhs)
         _norm_cache[lhs] = vim.fn.keytrans(M.t(lhs))
     end
     return _norm_cache[lhs]
+end
+
+--- Normalise an already byte-encoded lhs (e.g. `nvim_get_keymap().lhsraw`) to
+--- canonical keytrans form. Unlike `norm`, the bytes are *not* run through
+--- `replace_termcodes` again: they already hold internal key codes, and
+--- re-encoding mangles special keys (a `<C-T>`'s leading `0x80` would surface
+--- as a stray `<80>` token in the popup).
+---@param lhsraw string
+---@return string
+function M.norm_raw(lhsraw)
+    if _norm_raw_cache[lhsraw] == nil then
+        _norm_raw_cache[lhsraw] = vim.fn.keytrans(lhsraw)
+    end
+    return _norm_raw_cache[lhsraw]
 end
 
 --- Split a *normalised* string into individual key tokens, keeping `<...>`

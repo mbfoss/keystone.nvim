@@ -97,7 +97,10 @@ function M.build(mode, clues, builtins)
     for _, list in ipairs(lists) do
         for _, km in ipairs(list) do
             if not _ignored(km) then
-                local node = _descend(root, Keys.norm(km.lhsraw or km.lhs), true)
+                -- `lhsraw` already holds internal key codes; normalise it via
+                -- keytrans directly. Fall back to `lhs` notation when absent.
+                local norm = km.lhsraw and Keys.norm_raw(km.lhsraw) or Keys.norm(km.lhs)
+                local node = _descend(root, norm, true)
                 if node then
                     node.keymap = km
                     if km.desc and km.desc ~= "" then

@@ -43,6 +43,25 @@ describe("keystone.clue.tree", function()
     pcall(vim.keymap.del, "n", "<leader>fg")
   end)
 
+  it("normalises raw-byte lhs of special keys without a stray <80>", function()
+    clue.setup({ delay = 0 })
+    clue._clues = {}
+    -- `<C-T>` is stored by nvim as the raw bytes 0x80 0xfc 0x04 0x54; running
+    -- those through replace_termcodes again would surface a `<80>` child.
+    vim.keymap.set("n", "[<C-t>", "<nop>", { desc = "ptprevious" })
+
+    local root = Tree.build("n", clue.get_clues("n"), clue.get_builtins("n"))
+    local bracket = Tree.find(root, "[")
+    assert.is_truthy(bracket)
+
+    local keys = {}
+    for _, c in ipairs(Tree.children(bracket)) do keys[c.key] = true end
+    assert.is_true(keys["<C-T>"])
+    assert.is_nil(keys["<80>"])
+
+    pcall(vim.keymap.del, "n", "[<C-t>")
+  end)
+
   it("ignores its own trigger keymaps", function()
     clue.setup({ delay = 0 })
     local root = Tree.build("n", clue.get_clues("n"), clue.get_builtins("n"))
