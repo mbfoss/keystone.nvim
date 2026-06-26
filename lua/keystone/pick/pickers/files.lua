@@ -15,7 +15,7 @@ local icons       = require("keystone.icons")
 ---@field cwd string The root directory for the search
 ---@field include_globs string[]? List of glob patterns to include (filtered in Lua)
 ---@field exclude_globs string[]? List of glob patterns for fd to ignore
----@field in_globs string[]? rg-style glob patterns; file must match at least one
+---@field in_globs string[]? rg-style glob patterns; file must match at least one positive glob and no `!`-negated glob
 ---@field max_results number?
 ---@field use_regex boolean?
 ---@field case_sensitive boolean?
@@ -25,7 +25,7 @@ local icons       = require("keystone.icons")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
     { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
-    { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
+    { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, !*.lua, **/dir/**" },
     { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
     { name = "case",   type = "boolean", desc = "case-sensitive"                    },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
@@ -64,6 +64,20 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         and strutil.compile_globs(opts.include_globs) or nil
     local exclude_regex_list = strutil.compile_globs(exclude_globs)
 
+    -- Split the rg-style filter globs into positive matches and `!`-negated
+    -- exclusions (e.g. `!*.lua`), mirroring ripgrep's `--glob` semantics.
+    local in_globs, not_globs ---@type string[]?, string[]?
+    for _, g in ipairs(opts.in_globs or {}) do
+        local neg = g:match("^!(.+)$")
+        if neg then
+            not_globs = not_globs or {}
+            not_globs[#not_globs + 1] = neg
+        else
+            in_globs = in_globs or {}
+            in_globs[#in_globs + 1] = g
+        end
+    end
+
     local cancel_fn
     cancel_fn                = fsutil.async_walk_dir(
         opts.cwd,
@@ -75,12 +89,17 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 vim.cmd("redraw")
             end,
             on_file            = function(filepath, filename, relative_path)
-                if opts.in_globs then
+                if in_globs then
                     local matched = false
-                    for _, g in ipairs(opts.in_globs) do
+                    for _, g in ipairs(in_globs) do
                         if pickertools.match_glob(g, relative_path, true) then matched = true; break end
                     end
                     if not matched then return end
+                end
+                if not_globs then
+                    for _, g in ipairs(not_globs) do
+                        if pickertools.match_glob(g, relative_path, true) then return end
+                    end
                 end
                 local res = do_match(filename, query, opts.use_regex, opts.case_sensitive)
                 if not res then return end
