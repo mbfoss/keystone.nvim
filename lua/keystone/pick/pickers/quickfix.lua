@@ -6,7 +6,7 @@ local fsutil       = require("keystone.util.fsutil")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS        = {
     { name = "type",  type = "value",   multi = true, desc = "filter by type: error, warn, info, hint", values = { "error", "warn", "info", "hint" } },
-    { name = "in",    type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
+    { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
     { name = "valid", type = "boolean",               desc = "only items with a resolved location" },
 }
 
@@ -110,7 +110,7 @@ function M.spec(opts)
                     end
                     if not matched then skip = true end
                 end
-                local in_globs = flags["in"] or {}
+                local in_globs = flags["filter"] or {}
                 if not skip and #in_globs > 0 then
                     local matched = false
                     for _, g in ipairs(in_globs) do

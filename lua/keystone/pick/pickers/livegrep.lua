@@ -148,8 +148,8 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",     type = "value",   complete = "dir",          desc = "search root directory"              },
-    { name = "in",      type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
+    { name = "dir",     type = "value",   complete = "dir",          desc = "search root directory"              },
+    { name = "filter",  type = "value",   multi = true,              desc = "glob filter: *.txt, **/dir/**"      },
     { name = "regex",   type = "boolean", desc = "enable regex mode"                                             },
     { name = "case",    type = "boolean", desc = "case-sensitive"                                                },
     { name = "follow",  type = "boolean", desc = "follow symlinks"                                               },
@@ -164,7 +164,7 @@ local function build_rg_cmd(parsed)
     local query = parsed.query
     local flags = parsed.flags
 
-    local include_globs = vim.list_extend({}, flags["in"] or {})
+    local include_globs = vim.list_extend({}, flags["filter"] or {})
 
     local args = { "--json", "--no-heading", "--glob-case-insensitive", "--sort", "path" }
 
@@ -301,7 +301,7 @@ function M.spec(opts)
         enable_list_sep = true,
         finder           = function(query, flags, fetch_opts, callback, _)
             local parsed     = { query = query, flags = flags }
-            local target_cwd = flags.cwd and vim.fn.expand(flags.cwd) or vim.fn.getcwd()
+            local target_cwd = flags.dir and vim.fn.expand(flags.dir) or vim.fn.getcwd()
             _replace_value   = flags.replace
             return async_grep(parsed, {
                 cwd         = target_cwd,

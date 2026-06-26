@@ -21,7 +21,7 @@ end
 
 ---@type keystone.queryflags.FlagDef[]
 local REF_FLAGS = {
-    { name = "in", type = "value", multi = true, desc = "glob filter: *.txt, **/dir/**" },
+    { name = "filter", type = "value", multi = true, desc = "glob filter: *.txt, **/dir/**" },
 }
 
 ---@type keystone.queryflags.FlagDef[]
@@ -103,7 +103,7 @@ function M.references_spec()
             local picker_items = {}
             for _, ref in ipairs(data.lsp_items) do
                 local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
-                local in_globs     = flags["in"] or {}
+                local in_globs     = flags["filter"] or {}
                 if #in_globs > 0 then
                     local matched = false
                     for _, g in ipairs(in_globs) do

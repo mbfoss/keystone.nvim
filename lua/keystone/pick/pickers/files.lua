@@ -24,8 +24,8 @@ local icons       = require("keystone.icons")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
-    { name = "cwd",    type = "value",   complete = "dir", desc = "override search root directory"    },
-    { name = "glob",   type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
+    { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
+    { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, **/dir/**" },
     { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
     { name = "case",   type = "boolean", desc = "case-sensitive"                    },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
@@ -115,7 +115,7 @@ function M.spec(opts)
     opts = opts or {}
     return {
         prompt         = opts.prompt or "Files",
-        flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "cwd" end, FLAGS) or FLAGS,
+        flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "dir" end, FLAGS) or FLAGS,
         enable_preview = true,
         finder         = function(query, flags, fetch_opts, callback, _)
             local in_globs = flags.glob or {}
@@ -125,7 +125,7 @@ function M.spec(opts)
             end
             query = query or ""
 
-            local target_cwd = flags.cwd or opts.cwd or vim.fn.getcwd()
+            local target_cwd = flags.dir or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
 
             ---@type keystone.filepicker.SearchOpts
