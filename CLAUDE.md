@@ -27,6 +27,8 @@ Class-based modules are named in PascalCase and functional modules are named in 
 
 Module local variable names that are not required module names or function names are to be prefixed with underscore
 
+Function local variable names should NOT begin with underscore
+
 ### Naming conventions
 
 module-scope `local` variables should be prefixed with `_` with exception: 
