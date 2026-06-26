@@ -118,7 +118,7 @@ function M.spec(opts)
         flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "dir" end, FLAGS) or FLAGS,
         enable_preview = true,
         finder         = function(query, flags, fetch_opts, callback, _)
-            local in_globs = flags.glob or {}
+            local in_globs = flags.filter or {}
             if (not query or query == "") and #in_globs == 0 then
                 callback()
                 return
