@@ -2,6 +2,23 @@ local M = {}
 
 local _usercmd = require("keystone.util.usercmd")
 
+-- Neovim's `vim.lsp.log` opens (and writes a "[START] ... LSP logging initiated"
+-- header to) the log file *before* it checks the level, so even at "OFF" the
+-- file is created the moment a server logs to stderr. Wrap the loggers once so
+-- nothing reaches the file while the level is "OFF". The level is read live on
+-- every call, so toggling it at runtime works in both directions; every other
+-- level is passed straight through unchanged.
+do
+  local log = require("vim.lsp.log")
+  for _, name in ipairs({ "trace", "debug", "info", "warn", "error" }) do
+    local orig = log[name]
+    log[name] = function(...)
+      if log.get_level() == log.levels.OFF then return false end
+      return orig(...)
+    end
+  end
+end
+
 -- ---------------------------------------------------------------------------
 -- Config
 -- ---------------------------------------------------------------------------
