@@ -1193,26 +1193,15 @@ function M.repeat_last()
 	local first_call = true
 
 	local opts       = vim.tbl_extend("force", session.opts, {
-		initial_query  = session.query,
-		finder         = function(query, flags, fetch_opts, callback)
+		initial_query = session.query,
+		finder        = function(query, flags, fetch_opts, callback)
 			if first_call then
 				first_call = false
 				return session.opts.finder(query, flags, fetch_opts, function(items)
-					if items and (session.cursor_index or session.cursor_text) then
-						-- Restore the cursor by its stored index in the displayed
-						-- (sorted) list. Only fall back to a label match when the
-						-- item now sitting at that index differs from what was
-						-- previously selected.
-						local target = session.cursor_index and _sort_by_score(items)[session.cursor_index]
-						if target and (not session.cursor_text or _item_label(target) == session.cursor_text) then
+					if items and session.cursor_index then
+						local target = _sort_by_score(items)[session.cursor_index]
+						if target and _item_label(target) == session.cursor_text then
 							target.initial = true
-						elseif session.cursor_text then
-							for _, item in ipairs(items) do
-								if _item_label(item) == session.cursor_text then
-									item.initial = true
-									break
-								end
-							end
 						end
 					end
 					callback(items)
