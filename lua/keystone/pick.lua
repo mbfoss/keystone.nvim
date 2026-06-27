@@ -10,7 +10,8 @@ local pickertools = require("keystone.pick.base.pickertools")
 local _PATH_HL        = "KeystonePickPath"
 
 --- Highlight groups for the old/new text shown in search & replace mode
---- (e.g. live grep's `replace:` flag).
+--- (e.g. live grep's `replace:` flag).  The old text is struck through by
+--- default to signal it is being replaced.
 local _REPLACE_OLD_HL = "KeystoneReplaceOld"
 local _REPLACE_NEW_HL = "KeystoneReplaceNew"
 
@@ -19,7 +20,14 @@ local _REPLACE_NEW_HL = "KeystoneReplaceNew"
 local function _setup_hl()
     local function apply()
         vim.api.nvim_set_hl(0, _PATH_HL, { default = true, link = "@namespace" })
-        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, { default = true, link = "NonText" })
+        -- `link` ignores other attributes, so pull NonText's colour and add the
+        -- strikethrough explicitly to render the old text crossed out.
+        local nontext = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
+        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, {
+            default = true,
+            fg = nontext.fg,
+            strikethrough = true,
+        })
         vim.api.nvim_set_hl(0, _REPLACE_NEW_HL, { default = true, link = "Added" })
     end
     apply()
