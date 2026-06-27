@@ -1,19 +1,15 @@
-local M = {}
+local M           = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
 local uitool      = require("keystone.util.uitool")
 local fsutil      = require("keystone.util.fsutil")
 
----@class keystone.buffers.Opts
----@field include_unloaded boolean?
----@field include_unlisted boolean?
-
 ---@type keystone.queryflags.FlagDef[]
-local FLAGS = {
-    { name = "ft",       type = "value",   multi = true, desc = "filter by filetype"      },
-    { name = "modified", type = "boolean",               desc = "only modified buffers"   },
-    { name = "unloaded", type = "boolean",               desc = "include unloaded buffers" },
-    { name = "unlisted", type = "boolean",               desc = "include unlisted buffers" },
+local FLAGS       = {
+    { name = "ft",       type = "value",   multi = true,                     desc = "filter by filetype" },
+    { name = "modified", type = "boolean", desc = "only modified buffers" },
+    { name = "unloaded", type = "boolean", desc = "include unloaded buffers" },
+    { name = "unlisted", type = "boolean", desc = "include unlisted buffers" },
 }
 
 ---@param bufnr number
@@ -25,7 +21,7 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     local bufname = vim.api.nvim_buf_get_name(bufnr)
     local label
     if bufname ~= "" then
-        label = fsutil.get_relative_path(vim.fn.fnamemodify(bufname, ":t")) or bufname
+        label = fsutil.get_relative_path(bufname) or bufname
     else
         label = "[No Name]"
     end
@@ -55,7 +51,7 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
         table.insert(label_chunks, { " [unlisted]", "Special" })
     end
 
-    local mark     = vim.api.nvim_buf_get_mark(bufnr, '"')
+    local mark      = vim.api.nvim_buf_get_mark(bufnr, '"')
     local lnum, col = unpack(mark)
     ---@type keystone.Picker.Item
     return {
@@ -66,11 +62,8 @@ local function buffer_to_picker_item(bufnr, query, flags, current_buf)
     }
 end
 
----@param opts keystone.buffers.Opts?
 ---@return keystone.PickerSpec
-function M.spec(opts)
-    opts = opts or {}
-
+function M.spec()
     local max_preview_size = 1024 * 1024
     local buffers          = vim.api.nvim_list_bufs()
     local current_buf      = vim.api.nvim_get_current_buf()
@@ -80,8 +73,8 @@ function M.spec(opts)
         flags          = FLAGS,
         enable_preview = true,
         finder         = function(query, flags, _, callback)
-            local include_unloaded = opts.include_unloaded or flags.unloaded
-            local include_unlisted = opts.include_unlisted or flags.unlisted
+            local include_unloaded = flags.unloaded
+            local include_unlisted = flags.unlisted
             local items = {}
             for _, bufnr in ipairs(buffers) do
                 if (include_unloaded or vim.api.nvim_buf_is_loaded(bufnr))
@@ -93,7 +86,7 @@ function M.spec(opts)
             end
             callback(items)
         end,
-        previewer = function(data, _, callback)
+        previewer      = function(data, _, callback)
             local bufnr     = data.bufnr
             local cancelled = false
             vim.schedule(function()
@@ -115,7 +108,7 @@ function M.spec(opts)
             end)
             return function() cancelled = true end
         end,
-        on_confirm = function(data)
+        on_confirm     = function(data)
             if data then uitool.smart_open_buffer(data.bufnr, data.lnum, data.col) end
         end,
     }

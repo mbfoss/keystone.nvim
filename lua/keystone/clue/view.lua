@@ -43,8 +43,8 @@ end
 
 ---@type table<string, string>
 local _key_alias = {
-    [" "] = "⎵",
-    ["<Space>"] = "⎵",
+    [" "] = "␣",
+    ["<Space>"] = "␣",
 }
 
 ---@param token string

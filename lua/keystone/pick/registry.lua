@@ -18,12 +18,6 @@ local _pickers = {
     document_diagnostics  = function() return require("keystone.pick.pickers.diagnosics").spec({ bufnr = 0 }) end,
     workspace_diagnostics = function() return require("keystone.pick.pickers.diagnosics").spec() end,
     buffers               = function() return require("keystone.pick.pickers.buffers").spec() end,
-    all_buffers           = function()
-        return require("keystone.pick.pickers.buffers").spec({
-            include_unloaded = true,
-            include_unlisted = true,
-        })
-    end,
     windows               = function() return require("keystone.pick.pickers.windows").spec() end,
     spell_suggest         = function() return require("keystone.pick.pickers.spell").spec() end,
     highlights            = function() return require("keystone.pick.pickers.highlights").spec() end,

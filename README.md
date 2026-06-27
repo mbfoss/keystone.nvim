@@ -109,7 +109,7 @@ Available types:
 
 ```
 files            recent_files     config_files     live_grep
-buffers          all_buffers      windows          jumplist
+buffers          windows          jumplist
 quickfix         keymaps          commands         autocommands
 highlights       notifications    spell_suggest
 lsp_references   document_symbols
