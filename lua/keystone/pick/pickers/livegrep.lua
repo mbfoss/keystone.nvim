@@ -312,12 +312,13 @@ function M.spec(opts)
             end)
         end,
         on_confirm = function(data)
+            if not data then return end
             if _replace_value then
                 local total, file_count = count_matches(_last_items)
                 if total == 0 then return end
                 uitool.confirm_action(
                     string.format("Replace %d occurrence(s) across %d file(s)?", total, file_count),
-                    true,
+                    false,
                     function(confirmed)
                         if not confirmed then return end
                         apply_replace_all(_last_items)
@@ -330,10 +331,10 @@ function M.spec(opts)
                         )
                     end
                 )
-                return
-            end
-            if data and data.filepath and data.lnum and data.col then
-                uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
+            else
+                if data.filepath and data.lnum and data.col then
+                    uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
+                end
             end
         end,
     }
