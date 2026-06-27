@@ -19,7 +19,8 @@ local _REPLACE_NEW_HL = "KeystoneReplaceNew"
 local function _setup_hl()
     local function apply()
         vim.api.nvim_set_hl(0, _PATH_HL, { default = true, link = "@namespace" })
-        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, { default = true, link = "NonText" })
+        local nontext = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
+        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, { default = true, fg = nontext.fg, strikethrough = true })
         vim.api.nvim_set_hl(0, _REPLACE_NEW_HL, { default = true, link = "Added" })
     end
     apply()
