@@ -228,16 +228,21 @@ function M.highlight(schema, raw)
             if value and #value > 0 then
                 table.insert(hls, { start = s0 + token.colon_raw_pos, finish = e0, hl = "String" })
             end
-            if token.quotes then
-                for _, q in ipairs(token.quotes) do
-                    if q.close then
-                        table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
-                        table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
-                    end
-                end
-            end
         elseif kind == "boolean" then
             table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
+        end
+
+        -- Quote chars are highlighted wherever they appear: around a value
+        -- flag's value (e.g. path:"foo bar") and in plain query text where a
+        -- quote escapes a flag-looking token into literal text (e.g. "is:fixed").
+        -- Inserted last so they win over the value's String/Keyword highlight.
+        if token.quotes then
+            for _, q in ipairs(token.quotes) do
+                if q.close then
+                    table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
+                    table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
+                end
+            end
         end
     end
 

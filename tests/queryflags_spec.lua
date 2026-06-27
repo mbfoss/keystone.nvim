@@ -147,8 +147,27 @@ describe("queryflags highlight", function()
         assert.is_true(has_string)
     end)
 
-    it("does not highlight quoted (escaped) flag tokens", function()
-        assert.are.same({}, qf.highlight(schema, '"is:fixed" "path:foo"'))
+    it("does not treat quoted (escaped) flag tokens as flags", function()
+        -- the quoted tokens are literal query text, so nothing is keyword/string
+        -- highlighted; only the quote chars themselves are highlighted.
+        for _, h in ipairs(qf.highlight(schema, '"is:fixed" "path:foo"')) do
+            assert.is_true(h.hl ~= "Keyword" and h.hl ~= "String")
+        end
+    end)
+
+    it("highlights quotes in escaped query text", function()
+        -- '"is:fixed"' is query text (the key is quoted), but the surrounding
+        -- quote chars should still be highlighted as delimiters.
+        local hls = qf.highlight(schema, '"is:fixed"')
+        local delimiters = {}
+        for _, h in ipairs(hls) do
+            if h.hl == "Delimiter" then table.insert(delimiters, h) end
+        end
+        -- opening quote at byte 0, closing quote at byte 9
+        assert.are.same({
+            { start = 0,  finish = 1,  hl = "Delimiter" },
+            { start = 9,  finish = 10, hl = "Delimiter" },
+        }, delimiters)
     end)
 end)
 
