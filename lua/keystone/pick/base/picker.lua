@@ -1053,10 +1053,11 @@ function Picker:close(selected_data)
 	local cursor      = self:get_cursor()
 	local cursor_item = cursor and self.list_items[cursor]
 	_last_session     = {
-		cursor_text = cursor_item and _item_label(cursor_item) or nil,
-		query       = self.query_text,
-		opts        = self.opts,
-		callback    = self.callback,
+		cursor_index = cursor_item and cursor or nil,
+		cursor_text  = cursor_item and _item_label(cursor_item) or nil,
+		query        = self.query_text,
+		opts         = self.opts,
+		callback     = self.callback,
 	}
 
 	for _, w in pairs({ self.pwin, self.lwin, self.vwin }) do
@@ -1197,11 +1198,20 @@ function M.repeat_last()
 			if first_call then
 				first_call = false
 				return session.opts.finder(query, flags, fetch_opts, function(items)
-					if items and session.cursor_text then
-						for _, item in ipairs(items) do
-							if _item_label(item) == session.cursor_text then
-								item.initial = true
-								break
+					if items and (session.cursor_index or session.cursor_text) then
+						-- Restore the cursor by its stored index in the displayed
+						-- (sorted) list. Only fall back to a label match when the
+						-- item now sitting at that index differs from what was
+						-- previously selected.
+						local target = session.cursor_index and _sort_by_score(items)[session.cursor_index]
+						if target and (not session.cursor_text or _item_label(target) == session.cursor_text) then
+							target.initial = true
+						elseif session.cursor_text then
+							for _, item in ipairs(items) do
+								if _item_label(item) == session.cursor_text then
+									item.initial = true
+									break
+								end
 							end
 						end
 					end
