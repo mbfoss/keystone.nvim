@@ -9,6 +9,7 @@ local M = {}
 ---@field name     string
 ---@field type     "boolean"|"value"
 ---@field multi    boolean?   -- allow multiple occurrences (type=value only)
+---@field allow_empty boolean? -- keep an empty value instead of dropping the flag (type=value only)
 ---@field values   string[]?  -- known static values offered in completion (type=value only)
 ---@field complete keystone.queryflags.CompleteSpec?  -- dynamic value completion source (type=value only)
 ---@field desc     string?    -- shown in the completion menu
@@ -190,8 +191,9 @@ function M.parse(schema, raw)
     for _, token in ipairs(tokens) do
         local kind, key, value = _classify(defs, token)
         if kind == "value" and key then
-            if value and value ~= "" then
-                if defs[key].multi then
+            local def = defs[key]
+            if value and (value ~= "" or def.allow_empty) then
+                if def.multi then
                     flags[key] = flags[key] or {}
                     table.insert(flags[key], value)
                 else

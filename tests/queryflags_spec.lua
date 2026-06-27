@@ -3,6 +3,7 @@ local qf = require("keystone.pick.base.queryflags")
 local schema = {
     { name = "path",  type = "value", values = { "foo", "foo bar", "baz" } },
     { name = "kind",  type = "value", multi = true },
+    { name = "repl",  type = "value", allow_empty = true },
     { name = "fixed", type = "boolean" },
 }
 
@@ -117,6 +118,18 @@ describe("queryflags value flags", function()
     it("consumes a value flag with an empty value", function()
         local r = qf.parse(schema, "path: here")
         assert.is_nil(r.flags.path)
+        assert.are.equal("here", r.query)
+    end)
+
+    it("keeps an empty value for an allow_empty flag", function()
+        local r = qf.parse(schema, "repl: here")
+        assert.are.equal("", r.flags.repl)
+        assert.are.equal("here", r.query)
+    end)
+
+    it("keeps a quoted empty value for an allow_empty flag", function()
+        local r = qf.parse(schema, 'repl:"" here')
+        assert.are.equal("", r.flags.repl)
         assert.are.equal("here", r.query)
     end)
 end)

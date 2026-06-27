@@ -154,7 +154,7 @@ local FLAGS       = {
     { name = "case",    type = "boolean", desc = "case-sensitive"                                                },
     { name = "follow",  type = "boolean", desc = "follow symlinks"                                               },
     { name = "hidden",  type = "boolean", desc = "include hidden (dotfiles)"                                     },
-    { name = "replace", type = "value",                              desc = "replacement text (enables search & replace)" },
+    { name = "replace", type = "value", allow_empty = true,          desc = "replacement text (enables search & replace; empty deletes matches)" },
 }
 
 
