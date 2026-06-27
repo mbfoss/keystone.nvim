@@ -27,10 +27,28 @@ local FLAGS       = {
     { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
     { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, !*.lua, **/dir/**" },
     { name = "regex",  type = "boolean", desc = "enable regex mode"                 },
-    { name = "case",   type = "boolean", desc = "case-sensitive"                    },
+    { name = "case",   type = "value",   values = { "smart", "on", "off" }, desc = "case: smart (default) | on | off" },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
     { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"         },
 }
+
+--- Resolve a `case` flag value into a case-sensitivity decision.
+---
+--- `mode` is the user-facing flag value: "on" (always sensitive), "off" (always
+--- insensitive) or "smart"/nil (the default): sensitive only when `query` itself
+--- contains an uppercase character. Smart-case is a literal-text heuristic, so for
+--- a hand-written regex (`is_regex`) it degrades to insensitive — an uppercase
+--- char there is usually a metacharacter (`\S`, `[A-Z]`), not user case intent.
+---@param mode string?    "on"|"off"|"smart"|nil
+---@param query string
+---@param is_regex boolean?
+---@return boolean case_sensitive
+local function resolve_case(mode, query, is_regex)
+    if mode == "on" then return true end
+    if mode == "off" then return false end
+    if is_regex then return false end
+    return query:match("%u") ~= nil
+end
 
 ---@param filename string
 ---@param query string
@@ -45,7 +63,7 @@ local function do_match(filename, query, use_regex, case_sensitive)
         if not re:match_str(filename) then return nil end
         return { score = 0, chunks = { { filename } } }
     else
-        return pickertools.match_label(filename, query)
+        return pickertools.match_label(filename, query, case_sensitive)
     end
 end
 
@@ -155,7 +173,7 @@ function M.spec(opts)
                 exclude_globs   = nil,
                 max_results     = opts.max_results,
                 use_regex       = flags.regex,
-                case_sensitive  = flags.case,
+                case_sensitive  = resolve_case(flags.case, query, flags.regex),
                 follow_symlinks = flags.follow,
                 show_hidden     = flags.hidden,
             }

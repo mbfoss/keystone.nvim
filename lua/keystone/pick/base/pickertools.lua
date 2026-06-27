@@ -40,12 +40,18 @@ end
 
 ---@param text string What we match against
 ---@param query string User input
+---@param case_sensitive boolean? when true, preserve query case (default: case-insensitive)
 ---@return {score:number,chunks:string[][]}?
-function M.match_label(text, query)
+function M.match_label(text, query, case_sensitive)
     if query == "" then
         return { score = 0, chunks = _build_highlight_chunks(text, {}) }
     end
-    local result = vim.fn.matchfuzzypos({ text }, query)
+    -- matchfuzzypos is smart-case: uppercase query chars must match exactly while
+    -- lowercase ones match either case. So the raw query already gives smart-case;
+    -- lowercasing it forces fully case-insensitive matching. Positions index into
+    -- `text`, so they stay valid against the original.
+    local needle = case_sensitive and query or query:lower()
+    local result = vim.fn.matchfuzzypos({ text }, needle)
     if #result[1] == 0 then return nil end
     local raw_positions = result[2][1]
     local positions = {}
