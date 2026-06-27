@@ -2,31 +2,6 @@ local M = {}
 
 local fsutil = require("keystone.util.fsutil")
 
---- Highlight group for the file-path/location line shown beneath picker items
---- (the virtual line in grep/diagnostics/lsp/quickfix results).  Defined as a
---- `default` link so users can override it, but it can be restyled freely.
-M.PATH_HL = "KeystonePickPath"
-
---- Highlight groups for the old/new text shown in search & replace mode
---- (e.g. live grep's `replace:` flag).
-M.REPLACE_OLD_HL = "KeystoneReplaceOld"
-M.REPLACE_NEW_HL = "KeystoneReplaceNew"
-
---- Register keystone picker highlight groups.  Re-applied on `ColorScheme`
---- since linked `default` groups are cleared when the colorscheme changes.
-function M.setup_hl()
-    local function apply()
-        vim.api.nvim_set_hl(0, M.PATH_HL, { default = true, link = "@namespace" })
-        vim.api.nvim_set_hl(0, M.REPLACE_OLD_HL, { default = true, link = "NonText" })
-        vim.api.nvim_set_hl(0, M.REPLACE_NEW_HL, { default = true, link = "Added" })
-    end
-    apply()
-    vim.api.nvim_create_autocmd("ColorScheme", {
-        group    = vim.api.nvim_create_augroup("KeystonePickHighlights", { clear = true }),
-        callback = apply,
-    })
-end
-
 ---@param text string The final string to be shown
 ---@param positions integer[] Matched indices
 ---@param hl_group string? Optional override for the match highlight

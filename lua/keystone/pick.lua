@@ -4,6 +4,31 @@ local picker      = require("keystone.pick.base.picker")
 local registry    = require("keystone.pick.registry")
 local pickertools = require("keystone.pick.base.pickertools")
 
+--- Highlight group for the file-path/location line shown beneath picker items
+--- (the virtual line in grep/diagnostics/lsp/quickfix results).  Defined as a
+--- `default` link so users can override it, but it can be restyled freely.
+local _PATH_HL        = "KeystonePickPath"
+
+--- Highlight groups for the old/new text shown in search & replace mode
+--- (e.g. live grep's `replace:` flag).
+local _REPLACE_OLD_HL = "KeystoneReplaceOld"
+local _REPLACE_NEW_HL = "KeystoneReplaceNew"
+
+--- Register keystone picker highlight groups.  Re-applied on `ColorScheme`
+--- since linked `default` groups are cleared when the colorscheme changes.
+local function _setup_hl()
+    local function apply()
+        vim.api.nvim_set_hl(0, _PATH_HL, { default = true, link = "@namespace" })
+        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, { default = true, link = "NonText" })
+        vim.api.nvim_set_hl(0, _REPLACE_NEW_HL, { default = true, link = "Added" })
+    end
+    apply()
+    vim.api.nvim_create_autocmd("ColorScheme", {
+        group    = vim.api.nvim_create_augroup("KeystonePickHighlights", { clear = true }),
+        callback = apply,
+    })
+end
+
 ---@class keystone.pick.Config
 ---@field override_ui_select boolean?
 
@@ -103,7 +128,7 @@ function M.register(name, spec)
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    pickertools.setup_hl()
+    _setup_hl()
 
     vim.api.nvim_create_user_command("Pick", function(cmd_opts)
         local picker_type   = cmd_opts.fargs[1]
