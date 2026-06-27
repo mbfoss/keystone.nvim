@@ -50,21 +50,69 @@ local function resolve_case(mode, query, is_regex)
     return query:match("%u") ~= nil
 end
 
+--- Neutralize Vim-regex mode/case switch atoms (`\v \V \m \M \c \C`) in a user
+--- query so they match literally instead of flipping the engine's magic/case
+--- mode. These atoms apply from their position onward (case applies globally),
+--- so a query like `\vfoo` or `\Cfoo` would otherwise override the `\v`/`\c`
+--- prefix the caller prepends. Each such atom has its backslash doubled, turning
+--- e.g. `\v` into `\\v` — a literal backslash followed by `v`. A backslash that
+--- is already escaped (`\\`) is left intact so real literal backslashes and
+--- other atoms (`\d`, `\w`, `\(`, ...) pass through unchanged.
+---@param query string
+---@return string escaped
+local function escape_mode_atoms(query)
+    local out = {}
+    local i, n = 1, #query
+    while i <= n do
+        local c = query:sub(i, i)
+        if c == "\\" then
+            local nxt = query:sub(i + 1, i + 1)
+            if nxt == "\\" then
+                out[#out + 1] = "\\\\"        -- literal backslash pair, keep as-is
+                i = i + 2
+            elseif nxt:match("[vVmMcC]") then
+                out[#out + 1] = "\\\\" .. nxt -- mode/case switch -> match literally
+                i = i + 2
+            else
+                out[#out + 1] = "\\" .. nxt   -- other escape (\d, \w, \( ...), keep
+                i = i + 2
+            end
+        else
+            out[#out + 1] = c
+            i = i + 1
+        end
+    end
+    return table.concat(out)
+end
+
 ---@param filename string
 ---@param query string
 ---@param use_regex boolean?
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
 local function do_match(filename, query, use_regex, case_sensitive)
+    -- regex is its own engine. Force "very magic" (`\v`, so `( ) | + ?` behave
+    -- like ripgrep/PCRE) plus our case flag up front, then neutralize any
+    -- mode/case switch atoms in the query so they can't override that prefix.
     if use_regex then
-        local pattern = case_sensitive and query or ("\\c" .. query)
+        local prefix  = case_sensitive and "\\v" or "\\v\\c"
+        local pattern = prefix .. escape_mode_atoms(query)
         local ok, re = pcall(vim.regex, pattern)
         if not ok then return nil end
         if not re:match_str(filename) then return nil end
         return { score = 0, chunks = { { filename } } }
-    else
-        return pickertools.match_label(filename, query, case_sensitive)
     end
+
+    -- fuzzy: match case-insensitively, then apply the case gate on top. The
+    -- matcher knows nothing about case; the gate is the whole case concept.
+    local res = pickertools.match_label(filename, query)
+    if not res then return nil end
+    if case_sensitive then
+        local pos = pickertools.case_subseq(filename, query)
+        if not pos then return nil end
+        res = { score = res.score, chunks = pickertools.highlight_chunks(filename, pos) }
+    end
+    return res
 end
 
 ---@param query string User input
@@ -184,5 +232,10 @@ function M.spec(opts)
         end,
     }
 end
+
+-- Exposed for tests.
+M._escape_mode_atoms = escape_mode_atoms
+M._resolve_case      = resolve_case
+M._do_match          = do_match
 
 return M

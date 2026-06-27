@@ -38,30 +38,59 @@ local function _build_highlight_chunks(text, positions, hl_group)
     return chunks
 end
 
+---@param text string
+---@param positions integer[]? 1-based matched char positions
+---@return table[] chunks
+function M.highlight_chunks(text, positions)
+    return _build_highlight_chunks(text, positions or {})
+end
+
+-- ── Matcher (case-insensitive) ───────────────────────────────────────────────
+-- match_label only knows how to *find* `query` in `text`; it never reasons about
+-- case. Case sensitivity is layered on top separately by the gate below.
+
 ---@param text string What we match against
 ---@param query string User input
----@param case_sensitive boolean? when true, preserve query case (default: case-insensitive)
 ---@return {score:number,chunks:string[][]}?
-function M.match_label(text, query, case_sensitive)
+function M.match_label(text, query)
     if query == "" then
         return { score = 0, chunks = _build_highlight_chunks(text, {}) }
     end
-    -- matchfuzzypos is smart-case: uppercase query chars must match exactly while
-    -- lowercase ones match either case. So the raw query already gives smart-case;
-    -- lowercasing it forces fully case-insensitive matching. Positions index into
-    -- `text`, so they stay valid against the original.
-    local needle = case_sensitive and query or query:lower()
-    local result = vim.fn.matchfuzzypos({ text }, needle)
+    -- matchfuzzypos is smart-case (a lowercase query char matches either case), so
+    -- a lowercased query yields plain case-insensitive fuzzy matching.
+    local result = vim.fn.matchfuzzypos({ text }, query:lower())
     if #result[1] == 0 then return nil end
-    local raw_positions = result[2][1]
     local positions = {}
-    for _, p in ipairs(raw_positions) do
-        positions[#positions + 1] = p + 1 -- matchfuzzypos is 0-based; _build_highlight_chunks expects 1-based
+    for _, p in ipairs(result[2][1]) do
+        positions[#positions + 1] = p + 1 -- matchfuzzypos is 0-based; chunks want 1-based
     end
-    return {
-        score = result[3][1],
-        chunks = _build_highlight_chunks(text, positions)
-    }
+    return { score = result[3][1], chunks = _build_highlight_chunks(text, positions) }
+end
+
+-- ── Case gate ────────────────────────────────────────────────────────────────
+-- The case concept, standalone: given the same text/query as match_label, does a
+-- *case-exact* subsequence exist, and where? Returns the 1-based char positions
+-- of that match (for highlighting) or nil.
+
+---@param text string
+---@param query string
+---@return integer[]?
+function M.case_subseq(text, query)
+    -- Greedy earliest matching is complete: if any case-exact subsequence exists
+    -- it finds one, so there are no false negatives.
+    local positions = {}
+    local tn        = vim.fn.strchars(text)
+    local qn        = vim.fn.strchars(query)
+    local qi        = 0
+    for ti = 0, tn - 1 do
+        if qi >= qn then break end
+        if vim.fn.strcharpart(text, ti, 1) == vim.fn.strcharpart(query, qi, 1) then
+            positions[#positions + 1] = ti + 1
+            qi = qi + 1
+        end
+    end
+    if qi < qn then return nil end
+    return positions
 end
 
 -- Match a glob `[...]` character class against a single character.

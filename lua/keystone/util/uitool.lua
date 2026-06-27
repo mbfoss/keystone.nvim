@@ -1,8 +1,5 @@
 local M = {}
 
----@type table<string, fun(): vim.api.keyset.highlight>?
-local _themed_hl_data
-
 local function _is_regular_buffer(bufnr)
     if not vim.api.nvim_buf_is_valid(bufnr) then
         return false
