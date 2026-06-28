@@ -13,13 +13,6 @@ local fsutil     = require("keystone.util.fsutil")
 
 --- Status letter -> highlight group, matching the built-in difftool's quickfix
 --- colouring. Only "M" and "A" arise here (modified buffers and new buffers
---- with no file on disk yet), but the full set is kept for parity.
-local _HL_GROUPS = {
-    A = "DiffAdd",
-    D = "DiffDelete",
-    M = "DiffText",
-    R = "DiffChange",
-}
 
 --- Active session state. Only one session exists at a time, matching the
 --- built-in: the quickfix list it drives is global.
@@ -53,8 +46,6 @@ local function _cleanup()
     if _closing then return end
     _closing = true
 
-    vim.notify("cleanup")
-
     if _layout.group then
         vim.api.nvim_del_augroup_by_id(_layout.group)
         _layout.group = nil
@@ -62,14 +53,14 @@ local function _cleanup()
     vim.cmd.cclose()
 
     if _layout.left_win then
-        if vim.api.nvim_buf_is_valid(_layout.left_win) then
+        if vim.api.nvim_win_is_valid(_layout.left_win) then
             vim.api.nvim_win_close(_layout.left_win, false)
         end
         _layout.left_win = nil
     end
 
     if _layout.right_win then
-        if vim.api.nvim_buf_is_valid(_layout.right_win) then
+        if vim.api.nvim_win_is_valid(_layout.right_win) then
             vim.api.nvim_win_close(_layout.right_win, false)
         end
         _layout.right_win = nil
@@ -215,23 +206,6 @@ end
 --- the quickfix status letters, the other builds the diff when the current
 --- entry's live buffer is shown.
 local function _register_autocmds()
-    vim.api.nvim_create_autocmd("BufWinEnter", {
-        group    = _layout.group,
-        pattern  = "quickfix",
-        callback = function(ev)
-            if not _current_diff_entry() then return end
-            vim.api.nvim_buf_clear_namespace(ev.buf, _ns, 0, -1)
-            local lines = vim.api.nvim_buf_get_lines(ev.buf, 0, -1, false)
-            for i, line in ipairs(lines) do
-                local status = line:match("^(%a) ")
-                local hl     = status and _HL_GROUPS[status]
-                if hl then
-                    vim.hl.range(ev.buf, _ns, hl, { i - 1, 0 }, { i - 1, 1 })
-                end
-            end
-        end,
-    })
-
     -- Quickfix navigation (`:cnext`, `<CR>`, ...) has no dedicated autocmd, so
     -- -- like the built-in difftool -- we hook the buffer that navigation lands
     -- in. Unlike the built-in's global `*` trigger, this only acts when the
