@@ -23,8 +23,6 @@ local fsutil     = require("keystone.util.fsutil")
 ---@field right_win integer?  window for the live (unsaved buffer) side
 local _layout    = { group = nil, tab = nil, left_win = nil, right_win = nil }
 
-local _ns        = vim.api.nvim_create_namespace("keystone.unsaved.hl")
-
 --- Plugin-unique key stamped into each quickfix entry's `user_data`. Its
 --- presence is how a session recognises its own entries; nesting our data under
 --- it (rather than a generic flag like the built-in difftool's `diff = true`)
