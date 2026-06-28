@@ -29,8 +29,6 @@ Module local variable names that are not required module names or function names
 
 Function local variable names should NOT begin with underscore
 
-### Naming conventions
-
 module-scope `local` variables should be prefixed with `_` with exception: 
 - a local module name from `require()`
 - the typical `M` module table.
