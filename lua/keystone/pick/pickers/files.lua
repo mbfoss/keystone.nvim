@@ -51,17 +51,16 @@ local function resolve_case(mode, query, is_regex)
     return query:match("%u") ~= nil
 end
 
-local _warned_no_pcre2 = false
-
---- Warn once when regex mode is requested but libpcre2-8 cannot be loaded.
----@param err string?
-local function notify_pcre2_unavailable(err)
-    if _warned_no_pcre2 then return end
-    _warned_no_pcre2 = true
-    vim.schedule(function()
-        vim.notify("Files picker: regex mode requires libpcre2-8 — " .. tostring(err),
-            vim.log.levels.WARN)
-    end)
+--- Build a single result row that surfaces a search error inline, mirroring the
+--- live grep picker's error reporting.
+---@param msg string
+---@return keystone.Picker.Item
+local function error_item(msg)
+    return {
+        label_chunks = { { "ERROR: ", "Error" }, { msg } },
+        score        = 0,
+        data         = {},
+    }
 end
 
 ---@param filename string
@@ -102,9 +101,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         local err
         compiled_re, err = regex.compile(query, opts.case_sensitive and "" or "i")
         if not compiled_re then
-            -- A half-typed pattern just yields no matches; a missing library is
-            -- a setup problem, so surface that case once.
-            if not regex.is_available() then notify_pcre2_unavailable(err) end
+            -- Surface the compile failure (bad pattern, missing libpcre2-8, ...)
+            -- as an inline ERROR row instead of silently showing no results.
+            callback({ error_item(err or "invalid regex") })
             callback(nil)
             return function() end
         end
@@ -218,7 +217,7 @@ function M.spec(opts)
             return async_lua_search(query, search_opts, fetch_opts, callback)
         end,
         on_confirm     = function(data)
-            if data then uitool.smart_open_file(data.filepath) end
+            if data and data.filepath then uitool.smart_open_file(data.filepath) end
         end,
     }
 end

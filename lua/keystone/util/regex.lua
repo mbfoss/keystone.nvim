@@ -11,8 +11,8 @@
 ---
 --- Requires LuaJIT (Neovim) and a loadable `libpcre2-8` shared library.
 
-local _ok_ffi, ffi = pcall(require, "ffi")
-local bit = _ok_ffi and require("bit") or nil
+local ffi = require("ffi")
+local bit = require("bit")
 local LRU = require("keystone.util.LRU")
 
 local M = {}
@@ -62,10 +62,9 @@ local _STR_FLAGS = {
 
 -- Opaque structs are referenced only through pointers, so empty forward
 -- declarations are enough. The `_8` suffix selects the 8-bit code unit build.
-if _ok_ffi then
-	-- cdef is process-global; a second require (e.g. across test runs) would
-	-- otherwise raise "attempt to redefine". Swallow that case.
-	pcall(ffi.cdef, [[
+-- cdef is process-global; a second require (e.g. across test runs) would
+-- otherwise raise "attempt to redefine", so swallow that case.
+pcall(ffi.cdef, [[
 		typedef struct keystone_pcre2_code         pcre2_code_8;
 		typedef struct keystone_pcre2_match_data   pcre2_match_data_8;
 		typedef struct keystone_pcre2_compile_ctx  pcre2_compile_context_8;
@@ -94,7 +93,6 @@ if _ok_ffi then
 		int pcre2_pattern_info_8(const pcre2_code_8 *code, uint32_t what,
 			void *where);
 	]])
-end
 
 ---@type ffi.namespace*?
 local _lib = nil
@@ -102,8 +100,8 @@ local _lib = nil
 local _load_err = nil
 local _tried_load = false
 
-local _errbuf = _ok_ffi and ffi.new("unsigned char[?]", _ERRBUF_LEN) or nil
-local _UNSET = _ok_ffi and ffi.cast("size_t", -1) or nil
+local _errbuf = ffi.new("unsigned char[?]", _ERRBUF_LEN)
+local _UNSET = ffi.cast("size_t", -1)
 
 --- Load the PCRE2 library once, caching success/failure.
 ---@return ffi.namespace*? lib, string? err
@@ -115,11 +113,6 @@ local function _ensure_lib()
 		return nil, _load_err
 	end
 	_tried_load = true
-
-	if not _ok_ffi then
-		_load_err = "LuaJIT FFI is not available"
-		return nil, _load_err
-	end
 
 	-- ffi.load canonicalizes the bare name to libpcre2-8.so / .dylib per platform.
 	local ok, lib_or_err = pcall(ffi.load, "pcre2-8")
@@ -151,6 +144,15 @@ local function _err_message(code)
 		return ("PCRE2 error %d"):format(code)
 	end
 	return ffi.string(_errbuf, n)
+end
+
+--- Convert an FFI integer cdata (size_t / uint32_t offset) to a Lua integer.
+--- PCRE2 offsets always fit a Lua number, so the `or 0` is only to satisfy the
+--- type checker that the result is never nil.
+---@param value any
+---@return integer
+local function _to_int(value)
+	return math.floor(tonumber(value) or 0)
 end
 
 --------------------------------------------------------------------------------
@@ -208,6 +210,7 @@ end
 --------------------------------------------------------------------------------
 
 ---@class keystone.util.Regex
+---@field private _lib ffi.namespace* the loaded libpcre2-8 handle
 ---@field private _code ffi.cdata* compiled pcre2_code_8*
 ---@field private _md ffi.cdata* match data bound to this pattern
 ---@field private _ncaptures integer number of capturing groups (excludes group 0)
@@ -220,7 +223,7 @@ Regex.__index = Regex
 ---@return ffi.cdata*? ovector size_t* on match, nil on no match
 ---@return integer rc number of valid ovector pairs
 function Regex:_exec(subject, offset)
-	local rc = _lib.pcre2_match_8(self._code, subject, #subject, offset, 0, self._md, nil)
+	local rc = self._lib.pcre2_match_8(self._code, subject, #subject, offset, 0, self._md, nil)
 	if rc == _ERROR_NOMATCH then
 		return nil, 0
 	end
@@ -229,9 +232,9 @@ function Regex:_exec(subject, offset)
 	end
 	if rc == 0 then
 		-- Ovector too small for every group; only the available pairs are set.
-		rc = tonumber(_lib.pcre2_get_ovector_count_8(self._md))
+		rc = _to_int(self._lib.pcre2_get_ovector_count_8(self._md))
 	end
-	return _lib.pcre2_get_ovector_pointer_8(self._md), rc
+	return self._lib.pcre2_get_ovector_pointer_8(self._md), rc
 end
 
 --- Extract capture group substrings (groups 1..n) from an ovector.
@@ -245,8 +248,8 @@ function Regex:_captures(subject, ovector, rc)
 	for i = 1, n do
 		-- Group i is only set when i <= rc-1 and not explicitly unset.
 		if i <= rc - 1 and ovector[2 * i] ~= _UNSET then
-			local s = tonumber(ovector[2 * i])
-			local e = tonumber(ovector[2 * i + 1])
+			local s = _to_int(ovector[2 * i])
+			local e = _to_int(ovector[2 * i + 1])
 			caps[i] = subject:sub(s + 1, e)
 		else
 			caps[i] = nil
@@ -260,7 +263,7 @@ end
 ---@param ovector ffi.cdata*
 ---@return string
 local function _whole(subject, ovector)
-	return subject:sub(tonumber(ovector[0]) + 1, tonumber(ovector[1]))
+	return subject:sub(_to_int(ovector[0]) + 1, _to_int(ovector[1]))
 end
 
 --- Test whether the pattern matches anywhere in `subject`.
@@ -281,8 +284,8 @@ function Regex:find(subject, init)
 	if not ov then
 		return nil
 	end
-	local s = tonumber(ov[0]) + 1
-	local e = tonumber(ov[1])
+	local s = _to_int(ov[0]) + 1
+	local e = _to_int(ov[1])
 	local caps = self:_captures(subject, ov, rc)
 	return s, e, caps
 end
@@ -320,8 +323,8 @@ function Regex:gmatch(subject)
 			offset = len + 1
 			return nil
 		end
-		local mstart = tonumber(ov[0])
-		local mend = tonumber(ov[1])
+		local mstart = _to_int(ov[0])
+		local mend = _to_int(ov[1])
 		-- Advance; bump past empty matches to guarantee progress.
 		offset = (mend > mstart) and mend or (mend + 1)
 
@@ -350,7 +353,7 @@ function Regex:_expand(template, subject, ovector, rc)
 			return _whole(subject, ovector)
 		end
 		if i <= rc - 1 and ovector[2 * i] ~= _UNSET then
-			return subject:sub(tonumber(ovector[2 * i]) + 1, tonumber(ovector[2 * i + 1]))
+			return subject:sub(_to_int(ovector[2 * i]) + 1, _to_int(ovector[2 * i + 1]))
 		end
 		return ""
 	end))
@@ -378,13 +381,13 @@ function Regex:gsub(subject, repl, max)
 		if not ov then
 			break
 		end
-		local mstart = tonumber(ov[0])
-		local mend = tonumber(ov[1])
+		local mstart = _to_int(ov[0])
+		local mend = _to_int(ov[1])
 
 		out[#out + 1] = subject:sub(offset + 1, mstart) -- text before the match
 
 		local rep
-		if is_fn then
+		if type(repl) == "function" then
 			local r
 			if self._ncaptures == 0 then
 				r = repl(_whole(subject, ov))
@@ -424,7 +427,7 @@ end
 ---@param name string
 ---@return integer? number, string? err
 function Regex:group_index(name)
-	local n = _lib.pcre2_substring_number_from_name_8(self._code, name)
+	local n = self._lib.pcre2_substring_number_from_name_8(self._code, name)
 	if n < 0 then
 		return nil, _err_message(n)
 	end
@@ -463,7 +466,7 @@ function M.compile(pattern, flags)
 	local code = lib.pcre2_compile_8(pattern, #pattern, options, errcode, erroffset, nil)
 	if code == nil then
 		return nil,
-			("pcre2_compile: %s (at offset %d)"):format(_err_message(errcode[0]), tonumber(erroffset[0]))
+			("pcre2_compile: %s (at offset %d)"):format(_err_message(errcode[0]), _to_int(erroffset[0]))
 	end
 	code = ffi.gc(code, lib.pcre2_code_free_8)
 
@@ -476,11 +479,16 @@ function M.compile(pattern, flags)
 	local ncap = ffi.new("uint32_t[1]")
 	lib.pcre2_pattern_info_8(code, _INFO_CAPTURECOUNT, ncap)
 
-	return setmetatable({
+	-- Assign to a typed local before returning: returning setmetatable() directly
+	-- spreads its (possibly multi-value) result into the second return slot.
+	---@type keystone.util.Regex
+	local re = setmetatable({
+		_lib = lib,
 		_code = code,
 		_md = md,
-		_ncaptures = tonumber(ncap[0]),
+		_ncaptures = _to_int(ncap[0]),
 	}, Regex)
+	return re
 end
 
 -- Compiled-pattern cache for the stdlib-shaped convenience helpers.
