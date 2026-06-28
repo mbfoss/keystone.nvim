@@ -1,7 +1,7 @@
-local M = {}
+local M          = {}
 
-local usercmd = require("keystone.util.usercmd")
-local fsutil  = require("keystone.util.fsutil")
+local usercmd    = require("keystone.util.usercmd")
+local fsutil     = require("keystone.util.fsutil")
 
 --- Quickfix-driven diff of every modified buffer's unsaved (in-memory) state
 --- against its saved (on-disk) state. Modelled on Neovim's built-in difftool
@@ -28,12 +28,24 @@ local _HL_GROUPS = {
 ---@field tab       integer?  tabpage handle the diff lives in
 ---@field left_win  integer?  window for the saved (on-disk) side
 ---@field right_win integer?  window for the live (unsaved buffer) side
-local _layout  = { group = nil, tab = nil, left_win = nil, right_win = nil }
+local _layout    = { group = nil, tab = nil, left_win = nil, right_win = nil }
 
-local _ns      = vim.api.nvim_create_namespace("keystone.unsaved.hl")
+local _ns        = vim.api.nvim_create_namespace("keystone.unsaved.hl")
+
+--- Plugin-unique key stamped into each quickfix entry's `user_data`. Its
+--- presence is how a session recognises its own entries; nesting our data under
+--- it (rather than a generic flag like the built-in difftool's `diff = true`)
+--- guarantees no clash with another plugin's quickfix `user_data`.
+local _ENTRY_KEY = "keystone.unsaved"
+
+--- The per-entry payload stored under `user_data[_ENTRY_KEY]`.
+---@class keystone.unsaved.EntryData
+---@field bufnr integer
+---@field path  string
+---@field rel   string
 
 --- Guards _cleanup against the re-entrancy from closing our own windows/tab.
-local _closing = false
+local _closing   = false
 
 --- Tear down the active session: drop the autocmds and close the quickfix
 --- window. Windows/tab are left for the user (or already gone); idempotent.
@@ -41,17 +53,30 @@ local function _cleanup()
     if _closing then return end
     _closing = true
 
+    vim.notify("cleanup")
+
     if _layout.group then
         vim.api.nvim_del_augroup_by_id(_layout.group)
         _layout.group = nil
     end
     vim.cmd.cclose()
 
-    _layout.tab       = nil
-    _layout.left_win  = nil
-    _layout.right_win = nil
+    if _layout.left_win then
+        if vim.api.nvim_buf_is_valid(_layout.left_win) then
+            vim.api.nvim_win_close(_layout.left_win, false)
+        end
+        _layout.left_win = nil
+    end
 
-    _closing = false
+    if _layout.right_win then
+        if vim.api.nvim_buf_is_valid(_layout.right_win) then
+            vim.api.nvim_win_close(_layout.right_win, false)
+        end
+        _layout.right_win = nil
+    end
+
+    _layout.tab = nil
+    _closing    = false
 end
 
 --- Collect every loaded, file-backed, modified buffer as a quickfix entry.
@@ -65,20 +90,23 @@ local function _collect_entries()
             and vim.bo[bufnr].buftype == "" then
             local name = vim.api.nvim_buf_get_name(bufnr)
             if name ~= "" then
-                local path   = vim.fn.fnamemodify(name, ":p")
-                local rel    = fsutil.get_relative_path(path, cwd)
+                local path            = vim.fn.fnamemodify(name, ":p")
+                local rel             = fsutil.get_relative_path(path, cwd)
                     or vim.fn.fnamemodify(path, ":~:.")
-                local status = vim.fn.filereadable(path) == 1 and "M" or "A"
+                local status          = vim.fn.filereadable(path) == 1 and "M" or "A"
                 entries[#entries + 1] = {
                     bufnr     = bufnr,
                     filename  = path,
                     text      = status,
-                    user_data = { diff = true, bufnr = bufnr, path = path, rel = rel },
+                    ---@type table<string, keystone.unsaved.EntryData>
+                    user_data = { [_ENTRY_KEY] = { bufnr = bufnr, path = path, rel = rel } },
                 }
             end
         end
     end
-    table.sort(entries, function(a, b) return a.user_data.rel < b.user_data.rel end)
+    table.sort(entries, function(a, b)
+        return a.user_data[_ENTRY_KEY].rel < b.user_data[_ENTRY_KEY].rel
+    end)
     return entries
 end
 
@@ -119,7 +147,7 @@ local function _current_diff_entry(bufnr)
     local entry = info.items[info.idx]
     if not entry
         or not entry.user_data
-        or not entry.user_data.diff
+        or not entry.user_data[_ENTRY_KEY]
         or (bufnr and entry.bufnr ~= bufnr) then
         return nil
     end
@@ -136,7 +164,7 @@ local function _setup_diff(entry)
         return
     end
 
-    local ud = entry.user_data
+    local ud = entry.user_data[_ENTRY_KEY]
 
     -- The live buffer lands in whichever diff window quickfix reused; put the
     -- saved scratch in the other so the pair stays side by side.
@@ -159,8 +187,8 @@ end
 --- Open the two-pane diff layout plus the quickfix window in a fresh tab.
 local function _build_layout()
     vim.cmd.tabnew()
-    _layout.tab       = vim.api.nvim_get_current_tabpage()
-    _layout.left_win  = vim.api.nvim_get_current_win()
+    _layout.tab      = vim.api.nvim_get_current_tabpage()
+    _layout.left_win = vim.api.nvim_get_current_win()
     vim.cmd("rightbelow vsplit")
     _layout.right_win = vim.api.nvim_get_current_win()
     vim.cmd("botright copen")
@@ -244,8 +272,8 @@ function M.open()
             local items = vim.fn.getqflist({ id = info.id, items = 1 }).items
             local out   = {}
             for i = info.start_idx, info.end_idx do
-                local e  = items[i]
-                local ud = e.user_data
+                local e       = items[i]
+                local ud      = e.user_data and e.user_data[_ENTRY_KEY]
                 out[#out + 1] = (e.text or "?") .. " " .. ((ud and ud.rel) or e.filename or "")
             end
             return out
