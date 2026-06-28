@@ -181,9 +181,12 @@ local function _footer(node)
         parts[#parts + 1] = _disp_key(tok)
     end
     local str = table.concat(parts)
-    if str == "'" then str = "' (marks)"
-    elseif str == '"' then str = '" (registers)' end
-    return { { " " .. str .. " ", nil} }
+    if str == "'" then
+        str = "' (marks)"
+    elseif str == '"' then
+        str = '" (registers)'
+    end
+    return { { " " .. str .. " ", nil } }
 end
 
 ---@param width integer
@@ -270,11 +273,7 @@ function M.show(node)
         vim.wo[M._win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
     end
 
-    if vim.api.nvim__redraw then
-        pcall(vim.api.nvim__redraw, { flush = true })
-    else
-        pcall(vim.cmd, "redraw")
-    end
+    vim.cmd("redraw")
 end
 
 function M.hide()

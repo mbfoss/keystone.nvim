@@ -174,7 +174,7 @@ end)
 describe("queryflags completion", function()
     it("completes a partial is:<boolean> token", function()
         local comps = qf.get_completions(schema, "is:fi", 5)
-        assert.is_not_nil(comps)
+        assert.not_nil(comps)
         local found = false
         for _, item in ipairs(comps.items) do
             if item.word == "is:fixed" then found = true end
@@ -184,7 +184,7 @@ describe("queryflags completion", function()
 
     it("offers value-flag key prefixes", function()
         local comps = qf.get_completions(schema, "pa", 2)
-        assert.is_not_nil(comps)
+        assert.not_nil(comps)
         local found = false
         for _, item in ipairs(comps.items) do
             if item.word == "path:" then found = true end
@@ -199,13 +199,13 @@ describe("queryflags completion", function()
     it("wraps a spaced value in quotes so it re-parses", function()
         local line  = "path:foo"
         local comps = qf.get_completions(schema, line, #line)
-        assert.is_not_nil(comps)
+        assert.not_nil(comps)
 
         local spaced
         for _, item in ipairs(comps.items) do
             if item.abbr == "foo bar" then spaced = item end
         end
-        assert.is_not_nil(spaced)
+        assert.not_nil(spaced)
         assert.are.equal('path:"foo bar"', spaced.word)
 
         local r = qf.parse(schema, spaced.word)
@@ -215,7 +215,7 @@ describe("queryflags completion", function()
     it("offers value completions while inside an open quote", function()
         local line  = 'path:"foo '
         local comps = qf.get_completions(schema, line, #line)
-        assert.is_not_nil(comps)
+        assert.not_nil(comps)
 
         local found = false
         for _, item in ipairs(comps.items) do

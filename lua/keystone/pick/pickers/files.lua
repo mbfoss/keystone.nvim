@@ -3,6 +3,7 @@ local M           = {}
 local uitool      = require("keystone.util.uitool")
 local strutil     = require("keystone.util.strutil")
 local fsutil      = require("keystone.util.fsutil")
+local regex       = require("keystone.util.regex")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 
@@ -50,56 +51,29 @@ local function resolve_case(mode, query, is_regex)
     return query:match("%u") ~= nil
 end
 
---- Neutralize Vim-regex mode/case switch atoms (`\v \V \m \M \c \C`) in a user
---- query so they match literally instead of flipping the engine's magic/case
---- mode. These atoms apply from their position onward (case applies globally),
---- so a query like `\vfoo` or `\Cfoo` would otherwise override the `\v`/`\c`
---- prefix the caller prepends. Each such atom has its backslash doubled, turning
---- e.g. `\v` into `\\v` — a literal backslash followed by `v`. A backslash that
---- is already escaped (`\\`) is left intact so real literal backslashes and
---- other atoms (`\d`, `\w`, `\(`, ...) pass through unchanged.
----@param query string
----@return string escaped
-local function escape_mode_atoms(query)
-    local out = {}
-    local i, n = 1, #query
-    while i <= n do
-        local c = query:sub(i, i)
-        if c == "\\" then
-            local nxt = query:sub(i + 1, i + 1)
-            if nxt == "\\" then
-                out[#out + 1] = "\\\\"        -- literal backslash pair, keep as-is
-                i = i + 2
-            elseif nxt:match("[vVmMcC]") then
-                out[#out + 1] = "\\\\" .. nxt -- mode/case switch -> match literally
-                i = i + 2
-            else
-                out[#out + 1] = "\\" .. nxt   -- other escape (\d, \w, \( ...), keep
-                i = i + 2
-            end
-        else
-            out[#out + 1] = c
-            i = i + 1
-        end
-    end
-    return table.concat(out)
+local _warned_no_pcre2 = false
+
+--- Warn once when regex mode is requested but libpcre2-8 cannot be loaded.
+---@param err string?
+local function notify_pcre2_unavailable(err)
+    if _warned_no_pcre2 then return end
+    _warned_no_pcre2 = true
+    vim.schedule(function()
+        vim.notify("Files picker: regex mode requires libpcre2-8 — " .. tostring(err),
+            vim.log.levels.WARN)
+    end)
 end
 
 ---@param filename string
----@param query string
----@param use_regex boolean?
+---@param query string fuzzy query (unused when `re` is given)
+---@param re keystone.util.Regex? compiled PCRE2 pattern; when set, runs regex mode
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
-local function do_match(filename, query, use_regex, case_sensitive)
-    -- regex is its own engine. Force "very magic" (`\v`, so `( ) | + ?` behave
-    -- like ripgrep/PCRE) plus our case flag up front, then neutralize any
-    -- mode/case switch atoms in the query so they can't override that prefix.
-    if use_regex then
-        local prefix  = case_sensitive and "\\v" or "\\v\\c"
-        local pattern = prefix .. escape_mode_atoms(query)
-        local ok, re = pcall(vim.regex, pattern)
-        if not ok then return nil end
-        if not re:match_str(filename) then return nil end
+local function do_match(filename, query, re, case_sensitive)
+    -- regex mode: the compiled pattern is its own engine and already bakes in
+    -- case via its compile flags, so the fuzzy query and case gate don't apply.
+    if re then
+        if not re:test(filename) then return nil end
         return { score = 0, chunks = { { filename } } }
     end
 
@@ -120,6 +94,22 @@ end
 ---@param fetch_opts keystone.Picker.FetcherOpts
 ---@param callback fun(items:keystone.Picker.Item[]?)
 local function async_lua_search(query, opts, fetch_opts, callback)
+    -- Regex mode compiles the query once as a PCRE2 pattern (real ripgrep/PCRE
+    -- syntax). Case is baked into the compile flags; the smart-case decision was
+    -- already made by resolve_case() in the picker spec.
+    local compiled_re
+    if opts.use_regex then
+        local err
+        compiled_re, err = regex.compile(query, opts.case_sensitive and "" or "i")
+        if not compiled_re then
+            -- A half-typed pattern just yields no matches; a missing library is
+            -- a setup problem, so surface that case once.
+            if not regex.is_available() then notify_pcre2_unavailable(err) end
+            callback(nil)
+            return function() end
+        end
+    end
+
     local count              = 0
     local max_results        = opts.max_results or 10000
     local items              = {}
@@ -167,7 +157,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                         if pickertools.match_glob(g, relative_path, true) then return end
                     end
                 end
-                local res = do_match(filename, query, opts.use_regex, opts.case_sensitive)
+                local res = do_match(filename, query, compiled_re, opts.case_sensitive)
                 if not res then return end
                 if count >= max_results then
                     cancel_fn()
@@ -234,8 +224,7 @@ function M.spec(opts)
 end
 
 -- Exposed for tests.
-M._escape_mode_atoms = escape_mode_atoms
-M._resolve_case      = resolve_case
-M._do_match          = do_match
+M._resolve_case = resolve_case
+M._do_match     = do_match
 
 return M

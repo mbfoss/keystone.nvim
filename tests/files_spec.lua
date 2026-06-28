@@ -1,42 +1,8 @@
 local files = require("keystone.pick.pickers.files")
+local regex = require("keystone.util.regex")
 
-local escape_mode_atoms = files._escape_mode_atoms
-local resolve_case      = files._resolve_case
-local do_match          = files._do_match
-
-describe("escape_mode_atoms", function()
-    it("doubles the backslash on magic-mode switch atoms", function()
-        assert.equals("\\\\vtest", escape_mode_atoms("\\vtest"))
-        assert.equals("\\\\Vfoo", escape_mode_atoms("\\Vfoo"))
-        assert.equals("\\\\mfoo", escape_mode_atoms("\\mfoo"))
-        assert.equals("\\\\Mfoo", escape_mode_atoms("\\Mfoo"))
-    end)
-
-    it("doubles the backslash on case switch atoms", function()
-        assert.equals("\\\\cfoo", escape_mode_atoms("\\cfoo"))
-        assert.equals("\\\\Cfoo", escape_mode_atoms("\\Cfoo"))
-    end)
-
-    it("leaves other escaped atoms untouched", function()
-        assert.equals("\\d\\w\\s", escape_mode_atoms("\\d\\w\\s"))
-        assert.equals("\\(foo\\)", escape_mode_atoms("\\(foo\\)"))
-    end)
-
-    it("preserves an already-escaped backslash", function()
-        -- `\\` is a literal backslash; the following v is not a mode atom.
-        assert.equals("\\\\v", escape_mode_atoms("\\\\v"))
-        assert.equals("a\\\\b", escape_mode_atoms("a\\\\b"))
-    end)
-
-    it("leaves plain text and a trailing backslash alone", function()
-        assert.equals("foobar", escape_mode_atoms("foobar"))
-        assert.equals("foo\\", escape_mode_atoms("foo\\"))
-    end)
-
-    it("handles several atoms in one query", function()
-        assert.equals("\\\\vfoo\\\\Vbar", escape_mode_atoms("\\vfoo\\Vbar"))
-    end)
-end)
+local resolve_case = files._resolve_case
+local do_match     = files._do_match
 
 describe("resolve_case", function()
     it("honors explicit on/off", function()
@@ -58,46 +24,50 @@ describe("resolve_case", function()
 end)
 
 describe("do_match (regex)", function()
-    it("is case-insensitive by default and gated by case_sensitive", function()
-        assert.is_not_nil(do_match("FOO.txt", "foo", true, false))
-        assert.is_nil(do_match("FOO.txt", "foo", true, true))
-        assert.is_not_nil(do_match("FOO.txt", "FOO", true, true))
+    if not regex.is_available() then
+        pending("libpcre2-8 not available on this machine")
+        return
+    end
+
+    -- In regex mode the compiled PCRE2 pattern is the engine: it bakes in case
+    -- via its compile flags and the fuzzy query argument is ignored.
+    it("matches against the compiled pattern, ignoring the fuzzy query", function()
+        local re = assert(regex.compile("(foo|bar)", "i"))
+        assert.not_nil(do_match("BAR.lua", "ignored", re, false))
+        assert.is_nil(do_match("baz.lua", "ignored", re, false))
     end)
 
-    it("treats a user \\v as literal, not a magic-mode switch", function()
-        assert.is_not_nil(do_match("a\\vtest_b", "\\vtest", true, false))
-        assert.is_nil(do_match("mytest.lua", "\\vtest", true, false))
+    it("honours the case flag baked into the compiled pattern", function()
+        assert.is_nil(do_match("FOO.txt", "", assert(regex.compile("foo")), false))
+        assert.not_nil(do_match("FOO.txt", "", assert(regex.compile("foo", "i")), false))
     end)
 
-    it("treats a user \\C as literal, not a case switch", function()
-        -- The prefix's \c still governs case, so this stays insensitive: the
-        -- query matches the literal text "\Cfoo", not the file "FOO".
-        assert.is_nil(do_match("FOO", "\\Cfoo", true, false))
-        assert.is_not_nil(do_match("x\\Cfoo", "\\Cfoo", true, false))
+    it("uses PCRE grammar (groups, alternation, quantifiers, dot)", function()
+        assert.not_nil(do_match("AAAB", "", assert(regex.compile("a+b", "i")), false))
+        assert.not_nil(do_match("foXbar", "", assert(regex.compile("fo.bar", "i")), false))
+        assert.not_nil(do_match("v7", "", assert(regex.compile("v\\d", "i")), false))
     end)
+end)
 
-    it("uses very-magic grammar (groups, alternation, quantifiers)", function()
-        assert.is_not_nil(do_match("BAR.lua", "(foo|bar)", true, false))
-        assert.is_not_nil(do_match("AAAB", "a+b", true, false))
-        assert.is_not_nil(do_match("foXbar", "fo.bar", true, false))
-    end)
+describe("regex compile (picker contract)", function()
+    if not regex.is_available() then
+        pending("libpcre2-8 not available on this machine")
+        return
+    end
 
-    it("preserves ordinary atoms and escaped backslashes", function()
-        assert.is_not_nil(do_match("v7", "v\\d", true, false))
-        assert.is_not_nil(do_match("a\\b", "a\\\\b", true, false))
-    end)
-
-    it("returns nil (no error) for a malformed pattern", function()
-        assert.is_nil(do_match("foo", "(foo", true, false))
-        assert.is_nil(do_match("FOO", "foo\\", true, false))
+    -- The picker treats a malformed pattern as "no matches" by short-circuiting
+    -- on a nil compile result, rather than erroring on every file.
+    it("returns nil + error for a malformed pattern", function()
+        assert.is_nil((regex.compile("(foo")))
+        assert.is_nil((regex.compile("a{2,1}")))
     end)
 end)
 
 describe("do_match (fuzzy)", function()
     it("matches case-insensitively then gates on case_sensitive", function()
-        assert.is_not_nil(do_match("README.md", "rdme", false, false))
-        assert.is_not_nil(do_match("FooBar", "foo", false, false))
+        assert.not_nil(do_match("README.md", "rdme", false, false))
+        assert.not_nil(do_match("FooBar", "foo", false, false))
         assert.is_nil(do_match("FooBar", "foo", false, true))
-        assert.is_not_nil(do_match("FooBar", "Foo", false, true))
+        assert.not_nil(do_match("FooBar", "Foo", false, true))
     end)
 end)

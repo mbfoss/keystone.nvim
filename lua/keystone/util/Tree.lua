@@ -5,7 +5,7 @@
 ---@class keystone.util.Tree.ItemUpdate
 ---@field id any
 ---@field data any
----@field keep_children boolean
+---@field keep_children boolean?
 
 ---@class keystone.util.Tree.Node
 ---@field parent_id any|nil
