@@ -1,16 +1,25 @@
 ---@class keystone.util.SpawnHandle
----@field kill fun()
+---@field kill  fun()
+---@field write fun(data: string?, on_done?: fun())
 
 ---@param cmd      string[]
----@param opts     { cwd?: string, stdout?: fun(data:string), stderr?: fun(data:string) }
+---@param opts     { cwd?: string, stdin?: boolean, stdout?: fun(data:string), stderr?: fun(data:string) }
 ---@param on_exit  fun(code:integer)
 ---@return keystone.util.SpawnHandle
 local function spawn(cmd, opts, on_exit)
+    -- stdin is opt-in: only commands that read from stdin (the rg `-` target)
+    -- get a pipe, so others keep inheriting/ignoring stdin exactly as before.
+    local stdin  = opts.stdin and vim.uv.new_pipe(false) or nil
     local stdout = vim.uv.new_pipe(false)
     local stderr = vim.uv.new_pipe(false)
 
+    local function close_stdin()
+        if stdin and not stdin:is_closing() then stdin:close() end
+    end
+
     -- Pipes closed by force (kill path only — drops buffered data intentionally)
     local function close_pipes()
+        close_stdin()
         if stdout and not stdout:is_closing() then stdout:close() end
         if stderr and not stderr:is_closing() then stderr:close() end
     end
@@ -31,11 +40,13 @@ local function spawn(cmd, opts, on_exit)
     handle = vim.uv.spawn(cmd[1], {
         args  = vim.list_slice(cmd, 2),
         cwd   = opts.cwd,
-        stdio = { nil, stdout, stderr },
+        stdio = { stdin, stdout, stderr },
     }, function(code)
         exit_code = code
         local h = handle
         if h and not h:is_closing() then h:close() end
+        -- Caller may not have finished stdin; drop it so the pipe never leaks.
+        close_stdin()
         -- Pipes may still have data; fire on_exit once they drain to EOF
         if pipes_open == 0 then
             vim.schedule(function() on_exit(exit_code) end)
@@ -45,7 +56,7 @@ local function spawn(cmd, opts, on_exit)
     if not handle then
         close_pipes()
         vim.schedule(function() on_exit(-1) end)
-        return { kill = function() end }
+        return { kill = function() end, write = function() end }
     end
 
     local out = assert(stdout)
@@ -77,6 +88,29 @@ local function spawn(cmd, opts, on_exit)
             if handle and not handle:is_closing() then
                 handle:kill("sigterm")
             end
+        end,
+        --- Push a chunk to the child's stdin. Call with `nil` to signal EOF
+        --- (the write side is shut down and closed). No-op unless `opts.stdin`
+        --- enabled a stdin pipe. Streams: write may be called repeatedly before
+        --- the final `write(nil)`.
+        ---@param data    string?  chunk to push, or nil to signal end-of-input
+        ---@param on_done fun()?   called once this write/shutdown completes
+        write = function(data, on_done)
+            if not stdin or stdin:is_closing() then
+                if on_done then on_done() end
+                return
+            end
+            if data == nil then
+                -- shutdown waits for queued writes to flush, then sends EOF.
+                stdin:shutdown(function()
+                    close_stdin()
+                    if on_done then on_done() end
+                end)
+                return
+            end
+            stdin:write(data, function()
+                if on_done then on_done() end
+            end)
         end,
     }
 end
