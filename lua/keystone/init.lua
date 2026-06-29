@@ -15,7 +15,7 @@ local M = {}
 --
 -- It is opt-in: a module is configured only when its key is present and not
 -- `false`. Modules you do not mention are left untouched, so this never enables
--- anything behind your back.
+-- anything implicitly.
 -- ---------------------------------------------------------------------------
 
 -- Configurable modules, in setup order. Each names a `keystone.<name>` module
