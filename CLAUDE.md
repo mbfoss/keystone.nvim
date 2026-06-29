@@ -35,3 +35,5 @@ module-scope `local` variables should be prefixed with `_` with exception:
 -  class types like `MyType`
 
 Inside a class, private members are prefixed with `_`
+
+avoid pcall() when not required

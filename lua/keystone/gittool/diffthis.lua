@@ -28,6 +28,45 @@ local function _blob_lines(blob)
     return vim.split(blob, "\n", { plain = true })
 end
 
+--- Tear down a diffthis session once the diff ends, however it ends. The
+--- `gittool://` side is a throwaway scratch buffer, so drop it rather than
+--- leave it lingering in the buffer list. If a window still shows it -- the
+--- user closed the *live* side first -- send that window back to the live file
+--- (a window must always hold some buffer; fall back to a fresh one if the live
+--- buffer is gone too) before wiping. Either way, clear diff mode off the
+--- surviving live window so it is not left with the diff's fold column.
+---@param buf   integer  the live file buffer
+---@param base  integer  the gittool:// scratch buffer
+---@param group integer  the session's autocmd group
+local function _end_diff(buf, base, group)
+    -- Fire once: dropping the group also unhooks the BufWipeout below, so the
+    -- buffer wipe we trigger here cannot re-enter.
+    vim.api.nvim_del_augroup_by_id(group)
+
+    -- Defer the actual teardown: editing windows/buffers straight from a
+    -- WinClosed or BufWipeout callback runs into textlock.
+    vim.schedule(function()
+        -- A window still on the scratch buffer means the live side closed
+        -- first; send it back to the live file (its bufhidden=wipe then wipes
+        -- the scratch buffer out from under it), or to a fresh buffer if the
+        -- live file is gone too.
+        for _, win in ipairs(vim.fn.win_findbuf(base)) do
+            if vim.api.nvim_buf_is_valid(buf) then
+                vim.api.nvim_win_set_buf(win, buf)
+            else
+                vim.api.nvim_win_call(win, function() vim.cmd("enew") end)
+            end
+        end
+        if vim.api.nvim_buf_is_valid(base) then
+            vim.api.nvim_buf_delete(base, { force = true })
+        end
+
+        for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+            vim.api.nvim_win_call(win, function() vim.cmd("diffoff") end)
+        end
+    end)
+end
+
 ---@class GitTool.DiffThisOpts
 ---@field rev string?  revision to compare against; nil = the index
 
@@ -93,6 +132,23 @@ function M.diffthis(opts)
     vim.cmd("diffthis")
     vim.api.nvim_set_current_win(cur_win)
     vim.cmd("diffthis")
+
+    -- Tear the scratch buffer down when the diff ends. Closing its own window
+    -- wipes it (bufhidden=wipe) and fires BufWipeout; closing the live window
+    -- instead strands it on screen, which the WinClosed hook catches. One
+    -- group per session, keyed by the scratch buffer's id.
+    local group = vim.api.nvim_create_augroup(
+        ("keystone.gittool.diffthis.%d"):format(base), { clear = true })
+    vim.api.nvim_create_autocmd("BufWipeout", {
+        group    = group,
+        buffer   = base,
+        callback = function() _end_diff(buf, base, group) end,
+    })
+    vim.api.nvim_create_autocmd("WinClosed", {
+        group    = group,
+        pattern  = tostring(cur_win),
+        callback = function() _end_diff(buf, base, group) end,
+    })
 end
 
 return M
