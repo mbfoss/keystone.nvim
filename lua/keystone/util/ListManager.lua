@@ -2,6 +2,7 @@ local Spinner     = require("keystone.util.Spinner")
 local timer       = require("keystone.util.timer")
 local fsutil      = require("keystone.util.fsutil")
 local uitool      = require("keystone.util.uitool")
+local floatwin    = require("keystone.util.floatwin")
 
 ---@mod keystone.ListManager
 ---@brief Floating manager for a flat list of items: select / add / remove / rename
@@ -726,15 +727,66 @@ function ListManager:_action_rename()
     end)
 end
 
+---@class keystone.ListManager.Keymap
+---@field label string Human-readable key(s) shown in the help menu
+---@field keys string[] Keys to bind
+---@field desc string Help description
+---@field enabled boolean? Bind/list only when not false
+---@field fn fun()
+
+--- The single source of truth for both the bindings and the help menu, so they
+--- can never drift apart.
+---@return keystone.ListManager.Keymap[]
+function ListManager:_keymaps()
+    local o = self.opts
+    return {
+        { label = "<CR>",      keys = { "<CR>" },        desc = "Select / open item",
+            fn = function() self:confirm_select() end },
+        { label = "a",         keys = { "a" },           desc = "Add item",
+            enabled = o.on_add ~= nil, fn = function() self:_action_add() end },
+        { label = "r",         keys = { "r" },           desc = "Rename item",
+            enabled = o.on_rename ~= nil, fn = function() self:_action_rename() end },
+        { label = "d",         keys = { "d" },           desc = "Remove item",
+            enabled = o.on_remove ~= nil, fn = function() self:_action_remove() end },
+        { label = "R",         keys = { "R" },           desc = "Refresh list",
+            fn = function() self:refresh() end },
+        { label = "g?",        keys = { "g?" },          desc = "Show this help",
+            fn = function() self:show_help() end },
+        { label = "q / <Esc>", keys = { "q", "<Esc>" },  desc = "Close",
+            fn = function() self:close() end },
+    }
+end
+
 function ListManager:setup_input()
     local opts = _key_opts_of(self.lbuf)
-    vim.keymap.set("n", "<CR>", function() self:confirm_select() end, opts)
-    vim.keymap.set("n", "<Esc>", function() self:close() end, opts)
-    vim.keymap.set("n", "q", function() self:close() end, opts)
-    vim.keymap.set("n", "a", function() self:_action_add() end, opts)
-    vim.keymap.set("n", "r", function() self:_action_rename() end, opts)
-    vim.keymap.set("n", "d", function() self:_action_remove() end, opts)
-    vim.keymap.set("n", "R", function() self:refresh() end, opts)
+    for _, m in ipairs(self:_keymaps()) do
+        if m.enabled ~= false then
+            for _, key in ipairs(m.keys) do
+                vim.keymap.set("n", key, m.fn, opts)
+            end
+        end
+    end
+end
+
+--- Opens a floating cheat-sheet of the active keymaps.
+function ListManager:show_help()
+    local entries = {}
+    local key_width = 0
+    for _, m in ipairs(self:_keymaps()) do
+        if m.enabled ~= false then
+            key_width = math.max(key_width, #m.label)
+            entries[#entries + 1] = m
+        end
+    end
+
+    local lines = {}
+    for _, m in ipairs(entries) do
+        lines[#lines + 1] = string.format("  %-" .. key_width .. "s   %s", m.label, m.desc)
+    end
+
+    floatwin.open(table.concat(lines, "\n"), {
+        title = (self.opts.prompt or "List") .. " keymaps",
+    })
 end
 
 function ListManager:close()
