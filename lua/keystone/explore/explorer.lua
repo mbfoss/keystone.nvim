@@ -3,6 +3,7 @@ local common      = require("keystone.util.timer")
 local fsutil      = require("keystone.util.fsutil")
 local uitool      = require("keystone.util.uitool")
 local layouts     = require("keystone.explore.layouts")
+local floatwin    = require("keystone.util.floatwin")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -47,16 +48,6 @@ local _antiflicker_delay = 200
 ---@alias keystone.Explorer.AsyncPreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,col:number?,error_msg:string?}
 ---@alias keystone.Explorer.AsyncPreviewLoader fun(path:string[], opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
----@class keystone.Explorer.ActionArgs
----@field path string[]?
----@field data any
----@field is_dir boolean?
----@field recursive boolean?
-
----@alias keystone.Explorer.CreateHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun(name:string))
----@alias keystone.Explorer.DeleteHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun())
----@alias keystone.Explorer.RenameHandler fun(ctx:keystone.Explorer.ActionArgs, on_done:fun(name:string))
-
 ---@class keystone.Explorer.Opts
 ---@field prompt string
 ---@field initial_path string[]
@@ -69,9 +60,6 @@ local _antiflicker_delay = 200
 ---@field width_ratio number?
 ---@field list_wrap boolean?
 ---@field enable_list_sep boolean?
----@field on_create keystone.Explorer.CreateHandler?
----@field on_rename keystone.Explorer.RenameHandler?
----@field on_delete keystone.Explorer.DeleteHandler?
 
 ---@class keystone.Explorer.Layout
 ---@field prompt_row number
@@ -802,88 +790,65 @@ function Explorer:close(path)
     end)
 end
 
+---@class keystone.Explorer.Keymap
+---@field label string Human-readable key(s) shown in the help menu
+---@field keys string[] Keys to bind
+---@field desc string Help description
+---@field enabled boolean? Bind/list only when not false
+---@field fn fun()
+
+--- The single source of truth for both the bindings and the help menu, so they
+--- can never drift apart.
+---@return keystone.Explorer.Keymap[]
+function Explorer:_keymaps()
+    return {
+        { label = "l",         keys = { "l" },          desc = "Enter directory",
+            fn = function() self:run_fetch("in") end },
+        { label = "h",         keys = { "h" },          desc = "Go up a directory",
+            fn = function() self:run_fetch("out") end },
+        { label = "<CR>",      keys = { "<CR>" },       desc = "Select / open file",
+            fn = function() self:confirm_choice() end },
+        { label = "<C-t>",     keys = { "<C-t>" },      desc = "Toggle preview",
+            enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
+        { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
+            fn = function() self:toggle_hidden() end },
+        { label = "g?",        keys = { "g?" },         desc = "Show this help",
+            fn = function() self:show_help() end },
+        { label = "q / <Esc>", keys = { "q", "<Esc>" }, desc = "Close",
+            fn = function() self:close() end },
+    }
+end
+
 function Explorer:setup_input()
     local opts = _key_opts_of(self.lbuf)
-    vim.keymap.set("n", "l", function() self:run_fetch("in") end, opts)
-    vim.keymap.set("n", "h", function() self:run_fetch("out") end, opts)
-    vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, opts)
-    vim.keymap.set("n", "<Esc>", function() self:close() end, opts)
-    vim.keymap.set("n", "<C-t>", function() self:toggle_preview() end, opts)
-    vim.keymap.set("n", "gh", function() self:toggle_hidden() end, opts)
-    vim.keymap.set("n", "a", function() self:_action_create(false) end, opts)
-    vim.keymap.set("n", "A", function() self:_action_create(true) end, opts)
-    vim.keymap.set("n", "r", function() self:_action_rename() end, opts)
-    vim.keymap.set("n", "d", function() self:_action_delete(false) end, opts)
-    vim.keymap.set("n", "D", function() self:_action_delete(true) end, opts)
-end
-
----@param name string
-function Explorer:_get_item_row(name)
-    for i, item in ipairs(self.list_items) do
-        if item.name == name then
-            return i
+    for _, m in ipairs(self:_keymaps()) do
+        if m.enabled ~= false then
+            for _, key in ipairs(m.keys) do
+                vim.keymap.set("n", key, m.fn, opts)
+            end
         end
     end
-    return nil
 end
 
----@private
----@param as_dir boolean
-function Explorer:_action_create(as_dir)
-    if not self.opts.on_create then return end
-    local path_str = vim.inspect(self._path)
-    ---@param name string
-    local on_done = function(name)
-        if path_str ~= vim.inspect(self._path) then return end
-        self:run_fetch(nil, function()
-            local row = self:_get_item_row(name)
-            if row then self:move_cursor(row, false, false) end
-        end)
+--- Opens a floating cheat-sheet of the active keymaps.
+function Explorer:show_help()
+    local entries = {}
+    local key_width = 0
+    for _, m in ipairs(self:_keymaps()) do
+        if m.enabled ~= false then
+            key_width = math.max(key_width, #m.label)
+            entries[#entries + 1] = m
+        end
     end
-    ---@type keystone.Explorer.ActionArgs
-    local args = {
-        path = vim.list_extend({}, self._path),
-        is_dir = as_dir
-    }
-    self.opts.on_create(args, on_done)
-end
 
-function Explorer:_action_rename()
-    if not self.opts.on_rename then return end
-    local path_str = vim.inspect(self._path)
-    ---@param name string
-    local on_done = function(name)
-        if path_str ~= vim.inspect(self._path) then return end
-        self:run_fetch(nil, function()
-            local row = self:_get_item_row(name)
-            if row then self:move_cursor(row, false, false) end
-        end)
+    local lines = {}
+    for _, m in ipairs(entries) do
+        lines[#lines + 1] = string.format("  %-" .. key_width .. "s   %s", m.label, m.desc)
     end
-    ---@type keystone.Explorer.ActionArgs
-    local args = {
-        path = self:_get_current(),
-    }
-    self.opts.on_rename(args, on_done)
-end
 
----@private
----@param recursive boolean
-function Explorer:_action_delete(recursive)
-    if not self.opts.on_delete then return end
-    local path_str = vim.inspect(self._path)
-    local on_done = function()
-        if path_str ~= vim.inspect(self._path) then return end
-        local row = self:get_cursor()
-        self:run_fetch(nil, function()
-            if row then self:move_cursor(row, false, false) end
-        end)
-    end
-    ---@type keystone.Explorer.ActionArgs
-    local args = {
-        path = self:_get_current(),
-        recursive = recursive,
-    }
-    self.opts.on_delete(args, on_done)
+    floatwin.open(table.concat(lines, "\n"), {
+        title = (self.opts.prompt or "Explore") .. " keymaps",
+    })
 end
 
 ---@param opts keystone.Explorer.Opts

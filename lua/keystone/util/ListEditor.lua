@@ -38,7 +38,7 @@ local _antiflicker_delay = 200
 ---@field viewport_height number
 
 ---@alias keystone.ListEditor.PreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,error_msg:string?}
----@alias keystone.ListEditor.Previewer fun(item:keystone.ListEditor.Item, opts:keystone.ListEditor.PreviewOpts, callback:fun(preview:keystone.ListEditor.PreviewData?)):(fun())?
+---@alias keystone.ListEditor.Previewer fun(item:keystone.ListEditor.Item, opts:keystone.ListEditor.PreviewOpts, callback:fun(preview:keystone.ListEditor.PreviewData?)):(fun()|nil)
 
 --- Create a new item. The caller drives whatever UI it needs (a prompt, a
 --- picker, ...) and invokes `done` with the item to insert, or nil to abort.
@@ -164,13 +164,13 @@ local function _default_preview(item, preview_opts, callback)
     local filepath = data.filepath
     if not filepath or filepath == "" then
         vim.schedule(function() callback({}) end)
-        return
+        return nil
     end
     if not fsutil.file_exists(filepath) then
         vim.schedule(function()
             callback({ error_msg = "Invalid file path: " .. tostring(filepath) })
         end)
-        return
+        return nil
     end
     local max_size = preview_opts.viewport_height * preview_opts.viewport_width
     return fsutil.async_load_text_file(filepath, { max_size = max_size, timeout = 3000 },

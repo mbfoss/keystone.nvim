@@ -5,7 +5,6 @@ local explorer = require("keystone.explore.explorer")
 local fsutil   = require("keystone.util.fsutil")
 local uitool   = require("keystone.util.uitool")
 local icons    = require("keystone.icons")
-local inputwin = require("keystone.util.inputwin")
 
 ---@param name string The filename or directory name
 ---@param is_dir boolean
@@ -21,113 +20,6 @@ local function _get_icon(name, is_dir)
     end
     return icon or "", icon_hl
 end
-
----@param type "file"|"dir"
----@param location string
----@param on_done fun(name:string)
-local function _fs_create(type, location, on_done)
-    location = vim.fn.fnamemodify(location, ":p:h")
-    local function check_name(name)
-        if not name or name == "" then return false, "Name cannot be empty" end
-        local new_path = vim.fn.fnamemodify(vim.fs.joinpath(location, name), ":p")
-        local new_parent_dir = vim.fn.fnamemodify(new_path, ":h")
-        if new_parent_dir ~= location then return false, "Invalid name" end
-        return true, nil, new_path
-    end
-    inputwin.open({
-            prompt = "Create " .. (type == "dir" and "directory" or "file") .. " in " .. location,
-            validate = function(name) return check_name(name) end
-        },
-        function(name)
-            if not name then return end
-            local name_ok, name_err, new_path = check_name(name)
-            if not name_ok or not new_path then
-                vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
-                return
-            end
-            if type == "dir" then
-                local ok, err = vim.uv.fs_mkdir(new_path, 493) -- 493 is octal 0755
-                if ok then
-                    on_done(name)
-                else
-                    vim.notify(err or "Failed to create directory", vim.log.levels.ERROR)
-                end
-            else
-                local created, err = fsutil.create_file(new_path)
-                if created then
-                    on_done(name)
-                else
-                    vim.notify(err or "Failed to create file", vim.log.levels.ERROR)
-                end
-            end
-        end)
-end
-
----@param path string
----@param on_done fun(name:string)
-local function _fs_rename(path, on_done)
-    local function check_name(name)
-        if not name or name == "" then return false, "Name cannot be empty" end
-        local parent_dir = vim.fn.fnamemodify(path, ":h")
-        local new_path = vim.fn.fnamemodify(vim.fs.joinpath(parent_dir, name), ":p")
-        local new_parent_dir = vim.fn.fnamemodify(new_path, ":h")
-        if new_parent_dir ~= parent_dir then return false, "Invalid name" end
-        return true, nil, new_path
-    end
-    local is_dir = fsutil.dir_exists(path)
-    inputwin.open({
-            prompt = "New " .. (is_dir and "directory" or "file") .. " name",
-            default = vim.fn.fnamemodify(path, ":t"),
-            validate = function(name) return check_name(name) end
-        },
-        function(name)
-            if not name then return end
-            local name_ok, name_err, new_path = check_name(name)
-            if not name_ok or not new_path then
-                vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
-                return
-            end
-            local ok, err = fsutil.rename_file(path, new_path)
-            if ok then
-                on_done(name)
-            else
-                vim.notify("Rename failed: " .. err, vim.log.levels.ERROR)
-            end
-        end)
-end
-
----@param path string
----@param recursive boolean
----@param on_done fun()
-local function _fs_delete(path, recursive, on_done)
-    recursive = recursive == true
-    local is_folder = fsutil.dir_exists(path)
-    local msg
-    if is_folder then
-        msg = recursive and "Permanently delete directory and ALL its content\n%s?" or
-            "Permanently delete directory\n%s?"
-    else
-        msg = "Permanently delete file\n%s?"
-    end
-    uitool.confirm_action(msg:format(path), false, function(confirmed)
-        if not confirmed then return end
-        local success, err_msg
-        if is_folder and recursive then
-            success = vim.fn.delete(path, "rf") == 0
-            if not success then err_msg = "recursive deletion failed" end
-        else
-            success, err_msg = os.remove(path)
-            if not success then err_msg = err_msg or "deletion failed" end
-        end
-        if success then
-            on_done()
-        else
-            local type_str = is_folder and "directory" or "file"
-            vim.notify(("Failed to delete %s\n%s"):format(type_str, err_msg), vim.log.levels.ERROR)
-        end
-    end)
-end
-
 
 local function _explore_files()
     local bufname = vim.api.nvim_buf_get_name(0)
@@ -215,22 +107,6 @@ local function _explore_files()
 
             return cancel
         end,
-        on_create = function(ctx, on_done)
-            if not ctx.path then return end
-            local filepath = table.concat(ctx.path, '/')
-            _fs_create(ctx.is_dir and "dir" or "file", filepath, on_done)
-        end,
-        on_rename = function(ctx, on_done)
-            if not ctx.path then return end
-            local filepath = table.concat(ctx.path, '/')
-            _fs_rename(filepath, on_done)
-        end,
-        on_delete = function(ctx, on_done)
-            if not ctx.path then return end
-            local filepath = table.concat(ctx.path, '/')
-            _fs_delete(filepath, ctx.recursive, on_done)
-        end,
-
     }, function(path)
         if path then
             local filepath = table.concat(path, '/')
