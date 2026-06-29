@@ -1,4 +1,5 @@
 local gittool = require("keystone.gittool")
+local difftool = require("keystone.gittool.difftool")
 
 --- Run a git command in `cwd`, asserting success. Used only by the fixtures.
 ---@param cwd  string
@@ -49,7 +50,7 @@ describe("gittool _changed_paths", function()
     end)
 
     it("returns nothing on a clean tree", function()
-        assert.same({}, gittool._changed_paths(root, "HEAD"))
+        assert.same({}, difftool.changed_paths(root, "HEAD"))
     end)
 
     it("reports modified, deleted, and untracked files (but not unchanged)", function()
@@ -57,7 +58,7 @@ describe("gittool _changed_paths", function()
         vim.fn.delete(root .. "/gone.txt")
         write(root .. "/new.txt", "brand new\n")
 
-        local rels = gittool._changed_paths(root, "HEAD")
+        local rels = difftool.changed_paths(root, "HEAD")
         table.sort(rels)
         assert.same({ "gone.txt", "mod.txt", "new.txt" }, rels)
     end)
@@ -70,9 +71,9 @@ describe("gittool _changed_paths", function()
         git(root, { "commit", "-aqm", "second" })
 
         -- Working tree now matches HEAD, so nothing changed against HEAD...
-        assert.same({}, gittool._changed_paths(root, "HEAD"))
+        assert.same({}, difftool.changed_paths(root, "HEAD"))
         -- ...but mod.txt differs from the first commit.
-        assert.same({ "mod.txt" }, gittool._changed_paths(root, first))
+        assert.same({ "mod.txt" }, difftool.changed_paths(root, first))
     end)
 end)
 
@@ -107,7 +108,7 @@ describe("gittool _changed_paths_between", function()
         -- An unrelated, uncommitted working-tree change must not leak in.
         write(root .. "/kept.txt", "dirty\n")
 
-        local rels = gittool._changed_paths_between(root, { rev = first }, { rev = "HEAD" })
+        local rels = difftool.changed_paths_between(root, { rev = first }, { rev = "HEAD" })
         assert.same({ "added.txt", "mod.txt" }, rels)
     end)
 
@@ -121,7 +122,7 @@ describe("gittool _changed_paths_between", function()
         write(root .. "/kept.txt", "unstaged edit\n")
         write(root .. "/untracked.txt", "untracked\n")
 
-        local rels = gittool._changed_paths_between(root, { index = true }, { worktree = true })
+        local rels = difftool.changed_paths_between(root, { index = true }, { worktree = true })
         assert.same({ "kept.txt", "untracked.txt" }, rels)
     end)
 
@@ -134,7 +135,7 @@ describe("gittool _changed_paths_between", function()
         write(root .. "/kept.txt", "unstaged edit\n")
         write(root .. "/untracked.txt", "untracked\n")
 
-        local rels = gittool._changed_paths_between(root, { rev = "HEAD" }, { index = true })
+        local rels = difftool.changed_paths_between(root, { rev = "HEAD" }, { index = true })
         assert.same({ "mod.txt", "staged_new.txt" }, rels)
     end)
 end)
