@@ -681,22 +681,46 @@ function ListEditor:_action_update()
     end)
 end
 
-function ListEditor:_action_remove()
+--- Remove the items on buffer rows `srow`..`erow` (inclusive, 1-based). Each
+--- item occupies exactly one line, so rows map directly to item indices.
+---@param srow integer
+---@param erow integer
+function ListEditor:_remove_range(srow, erow)
     if not self.editable then return end
-    local row = self:get_cursor()
-    if not row or not self.list_items[row] then return end
+    local total = #self.list_items
+    if total == 0 then return end
+    if srow > erow then srow, erow = erow, srow end
+    srow = _clamp(srow, 1, total)
+    erow = _clamp(erow, 1, total)
+
     self:_snapshot()
     local items = self:_clone_items()
     -- Land on the neighbour that survives the removal.
-    local neighbour = items[row + 1] or items[row - 1]
-    table.remove(items, row)
+    local neighbour = items[erow + 1] or items[srow - 1]
+    for i = erow, srow, -1 do
+        table.remove(items, i)
+    end
     self:_apply(items, neighbour and neighbour.key or nil)
+end
+
+function ListEditor:_action_remove()
+    local row = self:get_cursor()
+    if not row then return end
+    self:_remove_range(row, row)
+end
+
+--- Remove every item covered by the current visual selection.
+function ListEditor:_action_remove_visual()
+    local srow = vim.fn.getpos("v")[2]
+    local erow = vim.fn.getpos(".")[2]
+    -- Leave visual mode before mutating the buffer.
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+    self:_remove_range(srow, erow)
 end
 
 function ListEditor:_action_undo()
     local snap = table.remove(self.undo_stack)
     if not snap then
-        vim.notify("[keystone] Nothing to undo", vim.log.levels.INFO)
         return
     end
     self:_apply(snap.items, snap.key)
@@ -722,7 +746,7 @@ function ListEditor:_keymaps()
             enabled = o.create_item ~= nil, fn = function() self:_action_add() end },
         { label = "r",         keys = { "r" },          desc = "Edit item",
             enabled = o.update_item ~= nil, fn = function() self:_action_update() end },
-        { label = "d",         keys = { "d" },          desc = "Remove item",
+        { label = "d",         keys = { "d" },          desc = "Remove item (visual: selection)",
             enabled = editable, fn = function() self:_action_remove() end },
         { label = "u",         keys = { "u" },          desc = "Undo last edit",
             enabled = editable, fn = function() self:_action_undo() end },
@@ -741,6 +765,9 @@ function ListEditor:setup_input()
                 vim.keymap.set("n", key, m.fn, opts)
             end
         end
+    end
+    if self.editable then
+        vim.keymap.set("x", "d", function() self:_action_remove_visual() end, opts)
     end
 end
 

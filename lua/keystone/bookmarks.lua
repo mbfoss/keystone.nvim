@@ -204,7 +204,7 @@ function M.pick()
                 local match = pickertools.match_label(entry.name, query)
                 if match then
                     local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
-                    local loc_chunk = {relpath .. ":" .. entry.lnum, "@namespace" }
+                    local loc_chunk = { relpath .. ":" .. entry.lnum, "@namespace" }
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = match.chunks,
@@ -311,23 +311,9 @@ function M.manager()
         empty_text      = "No bookmarks",
         initial_key     = (origin_file and origin_lnum)
             and _loc_key(origin_file, origin_lnum) or nil,
-
         finder          = function()
             return _manager_items()
         end,
-
-        create_item     = function(done)
-            if not origin_file or not origin_lnum then
-                vim.notify("[keystone] No valid file to bookmark", vim.log.levels.WARN)
-                return done(nil)
-            end
-            inputwin.open({ prompt = "Bookmark" }, function(input)
-                local name = input and vim.trim(input) or ""
-                if name == "" then return done(nil) end
-                done(_make_item(name, origin_file, origin_lnum))
-            end)
-        end,
-
         update_item     = function(item, done)
             local data = item.data
             inputwin.open({ prompt = "Rename", default = data.name }, function(input)
@@ -336,7 +322,6 @@ function M.manager()
                 done(_make_item(name, data.filepath, data.lnum))
             end)
         end,
-
         on_commit       = _commit,
     })
 end
