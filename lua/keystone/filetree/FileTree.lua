@@ -67,13 +67,11 @@ MANAGEMENT
 
 SELECTION
 =========
-`<Tab>`     Toggle selection of item under cursor, then move down
-`<S-Tab>`   Move up, then toggle selection of item under cursor
-`<Tab>`     (visual) Toggle selection of items in the visual selection
+`<Tab>`   Toggle selection of item under cursor
+`<Tab>`   (visual) Toggle selection of items in the visual selection
 `X`       Move selected items into the directory under cursor
 `C`       Copy selected items into the directory under cursor
-`D`       Delete item under cursor (system trash if available)
-`D`       (visual) Delete items in the visual selection (system trash if available)
+`D`       Delete selected items (system trash if available)
 
 OTHER
 =====
@@ -329,21 +327,20 @@ function FileTree:create_buffer()
         },
         ["D"] = {
             function()
-                with_item(function(i) self:_delete_items({ i }) end)
+                local items = self:_get_selected_items()
+                if #items == 0 then
+                    vim.notify("No items selected", vim.log.levels.WARN)
+                    return
+                end
+                self:_delete_items(items)
             end,
-            "Delete item under cursor (system trash if available)",
+            "Delete selected items (system trash if available)",
         },
         ["<Tab>"] = {
             function()
                 with_item(function(i) self:_toggle_select(i) end)
             end,
             "Toggle selection",
-        },
-        ["<S-Tab>"] = {
-            function()
-                self:_toggle_select_up()
-            end,
-            "Move up then toggle selection",
         },
         ["X"] = {
             function()
@@ -391,11 +388,6 @@ function FileTree:create_buffer()
     vim.api.nvim_buf_set_keymap(bufnr, "x", "<Tab>", "", {
         callback = function() self:_visual_select() end,
         desc = "Toggle selection of items in visual selection",
-    })
-
-    vim.api.nvim_buf_set_keymap(bufnr, "x", "D", "", {
-        callback = function() self:_visual_delete() end,
-        desc = "Delete items in visual selection (system trash if available)",
     })
 
     self:_on_buffer_created()
@@ -1069,9 +1061,9 @@ function FileTree:_show_hover(item)
 end
 
 ---@private
---- Toggle the selection state of a single item.
+--- Toggle the selection state of the item under the cursor.
 ---@param item keystone.util.TreeBuffer.Item
-function FileTree:_toggle_item(item)
+function FileTree:_toggle_select(item)
     local path = item.data.path
     if path == self._root then return end -- the root is not selectable
     if self._selected[path] then
@@ -1080,41 +1072,6 @@ function FileTree:_toggle_item(item)
         self._selected[path] = true
     end
     self._treebuf:refresh_item(path)
-end
-
----@private
---- Toggle the item under the cursor, then advance the cursor one line down.
----@param item keystone.util.TreeBuffer.Item
-function FileTree:_toggle_select(item)
-    self:_toggle_item(item)
-
-    local winid = self._treebuf:get_winid()
-    local bufnr = self._treebuf:get_bufnr()
-    if winid > 0 and bufnr > 0 then
-        local row = vim.api.nvim_win_get_cursor(winid)[1]
-        if row < vim.api.nvim_buf_line_count(bufnr) then
-            vim.api.nvim_win_set_cursor(winid, { row + 1, 0 })
-        end
-    end
-end
-
----@private
---- Move the cursor one line up, then toggle the item it lands on (the inverse
---- of `_toggle_select`, so `<Tab>` followed by `<S-Tab>` cancels out).
-function FileTree:_toggle_select_up()
-    local winid = self._treebuf:get_winid()
-    if winid <= 0 then return end
-
-    local row = vim.api.nvim_win_get_cursor(winid)[1]
-    if row > 1 then
-        row = row - 1
-        vim.api.nvim_win_set_cursor(winid, { row, 0 })
-    end
-
-    local item = self._treebuf:get_item_at_row(row)
-    if item then
-        self:_toggle_item(item)
-    end
 end
 
 ---@private
@@ -1161,15 +1118,6 @@ function FileTree:_visual_select()
         end
     end
     _exit_visual_mode()
-end
-
----@private
---- Delete every item covered by the current visual selection (to the system
---- trash when available, otherwise permanently).
-function FileTree:_visual_delete()
-    local items = self:_get_visual_items()
-    _exit_visual_mode()
-    self:_delete_items(items)
 end
 
 ---@private
