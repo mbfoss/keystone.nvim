@@ -71,8 +71,8 @@ SELECTION
 `<Tab>`   (visual) Toggle selection of items in the visual selection
 `X`       Move selected items into the directory under cursor
 `C`       Copy selected items into the directory under cursor
-`D`       **Permanently** delete item under cursor
-`D`       (visual) **Permanently** delete items in the visual selection
+`D`       Delete item under cursor (system trash if available)
+`D`       (visual) Delete items in the visual selection (system trash if available)
 
 OTHER
 =====
@@ -330,7 +330,7 @@ function FileTree:create_buffer()
             function()
                 with_item(function(i) self:_delete_items({ i }) end)
             end,
-            "Permanently delete item under cursor",
+            "Delete item under cursor (system trash if available)",
         },
         ["<Tab>"] = {
             function()
@@ -388,7 +388,7 @@ function FileTree:create_buffer()
 
     vim.api.nvim_buf_set_keymap(bufnr, "x", "D", "", {
         callback = function() self:_visual_delete() end,
-        desc = "Permanently delete items in visual selection",
+        desc = "Delete items in visual selection (system trash if available)",
     })
 
     self:_on_buffer_created()
@@ -1131,7 +1131,8 @@ function FileTree:_visual_select()
 end
 
 ---@private
---- Permanently delete every item covered by the current visual selection.
+--- Delete every item covered by the current visual selection (to the system
+--- trash when available, otherwise permanently).
 function FileTree:_visual_delete()
     local items = self:_get_visual_items()
     _exit_visual_mode()
@@ -1167,8 +1168,9 @@ function FileTree:_clear_selection()
 end
 
 ---@private
---- Permanently delete the given items (recursively for directories), pruning
---- any of them from the marked selection.
+--- Delete the given items (recursively for directories), pruning any of them
+--- from the marked selection. Uses the system trash when available, otherwise
+--- deletes permanently.
 ---@param items keystone.util.TreeBuffer.Item[]
 function FileTree:_delete_items(items)
     local targets = {}
@@ -1179,11 +1181,14 @@ function FileTree:_delete_items(items)
     end
     if #targets == 0 then return end
 
+    local use_trash = fsutil.has_trash()
+
     local lines = {}
     for _, item in ipairs(targets) do
         lines[#lines + 1] = "  " .. item.data.path
     end
-    local msg = ("Permanently delete %d item(s)?\n%s"):format(#targets, table.concat(lines, "\n"))
+    local prompt = use_trash and "Move %d item(s) to trash?" or "Permanently delete %d item(s)?"
+    local msg = (prompt .. "\n%s"):format(#targets, table.concat(lines, "\n"))
 
     local reload_counter = self._reload_counter
     uitool.confirm_action(msg, false, function(confirmed)
@@ -1195,7 +1200,13 @@ function FileTree:_delete_items(items)
         for _, item in ipairs(targets) do
             local path = item.data.path
             if self._treebuf:get_item(path) then
-                if vim.fn.delete(path, "rf") == 0 then
+                local removed
+                if use_trash then
+                    removed = fsutil.trash_path(path)
+                else
+                    removed = vim.fn.delete(path, "rf") == 0
+                end
+                if removed then
                     self._selected[path] = nil
                     dirs_to_refresh[vim.fn.fnamemodify(path, ":h")] = true
                 else

@@ -429,6 +429,75 @@ function M.rename_file(from, to)
     return true
 end
 
+local _trash_fn = nil ---@type (fun(path:string):boolean,string?)|nil
+local _trash_resolved = false
+
+--- Resolve (and cache) a function that moves a single path to the system
+--- trash, or nil when no trash mechanism is available on this platform.
+---@return (fun(path:string):boolean,string?)|nil
+local function resolve_trash_fn()
+    if _trash_resolved then return _trash_fn end
+    _trash_resolved = true
+
+    ---@param argv_builder fun(path:string):string[]
+    ---@return fun(path:string):boolean,string?
+    local function cmd_trash(argv_builder)
+        return function(path)
+            local out = vim.fn.system(argv_builder(path))
+            if vim.v.shell_error ~= 0 then
+                return false, vim.trim(out)
+            end
+            return true
+        end
+    end
+
+    if vim.fn.has("mac") == 1 then
+        if vim.fn.executable("trash") == 1 then
+            _trash_fn = cmd_trash(function(path) return { "trash", "--", path } end)
+        else
+            _trash_fn = function(path)
+                -- json_encode yields a double-quoted, escaped literal that is
+                -- also valid as an AppleScript string.
+                local script = ('tell application "Finder" to delete (POSIX file %s)')
+                    :format(vim.fn.json_encode(path))
+                local out = vim.fn.system({ "osascript", "-e", script })
+                if vim.v.shell_error ~= 0 then
+                    return false, vim.trim(out)
+                end
+                return true
+            end
+        end
+    elseif vim.fn.has("unix") == 1 then
+        if vim.fn.executable("gio") == 1 then
+            _trash_fn = cmd_trash(function(path) return { "gio", "trash", "--", path } end)
+        elseif vim.fn.executable("trash-put") == 1 then
+            _trash_fn = cmd_trash(function(path) return { "trash-put", "--", path } end)
+        elseif vim.fn.executable("trash") == 1 then
+            _trash_fn = cmd_trash(function(path) return { "trash", "--", path } end)
+        end
+    end
+
+    return _trash_fn
+end
+
+--- Whether a system trash mechanism is available on this platform.
+---@return boolean
+function M.has_trash()
+    return resolve_trash_fn() ~= nil
+end
+
+--- Move a path to the system trash.
+---@param path string
+---@return boolean ok
+---@return string? err
+function M.trash_path(path)
+    local trash_fn = resolve_trash_fn()
+    if not trash_fn then
+        return false, "No system trash available"
+    end
+    return trash_fn(path)
+end
+
 --- Recursively copy a file, directory or symlink from `from` to `to`.
 ---@param from string
 ---@param to string
