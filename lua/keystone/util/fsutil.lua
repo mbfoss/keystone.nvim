@@ -453,7 +453,9 @@ local function resolve_trash_fn()
 
     if vim.fn.has("mac") == 1 then
         if vim.fn.executable("trash") == 1 then
-            _trash_fn = cmd_trash(function(path) return { "trash", "--", path } end)
+            -- macOS' /usr/bin/trash takes only positional paths; it has no "--"
+            -- end-of-options separator (paths here are always absolute).
+            _trash_fn = cmd_trash(function(path) return { "trash", path } end)
         else
             _trash_fn = function(path)
                 -- json_encode yields a double-quoted, escaped literal that is
@@ -461,6 +463,32 @@ local function resolve_trash_fn()
                 local script = ('tell application "Finder" to delete (POSIX file %s)')
                     :format(vim.fn.json_encode(path))
                 local out = vim.fn.system({ "osascript", "-e", script })
+                if vim.v.shell_error ~= 0 then
+                    return false, vim.trim(out)
+                end
+                return true
+            end
+        end
+    elseif vim.fn.has("win32") == 1 then
+        local pwsh = vim.fn.executable("pwsh") == 1 and "pwsh"
+            or (vim.fn.executable("powershell") == 1 and "powershell" or nil)
+        if pwsh then
+            _trash_fn = function(path)
+                -- Route through the Recycle Bin via Microsoft.VisualBasic.
+                -- Single-quoted PowerShell literal: escape ' by doubling it.
+                local lit = "'" .. path:gsub("'", "''") .. "'"
+                local script = table.concat({
+                    "Add-Type -AssemblyName Microsoft.VisualBasic;",
+                    ("$p = %s;"):format(lit),
+                    "if (Test-Path -LiteralPath $p -PathType Container) {",
+                    "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(" ..
+                    "$p,'OnlyErrorDialogs','SendToRecycleBin')",
+                    "} else {",
+                    "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(" ..
+                    "$p,'OnlyErrorDialogs','SendToRecycleBin')",
+                    "}",
+                }, " ")
+                local out = vim.fn.system({ pwsh, "-NoProfile", "-NonInteractive", "-Command", script })
                 if vim.v.shell_error ~= 0 then
                     return false, vim.trim(out)
                 end

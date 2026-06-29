@@ -67,8 +67,9 @@ MANAGEMENT
 
 SELECTION
 =========
-`<Tab>`   Toggle selection of item under cursor
-`<Tab>`   (visual) Toggle selection of items in the visual selection
+`<Tab>`     Toggle selection of item under cursor, then move down
+`<S-Tab>`   Move up, then toggle selection of item under cursor
+`<Tab>`     (visual) Toggle selection of items in the visual selection
 `X`       Move selected items into the directory under cursor
 `C`       Copy selected items into the directory under cursor
 `D`       Delete item under cursor (system trash if available)
@@ -337,6 +338,12 @@ function FileTree:create_buffer()
                 with_item(function(i) self:_toggle_select(i) end)
             end,
             "Toggle selection",
+        },
+        ["<S-Tab>"] = {
+            function()
+                self:_toggle_select_up()
+            end,
+            "Move up then toggle selection",
         },
         ["X"] = {
             function()
@@ -1062,9 +1069,9 @@ function FileTree:_show_hover(item)
 end
 
 ---@private
---- Toggle the selection state of an item and advance the cursor one line.
+--- Toggle the selection state of a single item.
 ---@param item keystone.util.TreeBuffer.Item
-function FileTree:_toggle_select(item)
+function FileTree:_toggle_item(item)
     local path = item.data.path
     if path == self._root then return end -- the root is not selectable
     if self._selected[path] then
@@ -1073,6 +1080,13 @@ function FileTree:_toggle_select(item)
         self._selected[path] = true
     end
     self._treebuf:refresh_item(path)
+end
+
+---@private
+--- Toggle the item under the cursor, then advance the cursor one line down.
+---@param item keystone.util.TreeBuffer.Item
+function FileTree:_toggle_select(item)
+    self:_toggle_item(item)
 
     local winid = self._treebuf:get_winid()
     local bufnr = self._treebuf:get_bufnr()
@@ -1081,6 +1095,25 @@ function FileTree:_toggle_select(item)
         if row < vim.api.nvim_buf_line_count(bufnr) then
             vim.api.nvim_win_set_cursor(winid, { row + 1, 0 })
         end
+    end
+end
+
+---@private
+--- Move the cursor one line up, then toggle the item it lands on (the inverse
+--- of `_toggle_select`, so `<Tab>` followed by `<S-Tab>` cancels out).
+function FileTree:_toggle_select_up()
+    local winid = self._treebuf:get_winid()
+    if winid <= 0 then return end
+
+    local row = vim.api.nvim_win_get_cursor(winid)[1]
+    if row > 1 then
+        row = row - 1
+        vim.api.nvim_win_set_cursor(winid, { row, 0 })
+    end
+
+    local item = self._treebuf:get_item_at_row(row)
+    if item then
+        self:_toggle_item(item)
     end
 end
 
