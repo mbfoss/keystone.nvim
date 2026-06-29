@@ -279,8 +279,8 @@ function M.manager()
         initial_key     = (origin_file and origin_lnum)
             and _loc_key(origin_file, origin_lnum) or nil,
 
-        finder          = function(_, callback)
-            callback(_manager_items())
+        finder          = function()
+            return _manager_items()
         end,
 
         on_select       = function(item)

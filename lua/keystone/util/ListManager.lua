@@ -1,17 +1,16 @@
-local Spinner     = require("keystone.util.Spinner")
 local timer       = require("keystone.util.timer")
 local fsutil      = require("keystone.util.fsutil")
 local uitool      = require("keystone.util.uitool")
 local floatwin    = require("keystone.util.floatwin")
 
 ---@mod keystone.ListManager
----@brief Floating manager for a flat list of items: select / add / remove / rename
----@brief with an optional async preview. A trimmed, tree-less sibling of the explorer.
+---@brief Floating manager for a flat list of items: select / add / remove / rename.
+---@brief The list is populated synchronously; the preview is loaded async. A
+---@brief trimmed, tree-less sibling of the explorer.
 
 local M           = {}
 
 local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_ListManagerContent")
-local _NS_SPINNER = vim.api.nvim_create_namespace("keystone_ListManagerSpinner")
 local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_ListManagerPreview")
 
 local _antiflicker_delay = 200
@@ -27,9 +26,8 @@ local _antiflicker_delay = 200
 ---@field list_width number
 ---@field list_height number
 
---- Populate the list. May call `callback` synchronously or asynchronously. When
---- it resolves asynchronously it must return a cancel function.
----@alias keystone.ListManager.Finder fun(opts:keystone.ListManager.FetcherOpts, callback:fun(items:keystone.ListManager.Item[]?)):fun()?
+--- Populate the list. Called synchronously; returns the items to display.
+---@alias keystone.ListManager.Finder fun(opts:keystone.ListManager.FetcherOpts):keystone.ListManager.Item[]?
 
 ---@class keystone.ListManager.PreviewOpts
 ---@field viewport_width number
@@ -192,12 +190,9 @@ end
 ---@field vbuf integer?
 ---@field lwin integer?
 ---@field vwin integer?
----@field spinner keystone.util.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.ListManager.Item[]
 ---@field preview_enabled boolean
----@field async_fetch_context number
----@field async_fetch_cancel fun()?
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
@@ -222,13 +217,9 @@ function ListManager:init(opts)
     self.list_items = {}
     self.closed = false
 
-    self.async_fetch_context = 0
-    self.async_fetch_cancel = nil
     self.async_preview_context = 0
     self.async_preview_cancel = nil
     self.preview_timer = nil
-    self.spinner = nil
-    self._list_fresh = false
     self.last_cursor = nil
 
     self:relayout()
@@ -403,7 +394,6 @@ end
 function ListManager:update_preview()
     self.async_preview_context = self.async_preview_context + 1
     local preview_context = self.async_preview_context
-    local fetch_context = self.async_fetch_context
 
     if self.closed or not self.vbuf then return end
 
@@ -428,9 +418,7 @@ function ListManager:update_preview()
         item,
         { viewport_width = preview_width, viewport_height = preview_height },
         function(preview)
-            if self.closed
-                or preview_context ~= self.async_preview_context
-                or fetch_context ~= self.async_fetch_context then
+            if self.closed or preview_context ~= self.async_preview_context then
                 return
             end
             preview = preview or {}
@@ -507,50 +495,42 @@ function ListManager:cancel_clear_preview_req()
     self.preview_timer = timer.stop_and_close_timer(self.preview_timer)
 end
 
-function ListManager:start_spinner()
-    if self.spinner then return end
-    self.spinner = Spinner:new {
-        interval = 80,
-        on_update = function(frame)
-            if not self.lbuf then return end
-            vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_SPINNER, 0, -1)
-            vim.api.nvim_buf_set_extmark(self.lbuf, _NS_SPINNER, 0, 0, {
-                virt_text = { { frame .. " ", "Comment" } },
-                virt_text_pos = "eol_right_align",
-            })
-        end,
-    }
-    self.spinner:start()
-end
-
-function ListManager:stop_spinner()
-    if self.spinner then
-        self.spinner:stop()
-        self.spinner = nil
-    end
-    if self.lbuf then
-        vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_SPINNER, 0, -1)
-    end
-end
-
-function ListManager:clear_list()
-    self.list_items = {}
+--- Renders the empty-state placeholder into the list buffer.
+function ListManager:_render_empty()
+    local width = math.max(0, self.layout.list_width - 2)
+    local height = math.max(0, self.layout.list_height - 2)
+    local lines = _center_message(self.opts.empty_text or "Empty", width, height)
     vim.bo[self.lbuf].modifiable = true
-    vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
+    vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, lines)
     vim.bo[self.lbuf].modifiable = false
-    vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
-    self:request_clear_preview()
-    vim.wo[self.lwin].cursorline = false
-    self.last_cursor = nil
-    self._list_fresh = true
+    for row = 0, #lines - 1 do
+        vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
+            end_row = row + 1,
+            hl_group = "Comment",
+            hl_eol = true,
+        })
+    end
 end
 
+--- Replaces the list contents with `items`, rebuilding lines and extmarks in one pass.
 ---@param items keystone.ListManager.Item[]
-function ListManager:add_new_lines(items)
-    local prefix = "  "
-    local is_fresh = self._list_fresh
+function ListManager:render_items(items)
+    self.list_items = items
+    self.last_cursor = nil
 
     vim.bo[self.lbuf].modifiable = true
+    vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
+    vim.bo[self.lbuf].modifiable = false
+    self:request_clear_preview()
+
+    if #items == 0 then
+        vim.wo[self.lwin].cursorline = false
+        self:_render_empty()
+        return
+    end
+
+    local prefix = "  "
+    local lines = {}
     for _, item in ipairs(items) do
         local label = ""
         if item.label_chunks then
@@ -560,20 +540,14 @@ function ListManager:add_new_lines(items)
             end
             label = table.concat(parts)
         end
-        label = label:gsub("\n", " ")
+        lines[#lines + 1] = prefix .. label:gsub("\n", " ")
+    end
 
-        local idx = #self.list_items + 1
-        table.insert(self.list_items, idx, item)
+    vim.bo[self.lbuf].modifiable = true
+    vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, lines)
 
-        local line_text = prefix .. label
+    for idx, item in ipairs(items) do
         local row = idx - 1
-        if is_fresh and idx == 1 then
-            vim.api.nvim_buf_set_lines(self.lbuf, 0, 1, false, { line_text })
-            is_fresh = false
-            self._list_fresh = false
-        else
-            vim.api.nvim_buf_set_lines(self.lbuf, row, row, false, { line_text })
-        end
 
         if item.label_chunks then
             local col = #prefix
@@ -609,31 +583,15 @@ function ListManager:add_new_lines(items)
             })
         end
     end
-    vim.bo[self.lbuf].modifiable = false
-    vim.wo[self.lwin].cursorline = #self.list_items > 0
-end
 
-function ListManager:_render_empty()
-    local width = math.max(0, self.layout.list_width - 2)
-    local height = math.max(0, self.layout.list_height - 2)
-    local lines = _center_message(self.opts.empty_text or "Empty", width, height)
-    vim.bo[self.lbuf].modifiable = true
-    vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, lines)
     vim.bo[self.lbuf].modifiable = false
-    for row = 0, #lines - 1 do
-        vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
-            end_row = row + 1,
-            hl_group = "Comment",
-            hl_eol = true,
-        })
-    end
+    vim.wo[self.lwin].cursorline = true
 end
 
 --- Re-run the finder and rebuild the list, restoring the cursor onto `restore_key`
 --- when it is still present.
 ---@param restore_key string|false|nil false = restore current row by index; nil = keep current key
----@param on_complete fun()?
-function ListManager:refresh(restore_key, on_complete)
+function ListManager:refresh(restore_key)
     if self.closed then return end
 
     local restore_row = self:get_cursor()
@@ -642,49 +600,26 @@ function ListManager:refresh(restore_key, on_complete)
         restore_key = item and item.key or nil
     end
 
-    if self.async_fetch_cancel then
-        self.async_fetch_cancel()
-        self.async_fetch_cancel = nil
-    end
-
-    self:stop_spinner()
-    self:request_clear_preview()
-
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2),
         list_height = math.max(1, self.layout.list_height - 2),
     }
 
-    self.async_fetch_context = self.async_fetch_context + 1
-    local context = self.async_fetch_context
-    local complete = false
+    local items = self.opts.finder(fetch_opts) or {}
+    self:render_items(items)
 
-    local on_items = function(new_items)
-        if complete or self.closed or context ~= self.async_fetch_context then return end
-        complete = true
-        self:stop_spinner()
-        new_items = new_items or {}
-        self:clear_list()
-        if #new_items == 0 then
-            self:_render_empty()
-        else
-            self:add_new_lines(new_items)
-            local row = restore_key == false and (restore_row or 1) or 1
-            if restore_key and restore_key ~= false then
-                for i, item in ipairs(self.list_items) do
-                    if item.key == restore_key then
-                        row = i
-                        break
-                    end
-                end
+    if #items == 0 then return end
+
+    local row = restore_key == false and (restore_row or 1) or 1
+    if restore_key and restore_key ~= false then
+        for i, item in ipairs(items) do
+            if item.key == restore_key then
+                row = i
+                break
             end
-            self:move_cursor(row, true)
         end
-        if on_complete then on_complete() end
     end
-
-    self.async_fetch_cancel = self.opts.finder(fetch_opts, on_items)
-    if not complete then self:start_spinner() end
+    self:move_cursor(row, true)
 end
 
 function ListManager:confirm_select()
@@ -793,10 +728,7 @@ function ListManager:close()
     if self.closed then return end
     self.closed = true
 
-    self:stop_spinner()
     self.preview_timer = timer.stop_and_close_timer(self.preview_timer)
-
-    if self.async_fetch_cancel then self.async_fetch_cancel() end
     if self.async_preview_cancel then self.async_preview_cancel() end
 
     for _, w in ipairs({ self.lwin, self.vwin }) do
