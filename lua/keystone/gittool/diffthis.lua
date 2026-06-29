@@ -33,9 +33,10 @@ end
 --- `keystone.gittool.diff`'s single difftool session. nil when idle.
 ---@class GitTool.DiffThisSession
 ---@field buf   integer  the live file buffer
----@field base  integer?  the gittool:// scratch buffer
+---@field base?  integer?  the gittool:// scratch buffer
 ---@field group integer  the session's autocmd group
----@field base_win number
+---@field base_win? number
+---@field cur_win?  number
 ---@type GitTool.DiffThisSession?
 local _session = nil
 
@@ -52,8 +53,8 @@ local function _end_diff()
     -- Fire once: dropping the group also unhooks the autocmds below, so the
     -- buffer wipe we trigger here cannot re-enter.
     vim.api.nvim_del_augroup_by_id(group)
-    if _session and _session.base_win then
-        vim.api.nvim_win_close(_session.base_win, true)
+    if _session and _session.base_win and _session.cur_win then
+        vim.api.nvim_win_close(_session.base_win, false)
         _session.base_win = nil
     end
     if base then
@@ -152,7 +153,7 @@ local function _diffthis(opts)
     -- group per session, keyed by the scratch buffer's id.
     local group = vim.api.nvim_create_augroup(
         ("keystone.gittool.diffthis.%d"):format(base), { clear = true })
-    local session = { buf = buf, base = base, group = group, base_win = base_win }
+    local session = { buf = buf, base = base, group = group, cur_win = cur_win, base_win = base_win }
     _session = session
     vim.api.nvim_create_autocmd("BufWipeout", {
         group    = group,
@@ -168,16 +169,15 @@ local function _diffthis(opts)
         callback = function(args)
             local win = tonumber(args.match)
             if win == session.base_win then
-                vim.notify("base win closed")
                 session.base_win = nil
+            end
+            if win == session.cur_win then
+                session.cur_win = nil
             end
             _end_diff()
         end,
     })
 end
-
----@class GitTool.DiffThisOpts
----@field rev string?  revision to compare against; nil = the index
 
 --- Diff the current buffer against `opts.rev` (default: the index).
 ---@param opts GitTool.DiffThisOpts?

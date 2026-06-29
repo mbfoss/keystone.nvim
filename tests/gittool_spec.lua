@@ -25,7 +25,7 @@ end
 describe("gittool setup", function()
     it("registers the GitTool command", function()
         gittool.setup()
-        assert.is_not_nil(vim.api.nvim_get_commands({})["GitTool"])
+        assert.not_nil(vim.api.nvim_get_commands({})["GitTool"])
     end)
 end)
 
@@ -200,8 +200,8 @@ describe("gittool diffthis", function()
 
         local live_win = vim.fn.win_findbuf(live_buf)[1]
         local base_win = vim.fn.win_findbuf(scratch[1])[1]
-        assert.is_not_nil(live_win)
-        assert.is_not_nil(base_win)
+        assert.not_nil(live_win)
+        assert.not_nil(base_win)
         assert.is_true(win_diff(live_win))
         assert.is_true(win_diff(base_win))
     end)
