@@ -4,9 +4,13 @@ local uitool      = require("keystone.util.uitool")
 local floatwin    = require("keystone.util.floatwin")
 
 ---@mod keystone.ListManager
----@brief Floating manager for a flat list of items: select / add / remove / rename.
----@brief The list is populated synchronously; the preview is loaded async. A
----@brief trimmed, tree-less sibling of the explorer.
+---@brief Floating editor for a flat list of items: add / edit / remove / undo.
+---@brief All edits happen on an in-memory working list and are handed back as a
+---@brief whole on confirm (`<CR>` -> `on_commit`); nothing external changes until
+---@brief then. The manager is agnostic about what an item is: adding and editing
+---@brief are delegated to caller `create_item` / `update_item` callbacks that run
+---@brief their own UI. The list loads synchronously; the preview is loaded async.
+---@brief A trimmed, tree-less sibling of the explorer.
 
 local M           = {}
 
@@ -19,14 +23,14 @@ local _antiflicker_delay = 200
 ---@field label_chunks {[1]:string,[2]:string?}[]? Highlighted label segments
 ---@field virt_lines? {[1]:string,[2]:string?}[][] Extra virtual lines under the item
 ---@field supports_preview boolean? Set false to suppress preview for this item
----@field key string? Stable identity used to restore the cursor across refreshes
+---@field key string? Stable identity used to restore the cursor across edits
 ---@field data any Arbitrary payload handed back to the caller
 
 ---@class keystone.ListManager.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
---- Populate the list. Called synchronously; returns the items to display.
+--- Populate the initial list. Called synchronously; returns the items to display.
 ---@alias keystone.ListManager.Finder fun(opts:keystone.ListManager.FetcherOpts):keystone.ListManager.Item[]?
 
 ---@class keystone.ListManager.PreviewOpts
@@ -36,18 +40,25 @@ local _antiflicker_delay = 200
 ---@alias keystone.ListManager.PreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,error_msg:string?}
 ---@alias keystone.ListManager.Previewer fun(item:keystone.ListManager.Item, opts:keystone.ListManager.PreviewOpts, callback:fun(preview:keystone.ListManager.PreviewData?)):(fun())?
 
----@class keystone.ListManager.ActionArgs
----@field item keystone.ListManager.Item
----@field data any
+--- Create a new item. The caller drives whatever UI it needs (a prompt, a
+--- picker, ...) and invokes `done` with the item to insert, or nil to abort.
+--- Providing this enables the add (and, with it, remove/undo) keys.
+---@alias keystone.ListManager.ItemCreator fun(done:fun(item:keystone.ListManager.Item?))
 
---- `on_done` optionally receives the key the cursor should land on after refresh.
----@alias keystone.ListManager.SelectHandler fun(item:keystone.ListManager.Item)
----@alias keystone.ListManager.AddHandler fun(on_done:fun(key:string?))
----@alias keystone.ListManager.MutateHandler fun(ctx:keystone.ListManager.ActionArgs, on_done:fun(key:string?))
+--- Produce a replacement for `item`. The caller drives its own UI and invokes
+--- `done` with the new item, or nil to abort. Providing this enables the edit key.
+---@alias keystone.ListManager.ItemUpdater fun(item:keystone.ListManager.Item, done:fun(item:keystone.ListManager.Item?))
+
+--- Called once, on confirm, with the final working list. The caller reconciles
+--- it against its source of truth.
+---@alias keystone.ListManager.CommitHandler fun(items:keystone.ListManager.Item[])
 
 ---@class keystone.ListManager.Opts
 ---@field prompt string?
 ---@field finder keystone.ListManager.Finder
+---@field create_item keystone.ListManager.ItemCreator? Enables add/remove/undo
+---@field update_item keystone.ListManager.ItemUpdater? Enables edit
+---@field on_commit keystone.ListManager.CommitHandler?
 ---@field enable_preview boolean?
 ---@field previewer keystone.ListManager.Previewer?
 ---@field height_ratio number?
@@ -56,11 +67,6 @@ local _antiflicker_delay = 200
 ---@field enable_list_sep boolean?
 ---@field initial_key string? Key to focus when the manager first opens
 ---@field empty_text string? Message shown when the list is empty
----@field close_on_select boolean? Close after a selection (default true)
----@field on_select keystone.ListManager.SelectHandler?
----@field on_add keystone.ListManager.AddHandler?
----@field on_remove keystone.ListManager.MutateHandler?
----@field on_rename keystone.ListManager.MutateHandler?
 
 ---@class keystone.ListManager.Layout
 ---@field list_row number
@@ -191,7 +197,9 @@ end
 ---@field lwin integer?
 ---@field vwin integer?
 ---@field closed boolean
+---@field editable boolean
 ---@field list_items keystone.ListManager.Item[]
+---@field undo_stack {items:keystone.ListManager.Item[], key:string?}[]
 ---@field preview_enabled boolean
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
@@ -214,7 +222,9 @@ function ListManager:init(opts)
 
     self.opts = vim.deepcopy(opts)
     self.preview_enabled = opts.enable_preview or false
+    self.editable = opts.create_item ~= nil or opts.update_item ~= nil
     self.list_items = {}
+    self.undo_stack = {}
     self.closed = false
 
     self.async_preview_context = 0
@@ -226,7 +236,7 @@ function ListManager:init(opts)
     self:setup_ui()
     self:setup_input()
     if self.lwin then vim.api.nvim_set_current_win(self.lwin) end
-    self:refresh(opts.initial_key)
+    self:populate(opts.initial_key)
 end
 
 function ListManager:setup_ui()
@@ -278,7 +288,7 @@ function ListManager:relayout()
                 width = self.layout.list_width,
                 height = self.layout.list_height,
                 title = title,
-                title_pos = title and "left" or nil,
+                title_pos = title and "center" or nil,
             }),
             function()
                 self.lwin = nil
@@ -324,7 +334,7 @@ function ListManager:relayout()
             if not self.vbuf then
                 self.vbuf = _create_buffer(function() self.vbuf = nil end)
                 local vbuf_key_opts = _key_opts_of(self.vbuf)
-                vim.keymap.set("n", "<CR>", function() self:confirm_select() end, vbuf_key_opts)
+                vim.keymap.set("n", "<CR>", function() self:confirm_commit() end, vbuf_key_opts)
                 vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
             end
             self.vwin = uitool.create_window(self.vbuf, false, vim.tbl_extend("force", base_cfg, {
@@ -588,32 +598,24 @@ function ListManager:render_items(items)
     vim.wo[self.lwin].cursorline = true
 end
 
---- Re-run the finder and rebuild the list, restoring the cursor onto `restore_key`
---- when it is still present.
----@param restore_key string|false|nil false = restore current row by index; nil = keep current key
-function ListManager:refresh(restore_key)
-    if self.closed then return end
+--- A shallow copy of the working list, so edits never mutate a prior snapshot.
+---@return keystone.ListManager.Item[]
+function ListManager:_clone_items()
+    local copy = {}
+    for i, item in ipairs(self.list_items) do copy[i] = item end
+    return copy
+end
 
-    local restore_row = self:get_cursor()
-    if restore_key == nil then
-        local item = restore_row and self.list_items[restore_row] or nil
-        restore_key = item and item.key or nil
-    end
-
-    local fetch_opts = {
-        list_width = math.max(1, self.layout.list_width - 2),
-        list_height = math.max(1, self.layout.list_height - 2),
-    }
-
-    local items = self.opts.finder(fetch_opts) or {}
+--- Swap in a new working list and focus `focus_key` (or the first row).
+---@param items keystone.ListManager.Item[]
+---@param focus_key string?
+function ListManager:_apply(items, focus_key)
     self:render_items(items)
-
     if #items == 0 then return end
-
-    local row = restore_key == false and (restore_row or 1) or 1
-    if restore_key and restore_key ~= false then
+    local row = 1
+    if focus_key then
         for i, item in ipairs(items) do
-            if item.key == restore_key then
+            if item.key == focus_key then
                 row = i
                 break
             end
@@ -622,44 +624,82 @@ function ListManager:refresh(restore_key)
     self:move_cursor(row, true)
 end
 
-function ListManager:confirm_select()
-    local item = self:_get_current()
-    if not item then return end
-    if self.opts.on_select then
-        self.opts.on_select(item)
+--- Record the current working list so the next edit can be undone.
+function ListManager:_snapshot()
+    local cur = self:_get_current()
+    self.undo_stack[#self.undo_stack + 1] = {
+        items = self:_clone_items(),
+        key = cur and cur.key or nil,
+    }
+end
+
+--- Load the initial list from the finder.
+---@param focus_key string?
+function ListManager:populate(focus_key)
+    if self.closed then return end
+    local fetch_opts = {
+        list_width = math.max(1, self.layout.list_width - 2),
+        list_height = math.max(1, self.layout.list_height - 2),
+    }
+    local items = self.opts.finder(fetch_opts) or {}
+    self:_apply(items, focus_key)
+end
+
+--- Confirm: hand the final working list to the caller and close.
+function ListManager:confirm_commit()
+    if self.opts.on_commit then
+        self.opts.on_commit(self:_clone_items())
     end
-    if self.opts.close_on_select ~= false then
-        self:close()
-    end
+    self:close()
 end
 
 function ListManager:_action_add()
-    if not self.opts.on_add then return end
-    self.opts.on_add(function(key)
-        self:refresh(key)
+    local create = self.opts.create_item
+    if not create then return end
+    create(function(item)
+        if self.closed or not item then return end
+        self:_snapshot()
+        local items = self:_clone_items()
+        items[#items + 1] = item
+        self:_apply(items, item.key)
+    end)
+end
+
+function ListManager:_action_update()
+    local update = self.opts.update_item
+    if not update then return end
+    local row = self:get_cursor()
+    if not row then return end
+    local cur = self.list_items[row]
+    if not cur then return end
+    update(cur, function(item)
+        if self.closed or not item then return end
+        self:_snapshot()
+        local items = self:_clone_items()
+        items[row] = item
+        self:_apply(items, item.key)
     end)
 end
 
 function ListManager:_action_remove()
-    if not self.opts.on_remove then return end
+    if not self.editable then return end
     local row = self:get_cursor()
-    local item = row and self.list_items[row] or nil
-    if not item then return end
+    if not row or not self.list_items[row] then return end
+    self:_snapshot()
+    local items = self:_clone_items()
     -- Land on the neighbour that survives the removal.
-    local neighbour = self.list_items[row + 1] or self.list_items[row - 1]
-    local restore_key = neighbour and neighbour.key or nil
-    self.opts.on_remove({ item = item, data = item.data }, function()
-        self:refresh(restore_key)
-    end)
+    local neighbour = items[row + 1] or items[row - 1]
+    table.remove(items, row)
+    self:_apply(items, neighbour and neighbour.key or nil)
 end
 
-function ListManager:_action_rename()
-    if not self.opts.on_rename then return end
-    local item = self:_get_current()
-    if not item then return end
-    self.opts.on_rename({ item = item, data = item.data }, function(key)
-        self:refresh(key or item.key)
-    end)
+function ListManager:_action_undo()
+    local snap = table.remove(self.undo_stack)
+    if not snap then
+        vim.notify("[keystone] Nothing to undo", vim.log.levels.INFO)
+        return
+    end
+    self:_apply(snap.items, snap.key)
 end
 
 ---@class keystone.ListManager.Keymap
@@ -674,20 +714,21 @@ end
 ---@return keystone.ListManager.Keymap[]
 function ListManager:_keymaps()
     local o = self.opts
+    local editable = self.editable
     return {
-        { label = "<CR>",      keys = { "<CR>" },        desc = "Select / open item",
-            fn = function() self:confirm_select() end },
-        { label = "a",         keys = { "a" },           desc = "Add item",
-            enabled = o.on_add ~= nil, fn = function() self:_action_add() end },
-        { label = "r",         keys = { "r" },           desc = "Rename item",
-            enabled = o.on_rename ~= nil, fn = function() self:_action_rename() end },
-        { label = "d",         keys = { "d" },           desc = "Remove item",
-            enabled = o.on_remove ~= nil, fn = function() self:_action_remove() end },
-        { label = "R",         keys = { "R" },           desc = "Refresh list",
-            fn = function() self:refresh() end },
-        { label = "g?",        keys = { "g?" },          desc = "Show this help",
+        { label = "<CR>",      keys = { "<CR>" },       desc = "Confirm & commit list",
+            fn = function() self:confirm_commit() end },
+        { label = "a",         keys = { "a" },          desc = "Add item",
+            enabled = o.create_item ~= nil, fn = function() self:_action_add() end },
+        { label = "r",         keys = { "r" },          desc = "Edit item",
+            enabled = o.update_item ~= nil, fn = function() self:_action_update() end },
+        { label = "d",         keys = { "d" },          desc = "Remove item",
+            enabled = editable, fn = function() self:_action_remove() end },
+        { label = "u",         keys = { "u" },          desc = "Undo last edit",
+            enabled = editable, fn = function() self:_action_undo() end },
+        { label = "g?",        keys = { "g?" },         desc = "Show this help",
             fn = function() self:show_help() end },
-        { label = "q / <Esc>", keys = { "q", "<Esc>" },  desc = "Close",
+        { label = "q / <Esc>", keys = { "q", "<Esc>" }, desc = "Cancel (discard edits)",
             fn = function() self:close() end },
     }
 end

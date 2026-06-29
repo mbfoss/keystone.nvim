@@ -238,6 +238,22 @@ local function _loc_key(file, lnum)
     return file .. "\0" .. lnum
 end
 
+--- Builds a manager item for a bookmark at `file`:`lnum` named `name`.
+---@param name string
+---@param file string
+---@param lnum integer
+---@return keystone.ListManager.Item
+local function _make_item(name, file, lnum)
+    local loc_chunk = { _relpath(file) .. ":" .. lnum, "@namespace" }
+    ---@type keystone.ListManager.Item
+    return {
+        key          = _loc_key(file, lnum),
+        label_chunks = { { name, "Normal" } },
+        virt_lines   = { { loc_chunk } },
+        data         = { name = name, filepath = file, lnum = lnum },
+    }
+end
+
 --- Builds the manager list from the current bookmarks, sorted by file then line.
 ---@return keystone.ListManager.Item[]
 local function _manager_items()
@@ -249,24 +265,41 @@ local function _manager_items()
 
     local items = {}
     for _, entry in ipairs(entries) do
-        local loc_chunk = { _relpath(entry.file) .. ":" .. entry.lnum, "@namespace" }
-        ---@type keystone.ListManager.Item
-        items[#items + 1] = {
-            key          = _loc_key(entry.file, entry.lnum),
-            label_chunks = { { entry.name, "Normal" } },
-            virt_lines   = { { loc_chunk } },
-            data         = {
-                name     = entry.name,
-                filepath = entry.file,
-                lnum     = entry.lnum,
-            },
-        }
+        items[#items + 1] = _make_item(entry.name, entry.file, entry.lnum)
     end
     return items
 end
 
---- Opens an interactive manager for named bookmarks: jump (<CR>), add (a),
---- rename (r) and remove (d) entries, with a live file preview.
+--- Reconciles the manager's committed list against the stored bookmarks:
+--- upserts new/renamed entries and deletes ones that are no longer present.
+---@param items keystone.ListManager.Item[]
+local function _commit(items)
+    local original = {}
+    for _, entry in ipairs(_read_entries()) do
+        original[_loc_key(entry.file, entry.lnum)] = entry
+    end
+
+    local seen = {}
+    for _, item in ipairs(items) do
+        local data = item.data
+        local key = _loc_key(data.filepath, data.lnum)
+        seen[key] = true
+        local orig = original[key]
+        if not orig or orig.name ~= data.name then
+            _upsert(data.name, data.filepath, data.lnum)
+        end
+    end
+
+    for key, entry in pairs(original) do
+        if not seen[key] then
+            _delete_loc(entry.file, entry.lnum)
+        end
+    end
+end
+
+--- Opens an interactive editor for named bookmarks: add (a), edit (r), remove
+--- (d) and undo (u), with a live file preview. Edits are buffered on a working
+--- list and only written when confirmed with <CR>; <Esc> discards them.
 function M.manager()
     local origin_file, origin_lnum = _get_cur_loc()
     if origin_file then origin_file = _norm(origin_file) end
@@ -283,41 +316,28 @@ function M.manager()
             return _manager_items()
         end,
 
-        on_select       = function(item)
-            uitool.smart_open_file(item.data.filepath, item.data.lnum, 0)
-        end,
-
-        on_add          = function(on_done)
+        create_item     = function(done)
             if not origin_file or not origin_lnum then
                 vim.notify("[keystone] No valid file to bookmark", vim.log.levels.WARN)
-                return
+                return done(nil)
             end
-            local existing = _mark_group.get_extmark_by_location(origin_file, origin_lnum, true)
-            local default = existing and existing.user_data.name or ""
-            inputwin.open({ prompt = "Bookmark", default = default }, function(name)
-                if not name or name:match("^%s*$") then return end
-                name = name:match("^%s*(.-)%s*$")
-                _upsert(name, origin_file, origin_lnum)
-                on_done(_loc_key(origin_file, origin_lnum))
+            inputwin.open({ prompt = "Bookmark" }, function(input)
+                local name = input and vim.trim(input) or ""
+                if name == "" then return done(nil) end
+                done(_make_item(name, origin_file, origin_lnum))
             end)
         end,
 
-        on_rename       = function(ctx, on_done)
-            local data = ctx.data
-            inputwin.open({ prompt = "Rename", default = data.name }, function(name)
-                if not name or name:match("^%s*$") then return end
-                name = name:match("^%s*(.-)%s*$")
-                _upsert(name, data.filepath, data.lnum)
-                on_done(_loc_key(data.filepath, data.lnum))
+        update_item     = function(item, done)
+            local data = item.data
+            inputwin.open({ prompt = "Rename", default = data.name }, function(input)
+                local name = input and vim.trim(input) or ""
+                if name == "" then return done(nil) end
+                done(_make_item(name, data.filepath, data.lnum))
             end)
         end,
 
-        on_remove       = function(ctx, on_done)
-            local data = ctx.data
-            if _delete_loc(data.filepath, data.lnum) then
-                on_done()
-            end
-        end,
+        on_commit       = _commit,
     })
 end
 
