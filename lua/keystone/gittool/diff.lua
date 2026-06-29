@@ -89,7 +89,11 @@ local function _make_git_buf(root, side, rel, side_label, filetype)
 
     if side.worktree then
         local full_path = root .. "/" .. rel
-        if vim.fn.filereadable(full_path) == 1 then
+        local existing = vim.fn.bufnr(full_path)
+        if existing ~= -1 and vim.api.nvim_buf_is_loaded(existing) then
+            -- Prefer live (possibly unsaved) buffer content over the file on disk.
+            lines = vim.api.nvim_buf_get_lines(existing, 0, -1, false)
+        elseif vim.fn.filereadable(full_path) == 1 then
             lines = vim.fn.readfile(full_path)
         end
     else
@@ -234,7 +238,9 @@ end
 
 --- The set of paths (relative to the repo root) that differ between `left` and
 --- `right`. Untracked files are included only when the working tree is the
---- right side (git's own `--name-only` never lists them). Deduped, sorted.
+--- right side (git's own `--name-only` never lists them). When the working tree
+--- is the right side, files that only differ via unsaved buffer edits (clean on
+--- disk, dirty in a loaded buffer) are also included. Deduped, sorted.
 ---@param root  string repo root
 ---@param left  GitTool.Side
 ---@param right GitTool.Side
@@ -263,6 +269,16 @@ function M.changed_paths_between(root, left, right)
     if include_untracked then
         for _, rel in ipairs(git.lines((git.run(root, { "ls-files", "--others", "--exclude-standard" })))) do
             add(rel)
+        end
+        -- Loaded, modified file buffers under the repo whose unsaved edits git
+        -- can't see. `add`'s dedupe collapses any overlap with `git diff`.
+        for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(bufnr)
+                and vim.bo[bufnr].modified
+                and vim.bo[bufnr].buftype == "" then
+                local rel = git.relpath(root, vim.api.nvim_buf_get_name(bufnr))
+                if rel then add(rel) end
+            end
         end
     end
 
