@@ -409,6 +409,16 @@ function TreeBuffer:get_cursor_item()
     return _to_item(id, data)
 end
 
+---@param row integer 1-based buffer line number
+---@return keystone.util.TreeBuffer.Item?
+function TreeBuffer:get_item_at_row(row)
+    local id = self._flat_ids[row]
+    if not id then return nil end
+    local data = self._tree:get_data(id)
+    if not data then return nil end
+    return _to_item(id, data)
+end
+
 ---@return boolean
 function TreeBuffer:set_cursor_by_id(id)
     local winid = self:get_winid()

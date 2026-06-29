@@ -68,8 +68,9 @@ MANAGEMENT
 SELECTION
 =========
 `<Tab>`   Toggle selection of item under cursor
-`x`       Move selected items into the directory under cursor
-`d`       **Permanently** delete all selected items
+`<Tab>`   (visual) Select all items in the visual selection
+`X`       Move selected items into the directory under cursor
+`D`       **Permanently** delete all selected items
 
 OTHER
 =====
@@ -371,6 +372,11 @@ function FileTree:create_buffer()
     for key, map in pairs(keymaps) do
         vim.api.nvim_buf_set_keymap(bufnr, "n", key, "", { callback = map[1], desc = map[2] })
     end
+
+    vim.api.nvim_buf_set_keymap(bufnr, "x", "<Tab>", "", {
+        callback = function() self:_visual_select() end,
+        desc = "Select items in visual selection",
+    })
 
     self:_on_buffer_created()
 
@@ -1048,6 +1054,32 @@ function FileTree:_toggle_select(item)
             vim.api.nvim_win_set_cursor(winid, { row + 1, 0 })
         end
     end
+end
+
+---@private
+--- Select every item covered by the current visual selection and exit visual mode.
+function FileTree:_visual_select()
+    local winid = self._treebuf:get_winid()
+    if winid <= 0 then return end
+
+    local start_row = vim.fn.line("v", winid)
+    local end_row = vim.fn.line(".", winid)
+    if start_row > end_row then
+        start_row, end_row = end_row, start_row
+    end
+
+    for row = start_row, end_row do
+        local item = self._treebuf:get_item_at_row(row)
+        if item then
+            local path = item.data.path
+            if path ~= self._root and not self._selected[path] then
+                self._selected[path] = true
+                self._treebuf:refresh_item(path)
+            end
+        end
+    end
+
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
 end
 
 ---@private
