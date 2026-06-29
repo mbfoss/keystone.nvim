@@ -59,10 +59,10 @@ FOLDING
 
 MANAGEMENT
 ==========
-`a`       Create file in parent directory
-`i`       Create file inside selected directory
-`A`       Create directory in parent directory
-`I`       Create directory inside selected directory
+`a`       Create file at location
+`i`       Create file inside directory
+`A`       Create directory at location
+`I`       Create directory inside directory
 `r`       Rename file or directory
 
 SELECTION
