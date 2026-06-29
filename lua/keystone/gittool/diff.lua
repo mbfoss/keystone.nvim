@@ -1,40 +1,31 @@
-local M       = {}
+local M           = {}
 
-local git     = require("keystone.gittool.git")
-
---- The directory-diff feature behind `:GitTool diff [...]`. It bridges git to
---- Neovim's built-in difftool (`runtime/pack/dist/opt/nvim.difftool`), which
---- only diffs two paths *on disk* and knows nothing about git. We materialise
---- git's two sides of the comparison into a pair of temp directories holding
---- only the changed files, then hand those to `difftool.open`. The built-in
---- derives the A/D/M status from file presence, builds the quickfix index, and
---- drives the side-by-side native diff, so this module stays small: it owns
---- only the git queries and the temp-directory lifecycle; the built-in owns
---- the whole UI.
----
---- Each side is a `GitTool.Side`: a git revision, the index, or the live
---- working tree. Following git-diff semantics:
----   diff                  index    -> working tree   (unstaged changes)
----   diff <rev>            <rev>    -> working tree
----   diff <ref1> <ref2>    <ref1>   -> <ref2>
----   diff --staged         HEAD     -> index
----   diff --staged <rev>   <rev>    -> index
----
---- A working-tree side is materialised as a symlink to the real file, so
---- editing that pane and `:w`-ing writes straight through, matching
---- `git difftool -d`. Revision and index sides are read-only blob copies.
-
---- The active session's temp directory, kept so a subsequent invocation (or
---- Neovim exit) can delete it. Only one session exists at a time, matching the
---- built-in difftool, whose quickfix list is global.
----@type string?
-local _session_dir = nil
+local git         = require("keystone.gittool.git")
 
 --- One side of a comparison. Exactly one field is set.
 ---@class GitTool.Side
 ---@field rev      string?  a git revision; content via `git show <rev>:<rel>`
 ---@field index    boolean? the index (staged); content via `git show :<rel>`
----@field worktree boolean? the live working-tree file (symlinked on its side)
+---@field worktree boolean? the live working-tree file
+
+---@class GitTool.EntryData
+---@field rel   string        relative path from repo root
+---@field root  string        absolute path to repo root
+---@field left  GitTool.Side  how to fetch left content
+---@field right GitTool.Side  how to fetch right content
+
+--- Active session state tracking (inspired by Keystone Unsaved)
+---@class GitTool.Layout
+---@field group     integer?  augroup id, nil when no session is active
+---@field tab       integer?  tabpage handle the diff lives in
+---@field left_win  integer?  window for the left (base/source) side
+---@field right_win integer?  window for the right (target/live) side
+---@field buffers   integer[] tracking list of generated virtual buffers to clear on reset
+local _layout     = { group = nil, tab = nil, left_win = nil, right_win = nil, buffers = {} }
+
+local _ENTRY_KEY  = "keystone.gittool.diff"
+local _closing    = false
+local _setting_up = false  -- Reentrancy guard to stop infinite event loops
 
 ---@param msg string
 ---@param level integer?
@@ -42,21 +33,195 @@ local function _notify(msg, level)
     vim.notify("[keystone] " .. msg, level or vim.log.levels.INFO)
 end
 
---- Resolve parsed CLI options into the left/right sides of the comparison,
---- mirroring git-diff semantics (see the module header).
+--- Delete previous virtual buffers, close layout windows/tabs, and clear autocommands.
+--- Safe to invoke at any point to reset state completely.
+function M.clear_session()
+    if _closing then return end
+    _closing = true
+
+    -- 1. Clear autocommands
+    if _layout.group then
+        pcall(vim.api.nvim_del_augroup_by_id, _layout.group)
+        _layout.group = nil
+    end
+
+    -- 2. Close quickfix window
+    vim.cmd.cclose()
+
+    -- 3. Safely kill layout windows
+    for _, win_key in ipairs({ "left_win", "right_win" }) do
+        local win = _layout[win_key] --[[@as integer?]]
+        if win and vim.api.nvim_win_is_valid(win) then
+            pcall(vim.api.nvim_win_close, win, false)
+        end
+        _layout[win_key] = nil
+    end
+
+    -- 4. Purge generated temporary virtual memory buffers
+    if _layout.buffers then
+        for _, bufnr in ipairs(_layout.buffers) do
+            if vim.api.nvim_buf_is_valid(bufnr) then
+                pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+            end
+        end
+        _layout.buffers = {}
+    end
+
+    _layout.tab = nil
+    _closing    = false
+end
+
+--- Wrapper to safely route window closure triggers back to standard session cleanup
+local function _cleanup()
+    M.clear_session()
+end
+
+--- Create a read-only scratch buffer filled with historical blob contents or empty for deletions
+---@param root string Repo root
+---@param side GitTool.Side Side description
+---@param rel string Relative path
+---@param side_label string "left" or "right"
+---@param filetype string Syntax highlighting string
+---@return integer bufnr
+local function _make_git_buf(root, side, rel, side_label, filetype)
+    local buf = vim.api.nvim_create_buf(false, true)
+    local lines = {}
+
+    if side.worktree then
+        local full_path = root .. "/" .. rel
+        if vim.fn.filereadable(full_path) == 1 then
+            lines = vim.fn.readfile(full_path)
+        end
+    else
+        local spec = side.rev and (side.rev .. ":" .. rel) or (":" .. rel)
+        local blob = git.run_raw(root, { "show", spec })
+        if blob then
+            lines = vim.split(blob, "\n", { plain = true })
+            if lines[#lines] == "" then table.remove(lines) end
+        end
+    end
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].buftype    = "nofile"
+    vim.bo[buf].bufhidden  = "wipe"
+    vim.bo[buf].swapfile   = false
+    vim.bo[buf].filetype   = filetype
+    vim.bo[buf].modifiable = false
+
+    local name_tag         = side.rev or (side.index and "index" or "worktree")
+    vim.api.nvim_buf_set_name(buf, string.format("git://%d/%s/%s/%s", buf, name_tag, side_label, rel))
+
+    -- Register buffer handle to the layout session tracking register so it is cleared later
+    table.insert(_layout.buffers, buf)
+
+    return buf
+end
+
+--- Extract the active layout quickfix item payload if it belongs to us
+---@return table? entry
+local function _current_diff_entry()
+    local info = vim.fn.getqflist({ idx = 0, items = 1, size = 1 })
+    if info.size == 0 then return nil end
+
+    local entry = info.items[info.idx]
+    if not (entry and entry.user_data and entry.user_data[_ENTRY_KEY]) then
+        return nil
+    end
+    return entry
+end
+
+--- Drive side-by-side native splits using fresh contextual buffer snapshots
+---@param entry table
+local function _setup_diff(entry)
+    if _setting_up then return end
+    _setting_up = true
+
+    local lw, rw = _layout.left_win, _layout.right_win
+    if not (lw and vim.api.nvim_win_is_valid(lw) and rw and vim.api.nvim_win_is_valid(rw)) then
+        _setting_up = false
+        return
+    end
+
+    ---@type GitTool.EntryData
+    local ud = entry.user_data[_ENTRY_KEY]
+    local filetype = vim.filetype.match({ filename = ud.rel }) or ""
+
+    local right_buf
+    if ud.right.worktree then
+        right_buf = vim.fn.bufadd(ud.root .. "/" .. ud.rel)
+        vim.fn.bufload(right_buf)
+    else
+        right_buf = _make_git_buf(ud.root, ud.right, ud.rel, "right", filetype)
+    end
+
+    local left_buf = _make_git_buf(ud.root, ud.left, ud.rel, "left", filetype)
+
+    vim.api.nvim_win_set_buf(lw, left_buf)
+    vim.api.nvim_win_set_buf(rw, right_buf)
+
+    vim.api.nvim_win_call(lw, function() vim.cmd("diffoff!") end)
+    vim.api.nvim_win_call(rw, vim.cmd.diffthis)
+    vim.api.nvim_win_call(lw, vim.cmd.diffthis)
+
+    _setting_up = false
+end
+
+--- Build a standalone tab page layout without nvim.difftool orchestration
+local function _build_layout()
+    vim.cmd.tabnew()
+    _layout.tab      = vim.api.nvim_get_current_tabpage()
+    _layout.left_win = vim.api.nvim_get_current_win()
+    vim.cmd("rightbelow vsplit")
+    _layout.right_win = vim.api.nvim_get_current_win()
+    vim.cmd("botright copen")
+    vim.api.nvim_set_current_win(_layout.right_win)
+
+    for _, win in ipairs({ _layout.left_win, _layout.right_win }) do
+        vim.api.nvim_create_autocmd("WinClosed", {
+            group    = _layout.group,
+            pattern  = tostring(win),
+            callback = _cleanup,
+        })
+    end
+    vim.api.nvim_create_autocmd("TabClosed", {
+        group    = _layout.group,
+        callback = function()
+            if not (_layout.tab and vim.api.nvim_tabpage_is_valid(_layout.tab)) then
+                _cleanup()
+            end
+        end,
+    })
+end
+
+--- Installs the tracking hook for running dynamic side updates upon navigation
+local function _register_autocmds()
+    vim.api.nvim_create_autocmd("BufWinEnter", {
+        group    = _layout.group,
+        pattern  = "*",
+        callback = function()
+            -- Ignore the BufWinEnter events fired synchronously by our own
+            -- nvim_win_set_buf calls in _setup_diff; otherwise they re-trigger
+            -- setup endlessly.
+            if _setting_up then return end
+            local win = vim.api.nvim_get_current_win()
+            if win ~= _layout.left_win and win ~= _layout.right_win then return end
+            local entry = _current_diff_entry()
+            if not entry then return end
+            vim.schedule(function() _setup_diff(entry) end)
+        end,
+    })
+end
+
+--- Resolve parsed CLI options into the left/right sides of the comparison.
 ---@param staged boolean
 ---@param revs   string[]
 ---@return GitTool.Side? left
 ---@return GitTool.Side? right
 ---@return string?       err  set (with left/right nil) when the args are invalid
 local function _resolve_sides(staged, revs)
-    if #revs > 2 then
-        return nil, nil, "GitTool diff takes at most two revisions"
-    end
+    if #revs > 2 then return nil, nil, "GitTool diff takes at most two revisions" end
     if staged then
-        if #revs >= 2 then
-            return nil, nil, "GitTool diff --staged takes at most one revision"
-        end
+        if #revs >= 2 then return nil, nil, "GitTool diff --staged takes at most one revision" end
         return { rev = revs[1] or "HEAD" }, { index = true }
     end
     if #revs >= 2 then
@@ -64,29 +229,12 @@ local function _resolve_sides(staged, revs)
     elseif #revs == 1 then
         return { rev = revs[1] }, { worktree = true }
     end
-    -- No revisions: working tree vs the index, matching a bare `git diff`.
     return { index = true }, { worktree = true }
-end
-
---- Human-readable description of the comparison, for the "no changes" message.
----@param staged boolean
----@param revs   string[]
----@return string
-local function _describe(staged, revs)
-    if staged then
-        return "staged changes against " .. (revs[1] or "HEAD")
-    elseif #revs >= 2 then
-        return "changes between " .. revs[1] .. " and " .. revs[2]
-    elseif #revs == 1 then
-        return "changes against " .. revs[1]
-    end
-    return "unstaged changes"
 end
 
 --- The set of paths (relative to the repo root) that differ between `left` and
 --- `right`. Untracked files are included only when the working tree is the
 --- right side (git's own `--name-only` never lists them). Deduped, sorted.
---- The testable seam (no UI, no temp dirs).
 ---@param root  string repo root
 ---@param left  GitTool.Side
 ---@param right GitTool.Side
@@ -94,7 +242,6 @@ end
 function M.changed_paths_between(root, left, right)
     local args, include_untracked
     if right.worktree then
-        -- Working tree vs a revision (`diff <rev>`) or vs the index (bare `diff`).
         args = { "diff", "--name-only" }
         if left.rev then args[#args + 1] = left.rev end
         include_untracked = true
@@ -104,18 +251,15 @@ function M.changed_paths_between(root, left, right)
         args, include_untracked = { "diff", "--name-only", left.rev, right.rev }, false
     end
 
-    local seen = {}
-    local rels = {}
+    local seen, rels = {}, {}
     local function add(rel)
         if rel ~= "" and not seen[rel] then
-            seen[rel]       = true
+            seen[rel] = true
             rels[#rels + 1] = rel
         end
     end
 
-    for _, rel in ipairs(git.lines((git.run(root, args)))) do
-        add(rel)
-    end
+    for _, rel in ipairs(git.lines((git.run(root, args)))) do add(rel) end
     if include_untracked then
         for _, rel in ipairs(git.lines((git.run(root, { "ls-files", "--others", "--exclude-standard" })))) do
             add(rel)
@@ -134,63 +278,12 @@ function M.changed_paths(root, rev)
     return M.changed_paths_between(root, { rev = rev }, { worktree = true })
 end
 
---- Write `data` to `path` byte-for-byte, creating parent directories. Binary
---- safe (unlike `writefile`, which is line-oriented), so blobs round-trip.
----@param path string
----@param data string
-local function _write_file(path, data)
-    vim.fn.mkdir(vim.fs.dirname(path), "p")
-    local fd = io.open(path, "wb")
-    if not fd then return end
-    fd:write(data)
-    fd:close()
-end
-
---- Materialise one changed path's content for `side` into `dir`. An absent
---- slot (file not present on this side) is left empty, so the built-in derives
---- `A`/`D` from the missing file.
----@param root string repo root
----@param side GitTool.Side
----@param dir  string this side's session dir
----@param rel  string path relative to root
-local function _materialise_side(root, side, dir, rel)
-    -- Working-tree side: a symlink to the live file, so edits + `:w` write
-    -- through. Absent on disk (deleted) -> leave empty.
-    if side.worktree then
-        local src = root .. "/" .. rel
-        if vim.fn.filereadable(src) == 1 then
-            local link = dir .. "/" .. rel
-            vim.fn.mkdir(vim.fs.dirname(link), "p")
-            vim.uv.fs_symlink(src, link)
-        end
-        return
-    end
-
-    -- Git side: the blob from a revision (`<rev>:<rel>`) or the index
-    -- (`:<rel>`). Absent there (added/deleted) -> leave empty.
-    local spec = side.rev and (side.rev .. ":" .. rel) or (":" .. rel)
-    local blob = git.run_raw(root, { "show", spec })
-    if blob ~= nil then
-        _write_file(dir .. "/" .. rel, blob)
-    end
-end
-
---- Delete the previous session's temp directory, if any. Also the
---- `VimLeavePre` cleanup hook.
-function M.clear_session()
-    if _session_dir then
-        vim.fn.delete(_session_dir, "rf")
-        _session_dir = nil
-    end
-end
-
 ---@class GitTool.DiffOpts
 ---@field staged boolean?  compare the index instead of the working tree
 ---@field revs   string[]? zero, one, or two revisions (see git-diff semantics)
 
---- Diff using the built-in difftool. See the module header for the full
---- revision/`--staged` semantics; with no options it compares the working tree
---- against the index (a bare `git diff` -- the unstaged changes).
+--- Diff the requested revisions/index/working-tree sides in a dedicated tab,
+--- driving a quickfix list of changed paths and a side-by-side native diff.
 ---@param opts GitTool.DiffOpts?
 function M.diff(opts)
     opts = opts or {}
@@ -204,15 +297,6 @@ function M.diff(opts)
     end
     ---@cast left GitTool.Side
     ---@cast right GitTool.Side
-
-    -- The built-in difftool is an optional core plugin; make sure it is loaded.
-    pcall(vim.cmd, "packadd nvim.difftool")
-    local ok, difftool = pcall(require, "difftool")
-    if not ok or type(difftool.open) ~= "function" then
-        _notify("GitTool requires Neovim's built-in nvim.difftool (Neovim >= 0.12)",
-            vim.log.levels.ERROR)
-        return
-    end
 
     local root = git.root()
     if not root then
@@ -229,26 +313,44 @@ function M.diff(opts)
 
     local rels = M.changed_paths_between(root, left, right)
     if #rels == 0 then
-        _notify("No " .. _describe(staged, revs))
+        _notify("No changes found")
         return
     end
 
-    -- Fresh session: drop the previous temp dir, build new left/right dirs.
+    -- Fresh session setup: clear everything down first
     M.clear_session()
-    local base      = vim.fn.tempname()
-    local left_dir  = base .. "/left"
-    local right_dir = base .. "/right"
-    vim.fn.mkdir(left_dir, "p")
-    vim.fn.mkdir(right_dir, "p")
-    _session_dir = base
 
+    local entries = {}
     for _, rel in ipairs(rels) do
-        _materialise_side(root, left, left_dir, rel)
-        _materialise_side(root, right, right_dir, rel)
+        entries[#entries + 1] = {
+            filename  = root .. "/" .. rel,
+            text      = "±",
+            user_data = {
+                [_ENTRY_KEY] = { root = root, rel = rel, left = left, right = right }
+            }
+        }
     end
 
-    -- The built-in takes over from here: directory diff -> quickfix + layout.
-    difftool.open(left_dir, right_dir)
+    _layout.group = vim.api.nvim_create_augroup("keystone.gitdiff", { clear = true })
+    _register_autocmds()
+
+    vim.fn.setqflist({}, " ", {
+        title            = "GitTool Diff Layout",
+        items            = entries,
+        quickfixtextfunc = function(info)
+            local items = vim.fn.getqflist({ id = info.id, items = 1 }).items
+            local out = {}
+            for i = info.start_idx, info.end_idx do
+                local e       = items[i]
+                local ud      = e.user_data and e.user_data[_ENTRY_KEY]
+                out[#out + 1] = string.format("%s %s", e.text or "*", ud and ud.rel or e.filename)
+            end
+            return out
+        end,
+    })
+
+    _build_layout()
+    vim.cmd.cfirst()
 end
 
 return M
