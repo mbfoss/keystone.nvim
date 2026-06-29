@@ -17,6 +17,7 @@ local uitool      = require("keystone.util.uitool")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local extmarks    = require("keystone.util.extmarks")
+local ListManager = require("keystone.util.ListManager")
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
 local _mark_group
@@ -104,6 +105,24 @@ local function _upsert(name, file, lnum)
     _persist()
 end
 
+---@param file string
+---@param lnum integer
+---@return boolean removed
+local function _delete_loc(file, lnum)
+    local mark = _mark_group.get_extmark_by_location(file, lnum, true)
+    if not mark then return false end
+    store.delete(file, lnum)
+    _mark_group.remove_extmark(mark.id)
+    _persist()
+    return true
+end
+
+---@param file string
+---@return string
+local function _relpath(file)
+    return vim.fn.fnamemodify(file, ":~:.")
+end
+
 ----------- PUBLIC API -----------
 
 function M.set_at_cursor()
@@ -125,15 +144,7 @@ end
 function M.delete_at_cursor()
     local file, lnum = _get_cur_loc()
     if not file or not lnum then return end
-    file = _norm(file)
-    local mark = _mark_group.get_extmark_by_location(file, lnum, true)
-    if not mark then
-        return
-    end
-    local name = mark.user_data.name
-    store.delete(file, lnum)
-    _mark_group.remove_extmark(mark.id)
-    _persist()
+    _delete_loc(_norm(file), lnum)
 end
 
 function M.clear_file()
@@ -218,6 +229,96 @@ function M.pick()
             uitool.smart_open_file(data.filepath, data.lnum, data.col)
         end
     end)
+end
+
+---@param file string
+---@param lnum integer
+---@return string
+local function _loc_key(file, lnum)
+    return file .. "\0" .. lnum
+end
+
+--- Builds the manager list from the current bookmarks, sorted by file then line.
+---@return keystone.ListManager.Item[]
+local function _manager_items()
+    local entries = _read_entries()
+    table.sort(entries, function(a, b)
+        if a.file ~= b.file then return a.file < b.file end
+        return a.lnum < b.lnum
+    end)
+
+    local items = {}
+    for _, entry in ipairs(entries) do
+        local loc_chunk = { _relpath(entry.file) .. ":" .. entry.lnum, "@namespace" }
+        ---@type keystone.ListManager.Item
+        items[#items + 1] = {
+            key          = _loc_key(entry.file, entry.lnum),
+            label_chunks = { { entry.name, "Normal" } },
+            virt_lines   = { { loc_chunk } },
+            data         = {
+                name     = entry.name,
+                filepath = entry.file,
+                lnum     = entry.lnum,
+            },
+        }
+    end
+    return items
+end
+
+--- Opens an interactive manager for named bookmarks: jump (<CR>), add (a),
+--- rename (r) and remove (d) entries, with a live file preview.
+function M.manager()
+    local origin_file, origin_lnum = _get_cur_loc()
+    if origin_file then origin_file = _norm(origin_file) end
+
+    ListManager.open({
+        prompt          = "Bookmarks",
+        enable_preview  = true,
+        enable_list_sep = true,
+        empty_text      = "No bookmarks",
+        initial_key     = (origin_file and origin_lnum)
+            and _loc_key(origin_file, origin_lnum) or nil,
+
+        finder          = function(_, callback)
+            callback(_manager_items())
+        end,
+
+        on_select       = function(item)
+            uitool.smart_open_file(item.data.filepath, item.data.lnum, 0)
+        end,
+
+        on_add          = function(on_done)
+            if not origin_file or not origin_lnum then
+                vim.notify("[keystone] No valid file to bookmark", vim.log.levels.WARN)
+                return
+            end
+            local existing = _mark_group.get_extmark_by_location(origin_file, origin_lnum, true)
+            local default = existing and existing.user_data.name or ""
+            inputwin.open({ prompt = "Bookmark", default = default }, function(name)
+                if not name or name:match("^%s*$") then return end
+                name = name:match("^%s*(.-)%s*$")
+                _upsert(name, origin_file, origin_lnum)
+                on_done(_loc_key(origin_file, origin_lnum))
+            end)
+        end,
+
+        on_rename       = function(ctx, on_done)
+            local data = ctx.data
+            inputwin.open({ prompt = "Rename", default = data.name }, function(name)
+                if not name or name:match("^%s*$") then return end
+                name = name:match("^%s*(.-)%s*$")
+                _upsert(name, data.filepath, data.lnum)
+                on_done(_loc_key(data.filepath, data.lnum))
+            end)
+        end,
+
+        on_remove       = function(ctx, on_done)
+            local data = ctx.data
+            if _delete_loc(data.filepath, data.lnum) then
+                on_done()
+            end
+        end,
+    })
 end
 
 ---@param opts keystone.bookmarks.Config?
