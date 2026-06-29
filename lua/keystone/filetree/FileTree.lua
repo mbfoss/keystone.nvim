@@ -64,7 +64,12 @@ MANAGEMENT
 `A`       Create directory in parent directory
 `I`       Create directory inside selected directory
 `r`       Rename file or directory
-`d`       **Permanently** delete file or empty directory
+
+SELECTION
+=========
+`<Tab>`   Toggle selection of item under cursor
+`x`       Move selected items into the directory under cursor
+`d`       **Permanently** delete all selected items
 
 OTHER
 =====
@@ -82,7 +87,8 @@ end
 
 ---@param id string
 ---@param data keystone.FileTree.ItemData
-local function _file_formatter(id, data)
+---@param selected boolean?
+local function _file_formatter(id, data, selected)
     if not data then return {}, {} end
     local virt_chunks = {}
     if data.is_link then
@@ -91,10 +97,14 @@ local function _file_formatter(id, data)
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
     end
+    if selected then
+        table.insert(virt_chunks, { " ●", "Special" })
+    end
+    local name_hl = selected and "Visual" or (data.is_current and "Type" or nil)
     local chunks = {
         { data.icon, data.icon_hl },
         { " " },
-        { data.name, data.is_current and "Type" or nil }
+        { data.name, name_hl }
     }
     return chunks, virt_chunks
 end
@@ -116,6 +126,7 @@ end
 
 ---@class keystone.FileTree
 ---@field new fun(self:keystone.FileTree, opts:keystone.FileTree.Opts?):keystone.FileTree
+---@field private _selected table<string, true>
 local FileTree = {}
 FileTree.__index = FileTree
 
@@ -142,6 +153,8 @@ function FileTree:init(opts)
     self._pending_expand = {}
     self._pending_reveal = nil
 
+    self._selected = {} ---@type table<string, true> Set of selected item paths
+
     self:_setup_tree()
 end
 
@@ -150,7 +163,7 @@ function FileTree:_setup_tree()
 
     self._treebuf = TreeBuffer.new({
         formatter = function(id, data)
-            return _file_formatter(id, data)
+            return _file_formatter(id, data, self._selected[data.path] == true)
         end,
     })
 
@@ -310,11 +323,23 @@ function FileTree:create_buffer()
             end,
             "Rename file or directory",
         },
-        ["d"] = {
+        ["D"] = {
             function()
-                with_item(function(i) self:_delete_node(i) end)
+                self:_delete_selected()
             end,
-            "Permanently delete file or empty directory",
+            "Permanently delete selected items",
+        },
+        ["<Tab>"] = {
+            function()
+                with_item(function(i) self:_toggle_select(i) end)
+            end,
+            "Toggle selection",
+        },
+        ["X"] = {
+            function()
+                with_item(function(i) self:_move_selected(i) end)
+            end,
+            "Move selected items here",
         },
         ["gh"] = {
             function()
@@ -1002,25 +1027,172 @@ function FileTree:_show_hover(item)
     end)
 end
 
----@param item table The TreeBuffer item
-function FileTree:_delete_node(item)
-    local is_folder = item.data.is_dir
+---@private
+--- Toggle the selection state of an item and advance the cursor one line.
+---@param item keystone.util.TreeBuffer.Item
+function FileTree:_toggle_select(item)
     local path = item.data.path
-    if path == self._root then
-        vim.notify("Cannot delete root item")
+    if path == self._root then return end -- the root is not selectable
+    if self._selected[path] then
+        self._selected[path] = nil
+    else
+        self._selected[path] = true
+    end
+    self._treebuf:refresh_item(path)
+
+    local winid = self._treebuf:get_winid()
+    local bufnr = self._treebuf:get_bufnr()
+    if winid > 0 and bufnr > 0 then
+        local row = vim.api.nvim_win_get_cursor(winid)[1]
+        if row < vim.api.nvim_buf_line_count(bufnr) then
+            vim.api.nvim_win_set_cursor(winid, { row + 1, 0 })
+        end
+    end
+end
+
+---@private
+--- Collect the currently selected items that still exist, pruning stale paths.
+---@return keystone.util.TreeBuffer.Item[]
+function FileTree:_get_selected_items()
+    local items = {}
+    for path in pairs(self._selected) do
+        local item = self._treebuf:get_item(path)
+        if item then
+            items[#items + 1] = item
+        else
+            self._selected[path] = nil
+        end
+    end
+    return items
+end
+
+---@private
+--- Clear the whole selection, refreshing the affected lines.
+function FileTree:_clear_selection()
+    local paths = vim.tbl_keys(self._selected)
+    self._selected = {}
+    for _, path in ipairs(paths) do
+        if self._treebuf:have_item(path) then
+            self._treebuf:refresh_item(path)
+        end
+    end
+end
+
+---@private
+--- Permanently delete every selected item (recursively for directories).
+function FileTree:_delete_selected()
+    local items = self:_get_selected_items()
+    if #items == 0 then
+        vim.notify("No items selected", vim.log.levels.WARN)
         return
     end
-    local parent_dir = vim.fn.fnamemodify(path, ":h")
-    local type_str = is_folder and "directory" or "file"
+
+    local lines = {}
+    for _, item in ipairs(items) do
+        lines[#lines + 1] = "  " .. item.data.path
+    end
+    local msg = ("Permanently delete %d item(s)?\n%s"):format(#items, table.concat(lines, "\n"))
+
     local reload_counter = self._reload_counter
-    uitool.confirm_action(("Permanently delete %s?\n%s"):format(type_str, path), false, function(confirmed)
+    uitool.confirm_action(msg, false, function(confirmed)
         if not confirmed then return end
         if reload_counter ~= self._reload_counter then return end
-        if not self._treebuf:get_item(path) then return end
-        local success, err_msg = os.remove(path)
-        self:_read_dir(parent_dir, self._reload_counter, false)
-        if not success then
-            vim.notify(("Failed to delete %s\n%s"):format(type_str, err_msg), vim.log.levels.ERROR)
+
+        local dirs_to_refresh = {}
+        local failed = 0
+        for _, item in ipairs(items) do
+            local path = item.data.path
+            if path ~= self._root and self._treebuf:get_item(path) then
+                if vim.fn.delete(path, "rf") == 0 then
+                    dirs_to_refresh[vim.fn.fnamemodify(path, ":h")] = true
+                else
+                    failed = failed + 1
+                end
+            end
+        end
+
+        self:_clear_selection()
+        for dir in pairs(dirs_to_refresh) do
+            if self._treebuf:have_item(dir) then
+                self:_read_dir(dir, self._reload_counter, false)
+            end
+        end
+        if failed > 0 then
+            vim.notify(("Failed to delete %d item(s)"):format(failed), vim.log.levels.ERROR)
+        end
+    end)
+end
+
+---@private
+--- Move every selected item into the directory implied by `target_item`
+--- (the item itself when it is a directory, otherwise its parent directory).
+---@param target_item keystone.util.TreeBuffer.Item
+function FileTree:_move_selected(target_item)
+    local items = self:_get_selected_items()
+    if #items == 0 then
+        vim.notify("No items selected", vim.log.levels.WARN)
+        return
+    end
+
+    local dest_dir = target_item.data.is_dir
+        and target_item.data.path
+        or vim.fn.fnamemodify(target_item.data.path, ":h")
+
+    -- Build the list of actual moves, skipping no-ops and illegal moves.
+    local moves = {} ---@type {from:string, to:string, name:string}[]
+    for _, item in ipairs(items) do
+        local from = item.data.path
+        local name = item.data.name
+        local to = vim.fs.joinpath(dest_dir, name)
+        if from == self._root then
+            -- never move the root
+        elseif vim.fn.fnamemodify(from, ":h") == dest_dir then
+            -- already in the destination directory; nothing to do
+        elseif item.data.is_dir and (dest_dir == from or vim.startswith(dest_dir, from .. "/")) then
+            vim.notify(("Cannot move %s into itself"):format(name), vim.log.levels.WARN)
+        elseif fsutil.file_exists(to) then
+            vim.notify(("Skipping %s: already exists in destination"):format(name), vim.log.levels.WARN)
+        else
+            moves[#moves + 1] = { from = from, to = to, name = name }
+        end
+    end
+
+    if #moves == 0 then return end
+
+    local lines = {}
+    for _, mv in ipairs(moves) do
+        lines[#lines + 1] = "  " .. mv.from
+    end
+    local msg = ("Move %d item(s) to %s?\n%s"):format(#moves, dest_dir, table.concat(lines, "\n"))
+
+    local reload_counter = self._reload_counter
+    uitool.confirm_action(msg, false, function(confirmed)
+        if not confirmed then return end
+        if reload_counter ~= self._reload_counter then return end
+
+        local dirs_to_refresh = { [dest_dir] = true }
+        local failed = 0
+        for _, mv in ipairs(moves) do
+            if self._treebuf:get_item(mv.from) then
+                local ok, err = fsutil.rename_file(mv.from, mv.to)
+                if ok then
+                    dirs_to_refresh[vim.fn.fnamemodify(mv.from, ":h")] = true
+                else
+                    failed = failed + 1
+                    vim.notify(("Failed to move %s: %s"):format(mv.name, err or "unknown error"),
+                        vim.log.levels.ERROR)
+                end
+            end
+        end
+
+        self:_clear_selection()
+        for dir in pairs(dirs_to_refresh) do
+            if self._treebuf:have_item(dir) then
+                self:_read_dir(dir, self._reload_counter, false)
+            end
+        end
+        if failed == 0 then
+            self:_reveal(dest_dir)
         end
     end)
 end
