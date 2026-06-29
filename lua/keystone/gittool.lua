@@ -2,7 +2,7 @@ local M        = {}
 
 local usercmd  = require("keystone.util.usercmd")
 local git      = require("keystone.gittool.git")
-local difftool = require("keystone.gittool.difftool")
+local difftool = require("keystone.gittool.diff")
 local diffthis = require("keystone.gittool.diffthis")
 
 --- `:GitTool` -- a git-backed front end for Neovim's native diff facilities.
@@ -11,7 +11,7 @@ local diffthis = require("keystone.gittool.diffthis")
 ---   GitTool diffthis [<rev>]                  diff the current buffer (incl.
 ---                                             unsaved edits) in a side split
 --- This module owns only command registration and argument parsing; the work
---- lives in `keystone.gittool.difftool` / `keystone.gittool.diffthis`.
+--- lives in `keystone.gittool.diff` / `keystone.gittool.diffthis`.
 
 local _AUGROUP = "keystone.gittool"
 

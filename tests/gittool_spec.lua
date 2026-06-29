@@ -1,5 +1,5 @@
 local gittool = require("keystone.gittool")
-local difftool = require("keystone.gittool.difftool")
+local difftool = require("keystone.gittool.diff")
 
 --- Run a git command in `cwd`, asserting success. Used only by the fixtures.
 ---@param cwd  string
