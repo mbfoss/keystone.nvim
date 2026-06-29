@@ -68,9 +68,11 @@ MANAGEMENT
 SELECTION
 =========
 `<Tab>`   Toggle selection of item under cursor
-`<Tab>`   (visual) Select all items in the visual selection
+`<Tab>`   (visual) Toggle selection of items in the visual selection
 `X`       Move selected items into the directory under cursor
-`D`       **Permanently** delete all selected items
+`C`       Copy selected items into the directory under cursor
+`D`       **Permanently** delete item under cursor
+`D`       (visual) **Permanently** delete items in the visual selection
 
 OTHER
 =====
@@ -326,9 +328,9 @@ function FileTree:create_buffer()
         },
         ["D"] = {
             function()
-                self:_delete_selected()
+                with_item(function(i) self:_delete_items({ i }) end)
             end,
-            "Permanently delete selected items",
+            "Permanently delete item under cursor",
         },
         ["<Tab>"] = {
             function()
@@ -338,9 +340,15 @@ function FileTree:create_buffer()
         },
         ["X"] = {
             function()
-                with_item(function(i) self:_move_selected(i) end)
+                with_item(function(i) self:_transfer_selected(i, false) end)
             end,
             "Move selected items here",
+        },
+        ["C"] = {
+            function()
+                with_item(function(i) self:_transfer_selected(i, true) end)
+            end,
+            "Copy selected items here",
         },
         ["gh"] = {
             function()
@@ -375,7 +383,12 @@ function FileTree:create_buffer()
 
     vim.api.nvim_buf_set_keymap(bufnr, "x", "<Tab>", "", {
         callback = function() self:_visual_select() end,
-        desc = "Select items in visual selection",
+        desc = "Toggle selection of items in visual selection",
+    })
+
+    vim.api.nvim_buf_set_keymap(bufnr, "x", "D", "", {
+        callback = function() self:_visual_delete() end,
+        desc = "Permanently delete items in visual selection",
     })
 
     self:_on_buffer_created()
@@ -1000,13 +1013,18 @@ function FileTree:_show_hover(item)
         return result
     end
 
-    vim.uv.fs_stat(path, function(_, stat)
+    local function render(stat, link_target)
         vim.schedule(function()
             local type_label = data.is_dir and "Directory" or (data.is_link and "Symlink" or "File")
             local lines = { "# " .. data.name, "" }
-
+            table.insert(lines, "*" .. path .. "*")
+            table.insert(lines, "")
             if stat then
                 table.insert(lines, "**Type** " .. type_label)
+                if data.is_link and link_target then
+                    table.insert(lines, "**Target** " .. link_target)
+                end
+                table.insert(lines, "")
                 if not data.is_dir then
                     table.insert(lines, "**Size** " .. fmt_size(stat.size))
                 end
@@ -1018,10 +1036,10 @@ function FileTree:_show_hover(item)
                 table.insert(lines, "**Mode** " .. perm_str(stat.mode % 512))
             else
                 table.insert(lines, "*" .. type_label .. "*")
+                if data.is_link and link_target then
+                    table.insert(lines, "**Target** " .. link_target)
+                end
             end
-
-            table.insert(lines, "")
-            table.insert(lines, "*" .. path .. "*")
 
             vim.lsp.util.open_floating_preview(lines, "markdown", {
                 border = "rounded",
@@ -1030,6 +1048,16 @@ function FileTree:_show_hover(item)
                 max_width = 70,
             })
         end)
+    end
+
+    vim.uv.fs_stat(path, function(_, stat)
+        if data.is_link then
+            vim.uv.fs_readlink(path, function(_, target)
+                render(stat, target)
+            end)
+        else
+            render(stat, nil)
+        end
     end)
 end
 
@@ -1057,10 +1085,11 @@ function FileTree:_toggle_select(item)
 end
 
 ---@private
---- Select every item covered by the current visual selection and exit visual mode.
-function FileTree:_visual_select()
+--- Collect the items covered by the current visual selection.
+---@return keystone.util.TreeBuffer.Item[]
+function FileTree:_get_visual_items()
     local winid = self._treebuf:get_winid()
-    if winid <= 0 then return end
+    if winid <= 0 then return {} end
 
     local start_row = vim.fn.line("v", winid)
     local end_row = vim.fn.line(".", winid)
@@ -1068,18 +1097,45 @@ function FileTree:_visual_select()
         start_row, end_row = end_row, start_row
     end
 
+    local items = {}
     for row = start_row, end_row do
         local item = self._treebuf:get_item_at_row(row)
         if item then
-            local path = item.data.path
-            if path ~= self._root and not self._selected[path] then
-                self._selected[path] = true
-                self._treebuf:refresh_item(path)
-            end
+            items[#items + 1] = item
         end
     end
+    return items
+end
 
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "n", false)
+--- Leave visual mode synchronously so a following blocking prompt sees normal mode.
+local function _exit_visual_mode()
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+end
+
+---@private
+--- Toggle the selection state of every item covered by the current visual
+--- selection and exit visual mode.
+function FileTree:_visual_select()
+    for _, item in ipairs(self:_get_visual_items()) do
+        local path = item.data.path
+        if path ~= self._root then
+            if self._selected[path] then
+                self._selected[path] = nil
+            else
+                self._selected[path] = true
+            end
+            self._treebuf:refresh_item(path)
+        end
+    end
+    _exit_visual_mode()
+end
+
+---@private
+--- Permanently delete every item covered by the current visual selection.
+function FileTree:_visual_delete()
+    local items = self:_get_visual_items()
+    _exit_visual_mode()
+    self:_delete_items(items)
 end
 
 ---@private
@@ -1111,19 +1167,23 @@ function FileTree:_clear_selection()
 end
 
 ---@private
---- Permanently delete every selected item (recursively for directories).
-function FileTree:_delete_selected()
-    local items = self:_get_selected_items()
-    if #items == 0 then
-        vim.notify("No items selected", vim.log.levels.WARN)
-        return
+--- Permanently delete the given items (recursively for directories), pruning
+--- any of them from the marked selection.
+---@param items keystone.util.TreeBuffer.Item[]
+function FileTree:_delete_items(items)
+    local targets = {}
+    for _, item in ipairs(items) do
+        if item.data.path ~= self._root then
+            targets[#targets + 1] = item
+        end
     end
+    if #targets == 0 then return end
 
     local lines = {}
-    for _, item in ipairs(items) do
+    for _, item in ipairs(targets) do
         lines[#lines + 1] = "  " .. item.data.path
     end
-    local msg = ("Permanently delete %d item(s)?\n%s"):format(#items, table.concat(lines, "\n"))
+    local msg = ("Permanently delete %d item(s)?\n%s"):format(#targets, table.concat(lines, "\n"))
 
     local reload_counter = self._reload_counter
     uitool.confirm_action(msg, false, function(confirmed)
@@ -1132,10 +1192,11 @@ function FileTree:_delete_selected()
 
         local dirs_to_refresh = {}
         local failed = 0
-        for _, item in ipairs(items) do
+        for _, item in ipairs(targets) do
             local path = item.data.path
-            if path ~= self._root and self._treebuf:get_item(path) then
+            if self._treebuf:get_item(path) then
                 if vim.fn.delete(path, "rf") == 0 then
+                    self._selected[path] = nil
                     dirs_to_refresh[vim.fn.fnamemodify(path, ":h")] = true
                 else
                     failed = failed + 1
@@ -1143,7 +1204,6 @@ function FileTree:_delete_selected()
             end
         end
 
-        self:_clear_selection()
         for dir in pairs(dirs_to_refresh) do
             if self._treebuf:have_item(dir) then
                 self:_read_dir(dir, self._reload_counter, false)
@@ -1156,46 +1216,49 @@ function FileTree:_delete_selected()
 end
 
 ---@private
---- Move every selected item into the directory implied by `target_item`
+--- Move or copy every selected item into the directory implied by `target_item`
 --- (the item itself when it is a directory, otherwise its parent directory).
 ---@param target_item keystone.util.TreeBuffer.Item
-function FileTree:_move_selected(target_item)
+---@param is_copy boolean
+function FileTree:_transfer_selected(target_item, is_copy)
     local items = self:_get_selected_items()
     if #items == 0 then
         vim.notify("No items selected", vim.log.levels.WARN)
         return
     end
 
+    local verb = is_copy and "copy" or "move"
     local dest_dir = target_item.data.is_dir
         and target_item.data.path
         or vim.fn.fnamemodify(target_item.data.path, ":h")
 
-    -- Build the list of actual moves, skipping no-ops and illegal moves.
-    local moves = {} ---@type {from:string, to:string, name:string}[]
+    -- Build the list of actual operations, skipping no-ops and illegal ones.
+    local ops = {} ---@type {from:string, to:string, name:string}[]
     for _, item in ipairs(items) do
         local from = item.data.path
         local name = item.data.name
         local to = vim.fs.joinpath(dest_dir, name)
         if from == self._root then
-            -- never move the root
+            -- never transfer the root
         elseif vim.fn.fnamemodify(from, ":h") == dest_dir then
             -- already in the destination directory; nothing to do
         elseif item.data.is_dir and (dest_dir == from or vim.startswith(dest_dir, from .. "/")) then
-            vim.notify(("Cannot move %s into itself"):format(name), vim.log.levels.WARN)
+            vim.notify(("Cannot %s %s into itself"):format(verb, name), vim.log.levels.WARN)
         elseif fsutil.file_exists(to) then
             vim.notify(("Skipping %s: already exists in destination"):format(name), vim.log.levels.WARN)
         else
-            moves[#moves + 1] = { from = from, to = to, name = name }
+            ops[#ops + 1] = { from = from, to = to, name = name }
         end
     end
 
-    if #moves == 0 then return end
+    if #ops == 0 then return end
 
     local lines = {}
-    for _, mv in ipairs(moves) do
-        lines[#lines + 1] = "  " .. mv.from
+    for _, op in ipairs(ops) do
+        lines[#lines + 1] = "  " .. op.from
     end
-    local msg = ("Move %d item(s) to %s?\n%s"):format(#moves, dest_dir, table.concat(lines, "\n"))
+    local msg = ("%s %d item(s) to %s?\n%s"):format(
+        verb:sub(1, 1):upper() .. verb:sub(2), #ops, dest_dir, table.concat(lines, "\n"))
 
     local reload_counter = self._reload_counter
     uitool.confirm_action(msg, false, function(confirmed)
@@ -1204,14 +1267,19 @@ function FileTree:_move_selected(target_item)
 
         local dirs_to_refresh = { [dest_dir] = true }
         local failed = 0
-        for _, mv in ipairs(moves) do
-            if self._treebuf:get_item(mv.from) then
-                local ok, err = fsutil.rename_file(mv.from, mv.to)
+        for _, op in ipairs(ops) do
+            if self._treebuf:get_item(op.from) then
+                local ok, err
+                if is_copy then
+                    ok, err = fsutil.copy_path(op.from, op.to)
+                else
+                    ok, err = fsutil.rename_file(op.from, op.to)
+                end
                 if ok then
-                    dirs_to_refresh[vim.fn.fnamemodify(mv.from, ":h")] = true
+                    dirs_to_refresh[vim.fn.fnamemodify(op.from, ":h")] = true
                 else
                     failed = failed + 1
-                    vim.notify(("Failed to move %s: %s"):format(mv.name, err or "unknown error"),
+                    vim.notify(("Failed to %s %s: %s"):format(verb, op.name, err or "unknown error"),
                         vim.log.levels.ERROR)
                 end
             end

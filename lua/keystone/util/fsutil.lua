@@ -429,4 +429,46 @@ function M.rename_file(from, to)
     return true
 end
 
+--- Recursively copy a file, directory or symlink from `from` to `to`.
+---@param from string
+---@param to string
+---@return boolean
+---@return string? -- error msg
+function M.copy_path(from, to)
+    local stat = vim.uv.fs_lstat(from)
+    if not stat then
+        return false, "Source does not exist"
+    end
+
+    if stat.type == "link" then
+        local target, read_err = vim.uv.fs_readlink(from)
+        if not target then return false, read_err end
+        local ok, sym_err = vim.uv.fs_symlink(target, to)
+        if not ok then return false, sym_err end
+        return true
+    end
+
+    if stat.type == "directory" then
+        local ok, mk_err, mk_name = vim.uv.fs_mkdir(to, stat.mode)
+        if not ok and mk_name ~= "EEXIST" then
+            return false, mk_err
+        end
+        local handle = vim.uv.fs_scandir(from)
+        if not handle then return false, "Cannot scan directory: " .. from end
+        while true do
+            local name = vim.uv.fs_scandir_next(handle)
+            if not name then break end
+            local sub_ok, sub_err = M.copy_path(
+                vim.fs.joinpath(from, name),
+                vim.fs.joinpath(to, name))
+            if not sub_ok then return false, sub_err end
+        end
+        return true
+    end
+
+    local ok, copy_err = vim.uv.fs_copyfile(from, to)
+    if not ok then return false, copy_err end
+    return true
+end
+
 return M
