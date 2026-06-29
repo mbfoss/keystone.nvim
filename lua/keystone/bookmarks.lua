@@ -17,7 +17,7 @@ local uitool      = require("keystone.util.uitool")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local extmarks    = require("keystone.util.extmarks")
-local ListManager = require("keystone.util.ListManager")
+local ListEditor  = require("keystone.util.ListEditor")
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
 local _mark_group
@@ -242,10 +242,10 @@ end
 ---@param name string
 ---@param file string
 ---@param lnum integer
----@return keystone.ListManager.Item
+---@return keystone.ListEditor.Item
 local function _make_item(name, file, lnum)
     local loc_chunk = { _relpath(file) .. ":" .. lnum, "@namespace" }
-    ---@type keystone.ListManager.Item
+    ---@type keystone.ListEditor.Item
     return {
         key          = _loc_key(file, lnum),
         label_chunks = { { name, "Normal" } },
@@ -255,7 +255,7 @@ local function _make_item(name, file, lnum)
 end
 
 --- Builds the manager list from the current bookmarks, sorted by file then line.
----@return keystone.ListManager.Item[]
+---@return keystone.ListEditor.Item[]
 local function _manager_items()
     local entries = _read_entries()
     table.sort(entries, function(a, b)
@@ -272,7 +272,7 @@ end
 
 --- Reconciles the manager's committed list against the stored bookmarks:
 --- upserts new/renamed entries and deletes ones that are no longer present.
----@param items keystone.ListManager.Item[]
+---@param items keystone.ListEditor.Item[]
 local function _commit(items)
     local original = {}
     for _, entry in ipairs(_read_entries()) do
@@ -304,7 +304,7 @@ function M.manager()
     local origin_file, origin_lnum = _get_cur_loc()
     if origin_file then origin_file = _norm(origin_file) end
 
-    ListManager.open({
+    ListEditor.open({
         prompt          = "Bookmarks",
         enable_preview  = true,
         enable_list_sep = true,

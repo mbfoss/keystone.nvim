@@ -3,7 +3,7 @@ local fsutil      = require("keystone.util.fsutil")
 local uitool      = require("keystone.util.uitool")
 local floatwin    = require("keystone.util.floatwin")
 
----@mod keystone.ListManager
+---@mod keystone.ListEditor
 ---@brief Floating editor for a flat list of items: add / edit / remove / undo.
 ---@brief All edits happen on an in-memory working list and are handed back as a
 ---@brief whole on confirm (`<CR>` -> `on_commit`); nothing external changes until
@@ -14,53 +14,53 @@ local floatwin    = require("keystone.util.floatwin")
 
 local M           = {}
 
-local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_ListManagerContent")
-local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_ListManagerPreview")
+local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_ListEditorContent")
+local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_ListEditorPreview")
 
 local _antiflicker_delay = 200
 
----@class keystone.ListManager.Item
+---@class keystone.ListEditor.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]? Highlighted label segments
 ---@field virt_lines? {[1]:string,[2]:string?}[][] Extra virtual lines under the item
 ---@field supports_preview boolean? Set false to suppress preview for this item
 ---@field key string? Stable identity used to restore the cursor across edits
 ---@field data any Arbitrary payload handed back to the caller
 
----@class keystone.ListManager.FetcherOpts
+---@class keystone.ListEditor.FetcherOpts
 ---@field list_width number
 ---@field list_height number
 
 --- Populate the initial list. Called synchronously; returns the items to display.
----@alias keystone.ListManager.Finder fun(opts:keystone.ListManager.FetcherOpts):keystone.ListManager.Item[]?
+---@alias keystone.ListEditor.Finder fun(opts:keystone.ListEditor.FetcherOpts):keystone.ListEditor.Item[]?
 
----@class keystone.ListManager.PreviewOpts
+---@class keystone.ListEditor.PreviewOpts
 ---@field viewport_width number
 ---@field viewport_height number
 
----@alias keystone.ListManager.PreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,error_msg:string?}
----@alias keystone.ListManager.Previewer fun(item:keystone.ListManager.Item, opts:keystone.ListManager.PreviewOpts, callback:fun(preview:keystone.ListManager.PreviewData?)):(fun())?
+---@alias keystone.ListEditor.PreviewData {content:string|string[]|nil,filetype:string?,filepath:string?,lnum:number?,error_msg:string?}
+---@alias keystone.ListEditor.Previewer fun(item:keystone.ListEditor.Item, opts:keystone.ListEditor.PreviewOpts, callback:fun(preview:keystone.ListEditor.PreviewData?)):(fun())?
 
 --- Create a new item. The caller drives whatever UI it needs (a prompt, a
 --- picker, ...) and invokes `done` with the item to insert, or nil to abort.
 --- Providing this enables the add (and, with it, remove/undo) keys.
----@alias keystone.ListManager.ItemCreator fun(done:fun(item:keystone.ListManager.Item?))
+---@alias keystone.ListEditor.ItemCreator fun(done:fun(item:keystone.ListEditor.Item?))
 
 --- Produce a replacement for `item`. The caller drives its own UI and invokes
 --- `done` with the new item, or nil to abort. Providing this enables the edit key.
----@alias keystone.ListManager.ItemUpdater fun(item:keystone.ListManager.Item, done:fun(item:keystone.ListManager.Item?))
+---@alias keystone.ListEditor.ItemUpdater fun(item:keystone.ListEditor.Item, done:fun(item:keystone.ListEditor.Item?))
 
 --- Called once, on confirm, with the final working list. The caller reconciles
 --- it against its source of truth.
----@alias keystone.ListManager.CommitHandler fun(items:keystone.ListManager.Item[])
+---@alias keystone.ListEditor.CommitHandler fun(items:keystone.ListEditor.Item[])
 
----@class keystone.ListManager.Opts
+---@class keystone.ListEditor.Opts
 ---@field prompt string?
----@field finder keystone.ListManager.Finder
----@field create_item keystone.ListManager.ItemCreator? Enables add/remove/undo
----@field update_item keystone.ListManager.ItemUpdater? Enables edit
----@field on_commit keystone.ListManager.CommitHandler?
+---@field finder keystone.ListEditor.Finder
+---@field create_item keystone.ListEditor.ItemCreator? Enables add/remove/undo
+---@field update_item keystone.ListEditor.ItemUpdater? Enables edit
+---@field on_commit keystone.ListEditor.CommitHandler?
 ---@field enable_preview boolean?
----@field previewer keystone.ListManager.Previewer?
+---@field previewer keystone.ListEditor.Previewer?
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
@@ -68,7 +68,7 @@ local _antiflicker_delay = 200
 ---@field initial_key string? Key to focus when the manager first opens
 ---@field empty_text string? Message shown when the list is empty
 
----@class keystone.ListManager.Layout
+---@class keystone.ListEditor.Layout
 ---@field list_row number
 ---@field list_col number
 ---@field list_width number
@@ -89,7 +89,7 @@ end
 ---@param has_preview boolean
 ---@param width_ratio number?
 ---@param height_ratio number?
----@return keystone.ListManager.Layout
+---@return keystone.ListEditor.Layout
 local function _compute_layout(has_preview, width_ratio, height_ratio)
     local cols = vim.o.columns
     local lines = vim.o.lines
@@ -158,7 +158,7 @@ end
 
 --- Default previewer: loads the file referenced by `item.data.filepath` and
 --- centres it on `item.data.lnum`.
----@type keystone.ListManager.Previewer
+---@type keystone.ListEditor.Previewer
 local function _default_preview(item, preview_opts, callback)
     local data = item.data or {}
     local filepath = data.filepath
@@ -189,32 +189,32 @@ local function _key_opts_of(buf)
     return { buffer = buf, nowait = true, silent = true }
 end
 
----@class keystone.util.ListManager
----@field opts keystone.ListManager.Opts
----@field layout keystone.ListManager.Layout
+---@class keystone.util.ListEditor
+---@field opts keystone.ListEditor.Opts
+---@field layout keystone.ListEditor.Layout
 ---@field lbuf integer?
 ---@field vbuf integer?
 ---@field lwin integer?
 ---@field vwin integer?
 ---@field closed boolean
 ---@field editable boolean
----@field list_items keystone.ListManager.Item[]
----@field undo_stack {items:keystone.ListManager.Item[], key:string?}[]
+---@field list_items keystone.ListEditor.Item[]
+---@field undo_stack {items:keystone.ListEditor.Item[], key:string?}[]
 ---@field preview_enabled boolean
 ---@field async_preview_context number
 ---@field async_preview_cancel fun()?
 ---@field preview_timer table?
-local ListManager = {}
-ListManager.__index = ListManager
+local ListEditor = {}
+ListEditor.__index = ListEditor
 
-function ListManager:new(...)
+function ListEditor:new(...)
     local obj = setmetatable({}, self)
     if obj.init then obj:init(...) end
     return obj
 end
 
----@param opts keystone.ListManager.Opts
-function ListManager:init(opts)
+---@param opts keystone.ListEditor.Opts
+function ListEditor:init(opts)
     vim.validate({
         opts = { opts, "table" },
         finder = { opts.finder, "function" },
@@ -239,7 +239,7 @@ function ListManager:init(opts)
     self:populate(opts.initial_key)
 end
 
-function ListManager:setup_ui()
+function ListEditor:setup_ui()
     assert(self.lbuf)
     vim.api.nvim_create_autocmd("CursorMoved", {
         buffer = self.lbuf,
@@ -253,7 +253,7 @@ function ListManager:setup_ui()
     })
 end
 
-function ListManager:relayout()
+function ListEditor:relayout()
     if self.closed then return end
 
     local has_preview = self.preview_enabled
@@ -374,14 +374,14 @@ function ListManager:relayout()
 end
 
 ---@return integer?
-function ListManager:get_cursor()
+function ListEditor:get_cursor()
     if not self.lwin then return nil end
     return vim.api.nvim_win_get_cursor(self.lwin)[1]
 end
 
 ---@param row integer
 ---@param force boolean?
-function ListManager:move_cursor(row, force)
+function ListEditor:move_cursor(row, force)
     if not self.lwin then return end
     if not force and row == self:get_cursor() then return end
 
@@ -394,14 +394,14 @@ function ListManager:move_cursor(row, force)
     self:update_preview()
 end
 
----@return keystone.ListManager.Item?
-function ListManager:_get_current()
+---@return keystone.ListEditor.Item?
+function ListEditor:_get_current()
     if self.closed then return nil end
     local row = self:get_cursor()
     return row and self.list_items[row] or nil
 end
 
-function ListManager:update_preview()
+function ListEditor:update_preview()
     self.async_preview_context = self.async_preview_context + 1
     local preview_context = self.async_preview_context
 
@@ -481,7 +481,7 @@ function ListManager:update_preview()
 end
 
 ---@param immediate boolean?
-function ListManager:request_clear_preview(immediate)
+function ListEditor:request_clear_preview(immediate)
     local clear = function()
         if self.vbuf and not self.closed then
             vim.bo[self.vbuf].modifiable = true
@@ -501,12 +501,12 @@ function ListManager:request_clear_preview(immediate)
     end
 end
 
-function ListManager:cancel_clear_preview_req()
+function ListEditor:cancel_clear_preview_req()
     self.preview_timer = timer.stop_and_close_timer(self.preview_timer)
 end
 
 --- Renders the empty-state placeholder into the list buffer.
-function ListManager:_render_empty()
+function ListEditor:_render_empty()
     local width = math.max(0, self.layout.list_width - 2)
     local height = math.max(0, self.layout.list_height - 2)
     local lines = _center_message(self.opts.empty_text or "Empty", width, height)
@@ -523,8 +523,8 @@ function ListManager:_render_empty()
 end
 
 --- Replaces the list contents with `items`, rebuilding lines and extmarks in one pass.
----@param items keystone.ListManager.Item[]
-function ListManager:render_items(items)
+---@param items keystone.ListEditor.Item[]
+function ListEditor:render_items(items)
     self.list_items = items
     self.last_cursor = nil
 
@@ -599,17 +599,17 @@ function ListManager:render_items(items)
 end
 
 --- A shallow copy of the working list, so edits never mutate a prior snapshot.
----@return keystone.ListManager.Item[]
-function ListManager:_clone_items()
+---@return keystone.ListEditor.Item[]
+function ListEditor:_clone_items()
     local copy = {}
     for i, item in ipairs(self.list_items) do copy[i] = item end
     return copy
 end
 
 --- Swap in a new working list and focus `focus_key` (or the first row).
----@param items keystone.ListManager.Item[]
+---@param items keystone.ListEditor.Item[]
 ---@param focus_key string?
-function ListManager:_apply(items, focus_key)
+function ListEditor:_apply(items, focus_key)
     self:render_items(items)
     if #items == 0 then return end
     local row = 1
@@ -625,7 +625,7 @@ function ListManager:_apply(items, focus_key)
 end
 
 --- Record the current working list so the next edit can be undone.
-function ListManager:_snapshot()
+function ListEditor:_snapshot()
     local cur = self:_get_current()
     self.undo_stack[#self.undo_stack + 1] = {
         items = self:_clone_items(),
@@ -635,7 +635,7 @@ end
 
 --- Load the initial list from the finder.
 ---@param focus_key string?
-function ListManager:populate(focus_key)
+function ListEditor:populate(focus_key)
     if self.closed then return end
     local fetch_opts = {
         list_width = math.max(1, self.layout.list_width - 2),
@@ -646,14 +646,14 @@ function ListManager:populate(focus_key)
 end
 
 --- Confirm: hand the final working list to the caller and close.
-function ListManager:confirm_commit()
+function ListEditor:confirm_commit()
     if self.opts.on_commit then
         self.opts.on_commit(self:_clone_items())
     end
     self:close()
 end
 
-function ListManager:_action_add()
+function ListEditor:_action_add()
     local create = self.opts.create_item
     if not create then return end
     create(function(item)
@@ -665,7 +665,7 @@ function ListManager:_action_add()
     end)
 end
 
-function ListManager:_action_update()
+function ListEditor:_action_update()
     local update = self.opts.update_item
     if not update then return end
     local row = self:get_cursor()
@@ -681,7 +681,7 @@ function ListManager:_action_update()
     end)
 end
 
-function ListManager:_action_remove()
+function ListEditor:_action_remove()
     if not self.editable then return end
     local row = self:get_cursor()
     if not row or not self.list_items[row] then return end
@@ -693,15 +693,16 @@ function ListManager:_action_remove()
     self:_apply(items, neighbour and neighbour.key or nil)
 end
 
-function ListManager:_action_undo()
+function ListEditor:_action_undo()
     local snap = table.remove(self.undo_stack)
     if not snap then
+        vim.notify("[keystone] Nothing to undo", vim.log.levels.INFO)
         return
     end
     self:_apply(snap.items, snap.key)
 end
 
----@class keystone.ListManager.Keymap
+---@class keystone.ListEditor.Keymap
 ---@field label string Human-readable key(s) shown in the help menu
 ---@field keys string[] Keys to bind
 ---@field desc string Help description
@@ -710,8 +711,8 @@ end
 
 --- The single source of truth for both the bindings and the help menu, so they
 --- can never drift apart.
----@return keystone.ListManager.Keymap[]
-function ListManager:_keymaps()
+---@return keystone.ListEditor.Keymap[]
+function ListEditor:_keymaps()
     local o = self.opts
     local editable = self.editable
     return {
@@ -732,7 +733,7 @@ function ListManager:_keymaps()
     }
 end
 
-function ListManager:setup_input()
+function ListEditor:setup_input()
     local opts = _key_opts_of(self.lbuf)
     for _, m in ipairs(self:_keymaps()) do
         if m.enabled ~= false then
@@ -744,7 +745,7 @@ function ListManager:setup_input()
 end
 
 --- Opens a floating cheat-sheet of the active keymaps.
-function ListManager:show_help()
+function ListEditor:show_help()
     local entries = {}
     local key_width = 0
     for _, m in ipairs(self:_keymaps()) do
@@ -764,7 +765,7 @@ function ListManager:show_help()
     })
 end
 
-function ListManager:close()
+function ListEditor:close()
     if self.closed then return end
     self.closed = true
 
@@ -783,10 +784,10 @@ function ListManager:close()
     end
 end
 
----@param opts keystone.ListManager.Opts
----@return keystone.util.ListManager
+---@param opts keystone.ListEditor.Opts
+---@return keystone.util.ListEditor
 function M.open(opts)
-    return ListManager:new(opts)
+    return ListEditor:new(opts)
 end
 
 return M
