@@ -221,6 +221,20 @@ describe("gittool diffthis", function()
         assert.is_false(win_diff(base_win))
     end)
 
+    it("a second diffthis ends the first, leaving a single scratch buffer", function()
+        diffthis.diffthis({})
+        local first = gittool_bufs()
+        assert.equal(1, #first)
+
+        -- Re-run without closing the first diff: the old scratch buffer must be
+        -- retired (synchronously) rather than stacked alongside the new one.
+        diffthis.diffthis({})
+        local second = gittool_bufs()
+        assert.equal(1, #second)
+        assert.is_false(vim.api.nvim_buf_is_valid(first[1]))
+        assert.not_equal(first[1], second[1])
+    end)
+
     it("closing the scratch window wipes it and clears diff on the live window", function()
         local live_buf = vim.api.nvim_get_current_buf()
         diffthis.diffthis({})
