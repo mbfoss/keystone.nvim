@@ -1,0 +1,30 @@
+local keystone = require("keystone")
+local largefile = require("keystone.largefile")
+local tweaks = require("keystone.tweaks")
+
+describe("keystone.setup", function()
+  after_each(function()
+    largefile.disable()
+    tweaks.disable()
+  end)
+
+  it("delegates a table value as module opts", function()
+    keystone.setup({ largefile = { size_threshold = 4242, notify = false } })
+    assert.equal(4242, largefile.config.size_threshold)
+  end)
+
+  it("treats true as module defaults", function()
+    keystone.setup({ tweaks = true })
+    assert.is_true(tweaks.is_active("restore_cursor"))
+  end)
+
+  it("skips a module set to false", function()
+    keystone.setup({ tweaks = false })
+    assert.is_false(tweaks.is_active("restore_cursor"))
+  end)
+
+  it("leaves unmentioned modules untouched", function()
+    keystone.setup({})
+    assert.is_false(tweaks.is_active("restore_cursor"))
+  end)
+end)
