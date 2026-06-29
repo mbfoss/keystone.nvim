@@ -6,11 +6,12 @@ local function augroup_exists(name)
   return ok
 end
 
---- Create a temp file of `size` bytes and return its path.
+--- Create a temp file of `size` bytes (with a `.lua` extension so it would
+--- otherwise resolve to a real filetype) and return its path.
 ---@param size integer
 ---@return string
 local function make_file(size)
-  local path = vim.fn.tempname()
+  local path = vim.fn.tempname() .. ".lua"
   local fd = assert(vim.loop.fs_open(path, "w", 420))
   vim.loop.fs_write(fd, string.rep("a", size))
   vim.loop.fs_close(fd)
@@ -22,7 +23,7 @@ describe("largefile setup", function()
     largefile.disable()
   end)
 
-  it("installs detection autocmds when enabled", function()
+  it("installs the FileType handler when enabled", function()
     largefile.setup({ notify = false })
     assert.is_true(augroup_exists("keystone.largefile"))
   end)
@@ -38,21 +39,22 @@ describe("largefile detection", function()
     largefile.disable()
   end)
 
-  it("marks a file above the size threshold", function()
-    largefile.setup({ size_threshold = 1024, notify = false })
+  it("gives a large file the sentinel filetype and fast options", function()
+    largefile.setup({ size_threshold = 1024, filetype = "bigfile", notify = false })
     local path = make_file(4096)
 
     vim.cmd.edit(vim.fn.fnameescape(path))
     local bufnr = vim.api.nvim_get_current_buf()
 
     assert.is_true(largefile.is_large(bufnr))
+    assert.equal("bigfile", vim.bo[bufnr].filetype)
     assert.is_false(vim.bo[bufnr].swapfile)
 
     vim.api.nvim_buf_delete(bufnr, { force = true })
     vim.loop.fs_unlink(path)
   end)
 
-  it("leaves a small file untouched", function()
+  it("leaves a small file with its real filetype", function()
     largefile.setup({ size_threshold = 1024 * 1024, notify = false })
     local path = make_file(64)
 
@@ -60,17 +62,19 @@ describe("largefile detection", function()
     local bufnr = vim.api.nvim_get_current_buf()
 
     assert.is_false(largefile.is_large(bufnr))
+    assert.equal("lua", vim.bo[bufnr].filetype)
 
     vim.api.nvim_buf_delete(bufnr, { force = true })
     vim.loop.fs_unlink(path)
   end)
 
-  it("can force a buffer into large-file mode via mark", function()
+  it("can force a buffer into fast mode via apply", function()
     largefile.setup({ size_threshold = 1024 * 1024, notify = false })
     local bufnr = vim.api.nvim_create_buf(true, false)
 
-    largefile.mark(bufnr)
+    largefile.apply(bufnr)
     assert.is_true(largefile.is_large(bufnr))
+    assert.equal("bigfile", vim.bo[bufnr].filetype)
 
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)

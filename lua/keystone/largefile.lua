@@ -3,16 +3,22 @@ local M = {}
 -- ---------------------------------------------------------------------------
 -- Large file handling
 --
--- Opening a large file is slow mostly because of work Neovim does *eagerly* on
--- read: syntax highlighting, treesitter parsing, LSP attach, folding, swap and
--- undo bookkeeping. This module detects a large buffer in `BufReadPre` (before
--- any of that runs) and strips the expensive machinery for that buffer only,
--- leaving normal files untouched.
+-- Opening a large file is slow mostly because of work Neovim and plugins do
+-- *eagerly* on read: treesitter parsing, LSP attach, ftplugins, syntax
+-- highlighting, plus swap/undo bookkeeping.
 --
--- A file is "large" when it exceeds `size_threshold` bytes, or when any single
--- line is longer than `long_line_threshold`. Very long lines are checked in
--- `BufReadPost` because they wreck regex-based syntax even in otherwise small
--- files.
+-- The reliable way to suppress the attach-on-read machinery is to *prevent* it,
+-- not to tear it down afterwards: treesitter, LSP and ftplugins all hang off
+-- `FileType` autocmds keyed on the file's real filetype. So we detect a large
+-- file during filetype detection and give it a sentinel_ft filetype
+-- (`config.filetype`, default "bigfile") instead of its real one. None of those
+-- `FileType` handlers ever match, so nothing attaches in the first place --
+-- deterministically, with no scheduled detach race.
+--
+-- A `FileType <sentinel_ft>` autocmd then applies the buffer-local tweaks and,
+-- optionally, restores cheap regex syntax for the detected real filetype.
+--
+-- A file is "large" when it exceeds `size_threshold` bytes.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
@@ -20,37 +26,33 @@ local M = {}
 -- ---------------------------------------------------------------------------
 
 ---@class keystone.largefile.Config
----@field enabled boolean? master switch; when false `setup` tears the handler down
+---@field enabled boolean? master switch; when false detection is inert
 ---@field size_threshold integer? byte size above which a file is treated as large
----@field long_line_threshold integer? a file with any line longer than this is treated as large
----@field disable_syntax boolean? turn off Vim syntax highlighting
----@field disable_treesitter boolean? stop nvim-treesitter highlight/indent attaching
----@field disable_lsp boolean? detach (and block) language servers for the buffer
+---@field filetype string? sentinel_ft filetype used to suppress treesitter/LSP/ftplugins
+---@field keep_syntax boolean? restore regex syntax for the detected real filetype
 ---@field disable_folding boolean? set `foldmethod=manual` and open all folds
 ---@field disable_swapfile boolean? clear `swapfile` for the buffer
 ---@field disable_undofile boolean? clear `undofile` (and shorten undolevels)
----@field disable_matchparen boolean? skip the matchparen highlight on the buffer
+---@field disable_matchparen boolean? turn off the matchparen plugin while a large buffer is open
 ---@field undolevels integer? `undolevels` to use when `disable_undofile` is set
 ---@field synmaxcol integer? `synmaxcol` to clamp to (caps per-line syntax cost)
----@field notify boolean? emit a message when a buffer is opened in large-file mode
+---@field notify boolean? emit a message when a buffer is opened in fast mode
 
 ---@return keystone.largefile.Config
 local function _get_default_config()
   ---@type keystone.largefile.Config
   return {
-    enabled             = true,
-    size_threshold      = 1.5 * 1024 * 1024, -- 1.5 MiB
-    long_line_threshold = 10000,
-    disable_syntax      = true,
-    disable_treesitter  = true,
-    disable_lsp         = true,
-    disable_folding     = true,
-    disable_swapfile    = true,
-    disable_undofile    = true,
-    disable_matchparen  = true,
-    undolevels          = -1,
-    synmaxcol           = 256,
-    notify              = true,
+    enabled            = true,
+    size_threshold     = 1.5 * 1024 * 1024,  -- 1.5 MiB
+    filetype           = "bigfile",
+    keep_syntax        = false,
+    disable_folding    = true,
+    disable_swapfile   = true,
+    disable_undofile   = false,
+    disable_matchparen = true,
+    undolevels         = -1,
+    synmaxcol          = 256,
+    notify             = true,
   }
 end
 
@@ -67,78 +69,54 @@ local _AUGROUP = "keystone.largefile"
 -- code/plugins can cheaply test whether a buffer is in large-file mode.
 local _BUF_FLAG = "keystone_largefile"
 
+-- Whether detection is live. The `vim.filetype.add` hook is global and cannot be
+-- unregistered, so `disable` flips this instead and the hook bails on false.
+local _enabled = false
+
 -- ---------------------------------------------------------------------------
 -- Detection
 -- ---------------------------------------------------------------------------
 
---- Byte size of the file backing `bufnr`, or 0 when it has no readable file.
----@param bufnr integer
+--- Byte size of `path`, or 0 when it cannot be stat'd.
+---@param path string?
 ---@return integer
-local function _file_size(bufnr)
-  local name = vim.api.nvim_buf_get_name(bufnr)
-  if name == "" then return 0 end
-  local stat = vim.loop.fs_stat(name)
+local function _stat_size(path)
+  if not path or path == "" then return 0 end
+  local stat = vim.loop.fs_stat(path)
   return stat and stat.size or 0
 end
 
---- True when any line in `bufnr` is longer than `long_line_threshold`.
---- Scans only a bounded sample from the head of the buffer so the check itself
---- stays cheap on huge files.
+--- `vim.filetype.add` hook. Returns the sentinel_ft filetype for large files so
+--- the real-filetype `FileType` handlers (treesitter/LSP/ftplugins) never fire;
+--- returns nil for everything else so normal detection proceeds.
+---@param path string?
 ---@param bufnr integer
----@return boolean
-local function _has_long_line(bufnr)
-  local limit = M.config.long_line_threshold
-  if not limit or limit <= 0 then return false end
+---@return string?
+local function _detect(path, bufnr)
+  if not _enabled then return nil end
 
-  local sample = vim.api.nvim_buf_get_lines(bufnr, 0, 256, false)
-  for _, line in ipairs(sample) do
-    if #line > limit then return true end
-  end
-  return false
-end
+  local sentinel_ft = M.config.filetype
+  -- Guard against re-entry: when the buffer already carries the sentinel_ft,
+  -- `vim.filetype.match` is being used to resolve the *real* filetype.
+  if vim.bo[bufnr].filetype == sentinel_ft then return nil end
 
---- Whether `bufnr` should be opened in large-file mode based on its file size.
----@param bufnr integer
----@return boolean
-local function _is_large_by_size(bufnr)
   local threshold = M.config.size_threshold
-  if not threshold or threshold <= 0 then return false end
-  return _file_size(bufnr) > threshold
+  if threshold and threshold > 0 and _stat_size(path) > threshold then
+    return sentinel_ft
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------------------
 -- Application
 -- ---------------------------------------------------------------------------
 
---- Tear down treesitter and LSP for `bufnr`. These attach *after* `BufReadPre`
---- (on `FileType`/`BufReadPost`), so the teardown is deferred to run once they
---- have had a chance to attach; otherwise there is nothing yet to detach.
----@param bufnr integer
-local function _detach_attachers(bufnr)
-  vim.schedule(function()
-    if not vim.api.nvim_buf_is_valid(bufnr) then return end
-
-    if M.config.disable_treesitter and vim.treesitter.highlighter.active[bufnr] then
-      vim.treesitter.stop(bufnr)
-      -- `stop` flips syntax back on; keep it off when we own this buffer.
-      if M.config.disable_syntax then
-        vim.bo[bufnr].syntax = "off"
-      end
-    end
-
-    if M.config.disable_lsp then
-      for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
-        vim.lsp.buf_detach_client(bufnr, client.id)
-      end
-    end
-  end)
-end
-
---- Apply the buffer-local optimizations to `bufnr`. Idempotent: re-applying on
---- an already-marked buffer is a no-op.
+--- Apply fast-mode buffer-local options. Idempotent via the buffer flag, so the
+--- `FileType` handler and `M.apply` can both call it. Treesitter/LSP/ftplugins
+--- are not touched here: the sentinel_ft filetype keeps them from ever attaching.
 ---@param bufnr integer
 local function _apply(bufnr)
-  if vim.b[bufnr][_BUF_FLAG] then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) or vim.b[bufnr][_BUF_FLAG] then return end
   vim.b[bufnr][_BUF_FLAG] = true
 
   local cfg = M.config
@@ -155,21 +133,24 @@ local function _apply(bufnr)
     bo.synmaxcol = cfg.synmaxcol
   end
 
-  if cfg.disable_syntax then
-    bo.syntax = "off"
-  end
-
   if cfg.disable_matchparen and vim.g.loaded_matchparen == 1 then
-    -- matchparen is global (it has no buffer-local form); turning it off is the
+    -- matchparen is global (no buffer-local form); turning it off is the
     -- cheapest correct way to keep it from scanning this buffer.
     vim.cmd("NoMatchParen")
   end
 
-  -- Folding is window-local, so it is applied in `BufWinEnter` (see `enable`);
-  -- treesitter/LSP attach later and are stripped via the deferred teardown.
-  if cfg.disable_treesitter or cfg.disable_lsp then
-    _detach_attachers(bufnr)
-  end
+  -- Syntax: either restore cheap regex highlighting for the real filetype
+  -- (clamped by synmaxcol) or leave it off entirely. Deferred so it runs after
+  -- the read settles, and `vim.filetype.match` re-resolves the real filetype
+  -- (the sentinel_ft guard in `_detect` lets it fall through).
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(bufnr) then return end
+    if cfg.keep_syntax then
+      vim.bo[bufnr].syntax = vim.filetype.match({ buf = bufnr }) or ""
+    else
+      vim.bo[bufnr].syntax = "off"
+    end
+  end)
 
   if cfg.notify then
     local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":t")
@@ -184,7 +165,7 @@ end
 -- Public API
 -- ---------------------------------------------------------------------------
 
---- True when `bufnr` (defaults to current) is in large-file mode.
+--- True when `bufnr` (defaults to current) is in fast mode.
 ---@param bufnr integer?
 ---@return boolean
 function M.is_large(bufnr)
@@ -192,39 +173,40 @@ function M.is_large(bufnr)
   return vim.b[bufnr][_BUF_FLAG] == true
 end
 
---- Force `bufnr` (defaults to current) into large-file mode, regardless of size.
----@param bufnr integer?
-function M.mark(bufnr)
-  M.apply(bufnr)
-end
-
---- Apply large-file mode to `bufnr` (defaults to current).
+--- Force `bufnr` (defaults to current) into fast mode regardless of size by
+--- setting the sentinel_ft filetype and applying the tweaks. Best used before the
+--- buffer is read; treesitter/LSP that already attached to an open buffer are
+--- left as-is.
 ---@param bufnr integer?
 function M.apply(bufnr)
-  _apply(bufnr or vim.api.nvim_get_current_buf())
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr].filetype ~= M.config.filetype then
+    vim.bo[bufnr].filetype = M.config.filetype
+  end
+  _apply(bufnr)
 end
 
---- Install the detection autocmds.
+--- Activate detection.
 function M.enable()
-  local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
+  _enabled = true
 
-  -- Size check before the file is read, so syntax/ft machinery never spins up.
-  vim.api.nvim_create_autocmd("BufReadPre", {
-    group = group,
-    callback = function(ev)
-      if _is_large_by_size(ev.buf) then
-        _apply(ev.buf)
-      end
-    end,
+  -- Global, registered once. `[".*"]` is evaluated for every file; the hook
+  -- returns nil for non-large files so normal detection is unaffected. A high
+  -- priority ensures it runs before extension/pattern matches that would
+  -- otherwise short-circuit detection for known types.
+  vim.filetype.add({
+    pattern = {
+      [".*"] = { _detect, { priority = 200 } },
+    },
   })
 
-  -- Long-line check needs the buffer contents, so it runs after the read.
-  vim.api.nvim_create_autocmd("BufReadPost", {
+  local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
+
+  vim.api.nvim_create_autocmd("FileType", {
     group = group,
+    pattern = M.config.filetype,
     callback = function(ev)
-      if not M.is_large(ev.buf) and _has_long_line(ev.buf) then
-        _apply(ev.buf)
-      end
+      _apply(ev.buf)
     end,
   })
 
@@ -240,8 +222,9 @@ function M.enable()
   })
 end
 
---- Remove the detection autocmds. Buffers already in large-file mode keep it.
+--- Deactivate detection. Buffers already in fast mode keep it.
 function M.disable()
+  _enabled = false
   pcall(vim.api.nvim_del_augroup_by_name, _AUGROUP)
 end
 
