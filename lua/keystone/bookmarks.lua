@@ -17,7 +17,6 @@ local uitool      = require("keystone.util.uitool")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local extmarks    = require("keystone.util.extmarks")
-local ListEditor  = require("keystone.util.ListEditor")
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
 local _mark_group
@@ -231,99 +230,11 @@ function M.pick()
     end)
 end
 
----@param file string
----@param lnum integer
----@return string
-local function _loc_key(file, lnum)
-    return file .. "\0" .. lnum
-end
-
---- Builds a manager item for a bookmark at `file`:`lnum` named `name`.
----@param name string
----@param file string
----@param lnum integer
----@return keystone.ListEditor.Item
-local function _make_item(name, file, lnum)
-    local loc_chunk = { _relpath(file) .. ":" .. lnum, "@namespace" }
-    ---@type keystone.ListEditor.Item
-    return {
-        key          = _loc_key(file, lnum),
-        label_chunks = { { name, "Normal" } },
-        virt_lines   = { { loc_chunk } },
-        data         = { name = name, filepath = file, lnum = lnum },
-    }
-end
-
---- Builds the manager list from the current bookmarks, sorted by file then line.
----@return keystone.ListEditor.Item[]
-local function _manager_items()
-    local entries = _read_entries()
-    table.sort(entries, function(a, b)
-        if a.file ~= b.file then return a.file < b.file end
-        return a.lnum < b.lnum
-    end)
-
-    local items = {}
-    for _, entry in ipairs(entries) do
-        items[#items + 1] = _make_item(entry.name, entry.file, entry.lnum)
-    end
-    return items
-end
-
---- Reconciles the manager's committed list against the stored bookmarks:
---- upserts new/renamed entries and deletes ones that are no longer present.
----@param items keystone.ListEditor.Item[]
-local function _commit(items)
-    local original = {}
-    for _, entry in ipairs(_read_entries()) do
-        original[_loc_key(entry.file, entry.lnum)] = entry
-    end
-
-    local seen = {}
-    for _, item in ipairs(items) do
-        local data = item.data
-        local key = _loc_key(data.filepath, data.lnum)
-        seen[key] = true
-        local orig = original[key]
-        if not orig or orig.name ~= data.name then
-            _upsert(data.name, data.filepath, data.lnum)
-        end
-    end
-
-    for key, entry in pairs(original) do
-        if not seen[key] then
-            _delete_loc(entry.file, entry.lnum)
-        end
-    end
-end
-
 --- Opens an interactive editor for named bookmarks: add (a), edit (r), remove
 --- (d) and undo (u), with a live file preview. Edits are buffered on a working
 --- list and only written when confirmed with <CR>; <Esc> discards them.
-function M.manager()
-    local origin_file, origin_lnum = _get_cur_loc()
-    if origin_file then origin_file = _norm(origin_file) end
-
-    ListEditor.open({
-        prompt          = "Bookmarks",
-        enable_preview  = true,
-        enable_list_sep = true,
-        empty_text      = "No bookmarks",
-        initial_key     = (origin_file and origin_lnum)
-            and _loc_key(origin_file, origin_lnum) or nil,
-        finder          = function()
-            return _manager_items()
-        end,
-        update_item     = function(item, done)
-            local data = item.data
-            inputwin.open({ prompt = "Rename", default = data.name }, function(input)
-                local name = input and vim.trim(input) or ""
-                if name == "" then return done(nil) end
-                done(_make_item(name, data.filepath, data.lnum))
-            end)
-        end,
-        on_commit       = _commit,
-    })
+function M.open_list()
+    vim.notify("Bookmarks list editor not implemented yet")
 end
 
 ---@param opts keystone.bookmarks.Config?
