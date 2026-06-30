@@ -137,7 +137,10 @@ end
 local function _place_preview_cursor(win, lnum, col)
 	vim.api.nvim_win_call(win, function()
 		if not col or col < 0 then col = 0 end
-		vim.api.nvim_win_set_cursor(win, { lnum, col })
+		local ok = pcall(vim.api.nvim_win_set_cursor, win, { lnum, col })
+		if not ok then
+			ok = pcall(vim.api.nvim_win_set_cursor, win, { lnum, 0 })
+		end
 		vim.cmd("normal! zz")
 	end)
 end
@@ -526,6 +529,7 @@ function Picker:relayout(action)
 		end
 		self:update_preview()
 	else
+		self:release_external_preview_buf()
 		if self.vwin then
 			vim.api.nvim_win_close(self.vwin, true)
 			self.vwin = nil
@@ -667,6 +671,7 @@ function Picker:update_preview()
 
 			if preview.bufnr and vim.api.nvim_buf_is_valid(preview.bufnr) then
 				if self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
+					self:release_external_preview_buf()
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
 					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
@@ -676,7 +681,7 @@ function Picker:update_preview()
 
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
-				self._preview_external_buf = nil
+				self:release_external_preview_buf()
 			end
 
 			local content = preview.content
@@ -738,14 +743,21 @@ function Picker:stop_spinner()
 	end
 end
 
+function Picker:release_external_preview_buf()
+	if self._preview_external_buf and vim.api.nvim_buf_is_valid(self._preview_external_buf) then
+		pcall(vim.api.nvim_buf_clear_namespace, self._preview_external_buf, _NS_PREVIEW, 0, -1)
+	end
+	self._preview_external_buf = nil
+end
+
 ---@param immediate  boolean?
 function Picker:request_clear_preview(immediate)
 	local clear = function()
 		if self.vbuf and not self.closed then
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
-				self._preview_external_buf = nil
 			end
+			self:release_external_preview_buf()
 			vim.bo[self.vbuf].modifiable = true
 			vim.api.nvim_buf_set_lines(self.vbuf, 0, -1, false, {})
 			vim.bo[self.vbuf].modifiable = false
@@ -1059,6 +1071,8 @@ function Picker:close(selected_data)
 		opts         = self.opts,
 		callback     = self.callback,
 	}
+
+	self:release_external_preview_buf()
 
 	for _, w in pairs({ self.pwin, self.lwin, self.vwin }) do
 		if vim.api.nvim_win_is_valid(w) then
