@@ -32,7 +32,6 @@ local _MODULES = {
   "complete",
   "explore",
   "filetree",
-  "gittool",
   "lspconfig",
   "pick",
   "statusline",
