@@ -17,6 +17,11 @@ local uitool      = require("keystone.util.uitool")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
 local extmarks    = require("keystone.util.extmarks")
+local Signal      = require("keystone.util.Signal")
+
+-- Emitted whenever the bookmark set changes, so open views can refresh.
+---@type keystone.util.Signal<fun()>
+local _changed    = Signal.new()
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
 local _mark_group
@@ -102,6 +107,7 @@ local function _upsert(name, file, lnum)
     store.add({ name = name, file = file, lnum = lnum })
     _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { name = name })
     _persist()
+    _changed:emit()
 end
 
 ---@param file string
@@ -113,6 +119,7 @@ local function _delete_loc(file, lnum)
     store.delete(file, lnum)
     _mark_group.remove_extmark(mark.id)
     _persist()
+    _changed:emit()
     return true
 end
 
@@ -158,6 +165,7 @@ function M.clear_file()
         for _, m in ipairs(marks) do store.delete(m.file, m.lnum) end
         _mark_group.remove_file_extmarks(file)
         _persist()
+        _changed:emit()
     end)
 end
 
@@ -170,6 +178,7 @@ function M.clear_all()
         for _, m in ipairs(_mark_group.get_extmarks(false)) do store.delete(m.file, m.lnum) end
         _mark_group.remove_extmarks()
         _persist()
+        _changed:emit()
     end)
 end
 
@@ -230,11 +239,22 @@ function M.pick()
     end)
 end
 
---- Opens an interactive editor for named bookmarks: add (a), edit (r), remove
---- (d) and undo (u), with a live file preview. Edits are buffered on a working
---- list and only written when confirmed with <CR>; <Esc> discards them.
+--- Opens an interactive quickfix-style split editor for named bookmarks. Each
+--- edit is applied immediately: rename (r), remove (dd) and undo (u); <CR> opens
+--- the bookmark under the cursor. The list refreshes live when bookmarks change.
 function M.open_list()
-    vim.notify("Bookmarks list editor not implemented yet")
+    require("keystone.bookmarks.list_editor").open({
+        get_entries = _read_entries,
+        delete = function(file, lnum)
+            _delete_loc(file, lnum)
+        end,
+        upsert = function(name, file, lnum)
+            _upsert(name, file, lnum)
+        end,
+        subscribe = function(fn)
+            return _changed:subscribe(fn)
+        end,
+    })
 end
 
 ---@param opts keystone.bookmarks.Config?
