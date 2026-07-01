@@ -30,7 +30,7 @@ local Signal = require("keystone.util.Signal")
 ---@field indent_string string?
 ---@field collapsible boolean?  -- whether nodes can be expanded/collapsed (default true)
 
-local _ns_id = vim.api.nvim_create_namespace('keystoneTreeBuffer')
+local _ns_id = vim.api.nvim_create_namespace('neotoolkitTreeBuffer')
 
 ---@class keystone.util.TreeBuffer
 ---@field private _filetype string?
@@ -140,7 +140,7 @@ function TreeBuffer:create_buffer(on_deleted)
 
     self._bufnr = uitool.create_scratch_buffer(false, {
         buftype      = "nofile",
-        filetype     = self._filetype or "keystone-tree",
+        filetype     = self._filetype or "neotoolkit-tree",
         modifiable   = false,
         swapfile     = false,
         undolevels   = -1,

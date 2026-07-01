@@ -264,7 +264,7 @@ function M.setup(opts)
 
     if not _config.enabled then return end
 
-    _mark_group  = extmarks.define_group("bookmarks", { priority = 20 })
+    _mark_group  = extmarks.define_group("keystone_bookmarks", { priority = 20 })
     _mark_opts   = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
 
     local stored = store.load(_config)

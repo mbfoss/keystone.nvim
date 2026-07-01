@@ -30,13 +30,13 @@ local function _split_args(str)
     return args
 end
 
----@alias keystone.usercmd.subcommand_fn fun(cmd:string,rest:string[],arg_lead:string):string[]
+---@alias keystone.util.usercmd.subcommand_fn fun(cmd:string,rest:string[],arg_lead:string):string[]
 
----@alias keystone.usercmd.run_fn
+---@alias keystone.util.usercmd.run_fn
 ---| fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
 
 
----@param subcommand_fn keystone.usercmd.subcommand_fn
+---@param subcommand_fn keystone.util.usercmd.subcommand_fn
 local function _complete(subcommand_fn, arg_lead, cmd_line)
     local function filter(strs)
         local out = {}
@@ -65,22 +65,22 @@ local function _complete(subcommand_fn, arg_lead, cmd_line)
 end
 
 ---@param cmd string
----@param run_fn keystone.usercmd.run_fn
+---@param run_fn keystone.util.usercmd.run_fn
 ---@param opts vim.api.keyset.create_user_command.command_args
 local function _dispatch(cmd, run_fn, opts)
     local args = _split_args(opts.args)
     local ok, err = pcall(run_fn, cmd, args, opts)
     if not ok then
         vim.notify(
-            "[keystone.nvim] " .. cmd .. " command error\n" .. tostring(err),
+            "[keystone.util.nvim] " .. cmd .. " command error\n" .. tostring(err),
             vim.log.levels.ERROR
         )
     end
 end
 
 ---@param cmd string
----@param run_fn keystone.usercmd.run_fn
----@param opts {desc:string?,subcommand_fn:keystone.usercmd.subcommand_fn?}?
+---@param run_fn keystone.util.usercmd.run_fn
+---@param opts {desc:string?,subcommand_fn:keystone.util.usercmd.subcommand_fn?}?
 function M.register_user_cmd(cmd, run_fn, opts)
     opts = opts or {}
     vim.api.nvim_create_user_command(cmd, function(cmd_opts)

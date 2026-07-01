@@ -1,6 +1,6 @@
 local M = {}
 
----@class keystone.bookmarks.extmarks.MarkInfo
+---@class keystone.util.extmarks.MarkInfo
 ---@field id number
 ---@field file string
 ---@field lnum number        -- 1-based
@@ -9,7 +9,7 @@ local M = {}
 ---@field user_data any
 ---@field source "live"|"stored"
 
----@class keystone.bookmarks.extmarks.MarkData
+---@class keystone.util.extmarks.MarkData
 ---@field id number
 ---@field group string
 ---@field ns number
@@ -18,24 +18,24 @@ local M = {}
 ---@field opts vim.api.keyset.set_extmark
 ---@field user_data any
 
----@alias keystone.bookmarks.extmarks.ById table<number, keystone.bookmarks.extmarks.MarkData>
----@alias keystone.bookmarks.extmarks.ByFile table<string, keystone.bookmarks.extmarks.ById>
+---@alias keystone.util.extmarks.ById table<number, keystone.util.extmarks.MarkData>
+---@alias keystone.util.extmarks.ByFile table<string, keystone.util.extmarks.ById>
 
----@class keystone.bookmarks.extmarks.GroupData
+---@class keystone.util.extmarks.GroupData
 ---@field ns number
----@field byfile keystone.bookmarks.extmarks.ByFile
+---@field byfile keystone.util.extmarks.ByFile
 ---@field id_to_file table<number, string>
 
----@class keystone.bookmarks.extmarks.GroupInfo
+---@class keystone.util.extmarks.GroupInfo
 ---@field priority number
----@field data keystone.bookmarks.extmarks.GroupData
+---@field data keystone.util.extmarks.GroupData
 
----@type table<string, keystone.bookmarks.extmarks.GroupInfo>
+---@type table<string, keystone.util.extmarks.GroupInfo>
 local _defined_groups = {}
 
 local _init_done = false
-local _augroup_name = "keystone_extmarks"
-local _group_prefix = "keystone_extmarks_"
+local _augroup_name = "neotoolkit_extmarks"
+local _group_prefix = "neotoolkit_extmarks_"
 
 local function _normalize_file(file)
     return vim.fn.fnamemodify(file, ":p")
@@ -49,7 +49,7 @@ local function _get_loaded_bufnr(file)
 end
 
 ---@param bufnr integer
----@param mark keystone.bookmarks.extmarks.MarkData
+---@param mark keystone.util.extmarks.MarkData
 local function _set_extmark(bufnr, mark)
     if not vim.api.nvim_buf_is_loaded(bufnr) then return end
 
@@ -186,7 +186,7 @@ local function _set_file_extmark(id, file, lnum, col, group, opts, user_data)
     group_data.id_to_file[id] = file
     group_data.byfile[file] = group_data.byfile[file] or {}
 
-    ---@type keystone.bookmarks.extmarks.MarkData
+    ---@type keystone.util.extmarks.MarkData
     local mark = {
         id = id,
         group = group,
@@ -283,7 +283,7 @@ end
 
 ---@param id number
 ---@param group string
----@return keystone.bookmarks.extmarks.MarkInfo?
+---@return keystone.util.extmarks.MarkInfo?
 local function _get_extmark_by_id(id, group)
     _ensure_init()
 
@@ -315,7 +315,7 @@ end
 ---@param line number
 ---@param group string
 ---@param live boolean
----@return keystone.bookmarks.extmarks.MarkInfo?
+---@return keystone.util.extmarks.MarkInfo?
 local function _get_extmark_by_location(file, line, group, live)
     _ensure_init()
 
@@ -363,7 +363,7 @@ end
 
 ---@param group string
 ---@param live boolean
----@return keystone.bookmarks.extmarks.MarkInfo[]
+---@return keystone.util.extmarks.MarkInfo[]
 local function _get_extmarks(group, live)
     _ensure_init()
 
@@ -374,7 +374,7 @@ local function _get_extmarks(group, live)
 
     local group_data = group_info.data
 
-    ---@type keystone.bookmarks.extmarks.MarkInfo[]
+    ---@type keystone.util.extmarks.MarkInfo[]
     local result = {}
     for file, file_table in pairs(group_data.byfile) do
         local bufnr = live and _get_loaded_bufnr(file) or -1
@@ -422,7 +422,7 @@ end
 ---@param file string
 ---@param group string?
 ---@param live boolean
----@return keystone.bookmarks.extmarks.MarkInfo[]
+---@return keystone.util.extmarks.MarkInfo[]
 local function _get_file_extmarks(file, group, live)
     _ensure_init()
     assert(type(live) == "boolean")
@@ -505,25 +505,25 @@ local function _refresh_group(group)
     end
 end
 
----@class keystone.bookmarks.extmarks.GroupFunctions
+---@class keystone.util.extmarks.GroupFunctions
 ---@field set_file_extmark fun(id:number, file:string, lnum:number, col:number, opts:vim.api.keyset.set_extmark, user_data:any)
 ---@field remove_extmarks fun()
 ---@field remove_extmark fun(id:number)
 ---@field remove_file_extmarks fun(file:string)
----@field get_extmark_by_id fun(id:number): keystone.bookmarks.extmarks.MarkInfo?
----@field get_extmark_by_location fun(file:string, line:number, live:boolean): keystone.bookmarks.extmarks.MarkInfo?
----@field get_extmarks fun(live:boolean): keystone.bookmarks.extmarks.MarkInfo[]
----@field get_file_extmarks fun(file:string, live:boolean): keystone.bookmarks.extmarks.MarkInfo[]
+---@field get_extmark_by_id fun(id:number): keystone.util.extmarks.MarkInfo?
+---@field get_extmark_by_location fun(file:string, line:number, live:boolean): keystone.util.extmarks.MarkInfo?
+---@field get_extmarks fun(live:boolean): keystone.util.extmarks.MarkInfo[]
+---@field get_file_extmarks fun(file:string, live:boolean): keystone.util.extmarks.MarkInfo[]
 ---@field refresh fun()
 
 ---@param group string
 ---@param group_opts { priority: number }
----@return keystone.bookmarks.extmarks.GroupFunctions
+---@return keystone.util.extmarks.GroupFunctions
 function M.define_group(group, group_opts)
     assert(group, "group required")
     assert(type(group_opts.priority) == "number", "missing opts")
     assert(not _defined_groups[group], "group already defined")
-    ---@type keystone.bookmarks.extmarks.GroupInfo
+    ---@type keystone.util.extmarks.GroupInfo
     local group_info = {
         priority = group_opts.priority,
         data = {
@@ -541,7 +541,7 @@ function M.define_group(group, group_opts)
         end
     end
 
-    ---@type keystone.bookmarks.extmarks.GroupFunctions
+    ---@type keystone.util.extmarks.GroupFunctions
     return {
         set_file_extmark = function(id, file, lnum, col, opts, user_data)
             _set_file_extmark(id, file, lnum, col, group, opts, user_data)

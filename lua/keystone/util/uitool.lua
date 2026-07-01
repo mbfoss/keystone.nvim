@@ -68,7 +68,7 @@ end
 --- @return integer winid, integer augroup
 function M.create_window(buffer, enter, config, on_close)
     local win = vim.api.nvim_open_win(buffer, enter, config)
-    local augroup = vim.api.nvim_create_augroup("keystone_window_#" .. win, { clear = true })
+    local augroup = vim.api.nvim_create_augroup("neotoolkit_window_#" .. win, { clear = true })
     vim.api.nvim_create_autocmd("WinClosed", {
         group = augroup,
         callback = function(args)

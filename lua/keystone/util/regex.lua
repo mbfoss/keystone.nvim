@@ -65,10 +65,10 @@ local _STR_FLAGS = {
 -- cdef is process-global; a second require (e.g. across test runs) would
 -- otherwise raise "attempt to redefine", so swallow that case.
 pcall(ffi.cdef, [[
-		typedef struct keystone_pcre2_code         pcre2_code_8;
-		typedef struct keystone_pcre2_match_data   pcre2_match_data_8;
-		typedef struct keystone_pcre2_compile_ctx  pcre2_compile_context_8;
-		typedef struct keystone_pcre2_match_ctx    pcre2_match_context_8;
+		typedef struct neotoolkit_pcre2_code         pcre2_code_8;
+		typedef struct neotoolkit_pcre2_match_data   pcre2_match_data_8;
+		typedef struct neotoolkit_pcre2_compile_ctx  pcre2_compile_context_8;
+		typedef struct neotoolkit_pcre2_match_ctx    pcre2_match_context_8;
 
 		pcre2_code_8 *pcre2_compile_8(const char *pattern, size_t length,
 			uint32_t options, int *errorcode, size_t *erroroffset,

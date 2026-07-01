@@ -4,12 +4,12 @@ local uitool = require "keystone.util.uitool"
 ---@field _complete_buf? integer
 local M = {}
 
----@class keystone.floatwin.FloatwinOpts
+---@class keystone.util.floatwin.FloatwinOpts
 ---@field title? string
 ---@field is_markdown boolean?
 
 ---@param text string
----@param opts keystone.floatwin.FloatwinOpts?
+---@param opts keystone.util.floatwin.FloatwinOpts?
 function M.open(text, opts)
     opts = opts or {}
     local lines = vim.split(text, "\n", { trimempty = false })
