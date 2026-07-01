@@ -81,7 +81,7 @@ local function _render()
 
     local lines = {}
     if #_items == 0 then
-        lines[1] = "(no bookmarks — q to close)"
+        lines[1] = "(no bookmarks — :q to close)"
     else
         for _, item in ipairs(_items) do
             local rel = vim.fn.fnamemodify(item.file, ":~:.")
@@ -217,17 +217,6 @@ local function _undo_last()
     _api.upsert(op.name, op.file, op.lnum) -- re-add or restore name; emits refresh
 end
 
-local function _close()
-    if _closed then return end
-    _closed = true
-    local win = _win
-    if win and vim.api.nvim_win_is_valid(win) then
-        vim.api.nvim_win_close(win, true)
-    else
-        _teardown()
-    end
-end
-
 ---@class keystone.bookmarks.list_editor.Keymap
 ---@field label string    -- key(s) shown in the help menu
 ---@field keys string[]   -- keys to bind
@@ -246,7 +235,6 @@ local function _keymaps()
         { label = "r",         keys = { "r" },          desc = "Rename bookmark",  fn = _rename },
         { label = "u",         keys = { "u" },          desc = "Undo last change", fn = _undo_last },
         { label = "g?",        keys = { "g?" },         desc = "Show this help",   fn = function() _show_help() end },
-        { label = "q / <Esc>", keys = { "q", "<Esc>" }, desc = "Close",            fn = _close },
     }
 end
 
