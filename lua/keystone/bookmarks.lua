@@ -12,15 +12,15 @@ local M           = {}
 ---@field lnum integer  -- 1-based line number
 
 local store       = require("keystone.bookmarks.store")
-local inputwin    = require("keystone.util.inputwin")
-local uitool      = require("keystone.util.uitool")
+local inputwin    = require("keystone.neotoolkit.inputwin")
+local ui          = require("keystone.neotoolkit.ui")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local extmarks    = require("keystone.util.extmarks")
-local Signal      = require("keystone.util.Signal")
+local extmarks    = require("keystone.neotoolkit.extmarks")
+local Signal      = require("keystone.neotoolkit.Signal")
 
 -- Emitted whenever the bookmark set changes, so open views can refresh.
----@type keystone.util.Signal<fun()>
+---@type keystone.neotoolkit.Signal<fun()>
 local _changed    = Signal.new()
 
 ---@type keystone.bookmarks.extmarks.GroupFunctions
@@ -158,7 +158,7 @@ function M.clear_file()
     if not vim.api.nvim_buf_is_valid(buf) then return end
     local file = _norm(vim.api.nvim_buf_get_name(buf))
     if not file or file == "" then return end
-    uitool.confirm_action("Clear bookmarks in current file", false, function(accepted)
+    ui.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
         local marks = _mark_group.get_file_extmarks(file, false)
         local before = #marks
@@ -173,7 +173,7 @@ function M.clear_all()
     if #_mark_group.get_extmarks(false) == 0 then
         return
     end
-    uitool.confirm_action("Clear all bookmarks", false, function(accepted)
+    ui.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
         for _, m in ipairs(_mark_group.get_extmarks(false)) do store.delete(m.file, m.lnum) end
         _mark_group.remove_extmarks()
@@ -234,7 +234,7 @@ function M.pick()
         end,
     }, function(data)
         if data and data.filepath then
-            uitool.smart_open_file(data.filepath, data.lnum, data.col)
+            ui.smart_open_file(data.filepath, data.lnum, data.col)
         end
     end)
 end
@@ -277,7 +277,7 @@ function M.setup(opts)
         callback = _persist,
     })
 
-    require("keystone.util.usercmd").register_user_cmd("Bookmark",
+    require("keystone.neotoolkit.usercmd").register_user_cmd("Bookmark",
         function(cmd, args, cmd_opts)
             require("keystone.bookmarks.command").run_command(cmd, args, cmd_opts)
         end,

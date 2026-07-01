@@ -1,7 +1,7 @@
-local Spinner            = require("keystone.util.Spinner")
-local common             = require("keystone.util.timer")
-local uitool             = require("keystone.util.uitool")
-local floatwin           = require("keystone.util.floatwin")
+local Spinner            = require("keystone.neotoolkit.Spinner")
+local common             = require("keystone.neotoolkit.timer")
+local ui                 = require("keystone.neotoolkit.ui")
+local floatwin           = require("keystone.neotoolkit.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 local queryflags         = require("keystone.pick.base.queryflags")
 local pickertools        = require("keystone.pick.base.pickertools")
@@ -123,7 +123,7 @@ end
 ---@param on_delete fun()
 ---@param bufhidden 'hide'|'wipe'?
 local function _create_buffer(modifiable, on_delete, bufhidden)
-	return uitool.create_scratch_buffer(false, {
+	return ui.create_scratch_buffer(false, {
 			modifiable = modifiable,
 			spelloptions = "noplainbuffer",
 			bufhidden = bufhidden,
@@ -254,8 +254,8 @@ local function _item_label(item)
 	return table.concat(parts):gsub("\n", " ")
 end
 
----@class keystone.util.Picker
----@field new fun(self: keystone.util.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.util.Picker
+---@class keystone.neotoolkit.Picker
+---@field new fun(self: keystone.neotoolkit.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.neotoolkit.Picker
 ---@field opts keystone.Picker.opts
 ---@field callback keystone.Picker.Callback
 ---@field preview_enabled boolean
@@ -266,7 +266,7 @@ end
 ---@field pwin integer?
 ---@field lwin integer?
 ---@field vwin integer?
----@field spinner keystone.util.Spinner?
+---@field spinner keystone.neotoolkit.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.picker.ListItem[]
 ---@field async_fetch_context number
@@ -409,7 +409,7 @@ function Picker:relayout(action)
 			end)
 		end
 		local pwin_augroup
-		self.pwin, pwin_augroup = uitool.create_window(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
+		self.pwin, pwin_augroup = ui.create_window(self.pbuf, true, vim.tbl_extend("force", base_cfg, {
 				row = self.layout.prompt_row,
 				col = self.layout.prompt_col,
 				width = self.layout.prompt_width,
@@ -468,7 +468,7 @@ function Picker:relayout(action)
 				end
 			end)
 		end
-		self.lwin = uitool.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+		self.lwin = ui.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
 				row = self.layout.list_row,
 				col = self.layout.list_col,
 				width = self.layout.list_width,
@@ -501,7 +501,7 @@ function Picker:relayout(action)
 				vim.keymap.set("n", "<CR>", function() self:confirm() end, vbuf_key_opts)
 				vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
 			end
-			self.vwin = uitool.create_window(self.vbuf, false, {
+			self.vwin = ui.create_window(self.vbuf, false, {
 					relative = "editor",
 					style = "minimal",
 					border = "rounded",

@@ -1,6 +1,6 @@
 local M = {}
 
-local fsutil = require("keystone.util.fsutil")
+local fsutil = require("keystone.neotoolkit.fsutil")
 
 ---@param text string The final string to be shown
 ---@param positions integer[] Matched indices

@@ -1,7 +1,7 @@
 local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
-local uitool      = require("keystone.util.uitool")
+local ui          = require("keystone.neotoolkit.ui")
 
 local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 
@@ -171,7 +171,7 @@ function M.spec()
         end,
         on_confirm     = function(data)
             if data and data.source then
-                uitool.smart_open_file(data.source, data.src_lnum, 0)
+                ui.smart_open_file(data.source, data.src_lnum, 0)
             end
         end,
     }

@@ -1,15 +1,15 @@
-local uitool = require "keystone.util.uitool"
----@class keystone.util.floatwin
+local uiutil = require "keystone.neotoolkit.ui"
+---@class keystone.neotoolkit.floatwin
 ---@field _complete_cache? string[]
 ---@field _complete_buf? integer
 local M = {}
 
----@class keystone.util.floatwin.FloatwinOpts
+---@class keystone.neotoolkit.floatwin.FloatwinOpts
 ---@field title? string
 ---@field is_markdown boolean?
 
 ---@param text string
----@param opts keystone.util.floatwin.FloatwinOpts?
+---@param opts keystone.neotoolkit.floatwin.FloatwinOpts?
 function M.open(text, opts)
     opts = opts or {}
     local lines = vim.split(text, "\n", { trimempty = false })
@@ -48,7 +48,7 @@ function M.open(text, opts)
     vim.bo[buf].bufhidden = "wipe"
 
     local win, win_augroup
-    win, win_augroup = uitool.create_window(buf, true, win_opts, function()
+    win, win_augroup = uiutil.create_window(buf, true, win_opts, function()
         win, win_augroup = nil, nil
     end)
     local function close()

@@ -1,9 +1,9 @@
 local M           = {}
 
-local uitool      = require("keystone.util.uitool")
-local strutil     = require("keystone.util.strutil")
-local fsutil      = require("keystone.util.fsutil")
-local regex       = require("keystone.util.regex")
+local ui          = require("keystone.neotoolkit.ui")
+local strutil     = require("keystone.neotoolkit.strutil")
+local fsutil      = require("keystone.neotoolkit.fsutil")
+local regex       = require("keystone.neotoolkit.regex")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 
@@ -65,7 +65,7 @@ end
 
 ---@param filename string
 ---@param query string fuzzy query (unused when `re` is given)
----@param re keystone.util.Regex? compiled PCRE2 pattern; when set, runs regex mode
+---@param re keystone.neotoolkit.Regex? compiled PCRE2 pattern; when set, runs regex mode
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
 local function do_match(filename, query, re, case_sensitive)
@@ -217,7 +217,7 @@ function M.spec(opts)
             return async_lua_search(query, search_opts, fetch_opts, callback)
         end,
         on_confirm     = function(data)
-            if data and data.filepath then uitool.smart_open_file(data.filepath) end
+            if data and data.filepath then ui.smart_open_file(data.filepath) end
         end,
     }
 end

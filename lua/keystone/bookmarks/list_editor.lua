@@ -1,8 +1,8 @@
 local M         = {}
 
-local inputwin  = require("keystone.util.inputwin")
-local uitool    = require("keystone.util.uitool")
-local floatwin  = require("keystone.util.floatwin")
+local inputwin  = require("keystone.neotoolkit.inputwin")
+local ui        = require("keystone.neotoolkit.ui")
+local floatwin  = require("keystone.neotoolkit.floatwin")
 
 ---@class keystone.bookmarks.list_editor.Api
 ---@field get_entries fun():keystone.bookmarks.Entry[]
@@ -181,7 +181,7 @@ end
 local function _open_file()
     local item = _cur_item()
     if not item then return end
-    uitool.smart_open_file(item.file, item.lnum, 0)
+    ui.smart_open_file(item.file, item.lnum, 0)
 end
 
 local function _remove()
@@ -275,7 +275,7 @@ function M.open(api)
     _closed            = false
     _refresh_scheduled = false
 
-    _bufnr = uitool.create_scratch_buffer(false, { modifiable = false })
+    _bufnr = ui.create_scratch_buffer(false, { modifiable = false })
     vim.api.nvim_buf_set_name(_bufnr, "keystone://bookmarks")
 
     vim.cmd("botright split")

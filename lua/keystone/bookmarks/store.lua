@@ -1,6 +1,6 @@
 local M = {}
 
-local fsutil = require("keystone.util.fsutil")
+local fsutil = require("keystone.neotoolkit.fsutil")
 
 ---@param config keystone.bookmarks.Config
 ---@return string

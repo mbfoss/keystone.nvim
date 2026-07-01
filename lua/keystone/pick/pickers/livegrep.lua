@@ -1,10 +1,10 @@
 local M           = {}
 
-local uitool      = require("keystone.util.uitool")
-local strutil     = require("keystone.util.strutil")
-local fsutil      = require("keystone.util.fsutil")
-local spawn       = require("keystone.util.spawn")
-local regex       = require("keystone.util.regex")
+local ui          = require("keystone.neotoolkit.ui")
+local strutil     = require("keystone.neotoolkit.strutil")
+local fsutil      = require("keystone.neotoolkit.fsutil")
+local spawn       = require("keystone.neotoolkit.spawn")
+local regex       = require("keystone.neotoolkit.regex")
 local pickertools = require("keystone.pick.base.pickertools")
 
 ---@class keystone.rgutil.Submatch
@@ -340,7 +340,7 @@ end
 --- `regex`, and case sensitivity from `case` (smart-case = insensitive unless the
 --- query has an uppercase letter).
 ---@param parsed keystone.queryflags.ParseResult
----@return keystone.util.Regex? re, string? err
+---@return keystone.neotoolkit.Regex? re, string? err
 local function build_buf_regex(parsed)
     local flags   = parsed.flags
     local pattern = flags.regex and parsed.query or escape_pcre(parsed.query)
@@ -361,7 +361,7 @@ end
 ---@param name  string  the captured reference name (numeric or group name)
 ---@param whole string  the whole-match text
 ---@param caps  (string|nil)[]  capture-group substrings (1-based)
----@param re    keystone.util.Regex
+---@param re    keystone.neotoolkit.Regex
 ---@return string
 local function resolve_group(name, whole, caps, re)
     local num = tonumber(name) or re:group_index(name)
@@ -375,7 +375,7 @@ end
 ---@param template string
 ---@param whole    string
 ---@param caps     (string|nil)[]
----@param re       keystone.util.Regex
+---@param re       keystone.neotoolkit.Regex
 ---@return string
 local function expand_repl(template, whole, caps, re)
     local out, i, n = {}, 1, #template
@@ -413,7 +413,7 @@ local function expand_repl(template, whole, caps, re)
 end
 
 --- Search one open buffer's in-memory lines, appending picker items to `out`.
----@param re         keystone.util.Regex
+---@param re         keystone.neotoolkit.Regex
 ---@param repl       string?  replacement template, or nil when not replacing
 ---@param b          keystone.livegrep.OpenBuf
 ---@param cwd        string
@@ -477,7 +477,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
 
     local cancelled  = false
     local dir_items  = {} ---@type keystone.Picker.Item[]
-    local dir_handle ---@type keystone.util.SpawnHandle?
+    local dir_handle ---@type keystone.neotoolkit.SpawnHandle?
 
     ----------------------------------------------------------------------------
     -- In-buffer searches: in-process via PCRE2 (one compiled matcher reused for
@@ -604,7 +604,7 @@ function M.spec(opts)
             if _replace_value then
                 local total, file_count = count_matches(_last_items)
                 if total == 0 then return end
-                uitool.confirm_action(
+                ui.confirm_action(
                     string.format("Replace %d occurrence(s) across %d file(s)?", total, file_count),
                     false,
                     function(confirmed)
@@ -621,7 +621,7 @@ function M.spec(opts)
                 )
             else
                 if data.filepath and data.lnum and data.col then
-                    uitool.smart_open_file(data.filepath, data.lnum, data.col - 1)
+                    ui.smart_open_file(data.filepath, data.lnum, data.col - 1)
                 end
             end
         end,

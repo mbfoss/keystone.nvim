@@ -1,8 +1,8 @@
 local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
-local uitool      = require("keystone.util.uitool")
-local fsutil      = require("keystone.util.fsutil")
+local ui          = require("keystone.neotoolkit.ui")
+local fsutil      = require("keystone.neotoolkit.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
@@ -143,7 +143,7 @@ function M.spec(opts)
             }
         end,
         on_confirm = function(data)
-            if data then uitool.smart_open_buffer(data.bufnr, data.lnum, data.col) end
+            if data then ui.smart_open_buffer(data.bufnr, data.lnum, data.col) end
         end,
     }
 end

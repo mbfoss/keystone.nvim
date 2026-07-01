@@ -1,8 +1,8 @@
 local M                  = {}
 
-local uitool             = require("keystone.util.uitool")
+local ui                 = require("keystone.neotoolkit.ui")
 local pickertools        = require("keystone.pick.base.pickertools")
-local fsutil             = require("keystone.util.fsutil")
+local fsutil             = require("keystone.neotoolkit.fsutil")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)
@@ -134,7 +134,7 @@ function M.references_spec()
             callback(picker_items)
         end,
         on_confirm      = function(data)
-            if data then uitool.smart_open_file(data.filepath, data.lnum, data.col) end
+            if data then ui.smart_open_file(data.filepath, data.lnum, data.col) end
         end,
     }
 end

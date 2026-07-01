@@ -1,7 +1,7 @@
 local M = {}
 
-local uitool      = require("keystone.util.uitool")
-local pickertools  = require("keystone.pick.base.pickertools")
+local ui          = require("keystone.neotoolkit.ui")
+local pickertools = require("keystone.pick.base.pickertools")
 
 ---@return keystone.PickerSpec
 function M.spec()
@@ -61,7 +61,7 @@ function M.spec()
             callback(items)
         end,
         on_confirm = function(data)
-            if data then uitool.smart_open_file(data.filepath) end
+            if data then ui.smart_open_file(data.filepath) end
         end,
     }
 end

@@ -1,57 +1,57 @@
-local Tree = require("keystone.util.Tree")
-local uitool = require("keystone.util.uitool")
-local Signal = require("keystone.util.Signal")
+local Tree = require("keystone.neotoolkit.Tree")
+local uiutil = require("keystone.neotoolkit.ui")
+local Signal = require("keystone.neotoolkit.Signal")
 
----@class keystone.util.TreeBuffer.Item
+---@class keystone.neotoolkit.TreeBuffer.Item
 ---@field id any
 ---@field data any
 ---@field expandable boolean
 ---@field expanded boolean
 
----@class keystone.util.TreeBuffer.ItemDef
+---@class keystone.neotoolkit.TreeBuffer.ItemDef
 ---@field id any
 ---@field data any
 ---@field expandable boolean?
 ---@field expanded boolean?
 
----@class keystone.util.TreeBuffer.ItemData
+---@class keystone.neotoolkit.TreeBuffer.ItemData
 ---@field userdata any
 ---@field expandable boolean?
 ---@field expanded boolean?
 
----@alias keystone.util.TreeBuffer.FormatterFn fun(id:any, data:any, expanded:boolean):string[][], string[][]
+---@alias keystone.neotoolkit.TreeBuffer.FormatterFn fun(id:any, data:any, expanded:boolean):string[][], string[][]
 
----@class keystone.util.TreeBuffer.Opts
+---@class keystone.neotoolkit.TreeBuffer.Opts
 ---@field filetype string?
----@field formatter keystone.util.TreeBuffer.FormatterFn
+---@field formatter keystone.neotoolkit.TreeBuffer.FormatterFn
 ---@field expand_char string?
 ---@field collapse_char string?
 ---@field icon_hl string?
 ---@field indent_string string?
 ---@field collapsible boolean?  -- whether nodes can be expanded/collapsed (default true)
 
----@class keystone.util.TreeBuffer
+---@class keystone.neotoolkit.TreeBuffer
 ---@field private _filetype string?
----@field private _formatter keystone.util.TreeBuffer.FormatterFn
+---@field private _formatter keystone.neotoolkit.TreeBuffer.FormatterFn
 ---@field private _expand_char string
 ---@field private _collapse_char string
 ---@field private _icon_hl string
 ---@field private _indent_string string
 ---@field private _expand_padding string
 ---@field private _indent_cache table<integer, string>
----@field private _on_selection keystone.util.Signal<fun(id:any,data:any)>
----@field private _on_toggle keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
+---@field private _on_selection keystone.neotoolkit.Signal<fun(id:any,data:any)>
+---@field private _on_toggle keystone.neotoolkit.Signal<fun(id:any,data:any,expanded:boolean)>
 ---@field private _bufnr integer
 ---@field private _ns_id integer
----@field private _tree keystone.util.Tree
+---@field private _tree keystone.neotoolkit.Tree
 ---@field private _flat_ids any[]
 ---@field private _id_to_idx table<any, integer>
 ---@field private _collapsible boolean
 local TreeBuffer = {}
 TreeBuffer.__index = TreeBuffer
 
----@param opts keystone.util.TreeBuffer.Opts
----@return keystone.util.TreeBuffer
+---@param opts keystone.neotoolkit.TreeBuffer.Opts
+---@return keystone.neotoolkit.TreeBuffer
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
     local expand_char = opts.expand_char or "▶"
@@ -68,8 +68,8 @@ function TreeBuffer.new(opts)
         _indent_string  = indent_str,
         _expand_padding = string.rep(" ", vim.fn.strdisplaywidth(expand_char)) .. " ",
         _indent_cache   = indent_cache,
-        _on_selection   = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
-        _on_toggle      = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
+        _on_selection   = Signal.new(), ---@type keystone.neotoolkit.Signal<fun(id:any,data:any)>
+        _on_toggle      = Signal.new(), ---@type keystone.neotoolkit.Signal<fun(id:any,data:any,expanded:boolean)>
         _bufnr          = -1,
         _ns_id          = -1,
         _tree           = Tree.new(),
@@ -79,22 +79,22 @@ function TreeBuffer.new(opts)
     }, TreeBuffer)
 end
 
----@param item keystone.util.TreeBuffer.ItemDef
----@return keystone.util.TreeBuffer.ItemData
+---@param item keystone.neotoolkit.TreeBuffer.ItemDef
+---@return keystone.neotoolkit.TreeBuffer.ItemData
 local function _to_itemdata(item)
     return { userdata = item.data, expandable = item.expandable, expanded = item.expanded }
 end
 
 ---@param id any
----@param data keystone.util.TreeBuffer.ItemData
----@return keystone.util.TreeBuffer.Item
+---@param data keystone.neotoolkit.TreeBuffer.ItemData
+---@return keystone.neotoolkit.TreeBuffer.Item
 local function _to_item(id, data)
     return { id = id, data = data.userdata, expandable = data.expandable, expanded = data.expanded }
 end
 
----@param tree keystone.util.Tree
+---@param tree keystone.neotoolkit.Tree
 ---@param starting_id any?  -- nil = whole tree
----@return keystone.util.Tree.FlatNode[]
+---@return keystone.neotoolkit.Tree.FlatNode[]
 local function _flatten(tree, starting_id)
     local out = {}
     local function visit(id, data, depth)
@@ -109,7 +109,7 @@ local function _flatten(tree, starting_id)
     return out
 end
 
----@param tree keystone.util.Tree
+---@param tree keystone.neotoolkit.Tree
 ---@param starting_id any?  -- nil = whole tree
 ---@return integer
 local function _tree_size(tree, starting_id)
@@ -138,7 +138,7 @@ function TreeBuffer:create_buffer(on_deleted)
         return self._bufnr, false
     end
 
-    self._bufnr = uitool.create_scratch_buffer(false, {
+    self._bufnr = uiutil.create_scratch_buffer(false, {
         buftype      = "nofile",
         filetype     = self._filetype or "neotoolkit-tree",
         modifiable   = false,
@@ -212,7 +212,7 @@ function TreeBuffer:subscribe(callbacks)
 end
 
 ---@private
----@param flatnode keystone.util.Tree.FlatNode
+---@param flatnode keystone.neotoolkit.Tree.FlatNode
 ---@param row integer
 ---@return string line, table hl_calls, table extmarks
 function TreeBuffer:_render_node(flatnode, row)
@@ -282,7 +282,7 @@ end
 ---@private
 ---@param start_idx integer
 ---@param old_size integer
----@param new_flat keystone.util.Tree.FlatNode[]
+---@param new_flat keystone.neotoolkit.Tree.FlatNode[]
 function TreeBuffer:_render_range(start_idx, old_size, new_flat)
     local buf = self._bufnr
     if buf <= 0 or not vim.api.nvim_buf_is_loaded(buf) then return end
@@ -357,7 +357,7 @@ end
 
 ---@private
 ---@param id any
----@param data keystone.util.TreeBuffer.ItemData?
+---@param data keystone.neotoolkit.TreeBuffer.ItemData?
 function TreeBuffer:_render_line(id, data)
     data = data or self._tree:get_data(id)
     assert(data, "failed to render line, invalid data")
@@ -393,7 +393,7 @@ function TreeBuffer:get_winid()
 end
 
 ---@private
----@return any?, keystone.util.TreeBuffer.ItemData?
+---@return any?, keystone.neotoolkit.TreeBuffer.ItemData?
 function TreeBuffer:_get_cur_item()
     local winid = self:get_winid()
     if winid <= 0 then return end
@@ -403,7 +403,7 @@ function TreeBuffer:_get_cur_item()
     return id, self._tree:get_data(id)
 end
 
----@return keystone.util.TreeBuffer.Item?
+---@return keystone.neotoolkit.TreeBuffer.Item?
 function TreeBuffer:get_cursor_item()
     local id, data = self:_get_cur_item()
     if not id or not data then return nil end
@@ -411,7 +411,7 @@ function TreeBuffer:get_cursor_item()
 end
 
 ---@param row integer 1-based buffer line number
----@return keystone.util.TreeBuffer.Item?
+---@return keystone.neotoolkit.TreeBuffer.Item?
 function TreeBuffer:get_item_at_row(row)
     local id = self._flat_ids[row]
     if not id then return nil end
@@ -430,7 +430,7 @@ function TreeBuffer:set_cursor_by_id(id)
     return ok
 end
 
----@return keystone.util.TreeBuffer.Item?
+---@return keystone.neotoolkit.TreeBuffer.Item?
 function TreeBuffer:get_item(id)
     local data = self._tree:get_data(id)
     if not data then return nil end
@@ -442,7 +442,7 @@ function TreeBuffer:get_parent_id(id)
     return self._tree:get_parent_id(id)
 end
 
----@return keystone.util.TreeBuffer.Item[]
+---@return keystone.neotoolkit.TreeBuffer.Item[]
 function TreeBuffer:get_children(parent_id)
     local items = {}
     for _, ti in ipairs(self._tree:get_children(parent_id)) do
@@ -476,7 +476,7 @@ function TreeBuffer:clear_items()
 end
 
 ---@param parent_id any  -- nil for root
----@param children keystone.util.TreeBuffer.ItemDef[]
+---@param children keystone.neotoolkit.TreeBuffer.ItemDef[]
 ---@return boolean
 function TreeBuffer:set_children(parent_id, children)
     if parent_id and not self._tree:have_item(parent_id) then return false end
@@ -513,7 +513,7 @@ function TreeBuffer:remove_children(id)
 end
 
 ---@param parent_id any  -- nil for root
----@param item keystone.util.TreeBuffer.ItemDef
+---@param item keystone.neotoolkit.TreeBuffer.ItemDef
 ---@return boolean
 function TreeBuffer:add_item(parent_id, item)
     if parent_id and not self._tree:have_item(parent_id) then return false end
@@ -541,7 +541,7 @@ function TreeBuffer:add_item(parent_id, item)
 end
 
 ---@param reference_id any
----@param item keystone.util.TreeBuffer.ItemDef
+---@param item keystone.neotoolkit.TreeBuffer.ItemDef
 ---@param before boolean  true to insert before reference, false to insert after
 ---@return boolean
 function TreeBuffer:add_sibling(reference_id, item, before)
@@ -671,7 +671,7 @@ function TreeBuffer:get_item_data(id)
     return data and data.userdata or nil
 end
 
----@return keystone.util.TreeBuffer.Item[]
+---@return keystone.neotoolkit.TreeBuffer.Item[]
 function TreeBuffer:get_items()
     local items = {}
     for _, ti in ipairs(self._tree:get_items()) do
@@ -680,7 +680,7 @@ function TreeBuffer:get_items()
     return items
 end
 
----@return keystone.util.TreeBuffer.Item[]
+---@return keystone.neotoolkit.TreeBuffer.Item[]
 function TreeBuffer:get_roots()
     local items = {}
     for _, ti in ipairs(self._tree:get_roots()) do
@@ -689,7 +689,7 @@ function TreeBuffer:get_roots()
     return items
 end
 
----@return keystone.util.TreeBuffer.Item?
+---@return keystone.neotoolkit.TreeBuffer.Item?
 function TreeBuffer:get_parent_item(id)
     local par_id = self._tree:get_parent_id(id)
     if not par_id then return nil end
@@ -699,7 +699,7 @@ function TreeBuffer:get_parent_item(id)
 end
 
 ---@param winid integer
----@return keystone.util.TreeBuffer.Item[]
+---@return keystone.neotoolkit.TreeBuffer.Item[]
 function TreeBuffer:get_visible_items(winid)
     if not winid or not vim.api.nvim_win_is_valid(winid) then return {} end
     if vim.api.nvim_win_get_buf(winid) ~= self._bufnr then return {} end

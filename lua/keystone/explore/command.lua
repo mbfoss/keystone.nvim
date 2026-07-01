@@ -2,8 +2,8 @@ local M        = {}
 
 local _uv      = vim.uv
 local explorer = require("keystone.explore.explorer")
-local fsutil   = require("keystone.util.fsutil")
-local uitool   = require("keystone.util.uitool")
+local fsutil   = require("keystone.neotoolkit.fsutil")
+local ui       = require("keystone.neotoolkit.ui")
 local icons    = require("keystone.icons")
 
 ---@param name string The filename or directory name
@@ -110,7 +110,7 @@ local function _explore_files()
     }, function(path)
         if path then
             local filepath = table.concat(path, '/')
-            uitool.smart_open_file(filepath)
+            ui.smart_open_file(filepath)
         end
     end)
 end

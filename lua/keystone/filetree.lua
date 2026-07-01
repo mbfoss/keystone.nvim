@@ -19,7 +19,7 @@ M.config = _get_default_config()
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    require("keystone.util.usercmd").register_user_cmd("FileTree", function(cmd, args, opts)
+    require("keystone.neotoolkit.usercmd").register_user_cmd("FileTree", function(cmd, args, opts)
             require("keystone.filetree.command").run_command(cmd, args, opts)
         end,
         {

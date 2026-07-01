@@ -1,6 +1,6 @@
-local timer = require('keystone.util.timer')
+local timer = require('keystone.neotoolkit.timer')
 
----@class keystone.util.Spinner
+---@class keystone.neotoolkit.Spinner
 ---@field frames string[]
 ---@field interval integer
 ---@diagnostic disable-next-line: undefined-doc-name
@@ -15,10 +15,10 @@ local _default_frames = {
 }
 
 
----@alias keystone.util.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
+---@alias keystone.neotoolkit.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
 
----@class keystone.util.Spinner
----@field new fun(self:keystone.util.Spinner,opts:keystone.util.SpinnerOpts):keystone.util.Spinner
+---@class keystone.neotoolkit.Spinner
+---@field new fun(self:keystone.neotoolkit.Spinner,opts:keystone.neotoolkit.SpinnerOpts):keystone.neotoolkit.Spinner
 local Spinner = {}
 Spinner.__index = Spinner
 
@@ -28,7 +28,7 @@ function Spinner:new(...)
     return obj
 end
 
----@param opts keystone.util.SpinnerOpts?
+---@param opts keystone.neotoolkit.SpinnerOpts?
 function Spinner:init(opts)
     opts = opts or {}
     self.frames = opts.frames or _default_frames

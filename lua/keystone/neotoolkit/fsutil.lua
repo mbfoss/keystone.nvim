@@ -1,7 +1,7 @@
 local M = {}
 
-local timer = require("keystone.util.timer")
-local strutil = require("keystone.util.strutil")
+local timer = require("keystone.neotoolkit.timer")
+local strutil = require("keystone.neotoolkit.strutil")
 
 ---@param path string
 function M.file_exists(path)
@@ -297,7 +297,7 @@ function M.async_scan_dir(dir, include_regex_list, exclude_regex_list, on_file, 
     return cancel_fn
 end
 
----@class keystone.util.fsutil.walk_dir_opts
+---@class keystone.neotoolkit.fsutil.walk_dir_opts
 ---@field include_regex_list vim.regex[]?
 ---@field exclude_regex_list vim.regex[]?
 ---@field on_dir_enter fun(path:string)?
@@ -306,7 +306,7 @@ end
 ---@field follow_symlinks boolean?
 
 ---@param dir string
----@param opts keystone.util.fsutil.walk_dir_opts
+---@param opts keystone.neotoolkit.fsutil.walk_dir_opts
 ---@return function # cancel function
 function M.async_walk_dir(dir, opts)
     local pending_dirs = { dir }

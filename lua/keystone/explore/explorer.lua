@@ -1,9 +1,9 @@
-local Spinner     = require("keystone.util.Spinner")
-local common      = require("keystone.util.timer")
-local fsutil      = require("keystone.util.fsutil")
-local uitool      = require("keystone.util.uitool")
+local Spinner     = require("keystone.neotoolkit.Spinner")
+local common      = require("keystone.neotoolkit.timer")
+local fsutil      = require("keystone.neotoolkit.fsutil")
+local ui          = require("keystone.neotoolkit.ui")
 local layouts     = require("keystone.explore.layouts")
-local floatwin    = require("keystone.util.floatwin")
+local floatwin    = require("keystone.neotoolkit.floatwin")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -152,8 +152,8 @@ local function _default_preview(path, preview_opts, callback)
     return cancel_fn
 end
 
----@class keystone.util.Explorer
----@field new fun(self: keystone.util.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.util.Explorer
+---@class keystone.neotoolkit.Explorer
+---@field new fun(self: keystone.neotoolkit.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.neotoolkit.Explorer
 ---@field opts keystone.Explorer.Opts
 ---@field callback keystone.Explorer.Callback
 ---@field layout keystone.Explorer.Layout
@@ -161,7 +161,7 @@ end
 ---@field vbuf integer?
 ---@field lwin integer
 ---@field vwin integer?
----@field spinner keystone.util.Spinner?
+---@field spinner keystone.neotoolkit.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.explorer.ListItem[]
 ---@field async_fetch_context number
@@ -283,7 +283,7 @@ function Explorer:relayout(action)
             end)
         end
         local pwin_augroup
-        self.lwin, pwin_augroup = uitool.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
+        self.lwin, pwin_augroup = ui.create_window(self.lbuf, false, vim.tbl_extend("force", base_cfg, {
                 row = self.layout.list_row,
                 col = self.layout.list_col,
                 width = self.layout.list_width,
@@ -341,7 +341,7 @@ function Explorer:relayout(action)
                 vim.keymap.set("n", "<CR>", function() self:confirm_choice() end, vbuf_key_opts)
                 vim.keymap.set("n", "<Esc>", function() self:close() end, vbuf_key_opts)
             end
-            self.vwin = uitool.create_window(self.vbuf, false, {
+            self.vwin = ui.create_window(self.vbuf, false, {
                     relative = "editor",
                     style = "minimal",
                     border = "rounded",

@@ -1,7 +1,7 @@
 local M          = {}
 
-local usercmd    = require("keystone.util.usercmd")
-local fsutil     = require("keystone.util.fsutil")
+local usercmd    = require("keystone.neotoolkit.usercmd")
+local fsutil     = require("keystone.neotoolkit.fsutil")
 
 --- Quickfix-driven diff of every modified buffer's unsaved (in-memory) state
 --- against its saved (on-disk) state. Modelled on Neovim's built-in difftool

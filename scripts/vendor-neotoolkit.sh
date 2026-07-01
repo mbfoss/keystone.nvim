@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="https://github.com/mbfoss/neotoolkit.nvim"
-DEST="lua/keystone/util"
+DEST="lua/keystone/neotoolkit"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -21,12 +21,8 @@ mkdir -p "$DEST"
 rm -f "$DEST"/*.lua
 cp "$TMP/neotoolkit/lua/neotoolkit/"*.lua "$DEST/"
 
-echo "Rewriting require paths..."
-sed -i '' 's/require(\(['"'"'"]\)neotoolkit\./require(\1keystone.util./g' "$DEST"/*.lua
-sed -i '' 's/require \(['"'"'"]\)neotoolkit\./require \1keystone.util./g' "$DEST"/*.lua
-
-echo "Rewriting type annotations..."
-sed -i '' 's/neotoolkit\./keystone.util./g' "$DEST"/*.lua
+echo "Rewriting require paths and type annotations..."
+sed -i '' 's/neotoolkit\./keystone.neotoolkit./g' "$DEST"/*.lua
 
 echo "Removing vendored unit test files..."
 rm -f tests/regex_spec.lua tests/tree_spec.lua
