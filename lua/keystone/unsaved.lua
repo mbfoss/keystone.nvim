@@ -3,19 +3,21 @@ local M          = {}
 local usercmd    = require("keystone.neotoolkit.usercmd")
 local fsutil     = require("keystone.neotoolkit.fsutil")
 
---- Quickfix-driven diff of every modified buffer's unsaved (in-memory) state
---- against its saved (on-disk) state. Modelled on Neovim's built-in difftool
---- (`runtime/pack/dist/opt/nvim.difftool`): a quickfix list indexes the changed
---- files, and navigating it drives a side-by-side native diff. Unlike the
---- built-in, which compares two paths on disk, the live side is the real
---- (unsaved) buffer and the saved side is a scratch buffer of the on-disk text.
---- The whole thing runs in its own tab page so the user's layout is preserved.
+--- Location-list-driven diff of every modified buffer's unsaved (in-memory)
+--- state against its saved (on-disk) state. Modelled on Neovim's built-in
+--- difftool (`runtime/pack/dist/opt/nvim.difftool`): a location list indexes
+--- the changed files, and navigating it drives a side-by-side native diff.
+--- Unlike the built-in, which compares two paths on disk, the live side is the
+--- real (unsaved) buffer and the saved side is a scratch buffer of the on-disk
+--- text. The whole thing runs in its own tab page so the user's layout is
+--- preserved.
 
 --- Status letter -> highlight group, matching the built-in difftool's quickfix
 --- colouring. Only "M" and "A" arise here (modified buffers and new buffers
 
---- Active session state. Only one session exists at a time, matching the
---- built-in: the quickfix list it drives is global.
+--- Active session state. Only one session exists at a time. The location list
+--- is attached to the right (live) window, so it never touches the global
+--- quickfix list.
 ---@class keystone.unsaved.Layout
 ---@field group     integer?  augroup id, nil when no session is active
 ---@field tab       integer?  tabpage handle the diff lives in
@@ -23,10 +25,10 @@ local fsutil     = require("keystone.neotoolkit.fsutil")
 ---@field right_win integer?  window for the live (unsaved buffer) side
 local _layout    = { group = nil, tab = nil, left_win = nil, right_win = nil }
 
---- Plugin-unique key stamped into each quickfix entry's `user_data`. Its
+--- Plugin-unique key stamped into each location-list entry's `user_data`. Its
 --- presence is how a session recognises its own entries; nesting our data under
 --- it (rather than a generic flag like the built-in difftool's `diff = true`)
---- guarantees no clash with another plugin's quickfix `user_data`.
+--- guarantees no clash with another plugin's `user_data`.
 local _ENTRY_KEY = "keystone.unsaved"
 
 --- The per-entry payload stored under `user_data[_ENTRY_KEY]`.
@@ -38,7 +40,7 @@ local _ENTRY_KEY = "keystone.unsaved"
 --- Guards _cleanup against the re-entrancy from closing our own windows/tab.
 local _closing   = false
 
---- Tear down the active session: drop the autocmds and close the quickfix
+--- Tear down the active session: drop the autocmds and close the location-list
 --- window. Windows/tab are left for the user (or already gone); idempotent.
 local function _cleanup()
     if _closing then return end
@@ -48,7 +50,15 @@ local function _cleanup()
         vim.api.nvim_del_augroup_by_id(_layout.group)
         _layout.group = nil
     end
-    vim.cmd.cclose()
+
+    -- The location list belongs to the right window; close its list window via
+    -- its winid so this works regardless of which window has focus.
+    if _layout.right_win and vim.api.nvim_win_is_valid(_layout.right_win) then
+        local lwin = vim.fn.getloclist(_layout.right_win, { winid = 1 }).winid
+        if lwin ~= 0 and vim.api.nvim_win_is_valid(lwin) then
+            vim.api.nvim_win_close(lwin, false)
+        end
+    end
 
     if _layout.left_win then
         if vim.api.nvim_win_is_valid(_layout.left_win) then
@@ -68,7 +78,7 @@ local function _cleanup()
     _closing    = false
 end
 
---- Collect every loaded, file-backed, modified buffer as a quickfix entry.
+--- Collect every loaded, file-backed, modified buffer as a location-list entry.
 ---@return table[] entries
 local function _collect_entries()
     local cwd     = vim.fn.getcwd()
@@ -124,13 +134,16 @@ local function _make_saved_buf(ud)
     return buf
 end
 
---- The current quickfix entry, but only if it is one of ours (empty list or a
---- foreign entry yields nil). With `bufnr`, additionally require the entry to
---- belong to that buffer.
+--- The current entry of the session's location list, but only if it is one of
+--- ours (empty list or a foreign entry yields nil). With `bufnr`, additionally
+--- require the entry to belong to that buffer.
 ---@param bufnr integer?
 ---@return table? entry
 local function _current_diff_entry(bufnr)
-    local info = vim.fn.getqflist({ idx = 0, items = 1, size = 1 })
+    local rw = _layout.right_win
+    if not (rw and vim.api.nvim_win_is_valid(rw)) then return nil end
+
+    local info = vim.fn.getloclist(rw, { idx = 0, items = 1, size = 1 })
     if info.size == 0 then return nil end
 
     local entry = info.items[info.idx]
@@ -143,8 +156,8 @@ local function _current_diff_entry(bufnr)
     return entry
 end
 
---- Lay the live buffer (already in a diff window after quickfix navigation)
---- against a fresh saved-side scratch buffer, in native diff mode.
+--- Lay the live buffer (already in a diff window after location-list
+--- navigation) against a fresh saved-side scratch buffer, in native diff mode.
 ---@param entry table
 local function _setup_diff(entry)
     local lw, rw = _layout.left_win, _layout.right_win
@@ -155,8 +168,8 @@ local function _setup_diff(entry)
 
     local ud = entry.user_data[_ENTRY_KEY]
 
-    -- The live buffer lands in whichever diff window quickfix reused; put the
-    -- saved scratch in the other so the pair stays side by side.
+    -- The live buffer lands in whichever diff window the navigation reused;
+    -- put the saved scratch in the other so the pair stays side by side.
     local live_win, saved_win
     if vim.api.nvim_win_get_buf(lw) == ud.bufnr then
         live_win, saved_win = lw, rw
@@ -173,15 +186,14 @@ local function _setup_diff(entry)
     vim.api.nvim_win_call(live_win, vim.cmd.diffthis)
 end
 
---- Open the two-pane diff layout plus the quickfix window in a fresh tab.
+--- Open the two-pane diff layout in a fresh tab. The location-list window is
+--- opened later, once the list has been attached to the right window.
 local function _build_layout()
     vim.cmd.tabnew()
     _layout.tab      = vim.api.nvim_get_current_tabpage()
     _layout.left_win = vim.api.nvim_get_current_win()
     vim.cmd("rightbelow vsplit")
     _layout.right_win = vim.api.nvim_get_current_win()
-    vim.cmd("botright copen")
-    vim.api.nvim_set_current_win(_layout.right_win)
 
     for _, win in ipairs({ _layout.left_win, _layout.right_win }) do
         vim.api.nvim_create_autocmd("WinClosed", {
@@ -201,10 +213,11 @@ local function _build_layout()
 end
 
 --- Register the two BufWinEnter handlers that drive the session: one colours
---- the quickfix status letters, the other builds the diff when the current
---- entry's live buffer is shown.
+--- the location-list status letters, the other builds the diff when the
+--- current entry's live buffer is shown.
 local function _register_autocmds()
-    -- Quickfix navigation (`:cnext`, `<CR>`, ...) has no dedicated autocmd, so
+    -- Location-list navigation (`:lnext`, `<CR>`, ...) has no dedicated
+    -- autocmd, so
     -- -- like the built-in difftool -- we hook the buffer that navigation lands
     -- in. Unlike the built-in's global `*` trigger, this only acts when the
     -- entry's buffer enters one of *our* diff windows, so opening that buffer
@@ -235,13 +248,16 @@ function M.open()
 
     _layout.group = vim.api.nvim_create_augroup("keystone.unsaved", { clear = true })
     _register_autocmds()
+    _build_layout()
 
-    vim.fn.setqflist({}, " ", {
-        title            = "UnsavedDiff: modified buffers",
+    -- The list is window-local, so it can only be attached once the layout
+    -- (and thus its owning window) exists.
+    vim.fn.setloclist(_layout.right_win, {}, " ", {
+        title            = "DiffUnsaved: modified buffers",
         items            = entries,
-        ---@param info {id:integer, start_idx:integer, end_idx:integer}
+        ---@param info {id:integer, winid:integer, start_idx:integer, end_idx:integer}
         quickfixtextfunc = function(info)
-            local items = vim.fn.getqflist({ id = info.id, items = 1 }).items
+            local items = vim.fn.getloclist(info.winid, { id = info.id, items = 1 }).items
             local out   = {}
             for i = info.start_idx, info.end_idx do
                 local e       = items[i]
@@ -252,12 +268,14 @@ function M.open()
         end,
     })
 
-    _build_layout()
-    vim.cmd.cfirst()
+    vim.api.nvim_set_current_win(_layout.right_win)
+    vim.cmd("botright lopen")
+    vim.api.nvim_set_current_win(_layout.right_win)
+    vim.cmd.lfirst()
 end
 
 function M.setup()
-    usercmd.register_user_cmd("UnsavedDiff", function()
+    usercmd.register_user_cmd("DiffUnsaved", function()
         M.open()
     end, {
         desc = "Diff unsaved vs saved state of all modified buffers",
