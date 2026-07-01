@@ -81,7 +81,7 @@ local function _render()
 
     local lines = {}
     if #_items == 0 then
-        lines[1] = "(no bookmarks — :q to close)"
+        lines[1] = "(no bookmarks)"
     else
         for _, item in ipairs(_items) do
             local rel = vim.fn.fnamemodify(item.file, ":~:.")
@@ -103,10 +103,10 @@ local function _render()
     for row, item in ipairs(_items) do
         local name_len = #item.name
         vim.api.nvim_buf_set_extmark(_bufnr, _ns, row - 1, 0, {
-            end_col = name_len, hl_group = "Identifier",
+            end_col = name_len, hl_group = "@text.note",
         })
         vim.api.nvim_buf_set_extmark(_bufnr, _ns, row - 1, name_len, {
-            end_col = #lines[row], hl_group = "Comment",
+            end_col = #lines[row], hl_group = "@namespace",
         })
     end
 end
@@ -276,7 +276,7 @@ function M.open(api)
     _refresh_scheduled = false
 
     _bufnr = uitool.create_scratch_buffer(false, { modifiable = false })
-    vim.api.nvim_buf_set_name(_bufnr, "keystone://bookmarks-editor")
+    vim.api.nvim_buf_set_name(_bufnr, "keystone://bookmarks")
 
     vim.cmd("botright split")
     _win = vim.api.nvim_get_current_win()
