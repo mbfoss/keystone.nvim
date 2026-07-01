@@ -154,9 +154,10 @@ local FLAGS       = {
     { name = "filter",  type = "value",   multi = true,              desc = "glob filter: *.txt, !*.lua, **/dir/**" },
     { name = "regex",   type = "boolean", desc = "enable regex mode"                                             },
     { name = "case",    type = "value",   values = { "smart", "on", "off" }, desc = "case: smart (default) | on | off" },
-    { name = "follow",  type = "boolean", desc = "follow symlinks"                                               },
-    { name = "hidden",  type = "boolean", desc = "include hidden (dotfiles)"                                     },
-    { name = "replace", type = "value", allow_empty = true,          desc = "replacement text (enables search & replace; empty deletes matches)" },
+    { name = "follow",    type = "boolean", desc = "follow symlinks"                                             },
+    { name = "hidden",    type = "boolean", desc = "include hidden (dotfiles)"                                   },
+    { name = "no-ignore", type = "boolean", desc = "disable .gitignore / .ignore rules"                         },
+    { name = "replace",   type = "value", allow_empty = true,        desc = "replacement text (enables search & replace; empty deletes matches)" },
 }
 
 
@@ -174,6 +175,10 @@ local function build_rg_base(parsed)
 
     if flags.hidden then
         table.insert(args, "--hidden")
+    end
+
+    if flags["no-ignore"] then
+        table.insert(args, "--no-ignore")
     end
 
     if flags.case == "on" then
