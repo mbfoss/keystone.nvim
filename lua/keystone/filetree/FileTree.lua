@@ -21,6 +21,7 @@ local marks          = require("keystone.filetree.marks")
 ---@field error_icon string?
 ---@field children_loading boolean?
 ---@field childrenload_req_id number
+---@field mark_char string? cached bookmark letter for this path (see FileTree:_update_node_mark)
 
 ---@alias keystone.FileTree.ItemDef keystone.tk.TreeBuffer.ItemData
 
@@ -89,10 +90,10 @@ end
 ---@param id string
 ---@param data keystone.FileTree.ItemData
 ---@param selected boolean?
----@param mark_char string? the bookmark letter bound to this item, if any
-local function _file_formatter(id, data, selected, mark_char)
+local function _file_formatter(id, data, selected)
     if not data then return {}, {} end
     local virt_chunks = {}
+    local mark_char = data.mark_char
     if mark_char and mark_char ~= "" then
         table.insert(virt_chunks, { " [" .. mark_char .. "]", "Constant" })
     end
@@ -168,7 +169,7 @@ function FileTree:_setup_tree()
 
     self._treebuf = TreeBuffer.new({
         formatter = function(id, data)
-            return _file_formatter(id, data, self._selected[data.path] == true, marks.path_char(data.path))
+            return _file_formatter(id, data, self._selected[data.path] == true)
         end,
     })
 
@@ -282,6 +283,18 @@ function FileTree:_get_viewport_monitor_fn()
             end
         end
     end
+end
+
+---@private
+--- Re-read the bookmark letter for `path` from the marks store into the node's
+--- cached `mark_char` and repaint it. Called only when a bookmark changes, so
+--- the formatter never has to hit the marks store on a normal render.
+---@param path string
+function FileTree:_update_node_mark(path)
+    local item = self._treebuf:get_item(path)
+    if not item then return end
+    item.data.mark_char = marks.path_char(path)
+    self._treebuf:refresh_item(path)
 end
 
 ---@return integer bufr
@@ -404,9 +417,9 @@ function FileTree:create_buffer()
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == "" or char == "\27" then return end
                     local prev = marks.set(char, i.data.path)
-                    self._treebuf:refresh_item(i.data.path)
-                    if prev and prev ~= i.data.path and self._treebuf:have_item(prev) then
-                        self._treebuf:refresh_item(prev)
+                    self:_update_node_mark(i.data.path)
+                    if prev and prev ~= i.data.path then
+                        self:_update_node_mark(prev)
                     end
                 end)
             end,
@@ -418,7 +431,7 @@ function FileTree:create_buffer()
                 if not ok or char == "" or char == "\27" then return end
                 local path = marks.get(char)
                 if not path then
-                    vim.notify(("[keystone] No bookmark '%s'"):format(char), vim.log.levels.WARN)
+                    vim.api.nvim_echo({ { ("[filetree] No bookmark '%s'"):format(char) } }, false, {})
                     return
                 end
                 self:reveal(path, true, true)
@@ -549,7 +562,8 @@ function FileTree:_reload()
                 name = vim.fn.fnamemodify(path, ":t"),
                 is_dir = true,
                 icon = icon,
-                icon_hl = iconhl
+                icon_hl = iconhl,
+                mark_char = marks.path_char(path),
             }
         }
         self._treebuf:add_item(nil, root_item)
@@ -731,7 +745,8 @@ function FileTree:_process_dir(path, entries, error_flag)
                 is_dir = entry.is_dir,
                 is_link = entry.is_link,
                 icon = icon,
-                icon_hl = icon_hl
+                icon_hl = icon_hl,
+                mark_char = marks.path_char(entry.full_path),
             }
         }
         table.insert(children, child)
@@ -990,10 +1005,15 @@ function FileTree:_show_hover(item)
     local path = data.path
 
     local function fmt_size(bytes)
-        if bytes < 1024 then return bytes .. " B"
-        elseif bytes < 1048576 then return ("%.1f KB"):format(bytes / 1024)
-        elseif bytes < 1073741824 then return ("%.1f MB"):format(bytes / 1048576)
-        else return ("%.1f GB"):format(bytes / 1073741824) end
+        if bytes < 1024 then
+            return bytes .. " B"
+        elseif bytes < 1048576 then
+            return ("%.1f KB"):format(bytes / 1024)
+        elseif bytes < 1073741824 then
+            return ("%.1f MB"):format(bytes / 1048576)
+        else
+            return ("%.1f GB"):format(bytes / 1073741824)
+        end
     end
 
     local function perm_str(mode)
@@ -1283,6 +1303,5 @@ function FileTree:_transfer_selected(target_item, is_copy)
         end
     end)
 end
-
 
 return FileTree
