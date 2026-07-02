@@ -704,7 +704,7 @@ function Explorer:_render_marks()
         local char = marks.path_char(self:_item_full_path(item.name))
         if char then
             vim.api.nvim_buf_set_extmark(self.lbuf, _NS_MARK, row - 1, 0, {
-                virt_text = { { "[" .. char .. "]", "Constant" } },
+                virt_text = { { " [" .. char .. "]", "Constant" } },
                 virt_text_pos = "eol",
             })
         end
