@@ -1166,7 +1166,11 @@ function FileTree:_transfer_selected(target_item, is_copy)
         if from == self._root then
             -- never transfer the root
         elseif vim.fn.fnamemodify(from, ":h") == dest_dir then
-            -- already in the destination directory; nothing to do
+            -- already in the destination directory: duplicate on copy, no-op on move
+            if is_copy then
+                local dup_to = fs.copy_destination(to, item.data.is_dir)
+                ops[#ops + 1] = { from = from, to = dup_to, name = vim.fn.fnamemodify(dup_to, ":t") }
+            end
         elseif item.data.is_dir and (dest_dir == from or vim.startswith(dest_dir, from .. "/")) then
             vim.notify(("Cannot %s %s into itself"):format(verb, name), vim.log.levels.WARN)
         elseif fs.file_exists(to) then

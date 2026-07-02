@@ -26,6 +26,27 @@ M.monitor_dir = fsutil.monitor_dir
 M.copy_path = fsutil.copy_path
 M.rename_path = fsutil.rename_file
 
+--- Generate a non-existing sibling of `path` to receive a copy of it, by
+--- appending " copy" (then " copy 2", " copy 3", …) before the extension.
+---@param path string
+---@param is_dir boolean
+---@return string
+function M.copy_destination(path, is_dir)
+    local dir = vim.fn.fnamemodify(path, ":h")
+    local tail = vim.fn.fnamemodify(path, ":t")
+    local stem = is_dir and tail or vim.fn.fnamemodify(tail, ":r")
+    local ext = tail:sub(#stem + 1)
+    local n = 1
+    while true do
+        local suffix = n == 1 and " copy" or (" copy %d"):format(n)
+        local candidate = vim.fs.joinpath(dir, stem .. suffix .. ext)
+        if not vim.uv.fs_lstat(candidate) then
+            return candidate
+        end
+        n = n + 1
+    end
+end
+
 --- Resolve raw scandir entries into final entries: stat symlinks (when
 --- following them) to detect symlinked directories, and apply the filter.
 ---@param path string
