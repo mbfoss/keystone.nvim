@@ -41,8 +41,9 @@ local function matches_filter(qf, filter)
 end
 
 ---@param item table
+---@param rendered_text string?
 ---@return {filepath:string,relpath:string,filename:string,dir:string,lnum:number,col:number,bufnr:number,type:string,text:string,valid:boolean,qfidx:number}?
-local function read_qf_item(item)
+local function read_qf_item(item, rendered_text)
     local bufnr = item.bufnr
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return nil end
     local filepath = vim.api.nvim_buf_get_name(bufnr)
@@ -56,19 +57,50 @@ local function read_qf_item(item)
         lnum     = item.lnum,
         col      = item.col > 0 and item.col - 1 or 0,
         type     = (item.type or ""):upper(),
-        text     = item.text or "",
+        text     = rendered_text or item.text or "",
         valid    = item.valid == 1 and item.lnum and item.lnum > 0,
     }
 end
 
+-- Lists can customize their displayed label via the 'quickfixtextfunc'
+-- list-property (see :h quickfix-window-function); the native quickfix
+-- window renders through it, but `item.text` from get{qf,loc}list() stays
+-- the raw, unrendered field. Render through it here too so pickers show the
+-- same label the native window would (e.g. gittools' rename/status lines).
 ---@param list_type keystone.pick.qflist_type
 ---@param winid integer
----@return table[], integer
+---@param list table[]
+---@return string[]? rendered_lines indexed 1..#list
+local function render_qftf(list_type, winid, list)
+    local is_loclist = list_type == "loclist"
+    local get        = is_loclist
+        and function(what) return vim.fn.getloclist(winid, what) end
+        or function(what) return vim.fn.getqflist(what) end
+    local qftf = get({ quickfixtextfunc = 1 }).quickfixtextfunc
+    if not qftf or qftf == "" then return nil end
+    local id = get({ id = 0 }).id
+    local ok, lines = pcall(vim.fn.call, qftf, { {
+        quickfix  = is_loclist and 0 or 1,
+        winid     = winid,
+        id        = id,
+        start_idx = 1,
+        end_idx   = #list,
+    } })
+    if ok and type(lines) == "table" then return lines end
+    return nil
+end
+
+---@param list_type keystone.pick.qflist_type
+---@param winid integer
+---@return table[], integer, string[]?
 local function get_list(list_type, winid)
+    local list, idx
     if list_type == "loclist" then
-        return vim.fn.getloclist(winid), vim.fn.getloclist(winid, { idx = 0 }).idx
+        list, idx = vim.fn.getloclist(winid), vim.fn.getloclist(winid, { idx = 0 }).idx
+    else
+        list, idx = vim.fn.getqflist(), vim.fn.getqflist({ idx = 0 }).idx
     end
-    return vim.fn.getqflist(), vim.fn.getqflist({ idx = 0 }).idx
+    return list, idx, render_qftf(list_type, winid, list)
 end
 
 ---@param opts {filter:keystone.pick.qflist_filter?, list_type:keystone.pick.qflist_type?, winid:integer?}?
@@ -79,13 +111,13 @@ function M.spec(opts)
     local list_type   = opts.list_type or "quickfix"
     local winid       = opts.winid or vim.fn.win_getid()
     local is_loclist  = list_type == "loclist"
-    local qflist, current_idx = get_list(list_type, winid)
+    local qflist, current_idx, rendered = get_list(list_type, winid)
     local list_label  = is_loclist and "Location List" or "Quickfix"
 
     local entries = {}
     for idx, qf in ipairs(qflist) do
         if matches_filter(qf, filter) then
-            local data = read_qf_item(qf)
+            local data = read_qf_item(qf, rendered and rendered[idx])
             if data then
                 data.qfidx = idx
                 table.insert(entries, data)

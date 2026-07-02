@@ -31,6 +31,11 @@ local _layout    = { group = nil, tab = nil, left_win = nil, right_win = nil }
 --- guarantees no clash with another plugin's `user_data`.
 local _ENTRY_KEY = "keystone.unsaved"
 
+--- setloclist `title`, used both to populate the list and to recognise (in
+--- the QuickFixCmdPost guard below) whether the right window's location list
+--- is still ours or has been overwritten by an unrelated :lvimgrep/:laddexpr.
+local _LOCLIST_TITLE = "DiffUnsaved: modified buffers"
+
 --- The per-entry payload stored under `user_data[_ENTRY_KEY]`.
 ---@class keystone.unsaved.EntryData
 ---@field bufnr integer
@@ -233,6 +238,25 @@ local function _register_autocmds()
             vim.schedule(function() _setup_diff(entry) end)
         end,
     })
+
+    -- Commands like :lvimgrep, :lgrep, or :laddexpr silently replace the
+    -- right window's location list (and drop our quickfixtextfunc), leaving
+    -- the session's tab/windows open with no entries of ours left to
+    -- navigate. Detect the takeover via the list title and tear the session
+    -- down rather than let it linger in that broken state.
+    vim.api.nvim_create_autocmd("QuickFixCmdPost", {
+        group    = _layout.group,
+        pattern  = "l*",
+        callback = function()
+            if not (_layout.right_win and vim.api.nvim_win_is_valid(_layout.right_win)) then
+                return
+            end
+            local info = vim.fn.getloclist(_layout.right_win, { title = 1 })
+            if info.title ~= _LOCLIST_TITLE then
+                vim.schedule(_cleanup)
+            end
+        end,
+    })
 end
 
 --- Open the diff of unsaved vs saved state for all modified buffers.
@@ -253,7 +277,7 @@ function M.open()
     -- The list is window-local, so it can only be attached once the layout
     -- (and thus its owning window) exists.
     vim.fn.setloclist(_layout.right_win, {}, " ", {
-        title            = "DiffUnsaved: modified buffers",
+        title            = _LOCLIST_TITLE,
         items            = entries,
         ---@param info {id:integer, winid:integer, start_idx:integer, end_idx:integer}
         quickfixtextfunc = function(info)
