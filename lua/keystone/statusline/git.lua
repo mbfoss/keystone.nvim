@@ -6,8 +6,8 @@
 ---short commit hash.
 local M          = {}
 
-local spawn      = require("keystone.neotoolkit.spawn")
-local throttle   = require("keystone.neotoolkit.throttle")
+local spawn      = require("keystone.tk.spawn")
+local throttle   = require("keystone.tk.throttle")
 
 local _AUGROUP   = "keystone_statusline_git"
 

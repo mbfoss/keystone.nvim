@@ -1,5 +1,5 @@
 local files = require("keystone.pick.pickers.files")
-local regex = require("keystone.neotoolkit.regex")
+local regex = require("keystone.tk.regex")
 
 local resolve_case = files._resolve_case
 local do_match     = files._do_match

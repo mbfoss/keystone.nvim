@@ -1,6 +1,6 @@
 local M = {}
 
----@class keystone.neotoolkit.extmarks.MarkInfo
+---@class keystone.tk.extmarks.MarkInfo
 ---@field id number
 ---@field file string
 ---@field lnum number        -- 1-based
@@ -9,7 +9,7 @@ local M = {}
 ---@field user_data any
 ---@field source "live"|"stored"
 
----@class keystone.neotoolkit.extmarks.MarkData
+---@class keystone.tk.extmarks.MarkData
 ---@field id number
 ---@field ns number
 ---@field lnum number        -- 1-based
@@ -17,19 +17,19 @@ local M = {}
 ---@field opts vim.api.keyset.set_extmark
 ---@field user_data any
 
----@alias keystone.neotoolkit.extmarks.ById table<number, keystone.neotoolkit.extmarks.MarkData>
----@alias keystone.neotoolkit.extmarks.ByFile table<string, keystone.neotoolkit.extmarks.ById>
+---@alias keystone.tk.extmarks.ById table<number, keystone.tk.extmarks.MarkData>
+---@alias keystone.tk.extmarks.ByFile table<string, keystone.tk.extmarks.ById>
 
----@class keystone.neotoolkit.extmarks.GroupData
+---@class keystone.tk.extmarks.GroupData
 ---@field ns number
----@field byfile keystone.neotoolkit.extmarks.ByFile
+---@field byfile keystone.tk.extmarks.ByFile
 ---@field id_to_file table<number, string>
 
----@class keystone.neotoolkit.extmarks.GroupInfo
+---@class keystone.tk.extmarks.GroupInfo
 ---@field priority number
----@field data keystone.neotoolkit.extmarks.GroupData
+---@field data keystone.tk.extmarks.GroupData
 
----@type table<string, keystone.neotoolkit.extmarks.GroupInfo>
+---@type table<string, keystone.tk.extmarks.GroupInfo>
 local _defined_groups = {}
 local _autocmds_registered = false
 
@@ -45,7 +45,7 @@ local function _get_loaded_bufnr(file)
 end
 
 ---@param bufnr integer
----@param mark keystone.neotoolkit.extmarks.MarkData
+---@param mark keystone.tk.extmarks.MarkData
 local function _set_extmark(bufnr, mark)
     if not vim.api.nvim_buf_is_loaded(bufnr) then return end
 
@@ -150,7 +150,7 @@ end
 ---@param file string
 ---@param lnum number        -- 1-based
 ---@param col number        -- 0-based
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 ---@param opts vim.api.keyset.set_extmark
 ---@param user_data any
 ---@see vim.api.nvim_buf_set_extmark
@@ -172,7 +172,7 @@ local function _set_file_extmark(id, file, lnum, col, group_info, opts, user_dat
     group_data.id_to_file[id] = file
     group_data.byfile[file] = group_data.byfile[file] or {}
 
-    ---@type keystone.neotoolkit.extmarks.MarkData
+    ---@type keystone.tk.extmarks.MarkData
     local mark = {
         id = id,
         ns = group_data.ns,
@@ -193,7 +193,7 @@ local function _set_file_extmark(id, file, lnum, col, group_info, opts, user_dat
 end
 
 ---@param id number
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 local function _remove_extmark(id, group_info)
     local group_data = group_info.data
 
@@ -214,7 +214,7 @@ local function _remove_extmark(id, group_info)
 end
 
 ---@param file string
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 local function _remove_file_extmarks(file, group_info)
     file = _normalize_file(file)
 
@@ -234,7 +234,7 @@ local function _remove_file_extmarks(file, group_info)
     end
 end
 
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 local function _remove_extmarks(group_info)
     local group_data = group_info.data
 
@@ -250,8 +250,8 @@ local function _remove_extmarks(group_info)
 end
 
 ---@param id number
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
----@return keystone.neotoolkit.extmarks.MarkInfo?
+---@param group_info keystone.tk.extmarks.GroupInfo
+---@return keystone.tk.extmarks.MarkInfo?
 local function _get_extmark_by_id(id, group_info)
     local group_data = group_info.data
     local file = group_data.id_to_file[id]
@@ -273,9 +273,9 @@ end
 
 ---@param file string
 ---@param line number
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 ---@param live boolean
----@return keystone.neotoolkit.extmarks.MarkInfo?
+---@return keystone.tk.extmarks.MarkInfo?
 local function _get_extmark_by_location(file, line, group_info, live)
     assert(type(live) == "boolean")
     assert(line >= 1, "line must be 1-based")
@@ -315,9 +315,9 @@ local function _get_extmark_by_location(file, line, group_info, live)
     return nil
 end
 
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 ---@param live boolean
----@return keystone.neotoolkit.extmarks.MarkInfo[]
+---@return keystone.tk.extmarks.MarkInfo[]
 local function _get_extmarks(group_info, live)
     assert(type(live) == "boolean")
 
@@ -362,9 +362,9 @@ local function _get_extmarks(group_info, live)
 end
 
 ---@param file string
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 ---@param live boolean
----@return keystone.neotoolkit.extmarks.MarkInfo[]
+---@return keystone.tk.extmarks.MarkInfo[]
 local function _get_file_extmarks(file, group_info, live)
     assert(type(live) == "boolean")
 
@@ -410,7 +410,7 @@ local function _get_file_extmarks(file, group_info, live)
     return result
 end
 
----@param group_info keystone.neotoolkit.extmarks.GroupInfo
+---@param group_info keystone.tk.extmarks.GroupInfo
 ---@param group string
 local function _refresh_group(group_info, group)
     local group_data = group_info.data
@@ -423,26 +423,26 @@ local function _refresh_group(group_info, group)
     end
 end
 
----@class keystone.neotoolkit.extmarks.GroupFunctions
+---@class keystone.tk.extmarks.GroupFunctions
 ---@field set_file_extmark fun(id:number, file:string, lnum:number, col:number, opts:vim.api.keyset.set_extmark, user_data:any)
 ---@field remove_extmarks fun()
 ---@field remove_extmark fun(id:number)
 ---@field remove_file_extmarks fun(file:string)
----@field get_extmark_by_id fun(id:number): keystone.neotoolkit.extmarks.MarkInfo?
----@field get_extmark_by_location fun(file:string, line:number, live:boolean): keystone.neotoolkit.extmarks.MarkInfo?
----@field get_extmarks fun(live:boolean): keystone.neotoolkit.extmarks.MarkInfo[]
----@field get_file_extmarks fun(file:string, live:boolean): keystone.neotoolkit.extmarks.MarkInfo[]
+---@field get_extmark_by_id fun(id:number): keystone.tk.extmarks.MarkInfo?
+---@field get_extmark_by_location fun(file:string, line:number, live:boolean): keystone.tk.extmarks.MarkInfo?
+---@field get_extmarks fun(live:boolean): keystone.tk.extmarks.MarkInfo[]
+---@field get_file_extmarks fun(file:string, live:boolean): keystone.tk.extmarks.MarkInfo[]
 ---@field refresh fun()
 
 ---@param group string  unique name; used as the extmark namespace and (on first call) the augroup name
 ---@param group_opts { priority: number }
----@return keystone.neotoolkit.extmarks.GroupFunctions
+---@return keystone.tk.extmarks.GroupFunctions
 function M.define_group(group, group_opts)
     assert(type(group) == "string", "group (string) required")
     assert(type(group_opts.priority) == "number", "missing opts")
     assert(not _defined_groups[group], "group already defined")
 
-    ---@type keystone.neotoolkit.extmarks.GroupInfo
+    ---@type keystone.tk.extmarks.GroupInfo
     local group_info = {
         priority = group_opts.priority,
         data = {
@@ -461,7 +461,7 @@ function M.define_group(group, group_opts)
         end
     end
 
-    ---@type keystone.neotoolkit.extmarks.GroupFunctions
+    ---@type keystone.tk.extmarks.GroupFunctions
     return {
         set_file_extmark = function(id, file, lnum, col, opts, user_data)
             _set_file_extmark(id, file, lnum, col, group_info, opts, user_data)

@@ -1,8 +1,8 @@
 local M         = {}
 
-local inputwin  = require("keystone.neotoolkit.inputwin")
-local ui        = require("keystone.neotoolkit.ui")
-local floatwin  = require("keystone.neotoolkit.floatwin")
+local inputwin  = require("keystone.tk.inputwin")
+local ui        = require("keystone.tk.ui")
+local floatwin  = require("keystone.tk.floatwin")
 
 ---@class keystone.bookmarks.list_editor.Api
 ---@field get_entries fun():keystone.bookmarks.Entry[]

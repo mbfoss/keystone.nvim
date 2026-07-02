@@ -1,4 +1,4 @@
-local common = require "keystone.neotoolkit.timer"
+local common = require "keystone.tk.timer"
 ---@class keystone.notify.Notification
 ---@field win_id integer
 ---@field buf_id integer

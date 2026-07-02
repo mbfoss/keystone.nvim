@@ -1,7 +1,7 @@
 local M = {}
 
 local icons    = require("keystone.icons")
-local throttle = require("keystone.neotoolkit.throttle")
+local throttle = require("keystone.tk.throttle")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
 local _enabled = false

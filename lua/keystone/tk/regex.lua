@@ -13,12 +13,12 @@
 
 local ffi = require("ffi")
 local bit = require("bit")
-local LRU = require("keystone.neotoolkit.LRU")
+local LRU = require("keystone.tk.LRU")
 
 local M = {}
 
 -- PCRE2 compile options (subset). See pcre2_compile(3).
----@enum keystone.neotoolkit.regex.opt
+---@enum keystone.tk.regex.opt
 M.opt = {
 	CASELESS = 0x00000008,
 	MULTILINE = 0x00000400,
@@ -32,7 +32,7 @@ M.opt = {
 }
 
 -- PCRE2 match-time options (subset). See pcre2_match(3).
----@enum keystone.neotoolkit.regex.match_opt
+---@enum keystone.tk.regex.match_opt
 M.match_opt = {
 	NOTBOL = 0x00000001,
 	NOTEOL = 0x00000002,
@@ -209,7 +209,7 @@ end
 -- Regex object
 --------------------------------------------------------------------------------
 
----@class keystone.neotoolkit.Regex
+---@class keystone.tk.Regex
 ---@field private _lib ffi.namespace* the loaded libpcre2-8 handle
 ---@field private _code ffi.cdata* compiled pcre2_code_8*
 ---@field private _md ffi.cdata* match data bound to this pattern
@@ -451,7 +451,7 @@ end
 --- Compile a pattern into a reusable `Regex` object.
 ---@param pattern string
 ---@param flags string|integer|nil flag chars ("imsxuUA"), raw option bits, or nil
----@return keystone.neotoolkit.Regex? regex, string? err
+---@return keystone.tk.Regex? regex, string? err
 function M.compile(pattern, flags)
 	local lib, err = _ensure_lib()
 	if not lib then
@@ -481,7 +481,7 @@ function M.compile(pattern, flags)
 
 	-- Assign to a typed local before returning: returning setmetatable() directly
 	-- spreads its (possibly multi-value) result into the second return slot.
-	---@type keystone.neotoolkit.Regex
+	---@type keystone.tk.Regex
 	local re = setmetatable({
 		_lib = lib,
 		_code = code,
@@ -496,7 +496,7 @@ local _cache = LRU:new(128)
 
 ---@param pattern string
 ---@param flags string|integer|nil
----@return keystone.neotoolkit.Regex
+---@return keystone.tk.Regex
 local function _get_cached(pattern, flags)
 	local key = tostring(flags) .. "\31" .. pattern
 	local re = _cache:get(key)

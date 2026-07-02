@@ -1,7 +1,7 @@
 local M = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
-local ui          = require("keystone.neotoolkit.ui")
+local ui          = require("keystone.tk.ui")
 
 local _modes = { "n", "i", "v", "x", "s", "o", "c", "t" }
 

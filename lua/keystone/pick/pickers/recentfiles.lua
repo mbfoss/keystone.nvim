@@ -1,6 +1,6 @@
 local M = {}
 
-local ui          = require("keystone.neotoolkit.ui")
+local ui          = require("keystone.tk.ui")
 local pickertools = require("keystone.pick.base.pickertools")
 
 ---@return keystone.PickerSpec

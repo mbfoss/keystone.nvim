@@ -12,18 +12,18 @@ local M           = {}
 ---@field lnum integer  -- 1-based line number
 
 local store       = require("keystone.bookmarks.store")
-local inputwin    = require("keystone.neotoolkit.inputwin")
-local ui          = require("keystone.neotoolkit.ui")
+local inputwin    = require("keystone.tk.inputwin")
+local ui          = require("keystone.tk.ui")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local extmarks    = require("keystone.neotoolkit.extmarks")
-local Signal      = require("keystone.neotoolkit.Signal")
+local extmarks    = require("keystone.tk.extmarks")
+local Signal      = require("keystone.tk.Signal")
 
 -- Emitted whenever the bookmark set changes, so open views can refresh.
----@type keystone.neotoolkit.Signal<fun()>
+---@type keystone.tk.Signal<fun()>
 local _changed    = Signal.new()
 
----@type keystone.bookmarks.extmarks.GroupFunctions
+---@type keystone.tk.extmarks.GroupFunctions
 local _mark_group
 
 ---@type vim.api.keyset.set_extmark
@@ -277,7 +277,7 @@ function M.setup(opts)
         callback = _persist,
     })
 
-    require("keystone.neotoolkit.usercmd").register_user_cmd("Bookmark",
+    require("keystone.tk.usercmd").register_user_cmd("Bookmark",
         function(cmd, args, cmd_opts)
             require("keystone.bookmarks.command").run_command(cmd, args, cmd_opts)
         end,

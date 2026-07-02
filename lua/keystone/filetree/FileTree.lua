@@ -1,11 +1,11 @@
-local strutil        = require("keystone.neotoolkit.strutil")
-local ui             = require("keystone.neotoolkit.ui")
-local fsutil         = require("keystone.neotoolkit.fsutil")
-local TreeBuffer     = require("keystone.neotoolkit.TreeBuffer")
-local LRU            = require("keystone.neotoolkit.LRU")
-local floatwin       = require("keystone.neotoolkit.floatwin")
-local inputwin       = require("keystone.neotoolkit.inputwin")
-local common         = require("keystone.neotoolkit.timer")
+local strutil        = require("keystone.tk.strutil")
+local ui             = require("keystone.tk.ui")
+local fsutil         = require("keystone.tk.fsutil")
+local TreeBuffer     = require("keystone.tk.TreeBuffer")
+local LRU            = require("keystone.tk.LRU")
+local floatwin       = require("keystone.tk.floatwin")
+local inputwin       = require("keystone.tk.inputwin")
+local common         = require("keystone.tk.timer")
 local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
@@ -22,7 +22,7 @@ local icons          = require("keystone.icons")
 ---@field children_loading boolean?
 ---@field childrenload_req_id number
 
----@alias keystone.FileTree.ItemDef keystone.neotoolkit.TreeBuffer.ItemData
+---@alias keystone.FileTree.ItemDef keystone.tk.TreeBuffer.ItemData
 
 ---@class keystone.FileTree.PrepareDirEntry
 ---@field name string
@@ -528,7 +528,7 @@ end
 
 ---@private
 ---@param parent_id string
----@param item keystone.neotoolkit.TreeBuffer.ItemDef
+---@param item keystone.tk.TreeBuffer.ItemDef
 function FileTree:_upsert_single_item(parent_id, item)
     local root = self._root
     if not root then return end
@@ -721,12 +721,12 @@ function FileTree:_process_dir(path, entries, error_flag)
         end
     end
 
-    local children = {} ---@type keystone.neotoolkit.TreeBuffer.ItemDef[]
+    local children = {} ---@type keystone.tk.TreeBuffer.ItemDef[]
     for _, entry in pairs(new_entries_map) do
         local icon, icon_hl = self:_get_icon_for_node(entry.name, entry.is_dir, entry.is_link)
         local expanded = self._pending_expand[entry.full_path]
         if expanded ~= nil then self._pending_expand[entry.full_path] = nil end
-        ---@type keystone.neotoolkit.TreeBuffer.ItemDef
+        ---@type keystone.tk.TreeBuffer.ItemDef
         local child = {
             id = entry.full_path,
             expandable = entry.is_dir,
@@ -987,7 +987,7 @@ function FileTree:_rename_node(item)
 end
 
 ---@private
----@param item keystone.neotoolkit.TreeBuffer.ItemDef
+---@param item keystone.tk.TreeBuffer.ItemDef
 function FileTree:_show_hover(item)
     local data = item.data ---@type keystone.FileTree.ItemData
     local path = data.path
@@ -1062,7 +1062,7 @@ end
 
 ---@private
 --- Toggle the selection state of the item under the cursor.
----@param item keystone.neotoolkit.TreeBuffer.Item
+---@param item keystone.tk.TreeBuffer.Item
 function FileTree:_toggle_select(item)
     local path = item.data.path
     if path == self._root then return end -- the root is not selectable
@@ -1076,7 +1076,7 @@ end
 
 ---@private
 --- Collect the items covered by the current visual selection.
----@return keystone.neotoolkit.TreeBuffer.Item[]
+---@return keystone.tk.TreeBuffer.Item[]
 function FileTree:_get_visual_items()
     local winid = self._treebuf:get_winid()
     if winid <= 0 then return {} end
@@ -1122,7 +1122,7 @@ end
 
 ---@private
 --- Collect the currently selected items that still exist, pruning stale paths.
----@return keystone.neotoolkit.TreeBuffer.Item[]
+---@return keystone.tk.TreeBuffer.Item[]
 function FileTree:_get_selected_items()
     local items = {}
     for path in pairs(self._selected) do
@@ -1152,7 +1152,7 @@ end
 --- Delete the given items (recursively for directories), pruning any of them
 --- from the marked selection. Uses the system trash when available, otherwise
 --- deletes permanently.
----@param items keystone.neotoolkit.TreeBuffer.Item[]
+---@param items keystone.tk.TreeBuffer.Item[]
 function FileTree:_delete_items(items)
     local targets = {}
     for _, item in ipairs(items) do
@@ -1210,7 +1210,7 @@ end
 ---@private
 --- Move or copy every selected item into the directory implied by `target_item`
 --- (the item itself when it is a directory, otherwise its parent directory).
----@param target_item keystone.neotoolkit.TreeBuffer.Item
+---@param target_item keystone.tk.TreeBuffer.Item
 ---@param is_copy boolean
 function FileTree:_transfer_selected(target_item, is_copy)
     local items = self:_get_selected_items()

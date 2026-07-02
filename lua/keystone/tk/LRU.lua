@@ -1,18 +1,18 @@
----@class keystone.neotoolkit.LRU.Node
+---@class keystone.tk.LRU.Node
 ---@field key any
 ---@field value any
----@field prev keystone.neotoolkit.LRU.Node?
----@field next keystone.neotoolkit.LRU.Node?
+---@field prev keystone.tk.LRU.Node?
+---@field next keystone.tk.LRU.Node?
 
----@class keystone.neotoolkit.LRU
+---@class keystone.tk.LRU
 ---@field _capacity integer
 ---@field _count integer
----@field _map table<any, keystone.neotoolkit.LRU.Node>
----@field _head keystone.neotoolkit.LRU.Node?
----@field _tail keystone.neotoolkit.LRU.Node?
+---@field _map table<any, keystone.tk.LRU.Node>
+---@field _head keystone.tk.LRU.Node?
+---@field _tail keystone.tk.LRU.Node?
 ---@field _on_evict fun(key:any, value:any)? Called ONLY when _capacity is exceeded.
 ---@field _on_removed fun(key:any, value:any)? Called for EVERY removal (eviction, delete, clear).
----@field new fun(self:keystone.neotoolkit.LRU, capacity:integer, opts?:{on_evict?:fun(key:any, value:any), on_removed?:fun(key:any, value:any)}):keystone.neotoolkit.LRU
+---@field new fun(self:keystone.tk.LRU, capacity:integer, opts?:{on_evict?:fun(key:any, value:any), on_removed?:fun(key:any, value:any)}):keystone.tk.LRU
 local LRU = {}
 LRU.__index = LRU
 

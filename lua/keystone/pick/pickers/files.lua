@@ -1,9 +1,9 @@
 local M           = {}
 
-local ui          = require("keystone.neotoolkit.ui")
-local strutil     = require("keystone.neotoolkit.strutil")
-local fsutil      = require("keystone.neotoolkit.fsutil")
-local regex       = require("keystone.neotoolkit.regex")
+local ui          = require("keystone.tk.ui")
+local strutil     = require("keystone.tk.strutil")
+local fsutil      = require("keystone.tk.fsutil")
+local regex       = require("keystone.tk.regex")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 
@@ -65,7 +65,7 @@ end
 
 ---@param filename string
 ---@param query string fuzzy query (unused when `re` is given)
----@param re keystone.neotoolkit.Regex? compiled PCRE2 pattern; when set, runs regex mode
+---@param re keystone.tk.Regex? compiled PCRE2 pattern; when set, runs regex mode
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
 local function do_match(filename, query, re, case_sensitive)

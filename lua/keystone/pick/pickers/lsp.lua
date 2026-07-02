@@ -1,8 +1,8 @@
 local M                  = {}
 
-local ui                 = require("keystone.neotoolkit.ui")
+local ui                 = require("keystone.tk.ui")
 local pickertools        = require("keystone.pick.base.pickertools")
-local fsutil             = require("keystone.neotoolkit.fsutil")
+local fsutil             = require("keystone.tk.fsutil")
 
 local _kind_to_str_cache = {}
 ---@param kind number LSP SymbolKind (integer)

@@ -1,9 +1,9 @@
-local Spinner     = require("keystone.neotoolkit.Spinner")
-local common      = require("keystone.neotoolkit.timer")
-local fsutil      = require("keystone.neotoolkit.fsutil")
-local ui          = require("keystone.neotoolkit.ui")
+local Spinner     = require("keystone.tk.Spinner")
+local common      = require("keystone.tk.timer")
+local fsutil      = require("keystone.tk.fsutil")
+local ui          = require("keystone.tk.ui")
 local layouts     = require("keystone.explore.layouts")
-local floatwin    = require("keystone.neotoolkit.floatwin")
+local floatwin    = require("keystone.tk.floatwin")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -152,8 +152,8 @@ local function _default_preview(path, preview_opts, callback)
     return cancel_fn
 end
 
----@class keystone.neotoolkit.Explorer
----@field new fun(self: keystone.neotoolkit.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.neotoolkit.Explorer
+---@class keystone.tk.Explorer
+---@field new fun(self: keystone.tk.Explorer,opts:keystone.Explorer.Opts,callback:keystone.Explorer.Callback) : keystone.tk.Explorer
 ---@field opts keystone.Explorer.Opts
 ---@field callback keystone.Explorer.Callback
 ---@field layout keystone.Explorer.Layout
@@ -161,7 +161,7 @@ end
 ---@field vbuf integer?
 ---@field lwin integer
 ---@field vwin integer?
----@field spinner keystone.neotoolkit.Spinner?
+---@field spinner keystone.tk.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.explorer.ListItem[]
 ---@field async_fetch_context number

@@ -1,6 +1,6 @@
 local M = {}
 
-local _usercmd = require("keystone.neotoolkit.usercmd")
+local _usercmd = require("keystone.tk.usercmd")
 
 -- Neovim's `vim.lsp.log` opens (and writes a "[START] ... LSP logging initiated"
 -- header to) the log file *before* it checks the level, so even at "OFF" the

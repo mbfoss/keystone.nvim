@@ -1,7 +1,7 @@
-local ui_util = require("keystone.neotoolkit.ui")
+local ui_util = require("keystone.tk.ui")
 local M = {}
 
----@class keystone.neotoolkit.inputwin.Opts
+---@class keystone.tk.inputwin.Opts
 ---@field prompt? string
 ---@field default? string
 ---@field default_width? number
@@ -9,7 +9,7 @@ local M = {}
 ---@field col_offset? number
 ---@field validate? fun(content:string):boolean,string?
 ---@
----@param opts keystone.neotoolkit.inputwin.Opts
+---@param opts keystone.tk.inputwin.Opts
 ---@param on_confirm fun(value: string|nil)
 function M.open(opts, on_confirm)
     local prev_win = vim.api.nvim_get_current_win()

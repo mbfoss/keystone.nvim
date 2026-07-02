@@ -1,10 +1,10 @@
----@class keystone.neotoolkit.Signal<T>
+---@class keystone.tk.Signal<T>
 ---@field _listeners T[]
 local Signal = {}
 Signal.__index = Signal
 
 ---@generic T: fun(...)
----@return keystone.neotoolkit.Signal<T>
+---@return keystone.tk.Signal<T>
 function Signal.new()
     return setmetatable({ _listeners = {} }, Signal)
 end

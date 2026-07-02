@@ -1,11 +1,11 @@
----@class keystone.neotoolkit.SpawnHandle
+---@class keystone.tk.SpawnHandle
 ---@field kill  fun()
 ---@field write fun(data: string?, on_done?: fun())
 
 ---@param cmd      string[]
 ---@param opts     { cwd?: string, stdin?: boolean, stdout?: fun(data:string), stderr?: fun(data:string) }
 ---@param on_exit  fun(code:integer)
----@return keystone.neotoolkit.SpawnHandle
+---@return keystone.tk.SpawnHandle
 local function spawn(cmd, opts, on_exit)
     -- stdin is opt-in: only commands that read from stdin (the rg `-` target)
     -- get a pipe, so others keep inheriting/ignoring stdin exactly as before.

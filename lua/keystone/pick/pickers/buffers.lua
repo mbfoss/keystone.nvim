@@ -1,8 +1,8 @@
 local M           = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
-local ui          = require("keystone.neotoolkit.ui")
-local fsutil      = require("keystone.neotoolkit.fsutil")
+local ui          = require("keystone.tk.ui")
+local fsutil      = require("keystone.tk.fsutil")
 
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {

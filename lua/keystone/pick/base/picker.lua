@@ -1,7 +1,7 @@
-local Spinner            = require("keystone.neotoolkit.Spinner")
-local common             = require("keystone.neotoolkit.timer")
-local ui                 = require("keystone.neotoolkit.ui")
-local floatwin           = require("keystone.neotoolkit.floatwin")
+local Spinner            = require("keystone.tk.Spinner")
+local common             = require("keystone.tk.timer")
+local ui                 = require("keystone.tk.ui")
+local floatwin           = require("keystone.tk.floatwin")
 local layouts            = require("keystone.pick.base.layouts")
 local queryflags         = require("keystone.pick.base.queryflags")
 local pickertools        = require("keystone.pick.base.pickertools")
@@ -254,8 +254,8 @@ local function _item_label(item)
 	return table.concat(parts):gsub("\n", " ")
 end
 
----@class keystone.neotoolkit.Picker
----@field new fun(self: keystone.neotoolkit.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.neotoolkit.Picker
+---@class keystone.tk.Picker
+---@field new fun(self: keystone.tk.Picker,opts:keystone.Picker.opts,callback:keystone.Picker.Callback) : keystone.tk.Picker
 ---@field opts keystone.Picker.opts
 ---@field callback keystone.Picker.Callback
 ---@field preview_enabled boolean
@@ -266,7 +266,7 @@ end
 ---@field pwin integer?
 ---@field lwin integer?
 ---@field vwin integer?
----@field spinner keystone.neotoolkit.Spinner?
+---@field spinner keystone.tk.Spinner?
 ---@field closed boolean
 ---@field list_items keystone.picker.ListItem[]
 ---@field async_fetch_context number

@@ -1,6 +1,6 @@
 local M = {}
 
-local throttle = require("keystone.neotoolkit.throttle")
+local throttle = require("keystone.tk.throttle")
 
 ---@class keystone.winbar.Config
 ---@field enabled boolean
