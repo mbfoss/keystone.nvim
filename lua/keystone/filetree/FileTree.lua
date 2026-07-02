@@ -1,11 +1,10 @@
 local strutil        = require("keystone.tk.strutil")
 local ui             = require("keystone.tk.ui")
-local fsutil         = require("keystone.tk.fsutil")
+local fs             = require("keystone.filetree.fs")
 local TreeBuffer     = require("keystone.tk.TreeBuffer")
 local LRU            = require("keystone.tk.LRU")
 local floatwin       = require("keystone.tk.floatwin")
 local inputwin       = require("keystone.tk.inputwin")
-local common         = require("keystone.tk.timer")
 local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
@@ -23,15 +22,6 @@ local icons          = require("keystone.icons")
 ---@field childrenload_req_id number
 
 ---@alias keystone.FileTree.ItemDef keystone.tk.TreeBuffer.ItemData
-
----@class keystone.FileTree.PrepareDirEntry
----@field name string
----@field type string
-
----@class keystone.FileTree.ProcessDirEntry
----@field name string
----@field is_dir boolean
----@field is_link boolean
 
 ---@class keystone.FileTree.UpsetSingleItemArgs
 ---@field parent_path string
@@ -69,6 +59,7 @@ SELECTION
 =========
 `<Tab>`   Toggle selection of item under cursor
 `<Tab>`   (visual) Toggle selection of items in the visual selection
+`<S-Tab>` Clear the selection
 `x`       Move selected items into the directory under cursor
 `c`       Copy selected items into the directory under cursor
 `d`       Delete selected items (system trash)
@@ -172,7 +163,7 @@ function FileTree:_setup_tree()
 
     self._treebuf:subscribe({
         on_selection = function(id, data)
-            if not data.is_dir and fsutil.file_exists(data.path) then
+            if not data.is_dir and fs.file_exists(data.path) then
                 ui.smart_open_file(data.path)
             end
         end,
@@ -354,6 +345,12 @@ function FileTree:create_buffer()
             end,
             "Toggle selection",
         },
+        ["<S-Tab>"] = {
+            function()
+                with_item(function(i) self:_clear_selection() end)
+            end,
+            "Clear selection",
+        },
         ["x"] = {
             function()
                 with_item(function(i) self:_transfer_selected(i, false) end)
@@ -431,9 +428,8 @@ function FileTree:_start_dir_monitor(path)
     if self._monitor_lru:has(path) then
         return false
     end
-    local cancel_fn, error_msg = fsutil.monitor_dir(path, function(name, status)
+    local cancel_fn, error_msg = fs.monitor_dir(path, function(name, status)
         local reload_counter = self._reload_counter
-        ---@type keystone.FileTree.ProcessDirEntry[]
         if reload_counter ~= self._reload_counter then return end
         if self._treebuf:get_bufnr() ~= -1 then
             self:_read_dir(path, reload_counter, false)
@@ -600,58 +596,10 @@ function FileTree:_get_icon_for_node(name, is_dir, is_link)
 end
 
 ---@param path string
----@param prep_entries keystone.FileTree.PrepareDirEntry[]
----@param callback fun(resolved_entries: keystone.FileTree.ProcessDirEntry[])
-function FileTree:_prepare_dir_entries(path, prep_entries, callback)
-    local root = self._root
-    local resolved = {} ---@type keystone.FileTree.ProcessDirEntry[]
-    local pending = #prep_entries
-    if pending == 0 or not root then
-        callback({})
-        return
-    end
-
-    ---@type fun(fp:string,name:string,is_dir:boolean,is_link:boolean)
-    local process_entry = function(full_path, name, is_dir, is_link)
-        if not is_link or self._follow_symlinks then
-            local rel = vim.fs.relpath(self._root, full_path)
-            if rel and self:_should_include(rel, is_dir) then
-                ---@type keystone.FileTree.ProcessDirEntry
-                local entry = {
-                    name = name,
-                    is_dir = is_dir,
-                    is_link = is_link,
-                }
-                table.insert(resolved, entry)
-            end
-        end
-        pending = pending - 1
-        if pending == 0 then callback(resolved) end
-    end
-
-    local reload_counter = self._reload_counter
-    for _, entry in ipairs(prep_entries) do
-        local full_path = vim.fs.joinpath(path, entry.name)
-        if entry.type == "link" and self._follow_symlinks then
-            vim.uv.fs_stat(full_path, function(err, stat)
-                vim.schedule(function() -- processing inside libuv callback -> crash
-                    if reload_counter ~= self._reload_counter then return end
-                    local is_dir = err == nil and stat ~= nil and stat.type == "directory"
-                    process_entry(full_path, entry.name, is_dir, true)
-                end)
-            end)
-        else
-            process_entry(full_path, entry.name, entry.type == "directory", entry.type == "link")
-        end
-    end
-end
-
----@param path string
 ---@param reload_counter number
 ---@param recursive boolean
 function FileTree:_read_dir(path, reload_counter, recursive)
     if reload_counter ~= self._reload_counter then return end
-
 
     local item = self._treebuf:get_item(path)
     if not item then return end
@@ -661,48 +609,37 @@ function FileTree:_read_dir(path, reload_counter, recursive)
     local req_id = (data.childrenload_req_id or 0) + 1
     data.childrenload_req_id = req_id
     data.children_loading = true
-    vim.uv.fs_scandir(path, function(err, handle)
-        vim.schedule(function() -- get out of the fast event context
-            if reload_counter ~= self._reload_counter then return end
-            if req_id ~= data.childrenload_req_id then return end
-            data.children_loading = false
-            local prep_entries = {} ---@type keystone.FileTree.PrepareDirEntry[]
-            if handle then
-                while true do
-                    local name, type = vim.uv.fs_scandir_next(handle)
-                    if not name then break end
-                    local entry = { name = name, type = type } ---@type keystone.FileTree.PrepareDirEntry
-                    table.insert(prep_entries, entry)
+    fs.scan_dir(path, {
+        follow_symlinks = self._follow_symlinks,
+        filter = function(full_path, name, is_dir, is_link)
+            local root = self._root
+            if not root then return false end
+            local rel = vim.fs.relpath(root, full_path)
+            return rel ~= nil and self:_should_include(rel, is_dir)
+        end,
+    }, function(entries, err)
+        if reload_counter ~= self._reload_counter then return end
+        if req_id ~= data.childrenload_req_id then return end
+        data.children_loading = false
+        self:_process_dir(path, entries, err ~= nil)
+        if self._pending_reveal then
+            vim.schedule(function()
+                self:_reveal_step()
+            end)
+        end
+        if recursive then
+            for _, child in ipairs(self._treebuf:get_children(path)) do
+                ---@type keystone.FileTree.ItemData
+                local child_data = child.data
+                if child_data.is_dir and child.expandable and child.expanded then
+                    self:_read_dir(child_data.path, reload_counter, recursive)
                 end
             end
-            self:_prepare_dir_entries(path, prep_entries, function(resolved_entries)
-                if reload_counter ~= self._reload_counter then return end
-                if req_id ~= data.childrenload_req_id then return end
-                self:_process_dir(path, resolved_entries, err ~= nil)
-                if self._pending_reveal then
-                    vim.schedule(function()
-                        self:_reveal_step()
-                    end)
-                end
-                if recursive then
-                    for _, child in ipairs(self._treebuf:get_children(path)) do
-                        ---@type keystone.FileTree.ItemData
-                        local child_data = child.data
-                        local child_path = child_data.path
-                        ---@type keystone.FileTree.ItemData
-                        if child_data.is_dir then
-                            if child.expandable and child.expanded then
-                                self:_read_dir(child_path, reload_counter, recursive)
-                            end
-                        end
-                    end
-                end
-            end)
-        end)
+        end
     end)
 end
 
----@param entries keystone.FileTree.ProcessDirEntry[]
+---@param entries keystone.filetree.fs.Entry[]
 ---@param error_flag boolean
 function FileTree:_process_dir(path, entries, error_flag)
     local root = self._root
@@ -922,22 +859,12 @@ function FileTree:_create_node(item, as_dir, force_parent)
                 vim.notify(name_err or "Invalid name", vim.log.levels.ERROR)
                 return
             end
-            if as_dir then
-                local ok, err = vim.uv.fs_mkdir(new_path, 493) -- 493 is octal 0755
-                if ok then
-                    self:_read_dir(base_dir, self._reload_counter, false)
-                    self:_reveal(new_path)
-                else
-                    vim.notify(err or "Failed to create directory", vim.log.levels.ERROR)
-                end
+            local created, err = fs.create_node(new_path, as_dir)
+            if created then
+                self:_read_dir(base_dir, self._reload_counter, false)
+                self:_reveal(new_path)
             else
-                local created, err = fsutil.create_file(new_path)
-                if created then
-                    self:_read_dir(base_dir, self._reload_counter, false)
-                    self:_reveal(new_path)
-                else
-                    vim.notify(err or "Failed to create file", vim.log.levels.ERROR)
-                end
+                vim.notify(err or ("Failed to create " .. type_label), vim.log.levels.ERROR)
             end
         end)
 end
@@ -982,7 +909,7 @@ function FileTree:_rename_node(item)
             if not self._treebuf:get_item(old_path) then return end
             if old_path == final_path then return end
 
-            local ok, err = fsutil.rename_file(old_path, final_path)
+            local ok, err = fs.rename_path(old_path, final_path)
             if ok then
                 self:_read_dir(parent_dir, self._reload_counter, false)
 
@@ -1061,14 +988,8 @@ function FileTree:_show_hover(item)
         end)
     end
 
-    vim.uv.fs_stat(path, function(_, stat)
-        if data.is_link then
-            vim.uv.fs_readlink(path, function(_, target)
-                render(stat, target)
-            end)
-        else
-            render(stat, nil)
-        end
+    fs.stat_info(path, data.is_link == true, function(info)
+        render(info.stat, info.link_target)
     end)
 end
 
@@ -1175,7 +1096,7 @@ function FileTree:_delete_items(items, use_trash)
     end
     if #targets == 0 then return end
 
-    if use_trash and not fsutil.has_trash() then
+    if use_trash and not fs.has_trash() then
         vim.notify("System trash not available", vim.log.levels.WARN)
         use_trash = false
     end
@@ -1197,13 +1118,7 @@ function FileTree:_delete_items(items, use_trash)
         for _, item in ipairs(targets) do
             local path = item.data.path
             if self._treebuf:get_item(path) then
-                local removed, err
-                if use_trash then
-                    removed, err = fsutil.trash_path(path)
-                else
-                    removed = vim.fn.delete(path, "rf") == 0
-                    if not removed then err = "delete failed" end
-                end
+                local removed, err = fs.delete_path(path, use_trash)
                 if removed then
                     self._selected[path] = nil
                     dirs_to_refresh[vim.fn.fnamemodify(path, ":h")] = true
@@ -1254,7 +1169,7 @@ function FileTree:_transfer_selected(target_item, is_copy)
             -- already in the destination directory; nothing to do
         elseif item.data.is_dir and (dest_dir == from or vim.startswith(dest_dir, from .. "/")) then
             vim.notify(("Cannot %s %s into itself"):format(verb, name), vim.log.levels.WARN)
-        elseif fsutil.file_exists(to) then
+        elseif fs.file_exists(to) then
             vim.notify(("Skipping %s: already exists in destination"):format(name), vim.log.levels.WARN)
         else
             ops[#ops + 1] = { from = from, to = to, name = name }
@@ -1281,9 +1196,9 @@ function FileTree:_transfer_selected(target_item, is_copy)
             if self._treebuf:get_item(op.from) then
                 local ok, err
                 if is_copy then
-                    ok, err = fsutil.copy_path(op.from, op.to)
+                    ok, err = fs.copy_path(op.from, op.to)
                 else
-                    ok, err = fsutil.rename_file(op.from, op.to)
+                    ok, err = fs.rename_path(op.from, op.to)
                 end
                 if ok then
                     dirs_to_refresh[vim.fn.fnamemodify(op.from, ":h")] = true
