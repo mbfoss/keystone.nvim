@@ -3,12 +3,14 @@ local M = {}
 
 ---@class keystone.filetree.Config
 ---@field width_ratio number?
+---@field follow_current_buffer boolean?
 
 ---@return keystone.filetree.Config
 local function _get_default_config()
     ---@type keystone.filetree.Config
     return {
-        width_ratio = 0.2
+        width_ratio = 0.2,
+        follow_current_buffer = false,
     }
 end
 

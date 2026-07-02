@@ -30,7 +30,7 @@ local function _open()
         local FileTree = require("keystone.filetree.FileTree")
         _tree = FileTree:new({
             track_current_file = {
-                enabled = true,
+                enabled = config.follow_current_buffer == true,
                 auto_collapse_others = true,
             },
         })
