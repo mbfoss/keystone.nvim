@@ -6,6 +6,7 @@ local LRU            = require("keystone.tk.LRU")
 local floatwin       = require("keystone.tk.floatwin")
 local inputwin       = require("keystone.tk.inputwin")
 local icons          = require("keystone.icons")
+local marks          = require("keystone.filetree.marks")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
@@ -64,6 +65,11 @@ SELECTION
 `c`       Copy selected items into the directory under cursor
 `d`       Delete selected items (system trash)
 `D`       Delete selected items (permanently, no trash)
+
+BOOKMARKS
+=========
+`m{char}`  Bookmark file/directory under cursor as {char}
+`'{char}`  Jump to bookmark {char}
 
 OTHER
 =====
@@ -386,6 +392,30 @@ function FileTree:create_buffer()
                 _show_help()
             end,
             "Show Help",
+        },
+        ["m"] = {
+            function()
+                with_item(function(i)
+                    local ok, char = pcall(vim.fn.getcharstr)
+                    if not ok or char == "" or char == "\27" then return end
+                    marks.set(char, i.data.path)
+                    vim.notify(("[keystone] Bookmarked '%s' -> %s"):format(char, vim.fn.fnamemodify(i.data.path, ":~:.")))
+                end)
+            end,
+            "Bookmark file/directory under cursor",
+        },
+        ["'"] = {
+            function()
+                local ok, char = pcall(vim.fn.getcharstr)
+                if not ok or char == "" or char == "\27" then return end
+                local path = marks.get(char)
+                if not path then
+                    vim.notify(("[keystone] No bookmark '%s'"):format(char), vim.log.levels.WARN)
+                    return
+                end
+                self:reveal(path, true, true)
+            end,
+            "Jump to bookmark",
         },
     }
 

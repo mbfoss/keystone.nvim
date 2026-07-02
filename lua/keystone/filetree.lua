@@ -4,6 +4,7 @@ local M = {}
 ---@class keystone.filetree.Config
 ---@field width_ratio number?
 ---@field follow_current_buffer boolean?
+---@field marks_persist_file (string | fun():string)?  -- nil = stdpath("data")/keystone.ftmarks.json
 
 ---@return keystone.filetree.Config
 local function _get_default_config()
@@ -11,6 +12,7 @@ local function _get_default_config()
     return {
         width_ratio = 0.2,
         follow_current_buffer = false,
+        marks_persist_file = nil,
     }
 end
 
@@ -20,6 +22,8 @@ M.config = _get_default_config()
 ---@param opts table?
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+
+    require("keystone.filetree.marks").setup(M.config.marks_persist_file)
 
     require("keystone.tk.usercmd").register_user_cmd("FileTree", function(cmd, args, opts)
             require("keystone.filetree.command").run_command(cmd, args, opts)
