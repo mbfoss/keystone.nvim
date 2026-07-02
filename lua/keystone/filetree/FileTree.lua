@@ -69,9 +69,10 @@ SELECTION
 =========
 `<Tab>`   Toggle selection of item under cursor
 `<Tab>`   (visual) Toggle selection of items in the visual selection
-`X`       Move selected items into the directory under cursor
-`C`       Copy selected items into the directory under cursor
-`D`       Delete selected items (system trash if available)
+`x`       Move selected items into the directory under cursor
+`c`       Copy selected items into the directory under cursor
+`d`       Delete selected items (system trash)
+`D`       Delete selected items (permanently, no trash)
 
 OTHER
 =====
@@ -325,6 +326,17 @@ function FileTree:create_buffer()
             end,
             "Rename file or directory",
         },
+        ["d"] = {
+            function()
+                local items = self:_get_selected_items()
+                if #items == 0 then
+                    vim.notify("No items selected", vim.log.levels.WARN)
+                    return
+                end
+                self:_delete_items(items, true)
+            end,
+            "Delete selected items (system trash)",
+        },
         ["D"] = {
             function()
                 local items = self:_get_selected_items()
@@ -332,9 +344,9 @@ function FileTree:create_buffer()
                     vim.notify("No items selected", vim.log.levels.WARN)
                     return
                 end
-                self:_delete_items(items)
+                self:_delete_items(items, false)
             end,
-            "Delete selected items (system trash if available)",
+            "Delete selected items (permanently, no trash)",
         },
         ["<Tab>"] = {
             function()
@@ -342,13 +354,13 @@ function FileTree:create_buffer()
             end,
             "Toggle selection",
         },
-        ["X"] = {
+        ["x"] = {
             function()
                 with_item(function(i) self:_transfer_selected(i, false) end)
             end,
             "Move selected items here",
         },
-        ["C"] = {
+        ["c"] = {
             function()
                 with_item(function(i) self:_transfer_selected(i, true) end)
             end,
@@ -1150,10 +1162,11 @@ end
 
 ---@private
 --- Delete the given items (recursively for directories), pruning any of them
---- from the marked selection. Uses the system trash when available, otherwise
---- deletes permanently.
+--- from the marked selection. Uses the system trash when `use_trash` is true
+--- and available, otherwise deletes permanently.
 ---@param items keystone.tk.TreeBuffer.Item[]
-function FileTree:_delete_items(items)
+---@param use_trash boolean
+function FileTree:_delete_items(items, use_trash)
     local targets = {}
     for _, item in ipairs(items) do
         if item.data.path ~= self._root then
@@ -1162,7 +1175,10 @@ function FileTree:_delete_items(items)
     end
     if #targets == 0 then return end
 
-    local use_trash = fsutil.has_trash()
+    if use_trash and not fsutil.has_trash() then
+        vim.notify("System trash not available", vim.log.levels.WARN)
+        use_trash = false
+    end
 
     local lines = {}
     for _, item in ipairs(targets) do
@@ -1177,21 +1193,22 @@ function FileTree:_delete_items(items)
         if reload_counter ~= self._reload_counter then return end
 
         local dirs_to_refresh = {}
-        local failed = 0
+        local errors = {}
         for _, item in ipairs(targets) do
             local path = item.data.path
             if self._treebuf:get_item(path) then
-                local removed
+                local removed, err
                 if use_trash then
-                    removed = fsutil.trash_path(path)
+                    removed, err = fsutil.trash_path(path)
                 else
                     removed = vim.fn.delete(path, "rf") == 0
+                    if not removed then err = "delete failed" end
                 end
                 if removed then
                     self._selected[path] = nil
                     dirs_to_refresh[vim.fn.fnamemodify(path, ":h")] = true
                 else
-                    failed = failed + 1
+                    errors[#errors + 1] = ("%s: %s"):format(path, err or "unknown error")
                 end
             end
         end
@@ -1201,8 +1218,9 @@ function FileTree:_delete_items(items)
                 self:_read_dir(dir, self._reload_counter, false)
             end
         end
-        if failed > 0 then
-            vim.notify(("Failed to delete %d item(s)"):format(failed), vim.log.levels.ERROR)
+        if #errors > 0 then
+            local err_msg = ("Failed to delete %d item(s):\n%s"):format(#errors, table.concat(errors, "\n"))
+            vim.notify(err_msg, vim.log.levels.ERROR)
         end
     end)
 end
