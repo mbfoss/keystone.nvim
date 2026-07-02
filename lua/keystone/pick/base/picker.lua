@@ -17,6 +17,7 @@ local _NS_SPINNER        = vim.api.nvim_create_namespace("keystone_PickerSpinner
 local _NS_PREVIEW        = vim.api.nvim_create_namespace("keystone_PickerPreview")
 
 local _antiflicker_delay = 200
+local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title"
 
 
 ---@class keystone.picker.ItemData
@@ -397,7 +398,7 @@ function Picker:relayout(action)
 		border = "rounded"
 	}
 
-	local winhl = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title"
+	local winhl = _WINHL
 
 	if not self.pwin then
 		if not self.pbuf then
@@ -677,6 +678,7 @@ function Picker:update_preview()
 					self:release_external_preview_buf()
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
+					vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
 				end
 				return
@@ -684,6 +686,7 @@ function Picker:update_preview()
 
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
+				vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 				self:release_external_preview_buf()
 			end
 
@@ -762,6 +765,7 @@ function Picker:request_clear_preview(immediate)
 		if self.vbuf and not self.closed then
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
+				vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 			end
 			self:release_external_preview_buf()
 			vim.bo[self.vbuf].modifiable = true
