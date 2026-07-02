@@ -516,6 +516,9 @@ function Picker:relayout(action)
 						vim.api.nvim_buf_delete(self.vbuf, { force = true })
 						self.vbuf = nil
 					end
+					if not self.closed then
+						vim.schedule(function() self:close() end)
+					end
 				end)
 			vim.wo[self.vwin].wrap = true
 			vim.wo[self.vwin].winhighlight = winhl
