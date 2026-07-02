@@ -114,7 +114,8 @@ Available types:
 ```
 files            recent_files     config_files     live_grep
 buffers          windows          jumplist
-quickfix         keymaps          commands         autocommands
+quickfix         loclist          keymaps          commands
+autocommands
 highlights       notifications    spell_suggest
 lsp_references   document_symbols
 document_diagnostics    workspace_diagnostics

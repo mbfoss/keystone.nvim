@@ -18,7 +18,8 @@ local _type_alias  = {
     hint  = "N", note = "N", n = "N",
 }
 
----@alias keystone.pick.quickfix_filter 'all'|"errors"|"warnings"|"info"
+---@alias keystone.pick.qflist_filter 'all'|"errors"|"warnings"|"info"
+---@alias keystone.pick.qflist_type 'quickfix'|"loclist"
 
 local _type_prefix = {
     E = { "󰅚 ", "DiagnosticError" },
@@ -28,7 +29,7 @@ local _type_prefix = {
 }
 
 ---@param qf any
----@param filter keystone.pick.quickfix_filter
+---@param filter keystone.pick.qflist_filter
 ---@return boolean
 local function matches_filter(qf, filter)
     if filter == "all" or not filter then return true end
@@ -60,13 +61,26 @@ local function read_qf_item(item)
     }
 end
 
----@param opts {filter:keystone.pick.quickfix_filter?}?
+---@param list_type keystone.pick.qflist_type
+---@param winid integer
+---@return table[], integer
+local function get_list(list_type, winid)
+    if list_type == "loclist" then
+        return vim.fn.getloclist(winid), vim.fn.getloclist(winid, { idx = 0 }).idx
+    end
+    return vim.fn.getqflist(), vim.fn.getqflist({ idx = 0 }).idx
+end
+
+---@param opts {filter:keystone.pick.qflist_filter?, list_type:keystone.pick.qflist_type?, winid:integer?}?
 ---@return keystone.PickerSpec?
 function M.spec(opts)
     opts = opts or {}
     local filter      = opts.filter or "all"
-    local qflist      = vim.fn.getqflist()
-    local current_idx = vim.fn.getqflist({ idx = 0 }).idx
+    local list_type   = opts.list_type or "quickfix"
+    local winid       = opts.winid or vim.fn.win_getid()
+    local is_loclist  = list_type == "loclist"
+    local qflist, current_idx = get_list(list_type, winid)
+    local list_label  = is_loclist and "Location List" or "Quickfix"
 
     local entries = {}
     for idx, qf in ipairs(qflist) do
@@ -81,15 +95,15 @@ function M.spec(opts)
 
     if vim.tbl_isempty(entries) then
         if filter == "all" then
-            vim.notify("Quickfix list is empty", vim.log.levels.WARN)
+            vim.notify(("%s is empty"):format(list_label), vim.log.levels.WARN)
         else
-            vim.notify(("No %s in quickfix list"):format(filter), vim.log.levels.WARN)
+            vim.notify(("No %s in %s"):format(filter, list_label), vim.log.levels.WARN)
         end
         return nil
     end
 
     return {
-        prompt             = "Quickfix Items",
+        prompt             = list_label .. " Items",
         flags              = FLAGS,
         enable_list_sep    = true,
         enable_preview     = true,
@@ -147,7 +161,12 @@ function M.spec(opts)
             return data
         end,
         on_confirm         = function(data)
-            if data then vim.cmd("cc " .. data.qfidx) end
+            if not data then return end
+            if is_loclist then
+                vim.fn.win_execute(winid, "ll " .. data.qfidx)
+            else
+                vim.cmd("cc " .. data.qfidx)
+            end
         end,
     }
 end

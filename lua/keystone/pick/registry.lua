@@ -11,7 +11,8 @@ local _pickers = {
             prompt = "Config files",
         })
     end,
-    quickfix              = function() return require("keystone.pick.pickers.quickfix").spec() end,
+    quickfix              = function() return require("keystone.pick.pickers.qflist").spec() end,
+    loclist               = function() return require("keystone.pick.pickers.qflist").spec({ list_type = "loclist" }) end,
     jumplist              = function() return require("keystone.pick.pickers.jumplist").spec() end,
     lsp_references        = function() return require("keystone.pick.pickers.lsp").references_spec() end,
     document_symbols      = function() return require("keystone.pick.pickers.lsp").document_symbols_spec() end,
