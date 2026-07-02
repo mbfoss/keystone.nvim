@@ -35,6 +35,14 @@ local marks          = require("keystone.filetree.marks")
 
 local _error_node_id = {} -- unique id for the error node
 
+--- Standard vim settable marks are the letters `a`-`z` and `A`-`Z`; reject
+--- anything else (digits, punctuation, tabs, multibyte keys) as a mark char.
+---@param char string
+---@return boolean
+local function _is_mark_char(char)
+    return char:match("^[a-zA-Z]$") ~= nil
+end
+
 local function _show_help()
     local help_text = { [[
 NAVIGATION
@@ -94,11 +102,11 @@ local function _file_formatter(id, data, selected)
     if not data then return {}, {} end
     local virt_chunks = {}
     local mark_char = data.mark_char
-    if mark_char and mark_char ~= "" then
-        table.insert(virt_chunks, { " [" .. mark_char .. "]", "Constant" })
-    end
     if data.is_link then
         table.insert(virt_chunks, { "↗", "Special" })
+    end
+    if mark_char and mark_char ~= "" then
+        table.insert(virt_chunks, { "[" .. mark_char .. "]", "Constant" })
     end
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
@@ -416,6 +424,10 @@ function FileTree:create_buffer()
                 with_item(function(i)
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == "" or char == "\27" then return end
+                    if not _is_mark_char(char) then
+                        vim.api.nvim_echo({ { ("[filetree] Invalid mark '%s'"):format(char) } }, false, {})
+                        return
+                    end
                     local prev = marks.set(char, i.data.path)
                     self:_update_node_mark(i.data.path)
                     if prev and prev ~= i.data.path then
@@ -429,6 +441,10 @@ function FileTree:create_buffer()
             function()
                 local ok, char = pcall(vim.fn.getcharstr)
                 if not ok or char == "" or char == "\27" then return end
+                if not _is_mark_char(char) then
+                    vim.api.nvim_echo({ { ("[filetree] Invalid mark '%s'"):format(char) } }, false, {})
+                    return
+                end
                 local path = marks.get(char)
                 if not path then
                     vim.api.nvim_echo({ { ("[filetree] No bookmark '%s'"):format(char) } }, false, {})
