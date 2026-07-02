@@ -4,7 +4,6 @@ local fsutil      = require("keystone.tk.fsutil")
 local ui          = require("keystone.tk.ui")
 local layouts     = require("keystone.explore.layouts")
 local floatwin    = require("keystone.tk.floatwin")
-local marks       = require("keystone.explore.marks")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -14,15 +13,6 @@ local M           = {}
 local _NS_CONTENT = vim.api.nvim_create_namespace("keystone_PickerContent")
 local _NS_SPINNER = vim.api.nvim_create_namespace("keystone_PickerSpinner")
 local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_PickerPreview")
-local _NS_MARK    = vim.api.nvim_create_namespace("keystone_PickerMark")
-
---- Standard vim settable marks are the letters `a`-`z` and `A`-`Z`; reject
---- anything else (digits, punctuation, tabs, multibyte keys) as a mark char.
----@param char string
----@return boolean
-local function _is_mark_char(char)
-    return char:match("^[a-zA-Z]$") ~= nil
-end
 
 
 local _antiflicker_delay = 200
@@ -683,76 +673,6 @@ function Explorer:add_new_lines(items)
     end
     vim.bo[self.lbuf].modifiable = false
     vim.wo[self.lwin].cursorline = #self.list_items > 0
-    self:_render_marks()
-end
-
---- Absolute path of the list item named `name` in the current directory.
----@param name string
----@return string
-function Explorer:_item_full_path(name)
-    local parts = vim.list_extend({}, self._path)
-    table.insert(parts, name)
-    return table.concat(parts, '/')
-end
-
---- Repaint the `[char]` bookmark indicators for every visible row. Cheap enough
---- to redo wholesale since the list only ever holds one directory of entries.
-function Explorer:_render_marks()
-    if not self.lbuf then return end
-    vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_MARK, 0, -1)
-    for row, item in ipairs(self.list_items) do
-        local char = marks.path_char(self:_item_full_path(item.name))
-        if char then
-            vim.api.nvim_buf_set_extmark(self.lbuf, _NS_MARK, row - 1, 0, {
-                virt_text = { { " [" .. char .. "]", "Constant" } },
-                virt_text_pos = "eol",
-            })
-        end
-    end
-end
-
---- Bookmark the item under the cursor. Reads a single follow-up key and only
---- accepts a standard mark char (see `_is_mark_char`).
-function Explorer:_set_mark()
-    local _, item = self:_get_current()
-    if not item then return end
-    local ok, char = pcall(vim.fn.getcharstr)
-    if not ok or char == "" or char == "\27" then return end
-    if not _is_mark_char(char) then
-        vim.api.nvim_echo({ { ("[explore] Invalid mark '%s'"):format(char) } }, false, {})
-        return
-    end
-    marks.set(char, self:_item_full_path(item.name))
-    self:_render_marks()
-end
-
---- Read a mark char and navigate the explorer to the bookmarked path, landing
---- the cursor on it inside its parent directory.
-function Explorer:_jump_mark()
-    local ok, char = pcall(vim.fn.getcharstr)
-    if not ok or char == "" or char == "\27" then return end
-    if not _is_mark_char(char) then
-        vim.api.nvim_echo({ { ("[explore] Invalid mark '%s'"):format(char) } }, false, {})
-        return
-    end
-    local path = marks.get(char)
-    if not path then
-        vim.api.nvim_echo({ { ("[explore] No bookmark '%s'"):format(char) } }, false, {})
-        return
-    end
-    if not fsutil.file_exists(path) then
-        vim.api.nvim_echo({ { ("[explore] Bookmark '%s' no longer exists"):format(char) } }, false, {})
-        return
-    end
-    local parts = vim.split(vim.fs.normalize(path), '/')
-    local name = table.remove(parts)
-    self._path = parts
-    self.nav_history = {}
-    for i, part in ipairs(parts) do
-        self.nav_history[i] = part
-    end
-    self.nav_history[#parts + 1] = name
-    self:run_fetch(nil)
 end
 
 ---@param direction "in"|"out"|nil
@@ -892,10 +812,6 @@ function Explorer:_keymaps()
             enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
         { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
             fn = function() self:toggle_hidden() end },
-        { label = "m{char}",   keys = { "m" },          desc = "Bookmark item under cursor",
-            fn = function() self:_set_mark() end },
-        { label = "'{char}",   keys = { "'" },          desc = "Jump to bookmark",
-            fn = function() self:_jump_mark() end },
         { label = "g?",        keys = { "g?" },         desc = "Show this help",
             fn = function() self:show_help() end },
         { label = "q / <Esc>", keys = { "q", "<Esc>" }, desc = "Close",
