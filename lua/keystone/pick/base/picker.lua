@@ -705,7 +705,10 @@ function Picker:update_preview()
 				local filetype = content and (preview.filetype
 					or (preview.filepath and vim.filetype.match({ filename = preview.filepath }))
 					or "") or ""
-				vim.bo[self.vbuf].filetype = filetype
+				-- Set only 'syntax' (not 'filetype') so no FileType autocmd fires and
+				-- treesitter never attaches; legacy vim-regex syntax highlighting is
+				-- still loaded via the Syntax autocmd.
+				vim.bo[self.vbuf].syntax = filetype
 				_apply_preview_pos(self.vwin, self.vbuf, content and preview.pos or nil,
 					content and preview.pos_end or nil)
 			end
