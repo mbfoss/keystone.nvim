@@ -73,6 +73,7 @@ BOOKMARKS
 
 OTHER
 =====
+`gb`      Reveal previous buffer
 `gh`      Toggle hidden files
 `K`       Hover info (type, size, modified)
 `R`       Refresh tree
@@ -88,9 +89,13 @@ end
 ---@param id string
 ---@param data keystone.FileTree.ItemData
 ---@param selected boolean?
-local function _file_formatter(id, data, selected)
+---@param mark_char string? the bookmark letter bound to this item, if any
+local function _file_formatter(id, data, selected, mark_char)
     if not data then return {}, {} end
     local virt_chunks = {}
+    if mark_char and mark_char ~= "" then
+        table.insert(virt_chunks, { " [" .. mark_char .. "]", "Constant" })
+    end
     if data.is_link then
         table.insert(virt_chunks, { "↗", "Special" })
     end
@@ -163,7 +168,7 @@ function FileTree:_setup_tree()
 
     self._treebuf = TreeBuffer.new({
         formatter = function(id, data)
-            return _file_formatter(id, data, self._selected[data.path] == true)
+            return _file_formatter(id, data, self._selected[data.path] == true, marks.path_char(data.path))
         end,
     })
 
@@ -398,8 +403,11 @@ function FileTree:create_buffer()
                 with_item(function(i)
                     local ok, char = pcall(vim.fn.getcharstr)
                     if not ok or char == "" or char == "\27" then return end
-                    marks.set(char, i.data.path)
-                    vim.notify(("[keystone] Bookmarked '%s' -> %s"):format(char, vim.fn.fnamemodify(i.data.path, ":~:.")))
+                    local prev = marks.set(char, i.data.path)
+                    self._treebuf:refresh_item(i.data.path)
+                    if prev and prev ~= i.data.path and self._treebuf:have_item(prev) then
+                        self._treebuf:refresh_item(prev)
+                    end
                 end)
             end,
             "Bookmark file/directory under cursor",
@@ -416,6 +424,12 @@ function FileTree:create_buffer()
                 self:reveal(path, true, true)
             end,
             "Jump to bookmark",
+        },
+        ["gb"] = {
+            function()
+                self:_reveal_prev_buffer()
+            end,
+            "Reveal previous buffer",
         },
     }
 
@@ -830,6 +844,20 @@ function FileTree:_reveal_step()
         state.current = next_path
         state.idx = idx + 1
     end
+end
+
+---@private
+--- Reveal, in the tree, the file shown in the previous (last-accessed) window —
+--- the buffer you were editing before you jumped into the tree panel.
+function FileTree:_reveal_prev_buffer()
+    local prevwin = vim.fn.win_getid(vim.fn.winnr("#"))
+    local treewin = vim.fn.bufwinid(self._treebuf:get_bufnr())
+    if prevwin == 0 or prevwin == treewin or not vim.api.nvim_win_is_valid(prevwin) then return end
+    local buf = vim.api.nvim_win_get_buf(prevwin)
+    if not _is_regular_buffer(buf) then return end
+    local path = vim.api.nvim_buf_get_name(buf)
+    if path == "" then return end
+    self:_reveal(path, true, true)
 end
 
 ---@param collapse_others boolean?

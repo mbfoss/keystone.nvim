@@ -7,6 +7,8 @@ local fsutil = require("keystone.tk.fsutil")
 
 ---@type table<string, string> mark char -> absolute path
 local _marks = {}
+---@type table<string, string> absolute path -> mark char (reverse index of _marks)
+local _by_path = {}
 
 local _loaded = false
 ---@type string?
@@ -15,6 +17,15 @@ local _persist_file
 ---@return string
 local function _filepath()
     return _persist_file or vim.fs.joinpath(vim.fn.stdpath("data"), "keystone.ftmarks.json")
+end
+
+--- Rebuild the path -> char reverse index from _marks. When several chars point
+--- at the same path the last one seen wins, which is all the tree display needs.
+local function _rebuild_index()
+    _by_path = {}
+    for char, path in pairs(_marks) do
+        _by_path[path] = char
+    end
 end
 
 local function _load()
@@ -28,12 +39,15 @@ local function _load()
             _marks[char] = path
         end
     end
+    _rebuild_index()
 end
 
 local function _save()
     local path = _filepath()
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-    local ok, encoded = pcall(vim.json.encode, _marks)
+    -- An empty Lua table encodes as a JSON array ("[]"); force an object so the
+    -- file always round-trips back to a char -> path map.
+    local ok, encoded = pcall(vim.json.encode, next(_marks) and _marks or vim.empty_dict())
     if not ok then return end
     local tmp = string.format("%s.%s.tmp", path, vim.uv.os_getpid())
     if not fsutil.write_content(tmp, encoded) then return end
@@ -52,10 +66,21 @@ end
 
 ---@param char string
 ---@param path string
+---@return string? prev_path the path this char pointed at before, if any
 function M.set(char, path)
     if not _loaded then _load() end
-    _marks[char] = vim.fs.normalize(path)
+    path = vim.fs.normalize(path)
+    local prev = _marks[char]
+    -- Only one bookmark char per path: drop whatever char already points here so
+    -- the new char overrides it.
+    local old_char = _by_path[path]
+    if old_char and old_char ~= char then
+        _marks[old_char] = nil
+    end
+    _marks[char] = path
+    _rebuild_index()
     _save()
+    return prev
 end
 
 ---@param char string
@@ -65,11 +90,20 @@ function M.get(char)
     return _marks[char]
 end
 
+--- The mark char bound to `path`, if any (reverse of `M.get`).
+---@param path string
+---@return string?
+function M.path_char(path)
+    if not _loaded then _load() end
+    return _by_path[vim.fs.normalize(path)]
+end
+
 ---@param char string
 function M.delete(char)
     if not _loaded then _load() end
     if _marks[char] then
         _marks[char] = nil
+        _rebuild_index()
         _save()
     end
 end
