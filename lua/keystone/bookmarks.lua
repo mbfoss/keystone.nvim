@@ -56,9 +56,14 @@ local function _norm(file)
     return vim.fn.fnamemodify(file, ":p")
 end
 
+-- Snapshot the group's bookmarks. `live` (default true) reports current buffer
+-- positions -- right for display, where marks follow in-buffer edits. Pass false
+-- for the disk-consistent positions (synced on write/unload) used when persisting.
+---@param live boolean?
 ---@return keystone.bookmarks.Entry[]
-local function _read_entries()
-    local marks = _mark_group.get_extmarks(true)
+local function _read_entries(live)
+    if live == nil then live = true end
+    local marks = _mark_group.get_extmarks(live)
     local entries = {}
     for _, m in ipairs(marks) do
         entries[#entries + 1] = {
@@ -70,8 +75,10 @@ local function _read_entries()
     return entries
 end
 
+-- Persist the current bookmarks. The extmark group is the single source of
+-- truth; the store just serializes the disk-consistent snapshot we hand it.
 local function _persist()
-    store.save(_config)
+    store.save(_read_entries(false), _config)
 end
 
 ---@return string|nil,number|nil
@@ -83,7 +90,10 @@ local function _get_cur_loc()
     if vim.bo[bufnr].buftype ~= '' then
         return
     end
-    local file = vim.fn.expand("%:p")
+    -- Use the buffer name (not expand("%:p")): the extmarks group keys marks by
+    -- nvim_buf_get_name, and on symlinked paths the two disagree, which would
+    -- desync mark tracking. Matches clear_file, which already uses the buf name.
+    local file = vim.api.nvim_buf_get_name(bufnr)
     if file == "" then
         return
     end
@@ -98,11 +108,9 @@ end
 local function _upsert(file, lnum, label)
     local by_loc = _mark_group.get_extmark_by_location(file, lnum, true)
     if by_loc then
-        store.delete(file, lnum)
         _mark_group.remove_extmark(by_loc.id)
     end
 
-    store.add({ file = file, lnum = lnum, label = label })
     _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { label = label })
     _persist()
     _changed:emit()
@@ -114,7 +122,6 @@ end
 local function _delete_loc(file, lnum)
     local mark = _mark_group.get_extmark_by_location(file, lnum, true)
     if not mark then return false end
-    store.delete(file, lnum)
     _mark_group.remove_extmark(mark.id)
     _persist()
     _changed:emit()
@@ -169,9 +176,6 @@ function M.clear_file()
     if not file or file == "" then return end
     ui.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
-        local marks = _mark_group.get_file_extmarks(file, false)
-        local before = #marks
-        for _, m in ipairs(marks) do store.delete(m.file, m.lnum) end
         _mark_group.remove_file_extmarks(file)
         _persist()
         _changed:emit()
@@ -184,7 +188,6 @@ function M.clear_all()
     end
     ui.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
-        for _, m in ipairs(_mark_group.get_extmarks(false)) do store.delete(m.file, m.lnum) end
         _mark_group.remove_extmarks()
         _persist()
         _changed:emit()
@@ -281,8 +284,11 @@ function M.setup(opts)
         _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
     end
 
+    -- NB: distinct from the extmark group's augroup. `define_group("keystone_bookmarks")`
+    -- registers the BufReadPost/BufWritePost/BufUnload sync autocmds under an augroup
+    -- of that same name; reusing it here with clear=true would wipe them out.
     vim.api.nvim_create_autocmd("VimLeave", {
-        group    = vim.api.nvim_create_augroup("keystone_bookmarks", { clear = true }),
+        group    = vim.api.nvim_create_augroup("keystone_bookmarks_persist", { clear = true }),
         callback = _persist,
     })
 

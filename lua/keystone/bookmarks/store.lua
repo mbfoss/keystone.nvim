@@ -27,31 +27,12 @@ local function _loc_key(file, lnum)
     return file .. "\0" .. lnum
 end
 
----@type table<string, keystone.bookmarks.Entry>
-local _entries = {}
-
--- Locations explicitly deleted by this instance; excluded when merging disk extras.
+-- Loc-keys this instance owns: the set we last loaded or wrote. A disk entry at
+-- a key outside this set belongs to another instance and is preserved on save;
+-- a disk entry inside it is dictated solely by our live set, so a bookmark we
+-- deleted (or that moved to a new line) is not merged back at its old location.
 ---@type table<string, true>
-local _deleted_locs = {}
-
--- ── Item operations ───────────────────────────────────────────────────────────
-
----@param entry keystone.bookmarks.Entry
-function M.add(entry)
-    local key = _loc_key(entry.file, entry.lnum)
-    _entries[key] = entry
-    _deleted_locs[key] = nil
-end
-
----@param file string
----@param lnum integer
-function M.delete(file, lnum)
-    local key = _loc_key(file, lnum)
-    _entries[key] = nil
-    _deleted_locs[key] = true
-end
-
--- ── Persistence ───────────────────────────────────────────────────────────────
+local _baseline = {}
 
 ---@param config keystone.bookmarks.Config
 ---@return keystone.bookmarks.Entry[]
@@ -75,37 +56,55 @@ local function _read_file(config)
     return result
 end
 
--- Reads bookmarks from disk and registers each entry via M.add.
+-- Reads bookmarks from disk and records them as this instance's baseline (the
+-- caller is expected to materialize an extmark for each, making them our live set).
 ---@param config keystone.bookmarks.Config
 ---@return keystone.bookmarks.Entry[]
 function M.load(config)
-    for _, e in ipairs(_read_file(config)) do
-        M.add(e)
+    local entries = _read_file(config)
+    _baseline = {}
+    for _, e in ipairs(entries) do
+        _baseline[_loc_key(e.file, e.lnum)] = true
     end
-    return vim.tbl_values(_entries)
+    return entries
 end
 
--- Merges _entries with locations on disk absent from _entries and not in
--- _deleted_locs, then writes atomically via a PID-unique temp file + rename.
+-- Persists `entries` (the authoritative live snapshot) atomically via a
+-- PID-unique temp file + rename. Disk entries at keys outside our baseline are
+-- other instances' bookmarks and are merged in; the baseline is then reset to
+-- exactly the entries we own.
+---@param entries keystone.bookmarks.Entry[]
 ---@param config keystone.bookmarks.Config
-function M.save(config)
+function M.save(entries, config)
     local path = M.filepath(config)
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
 
-    local merged = vim.tbl_deep_extend("force", {}, _entries)
+    ---@type table<string, keystone.bookmarks.Entry>
+    local keep = {}
+    for _, e in ipairs(entries) do
+        keep[_loc_key(e.file, e.lnum)] = { file = e.file, lnum = e.lnum, label = e.label }
+    end
+
     for _, e in ipairs(_read_file(config)) do
         local key = _loc_key(e.file, e.lnum)
-        if not _entries[key] and not _deleted_locs[key] then
-            merged[key] = e
+        if not keep[key] and not _baseline[key] then
+            keep[key] = e
         end
     end
 
-    local ok, encoded = pcall(vim.json.encode, vim.tbl_values(merged))
+    local ok, encoded = pcall(vim.json.encode, vim.tbl_values(keep))
     if not ok then return end
+
     local tmp = string.format("%s.%s.tmp", path, vim.uv.os_getpid())
-    local write_ok = fsutil.write_content(tmp, encoded)
-    if not write_ok then return end
+    if not fsutil.write_content(tmp, encoded) then return end
     os.rename(tmp, path)
+
+    -- Only our own entries form the next baseline; merged foreign entries stay
+    -- foreign so they keep being preserved on subsequent saves.
+    _baseline = {}
+    for _, e in ipairs(entries) do
+        _baseline[_loc_key(e.file, e.lnum)] = true
+    end
 end
 
 return M
