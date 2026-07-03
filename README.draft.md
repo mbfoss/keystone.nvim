@@ -146,8 +146,8 @@ label. Usage: `:Bookmark <subcommand>`.
 
 ```lua
 require("keystone.bookmarks").setup({
-  persist_dir = nil,      -- defaults to vim.fn.stdpath("data")
-  sign_text   = "",
+  persist_path = nil,     -- bookmarks file path; defaults to stdpath("data")/keystone/bookmarks.json
+  sign_text    = "",
 })
 ```
 

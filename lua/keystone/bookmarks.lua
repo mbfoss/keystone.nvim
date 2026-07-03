@@ -2,7 +2,7 @@ local M           = {}
 
 ---@class keystone.bookmarks.Config
 ---@field enabled boolean
----@field persist_dir (string | fun():string)?  -- nil = vim.fn.stdpath("data")
+---@field persist_path (string | fun():string)?  -- bookmarks file path; nil = vim.fn.stdpath("data")/keystone/bookmarks.json
 ---@field sign_text string
 ---@field sign_hl string
 
@@ -42,10 +42,10 @@ end
 local function _get_default_config()
     ---@type keystone.bookmarks.Config
     return {
-        enabled     = true,
-        persist_dir = nil,
-        sign_text   = "*",
-        sign_hl     = "DiagnosticInfo",
+        enabled      = true,
+        persist_path = nil,
+        sign_text    = "*",
+        sign_hl      = "DiagnosticInfo",
     }
 end
 

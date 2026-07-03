@@ -4,20 +4,15 @@ local fsutil = require("keystone.tk.fsutil")
 
 ---@param config keystone.bookmarks.Config
 ---@return string
-local function _resolve_dir(config)
-    local pd = config.persist_dir
-    if type(pd) == "function" then
-        return pd()
-    elseif type(pd) == "string" and pd ~= "" then
-        return pd
-    end
-    return vim.fn.stdpath("data")
-end
-
----@param config keystone.bookmarks.Config
----@return string
 function M.filepath(config)
-    return vim.fs.joinpath(_resolve_dir(config), "keystone_bookmarks.json")
+    local pp = config.persist_path
+    if type(pp) == "function" then
+        pp = pp()
+    end
+    if type(pp) == "string" and pp ~= "" then
+        return pp
+    end
+    return vim.fs.joinpath(vim.fn.stdpath("data"), "keystone", "bookmarks.json")
 end
 
 ---@param file string
