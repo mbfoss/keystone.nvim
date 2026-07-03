@@ -6,7 +6,6 @@ local LRU            = require("keystone.tk.LRU")
 local floatwin       = require("keystone.tk.floatwin")
 local inputwin       = require("keystone.tk.inputwin")
 local icons          = require("keystone.icons")
-local marks          = require("keystone.filetree.marks")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
@@ -21,7 +20,6 @@ local marks          = require("keystone.filetree.marks")
 ---@field error_icon string?
 ---@field children_loading boolean?
 ---@field childrenload_req_id number
----@field mark_char string? cached bookmark letter for this path (see FileTree:_update_node_mark)
 
 ---@alias keystone.FileTree.ItemDef keystone.tk.TreeBuffer.ItemData
 
@@ -34,14 +32,6 @@ local marks          = require("keystone.filetree.marks")
 ---@field is_link boolean?
 
 local _error_node_id = {} -- unique id for the error node
-
---- Standard vim settable marks are the letters `a`-`z` and `A`-`Z`; reject
---- anything else (digits, punctuation, tabs, multibyte keys) as a mark char.
----@param char string
----@return boolean
-local function _is_mark_char(char)
-    return char:match("^[a-zA-Z]$") ~= nil
-end
 
 local function _show_help()
     local help_text = { [[
@@ -75,11 +65,6 @@ SELECTION
 `d`       Delete selected items (system trash)
 `D`       Delete selected items (permanently, no trash)
 
-BOOKMARKS
-=========
-`m{char}`  Bookmark file/directory under cursor as {char}
-`'{char}`  Jump to bookmark {char}
-
 OTHER
 =====
 `gb`      Reveal previous buffer
@@ -101,12 +86,8 @@ end
 local function _file_formatter(id, data, selected)
     if not data then return {}, {} end
     local virt_chunks = {}
-    local mark_char = data.mark_char
     if data.is_link then
         table.insert(virt_chunks, { "↗", "Special" })
-    end
-    if mark_char and mark_char ~= "" then
-        table.insert(virt_chunks, { "[" .. mark_char .. "]", "Constant" })
     end
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
@@ -293,18 +274,6 @@ function FileTree:_get_viewport_monitor_fn()
     end
 end
 
----@private
---- Re-read the bookmark letter for `path` from the marks store into the node's
---- cached `mark_char` and repaint it. Called only when a bookmark changes, so
---- the formatter never has to hit the marks store on a normal render.
----@param path string
-function FileTree:_update_node_mark(path)
-    local item = self._treebuf:get_item(path)
-    if not item then return end
-    item.data.mark_char = marks.path_char(path)
-    self._treebuf:refresh_item(path)
-end
-
 ---@return integer bufr
 function FileTree:create_buffer()
     local bufnr, created = self._treebuf:create_buffer(function()
@@ -418,41 +387,6 @@ function FileTree:create_buffer()
                 _show_help()
             end,
             "Show Help",
-        },
-        ["m"] = {
-            function()
-                with_item(function(i)
-                    local ok, char = pcall(vim.fn.getcharstr)
-                    if not ok or char == "" or char == "\27" then return end
-                    if not _is_mark_char(char) then
-                        vim.api.nvim_echo({ { ("[filetree] Invalid mark '%s'"):format(char) } }, false, {})
-                        return
-                    end
-                    local prev = marks.set(char, i.data.path)
-                    self:_update_node_mark(i.data.path)
-                    if prev and prev ~= i.data.path then
-                        self:_update_node_mark(prev)
-                    end
-                end)
-            end,
-            "Bookmark file/directory under cursor",
-        },
-        ["'"] = {
-            function()
-                local ok, char = pcall(vim.fn.getcharstr)
-                if not ok or char == "" or char == "\27" then return end
-                if not _is_mark_char(char) then
-                    vim.api.nvim_echo({ { ("[filetree] Invalid mark '%s'"):format(char) } }, false, {})
-                    return
-                end
-                local path = marks.get(char)
-                if not path then
-                    vim.api.nvim_echo({ { ("[filetree] No bookmark '%s'"):format(char) } }, false, {})
-                    return
-                end
-                self:reveal(path, true, true)
-            end,
-            "Jump to bookmark",
         },
         ["gb"] = {
             function()
@@ -579,7 +513,6 @@ function FileTree:_reload()
                 is_dir = true,
                 icon = icon,
                 icon_hl = iconhl,
-                mark_char = marks.path_char(path),
             }
         }
         self._treebuf:add_item(nil, root_item)
@@ -762,7 +695,6 @@ function FileTree:_process_dir(path, entries, error_flag)
                 is_link = entry.is_link,
                 icon = icon,
                 icon_hl = icon_hl,
-                mark_char = marks.path_char(entry.full_path),
             }
         }
         table.insert(children, child)
