@@ -21,13 +21,26 @@ local function _get_icon(name, is_dir)
     return icon or "", icon_hl
 end
 
-local function _explore_files()
-    local bufname = vim.api.nvim_buf_get_name(0)
-    local base_dir = (bufname ~= "" and vim.fn.filereadable(bufname) == 1)
-        and vim.fn.fnamemodify(bufname, ":h")
-        or vim.fn.getcwd()
-
-    local initial = vim.fn.fnamemodify(bufname, ":t")
+---@param target_path string|nil Initial path to open the explorer at. Falls back to the current buffer/cwd when nil.
+local function _explore_files(target_path)
+    local base_dir, initial
+    if target_path and target_path ~= "" then
+        local full_path = vim.fn.fnamemodify(vim.fn.expand(target_path), ":p")
+        local stat = _uv.fs_stat(full_path)
+        if stat and stat.type == "directory" then
+            base_dir = full_path
+            initial = nil
+        else
+            base_dir = vim.fn.fnamemodify(full_path, ":h")
+            initial = vim.fn.fnamemodify(full_path, ":t")
+        end
+    else
+        local bufname = vim.api.nvim_buf_get_name(0)
+        base_dir = (bufname ~= "" and vim.fn.filereadable(bufname) == 1)
+            and vim.fn.fnamemodify(bufname, ":h")
+            or vim.fn.getcwd()
+        initial = vim.fn.fnamemodify(bufname, ":t")
+    end
     explorer.open({
         prompt = "Explore",
         initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
@@ -118,8 +131,12 @@ end
 
 ---@param cmd string
 ---@param rest string[]
+---@param arg_lead string
 ---@return string[]
-function M.get_subcommands(cmd, rest)
+function M.get_subcommands(cmd, rest, arg_lead)
+    if cmd == "FileSelector" and #rest == 0 then
+        return vim.fn.getcompletion(arg_lead, "dir")
+    end
     return {}
 end
 
@@ -128,7 +145,7 @@ end
 ---@param opts vim.api.keyset.create_user_command.command_args
 function M.run_command(cmd, args, opts)
     if cmd == "FileSelector" then
-        _explore_files()
+        _explore_files(args[1])
     end
 end
 
