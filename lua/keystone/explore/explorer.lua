@@ -49,7 +49,6 @@ local _antiflicker_delay = 200
 ---@alias keystone.Explorer.AsyncPreviewLoader fun(path:string[], opts:keystone.Explorer.AsyncPreviewOpts, callback:fun(preview:keystone.Explorer.AsyncPreviewData?)):fun()?
 
 ---@class keystone.Explorer.Opts
----@field prompt string
 ---@field initial_path string[]
 ---@field initial_cursor string?
 ---@field finder keystone.Explorer.Finder?
@@ -808,7 +807,7 @@ function Explorer:_keymaps()
             fn = function() self:run_fetch("out") end },
         { label = "<CR>",      keys = { "<CR>" },       desc = "Select / open file",
             fn = function() self:confirm_choice() end },
-        { label = "<C-t>",     keys = { "<C-t>" },      desc = "Toggle preview",
+        { label = "<Tab>",     keys = { "<Tab>" },      desc = "Toggle preview",
             enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
         { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
             fn = function() self:toggle_hidden() end },
@@ -847,7 +846,7 @@ function Explorer:show_help()
     end
 
     floatwin.open(table.concat(lines, "\n"), {
-        title = (self.opts.prompt or "Explore") .. " keymaps",
+        title = "Keymaps",
     })
 end
 

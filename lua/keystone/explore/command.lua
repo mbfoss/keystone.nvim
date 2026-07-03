@@ -42,7 +42,6 @@ local function _explore_files(target_path)
         initial = vim.fn.fnamemodify(bufname, ":t")
     end
     explorer.open({
-        prompt = "Explore",
         initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
         initial_cursor = initial,
         enable_preview = true,
