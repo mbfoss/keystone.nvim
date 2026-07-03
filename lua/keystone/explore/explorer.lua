@@ -807,11 +807,11 @@ function Explorer:_keymaps()
             fn = function() self:run_fetch("out") end },
         { label = "<CR>",      keys = { "<CR>" },       desc = "Select / open file",
             fn = function() self:confirm_choice() end },
-        { label = "<Tab>",     keys = { "<Tab>" },      desc = "Toggle preview",
+        { label = "gp",     keys = { "gp" },      desc = "Toggle preview",
             enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
         { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
             fn = function() self:toggle_hidden() end },
-        { label = "g?",        keys = { "g?" },         desc = "Show this help",
+        { label = "g?",        keys = { "g?" },         desc = "Show help",
             fn = function() self:show_help() end },
         { label = "q / <Esc>", keys = { "q", "<Esc>" }, desc = "Close",
             fn = function() self:close() end },
@@ -823,7 +823,7 @@ function Explorer:setup_input()
     for _, m in ipairs(self:_keymaps()) do
         if m.enabled ~= false then
             for _, key in ipairs(m.keys) do
-                vim.keymap.set("n", key, m.fn, opts)
+                vim.keymap.set("n", key, m.fn, vim.tbl_extend("force", opts, {desc = m.desc}))
             end
         end
     end

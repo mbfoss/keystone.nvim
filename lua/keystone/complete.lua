@@ -31,7 +31,7 @@ local function default_config()
     },
     key             = "<C-Space>",
     tab_completion  = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
-    fallback_action = "",  -- "<C-n>",
+    fallback_action = "",   -- "<C-n>",
   }
 end
 
@@ -750,6 +750,22 @@ M.completefunc_lsp = function(findstart, base)
   return candidates
 end
 
+---@param items table
+---@param base string
+local function default_filter_sort(items, base)
+  if base == "" then
+    return vim.deepcopy(items)
+  end
+
+  local res = {}
+  for _, item in ipairs(items) do
+    if vim.startswith(lsp_filter_word(item), base) then
+      res[#res + 1] = vim.deepcopy(item)
+    end
+  end
+  return res
+end
+
 --- Filter and sort LSP completion items.
 ---@param items table
 ---@param base string
@@ -757,7 +773,7 @@ end
 ---@return table
 M.default_process_items = function(items, base, opts)
   opts = opts or {}
-  local res = opts.filtersort and opts.filtersort(items, base) or vim.deepcopy(items)
+  local res = opts.filtersort and opts.filtersort(items, base) or default_filter_sort(items, base)
   if opts.kind_priority then res = sort_by_kind(res, opts.kind_priority) end
   add_hlgroups(res)
   return res
