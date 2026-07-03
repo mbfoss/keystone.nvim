@@ -7,13 +7,13 @@ local floatwin  = require("keystone.tk.floatwin")
 ---@class keystone.bookmarks.list_editor.Api
 ---@field get_entries fun():keystone.bookmarks.Entry[]
 ---@field delete fun(file:string, lnum:integer)
----@field upsert fun(name:string, file:string, lnum:integer)
+---@field upsert fun(file:string, lnum:integer, label:string?)
 ---@field subscribe fun(fn:fun()):fun()  -- returns an unsubscribe function
 
 ---@class keystone.bookmarks.list_editor.Item
----@field name string   -- current name
----@field file string   -- absolute path
----@field lnum integer  -- 1-based line number
+---@field file string    -- absolute path
+---@field lnum integer   -- 1-based line number
+---@field label string?  -- current label, if any
 
 local _ns       = vim.api.nvim_create_namespace("keystone_bookmarks_list")
 
@@ -38,7 +38,7 @@ local _unsubscribe
 local _items
 
 -- Stack of inverse edits. Each entry is an upsert that restores a prior state:
--- undoing a removal re-adds the bookmark, undoing a rename restores the old name.
+-- undoing a removal re-adds the bookmark, undoing a relabel restores the old label.
 ---@type keystone.bookmarks.list_editor.Item[]?
 local _undo
 
@@ -80,12 +80,19 @@ local function _render()
     if not _items or not _bufnr or not vim.api.nvim_buf_is_valid(_bufnr) then return end
 
     local lines = {}
+    local loc_lens = {}
     if #_items == 0 then
         lines[1] = "(no bookmarks)"
     else
-        for _, item in ipairs(_items) do
+        for i, item in ipairs(_items) do
             local rel = vim.fn.fnamemodify(item.file, ":~:.")
-            lines[#lines + 1] = string.format("%s  %s:%d", item.name, rel, item.lnum)
+            local loc = string.format("%s:%d", rel, item.lnum)
+            loc_lens[i] = #loc
+            if item.label then
+                lines[#lines + 1] = string.format("%s  %s", loc, item.label)
+            else
+                lines[#lines + 1] = loc
+            end
         end
     end
 
@@ -101,13 +108,15 @@ local function _render()
         return
     end
     for row, item in ipairs(_items) do
-        local name_len = #item.name
+        local loc_len = loc_lens[row]
         vim.api.nvim_buf_set_extmark(_bufnr, _ns, row - 1, 0, {
-            end_col = name_len, hl_group = "@text.note",
+            end_col = loc_len, hl_group = "@namespace",
         })
-        vim.api.nvim_buf_set_extmark(_bufnr, _ns, row - 1, name_len, {
-            end_col = #lines[row], hl_group = "@namespace",
-        })
+        if item.label then
+            vim.api.nvim_buf_set_extmark(_bufnr, _ns, row - 1, loc_len, {
+                end_col = #lines[row], hl_group = "@text.note",
+            })
+        end
     end
 end
 
@@ -146,7 +155,7 @@ local function _refresh()
     end)
     _items = {}
     for _, e in ipairs(entries) do
-        _items[#_items + 1] = { name = e.name, file = e.file, lnum = e.lnum }
+        _items[#_items + 1] = { label = e.label, file = e.file, lnum = e.lnum }
     end
 
     _render()
@@ -187,22 +196,23 @@ end
 local function _remove()
     local item = _cur_item()
     if not item or not _api or not _undo then return end
-    _undo[#_undo + 1] = { name = item.name, file = item.file, lnum = item.lnum }
+    _undo[#_undo + 1] = { label = item.label, file = item.file, lnum = item.lnum }
     _api.delete(item.file, item.lnum) -- emits change -> refresh
 end
 
-local function _rename()
+local function _relabel()
     local item = _cur_item()
     if not item then return end
-    local file, lnum, old_name = item.file, item.lnum, item.name
-    inputwin.open({ prompt = "Rename bookmark", default = old_name }, function(name)
-        if not name then return end
-        name = name:match("^%s*(.-)%s*$")
-        if name == "" or name == old_name then return end
+    local file, lnum, old_label = item.file, item.lnum, item.label
+    inputwin.open({ prompt = "Bookmark label", default = old_label or "" }, function(label)
+        if not label then return end
+        label = label:match("^%s*(.-)%s*$")
+        if label == "" then label = nil end
+        if label == old_label then return end
         if not _api or not _undo then return end -- editor closed while prompting
-        _undo[#_undo + 1] = { name = old_name, file = file, lnum = lnum }
+        _undo[#_undo + 1] = { label = old_label, file = file, lnum = lnum }
         _pending_focus_loc = _loc(file, lnum)
-        _api.upsert(name, file, lnum) -- emits change -> refresh
+        _api.upsert(file, lnum, label) -- emits change -> refresh
     end)
 end
 
@@ -214,7 +224,7 @@ local function _undo_last()
     local op = table.remove(_undo)
     if not op then return end
     _pending_focus_loc = _loc(op.file, op.lnum)
-    _api.upsert(op.name, op.file, op.lnum) -- re-add or restore name; emits refresh
+    _api.upsert(op.file, op.lnum, op.label) -- re-add or restore label; emits refresh
 end
 
 ---@class keystone.bookmarks.list_editor.Keymap
@@ -232,7 +242,7 @@ local function _keymaps()
     return {
         { label = "<CR>",      keys = { "<CR>" },       desc = "Open bookmark",    fn = _open_file },
         { label = "d",         keys = { "d" },          desc = "Remove bookmark",  fn = _remove },
-        { label = "r",         keys = { "r" },          desc = "Rename bookmark",  fn = _rename },
+        { label = "r",         keys = { "r" },          desc = "Edit label",       fn = _relabel },
         { label = "u",         keys = { "u" },          desc = "Undo last change", fn = _undo_last },
         { label = "g?",        keys = { "g?" },         desc = "Show this help",   fn = function() _show_help() end },
     }

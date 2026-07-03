@@ -63,11 +63,13 @@ local function _read_file(config)
     local result = {}
     for _, e in ipairs(data) do
         if type(e) == "table"
-            and type(e.name) == "string" and e.name ~= ""
             and type(e.file) == "string" and e.file ~= ""
             and type(e.lnum) == "number"
         then
-            table.insert(result, { name = e.name, file = e.file, lnum = e.lnum })
+            -- `name` is the pre-relabel field; fall back to it so existing stores migrate in place.
+            local label = e.label or e.name
+            if type(label) ~= "string" or label == "" then label = nil end
+            table.insert(result, { file = e.file, lnum = e.lnum, label = label })
         end
     end
     return result

@@ -82,7 +82,7 @@ require("keystone.pick").setup()
 | `pick`        | `:Pick`         | Floating async fuzzy picker; can override `vim.ui.select`                    |
 | `filetree`    | `:FileTree`     | Sidebar file tree                                                           |
 | `explore`     | `:FileSelector` | Floating file explorer / selector                                          |
-| `bookmarks`   | `:Bookmark`     | Named, persistent line bookmarks with signs                                |
+| `bookmarks`   | `:Bookmark`     | Persistent line bookmarks (with optional labels) shown as signs            |
 | `lspconfig`   | `:Lsp`          | Auto-enable LSP servers, diagnostics, format-on-save, inlay hints          |
 | `tsconfig`    | —               | Auto-start Treesitter highlighting and folds per filetype                  |
 | `notify`      | —               | Replaces `vim.notify` with floating notifications and LSP progress         |
@@ -141,8 +141,8 @@ require("keystone.explore").setup()
 
 ### bookmarks
 
-Named, persistent line bookmarks shown in the sign column. Usage:
-`:Bookmark <subcommand>`.
+Persistent line bookmarks shown in the sign column, each with an optional
+label. Usage: `:Bookmark <subcommand>`.
 
 ```lua
 require("keystone.bookmarks").setup({

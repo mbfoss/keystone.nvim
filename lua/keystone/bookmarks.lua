@@ -7,9 +7,9 @@ local M           = {}
 ---@field sign_hl string
 
 ---@class keystone.bookmarks.Entry
----@field name string   -- unique identifier
----@field file string   -- absolute path
----@field lnum integer  -- 1-based line number
+---@field file string    -- absolute path
+---@field lnum integer   -- 1-based line number
+---@field label string?  -- optional user-facing label
 
 local store       = require("keystone.bookmarks.store")
 local inputwin    = require("keystone.tk.inputwin")
@@ -61,13 +61,11 @@ local function _read_entries()
     local marks = _mark_group.get_extmarks(true)
     local entries = {}
     for _, m in ipairs(marks) do
-        if m.user_data and m.user_data.name then
-            entries[#entries + 1] = {
-                name = m.user_data.name,
-                file = m.file,
-                lnum = m.lnum,
-            }
-        end
+        entries[#entries + 1] = {
+            file  = m.file,
+            lnum  = m.lnum,
+            label = m.user_data and m.user_data.label or nil,
+        }
     end
     return entries
 end
@@ -94,18 +92,18 @@ local function _get_cur_loc()
 end
 
 
----@param name string
 ---@param file string
 ---@param lnum integer
-local function _upsert(name, file, lnum)
+---@param label string?
+local function _upsert(file, lnum, label)
     local by_loc = _mark_group.get_extmark_by_location(file, lnum, true)
     if by_loc then
         store.delete(file, lnum)
         _mark_group.remove_extmark(by_loc.id)
     end
 
-    store.add({ name = name, file = file, lnum = lnum })
-    _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { name = name })
+    store.add({ file = file, lnum = lnum, label = label })
+    _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { label = label })
     _persist()
     _changed:emit()
 end
@@ -139,11 +137,11 @@ function M.set_at_cursor()
     end
     file = _norm(file)
     local existing = _mark_group.get_extmark_by_location(file, lnum, true)
-    local default = existing and existing.user_data.name or ""
-    inputwin.open({ prompt = "Bookmark", default = default }, function(name)
-        if not name or name:match("^%s*$") then return end
-        name = name:match("^%s*(.-)%s*$")
-        _upsert(name, file, lnum)
+    local default = (existing and existing.user_data and existing.user_data.label) or ""
+    inputwin.open({ prompt = "Bookmark label", default = default }, function(label)
+        if not label then return end
+        label = label:match("^%s*(.-)%s*$")
+        _upsert(file, lnum, label ~= "" and label or nil)
     end)
 end
 
@@ -209,14 +207,14 @@ function M.pick()
         finder          = function(query, _, _fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
-                local match = pickertools.match_label(entry.name, query)
+                local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
+                local loc_text = relpath .. ":" .. entry.lnum
+                local match = pickertools.match_label(loc_text, query)
                 if match then
-                    local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
-                    local loc_chunk = { relpath .. ":" .. entry.lnum, "@namespace" }
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = match.chunks,
-                        virt_lines   = { { loc_chunk } },
+                        virt_lines   = entry.label and { { { entry.label, "@text.note" } } } or nil,
                         score        = match.score,
                         data         = {
                             filepath = entry.file,
@@ -239,17 +237,17 @@ function M.pick()
     end)
 end
 
---- Opens an interactive quickfix-style split editor for named bookmarks. Each
---- edit is applied immediately: rename (r), remove (dd) and undo (u); <CR> opens
---- the bookmark under the cursor. The list refreshes live when bookmarks change.
+--- Opens an interactive quickfix-style split editor for bookmarks. Each edit is
+--- applied immediately: edit label (r), remove (d) and undo (u); <CR> opens the
+--- bookmark under the cursor. The list refreshes live when bookmarks change.
 function M.open_list()
     require("keystone.bookmarks.list_editor").open({
         get_entries = _read_entries,
         delete = function(file, lnum)
             _delete_loc(file, lnum)
         end,
-        upsert = function(name, file, lnum)
-            _upsert(name, file, lnum)
+        upsert = function(file, lnum, label)
+            _upsert(file, lnum, label)
         end,
         subscribe = function(fn)
             return _changed:subscribe(fn)
@@ -269,7 +267,7 @@ function M.setup(opts)
 
     local stored = store.load(_config)
     for _, e in ipairs(stored) do
-        _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { name = e.name })
+        _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
     end
 
     vim.api.nvim_create_autocmd("VimLeave", {
@@ -282,7 +280,7 @@ function M.setup(opts)
             require("keystone.bookmarks.command").run_command(cmd, args, cmd_opts)
         end,
         {
-            desc          = "Named bookmarks",
+            desc          = "Persistent line bookmarks",
             subcommand_fn = function(cmd, rest)
                 return require("keystone.bookmarks.command").get_subcommands(cmd, rest)
             end,
