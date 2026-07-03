@@ -276,17 +276,17 @@ function M.setup(opts)
 
     if not _config.enabled then return end
 
-    _mark_group  = extmarks.define_group("keystone_bookmarks", { priority = 20 })
-    _mark_opts   = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
+    _mark_opts = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
 
-    local stored = store.load(_config)
-    for _, e in ipairs(stored) do
-        _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
+    if not _mark_group then
+        _mark_group  = extmarks.define_group("keystone_bookmarks", { priority = 20 })
+
+        local stored = store.load(_config)
+        for _, e in ipairs(stored) do
+            _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
+        end
     end
 
-    -- NB: distinct from the extmark group's augroup. `define_group("keystone_bookmarks")`
-    -- registers the BufReadPost/BufWritePost/BufUnload sync autocmds under an augroup
-    -- of that same name; reusing it here with clear=true would wipe them out.
     vim.api.nvim_create_autocmd("VimLeave", {
         group    = vim.api.nvim_create_augroup("keystone_bookmarks_persist", { clear = true }),
         callback = _persist,
