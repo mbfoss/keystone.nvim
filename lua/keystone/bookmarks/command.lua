@@ -1,6 +1,6 @@
 local M = {}
 
-local _subcommand_list = { "set", "delete", "pick", "list", "clear_file", "clear_all" }
+local _subcommand_list = { "set", "setlabel", "delete", "pick", "list", "clear_file", "clear_all" }
 
 ---@param _ string
 ---@param rest string[]
@@ -18,6 +18,8 @@ function M.run_command(_, args, _opts)
     local cmd = args[1] or "set"
     if cmd == "set" then
         bookmarks.set_at_cursor()
+    elseif cmd == "setlabel" then
+        bookmarks.set_label_at_cursor()
     elseif cmd == "delete" then
         bookmarks.delete_at_cursor()
     elseif cmd == "pick" then

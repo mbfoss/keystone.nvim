@@ -136,6 +136,17 @@ function M.set_at_cursor()
         return
     end
     file = _norm(file)
+    if _mark_group.get_extmark_by_location(file, lnum, true) then return end
+    _upsert(file, lnum, nil)
+end
+
+function M.set_label_at_cursor()
+    local file, lnum = _get_cur_loc()
+    if not file or not lnum then
+        vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
+        return
+    end
+    file = _norm(file)
     local existing = _mark_group.get_extmark_by_location(file, lnum, true)
     local default = (existing and existing.user_data and existing.user_data.label) or ""
     inputwin.open({ prompt = "Bookmark label", default = default }, function(label)
