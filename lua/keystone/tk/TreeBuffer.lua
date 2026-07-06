@@ -144,6 +144,7 @@ function TreeBuffer:create_buffer(on_deleted)
         modifiable   = false,
         swapfile     = false,
         undolevels   = -1,
+        spelloptions = "noplainbuffer",
     }, function()
         self._bufnr = -1
         on_deleted()
