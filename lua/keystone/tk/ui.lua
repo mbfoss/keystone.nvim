@@ -1,22 +1,11 @@
 local M = {}
 
-local function _is_regular_buffer(bufnr)
-    if not vim.api.nvim_buf_is_valid(bufnr) then
-        return false
-    end
-    if vim.bo[bufnr].buftype ~= '' then
-        return false
-    end
-    return true
-end
-
 local function _is_regular_win(winid)
     if not vim.api.nvim_win_is_valid(winid) then return false end
     local cfg = vim.api.nvim_win_get_config(winid)
     if cfg.relative ~= "" then return false end      -- skip popups
     if vim.wo[winid].winfixbuf then return false end -- skip fixed windows
-    local bufnr = vim.api.nvim_win_get_buf(winid)
-    return _is_regular_buffer(bufnr)
+    return true
 end
 
 ---@param winid integer
