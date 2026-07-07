@@ -542,8 +542,18 @@ local function show_doc_content(documentation)
   end)
 end
 
+---@return table?
+local function selected_completed_item()
+  local info = vim.fn.complete_info({ "selected", "items" })
+  if info.selected < 0 then return nil end
+  return info.items[info.selected + 1]
+end
+
 local function on_complete_changed()
-  local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
+  -- v:completed_item is only populated by <C-n>/<C-p>; <Up>/<Down> merely
+  -- highlight a match without inserting it, so complete_info() is used instead.
+  local completed_item = selected_completed_item()
+  local lsp_data = completed_item and vim.tbl_get(completed_item, "user_data", "lsp")
   if not lsp_data then
     show_doc_content(nil); return
   end
@@ -566,7 +576,8 @@ local function on_complete_changed()
     state.lsp.resolved[item_id] = result
     vim.schedule(function()
       if not pumvisible() then return end
-      local cur = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
+      local cur_item = selected_completed_item()
+      local cur = cur_item and vim.tbl_get(cur_item, "user_data", "lsp")
       if cur and cur.item_id == item_id then show_doc_content(result.documentation) end
     end)
   end, vim.api.nvim_get_current_buf())
