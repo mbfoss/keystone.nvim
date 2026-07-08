@@ -1,8 +1,4 @@
-local M           = {}
-
-local picker      = require("keystone.pick.base.picker")
-local registry    = require("keystone.pick.registry")
-local pickertools = require("keystone.pick.base.pickertools")
+local M               = {}
 
 --- Highlight group for the file-path/location line shown beneath picker items
 --- (the virtual line in grep/diagnostics/lsp/quickfix results).  Defined as a
@@ -69,6 +65,7 @@ M.config = _get_default_config()
 ---@param data table?
 ---@param initial_query string?
 local function _do_open(spec, data, initial_query)
+    local picker = require("keystone.pick.base.picker")
     picker.open({
         prompt             = spec.prompt,
         flags              = spec.flags,
@@ -103,6 +100,9 @@ end
 ---@param picker_type string?
 ---@param initial_query string?
 function M.pick(picker_type, initial_query)
+    local picker      = require("keystone.pick.base.picker")
+    local registry    = require("keystone.pick.registry")
+    local pickertools = require("keystone.pick.base.pickertools")
     if not picker_type or picker_type == "" then
         local keys = registry.keys()
         table.insert(keys, "repeat_last")
@@ -130,7 +130,8 @@ end
 ---@param name string
 ---@param spec keystone.PickerSpec | fun(): keystone.PickerSpec?
 function M.register(name, spec)
-    registry.register(name, spec) end
+    registry.register(name, spec)
+end
 
 ---@param opts keystone.pick.Config?
 function M.setup(opts)
@@ -146,7 +147,8 @@ function M.setup(opts)
         nargs    = "*",
         desc     = "Picker for files, grep etc...",
         complete = function(arg_lead, cmd_line, _)
-            local parts = vim.split(cmd_line, "%s+", { trimempty = true })
+            local registry = require("keystone.pick.registry")
+            local parts    = vim.split(cmd_line, "%s+", { trimempty = true })
             if #parts <= 1 or (#parts == 2 and not cmd_line:match("%s$")) then
                 local keys = registry.keys()
                 table.insert(keys, "repeat_last")
