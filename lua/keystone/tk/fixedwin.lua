@@ -65,7 +65,7 @@ end
 ---@class keystone.tk.fixedwin.Opts
 ---@field min?   integer  minimum size (lines/columns); default 1
 ---@field enter? boolean  leave the cursor in the new window; default false (returns to the previous window)
----@field pos?   nil|"topleft"|"botright"|"leftabove" placement modifier for the split 
+---@field pos?   nil|"topleft"|"botright"|"leftabove" placement modifier for the split
 
 --- Create a fixed-size split that recovers its size across layout changes.
 ---
@@ -140,6 +140,7 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
     -- Re-pin to the tracked ratio, but only when a neighbour can absorb the
     -- freed space (see pinnable()).
     local function repin()
+        vim.notify("repin")
         if win and pinnable() then apply_size(size_for(state.ratio)) end
     end
 
@@ -155,12 +156,29 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         end)
     end
 
+    -- Floating windows (completion menus, hovers, notifications, …) never take
+    -- part in the split layout, so they can neither displace the fixed window
+    -- nor absorb its freed space: reacting to them is pointless and can feed
+    -- back into an endless re-pin (e.g. a plugin that opens a float in response
+    -- to the resize we emit). Remember the ones seen at WinNew so their WinClosed
+    -- can be skipped too — the window's config is already gone by the time it
+    -- fires, so we can't recheck there.
+    local floats = {} ---@type table<integer, true>
+
     local group = vim.api.nvim_create_augroup("EasyTasksFixedWin" .. win, { clear = true })
 
-    -- re-apply the size when new splits appear so the window stays pinned
+    -- re-apply the size when a new *split* appears so the window stays pinned
     vim.api.nvim_create_autocmd("WinNew", {
         group    = group,
-        callback = absorb_layout_change,
+        callback = function()
+            -- the just-created window is transiently current during WinNew
+            local new = vim.api.nvim_get_current_win()
+            if vim.api.nvim_win_get_config(new).relative ~= "" then
+                floats[new] = true
+            else
+                absorb_layout_change()
+            end
+        end,
     })
 
     -- the editor resize changes total lines/columns, so re-pin to keep the ratio
@@ -186,16 +204,20 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
     vim.api.nvim_create_autocmd("WinClosed", {
         group    = group,
         callback = function(args)
-            if tonumber(args.match) ~= win then
-                absorb_layout_change()
-                return
+            local closed = tonumber(args.match)
+            if closed == win then
+                -- state.ratio has been kept current by the (guarded) WinResized
+                -- handler, so it already holds the user's latest good ratio;
+                -- reading the window here would risk capturing a teardown
+                -- transient instead.
+                win = nil
+                vim.api.nvim_del_augroup_by_id(group)
+                if on_delete then on_delete(state.ratio) end
+            elseif closed and floats[closed] then
+                floats[closed] = nil     -- a float closed: not a layout change
+            else
+                absorb_layout_change()   -- a real split closed: re-pin
             end
-            -- state.ratio has been kept current by the (guarded) WinResized
-            -- handler, so it already holds the user's latest good ratio; reading
-            -- the window here would risk capturing a teardown transient instead.
-            win = nil
-            vim.api.nvim_del_augroup_by_id(group)
-            if on_delete then on_delete(state.ratio) end
         end,
     })
 
