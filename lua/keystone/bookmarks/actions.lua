@@ -125,7 +125,14 @@ function M.open_list()
 
     local bufnr = vim.fn.bufadd(path)
     vim.fn.bufload(bufnr)
-    vim.bo[bufnr].buflisted = true
+
+    -- <CR> jumps to the bookmark on the current line via the shared file opener.
+    vim.keymap.set("n", "<CR>", function()
+        local line = vim.api.nvim_get_current_line()
+        local entry = core.decode_line(line)
+        if not entry then return end
+        ui.smart_open_file(entry.file, entry.lnum, 0)
+    end, { buffer = bufnr, desc = "Open bookmark under cursor" })
 
     -- A height-pinned split whose ratio fixedwin tracks across resizes/layout
     -- changes; persist the last-known ratio so reopening keeps the chosen height.

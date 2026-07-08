@@ -80,7 +80,7 @@ end
 
 ---@param line string
 ---@return keystone.bookmarks.Entry?
-local function _decode_line(line)
+function M.decode_line(line)
     -- Non-greedy path up to the first `:<digits>`; anything after is the label.
     local path, lnum, label = line:match("^%s*(.-):(%d+)%s*(.-)%s*$")
     if not path or path == "" then return nil end
@@ -95,7 +95,7 @@ function M.store_load()
 
     local entries = {}
     for line in raw:gmatch("[^\r\n]+") do
-        local entry = _decode_line(line)
+        local entry = M.decode_line(line)
         if entry then entries[#entries + 1] = entry end
     end
     return entries
