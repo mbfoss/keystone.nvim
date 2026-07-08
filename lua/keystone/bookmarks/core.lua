@@ -39,10 +39,12 @@ end
 ----------- STORE -----------
 -- The bookmarks file is a plain, human-editable text file. Each non-empty line is
 --
---     <path>:<lnum>[  <label>]
+--     <path>:<lnum>[ -- <label>]
 --
 -- where <path> is home-relative (`~/...`) when under $HOME, else absolute, and an
--- optional label follows the location after whitespace. Blank lines are ignored.
+-- optional label follows the location after a ` -- ` separator. The explicit
+-- separator keeps colons/digits in the label from confusing the location parse.
+-- Blank lines are ignored.
 
 ---@return string
 function M.store_filepath()
@@ -73,7 +75,7 @@ end
 local function _encode_entry(entry)
     local rel = _encode_path(entry.file)
     if entry.label and entry.label ~= "" then
-        return string.format("%s:%d  %s", rel, entry.lnum, entry.label)
+        return string.format("%s:%d -- %s", rel, entry.lnum, entry.label)
     end
     return string.format("%s:%d", rel, entry.lnum)
 end
@@ -81,8 +83,11 @@ end
 ---@param line string
 ---@return keystone.bookmarks.Entry?
 function M.decode_line(line)
-    -- Non-greedy path up to the first `:<digits>`; anything after is the label.
-    local path, lnum, label = line:match("^%s*(.-):(%d+)%s*(.-)%s*$")
+    -- Split off an optional ` -- <label>` note first (on the first `--`), so any
+    -- colons/digits in the label can't confuse the `<path>:<lnum>` parse.
+    local loc, label = line:match("^(.-)%s*%-%-%s*(.-)%s*$")
+    if not loc then loc = line end
+    local path, lnum = loc:match("^%s*(.-):(%d+)%s*$")
     if not path or path == "" then return nil end
     if label == "" then label = nil end
     return { file = _decode_path(path), lnum = tonumber(lnum), label = label }

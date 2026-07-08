@@ -105,7 +105,7 @@ end
 
 --- Opens the plain bookmarks file for editing in a split. It is an ordinary file
 --- buffer: edit lines freely, then `:w` to synchronise the signs (see setup's
---- BufWritePost autocmd). Each line is `<path>:<lnum>[  <label>]`.
+--- BufWritePost autocmd). Each line is `<path>:<lnum>[ -- <label>]`.
 function M.open_list()
     -- Ensure the on-disk file reflects current (live) sign positions before the
     -- user starts editing it.
