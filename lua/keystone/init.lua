@@ -29,6 +29,7 @@ local _MODULES = {
   "bookmarks",
   "clue",
   "complete",
+  "diff",
   "explore",
   "filetree",
   "lspconfig",
