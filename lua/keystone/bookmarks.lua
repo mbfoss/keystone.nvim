@@ -113,7 +113,11 @@ function M.setup(opts)
 
     core.init(config)
 
-    local augroup = vim.api.nvim_create_augroup("keystone_bookmarks", { clear = true })
+    -- Distinct from the "keystone_bookmarks" augroup that the extmark group
+    -- registers its Buf* handlers under (see extmarks.define_group): reusing that
+    -- name with clear = true would wipe the BufReadPost handler that applies signs
+    -- to buffers loaded after setup, so startup files would show no signs.
+    local augroup = vim.api.nvim_create_augroup("keystone_bookmarks_setup", { clear = true })
     vim.api.nvim_create_autocmd("VimLeave", {
         group    = augroup,
         callback = core.persist,

@@ -164,16 +164,36 @@ function M.sync_from_file()
     end
 end
 
--- After a mutation persists to disk, refresh the bookmarks file buffer if it is
--- open and unmodified so the user sees the change without a manual reload.
+-- After a mutation persists to disk, live-edit the open bookmarks file buffer so
+-- the add/remove shows up immediately. The extmark group is the source of truth,
+-- so we rebuild the buffer lines from the disk-consistent snapshot (which we just
+-- persisted) and set them in place, preserving the cursor/view. Skipped when the
+-- buffer has unsaved manual edits so we never clobber the user's in-progress work.
 function M.refresh_open_file_buffer()
     local path = M.store_filepath()
     local bufnr = vim.fn.bufnr(path)
     if bufnr < 0 or not vim.api.nvim_buf_is_loaded(bufnr) then return end
     if vim.bo[bufnr].modified then return end
-    vim.api.nvim_buf_call(bufnr, function()
-        vim.cmd("silent! edit")
-    end)
+
+    local lines = {}
+    for _, e in ipairs(M.sorted_entries(false)) do
+        lines[#lines + 1] = _encode_entry(e)
+    end
+
+    local win = vim.fn.bufwinid(bufnr)
+    local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
+
+    vim.bo[bufnr].modifiable = true
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+    -- Content matches what we just wrote to disk, so keep the buffer clean.
+    vim.bo[bufnr].modified = false
+
+    if win >= 0 and view then
+        vim.api.nvim_win_call(win, function()
+            view.lnum = math.min(view.lnum, vim.api.nvim_buf_line_count(bufnr))
+            vim.fn.winrestview(view)
+        end)
+    end
 end
 
 ---@return string|nil,number|nil
@@ -230,7 +250,7 @@ function M.init(config)
     M.mark_opts = { sign_text = config.sign_text, sign_hl_group = config.sign_hl }
 
     if not M.mark_group then
-        M.mark_group = extmarks.define_group("keystone_bookmarks", { priority = 20 })
+        M.mark_group = extmarks.define_group("keystone_bookmarks_ext", { priority = 20 })
 
         for _, e in ipairs(M.store_load()) do
             M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
