@@ -46,18 +46,18 @@ local function setlocal(win, opt, val)
     vim.api.nvim_set_option_value(opt, val, { win = win, scope = "local" })
 end
 
--- Find the frame kind ("col"/"row") of the node directly containing `target`.
+-- Find the frame node ("col"/"row") directly containing `target` as a leaf.
 ---@param node   table    a vim.fn.winlayout() node
 ---@param target integer  window id
----@return "col"|"row"|nil
+---@return table|nil  the containing frame node, or nil if not found
 local function parent_frame(node, target)
     if node[1] == "leaf" then return nil end
     for _, child in ipairs(node[2]) do
-        if child[1] == "leaf" and child[2] == target then return node[1] end
+        if child[1] == "leaf" and child[2] == target then return node end
     end
     for _, child in ipairs(node[2]) do
-        local kind = parent_frame(child, target)
-        if kind then return kind end
+        local frame = parent_frame(child, target)
+        if frame then return frame end
     end
     return nil
 end
@@ -128,19 +128,21 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         vim.api.nvim_set_current_win(prev_win)
     end
 
-    -- Whether re-pinning the window to its fixed size is safe: it must share its
-    -- parent frame with a neighbour on the fixed axis (a "col" frame for height,
-    -- a "row" frame for width). Otherwise the freed space is stranded.
+    -- Whether re-pinning the window to its fixed size is safe: its parent frame
+    -- must be on the fixed axis (a "col" frame for height, a "row" frame for
+    -- width) AND hold at least one neighbour that can absorb the freed space. If
+    -- the window is the only one on that axis, the freed space is stranded.
     ---@return boolean
     local function pinnable()
         if not win or not vim.api.nvim_win_is_valid(win) then return false end
-        return parent_frame(vim.fn.winlayout(), win) == spec.frame
+        local frame = parent_frame(vim.fn.winlayout(), win)
+        local p = frame ~= nil and frame[1] == spec.frame and #frame[2] > 1
+        return p
     end
 
     -- Re-pin to the tracked ratio, but only when a neighbour can absorb the
     -- freed space (see pinnable()).
     local function repin()
-        vim.notify("repin")
         if win and pinnable() then apply_size(size_for(state.ratio)) end
     end
 
@@ -156,15 +158,6 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         end)
     end
 
-    -- Floating windows (completion menus, hovers, notifications, …) never take
-    -- part in the split layout, so they can neither displace the fixed window
-    -- nor absorb its freed space: reacting to them is pointless and can feed
-    -- back into an endless re-pin (e.g. a plugin that opens a float in response
-    -- to the resize we emit). Remember the ones seen at WinNew so their WinClosed
-    -- can be skipped too — the window's config is already gone by the time it
-    -- fires, so we can't recheck there.
-    local floats = {} ---@type table<integer, true>
-
     local group = vim.api.nvim_create_augroup("EasyTasksFixedWin" .. win, { clear = true })
 
     -- re-apply the size when a new *split* appears so the window stays pinned
@@ -173,9 +166,7 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         callback = function()
             -- the just-created window is transiently current during WinNew
             local new = vim.api.nvim_get_current_win()
-            if vim.api.nvim_win_get_config(new).relative ~= "" then
-                floats[new] = true
-            else
+            if vim.api.nvim_win_get_config(new).relative == "" then
                 absorb_layout_change()
             end
         end,
@@ -205,18 +196,15 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         group    = group,
         callback = function(args)
             local closed = tonumber(args.match)
+            if not closed then return end
             if closed == win then
-                -- state.ratio has been kept current by the (guarded) WinResized
-                -- handler, so it already holds the user's latest good ratio;
-                -- reading the window here would risk capturing a teardown
-                -- transient instead.
                 win = nil
                 vim.api.nvim_del_augroup_by_id(group)
                 if on_delete then on_delete(state.ratio) end
-            elseif closed and floats[closed] then
-                floats[closed] = nil     -- a float closed: not a layout change
             else
-                absorb_layout_change()   -- a real split closed: re-pin
+                if vim.api.nvim_win_get_config(closed).relative == "" then
+                    absorb_layout_change()
+                end
             end
         end,
     })
