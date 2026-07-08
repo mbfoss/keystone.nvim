@@ -72,6 +72,7 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
+---@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 when enable_list_sep, else 4.
 ---@field enable_list_sep boolean?
 ---@field initial_query  string?
 
@@ -483,6 +484,15 @@ function Picker:relayout(action)
 			end)
 		vim.wo[self.lwin].winhighlight = winhl
 		vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
+		-- Indent wrapped lines a few spaces so continuations are visually
+		-- distinct from new entries. Defaults to 0 when a separator already
+		-- delimits items, else 4.
+		local wrap_indent = self.opts.list_wrap_indent
+			or (self.opts.enable_list_sep and 0 or 2)
+		if wrap_indent > 0 then
+			vim.wo[self.lwin].breakindent = true
+			vim.wo[self.lwin].breakindentopt = "shift:" .. wrap_indent
+		end
 	else
 		vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base_cfg, {
 			row = self.layout.list_row,
