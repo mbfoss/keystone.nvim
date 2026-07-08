@@ -158,7 +158,7 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         end)
     end
 
-    local group = vim.api.nvim_create_augroup("EasyTasksFixedWin" .. win, { clear = true })
+    local group = vim.api.nvim_create_augroup("NeoToolitFixedWin" .. win, { clear = true })
 
     -- re-apply the size when a new *split* appears so the window stays pinned
     vim.api.nvim_create_autocmd("WinNew", {
