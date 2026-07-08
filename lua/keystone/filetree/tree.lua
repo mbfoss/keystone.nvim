@@ -1,6 +1,7 @@
 local M = {}
 
-local config = require("keystone.filetree").config
+local config   = require("keystone.filetree").config
+local fixedwin = require("keystone.tk.fixedwin")
 
 local _KEY_MARKER = "Keystone_filetreewin"
 
@@ -15,16 +16,17 @@ local function _get_win()
     return nil
 end
 
----@param win number
-local function _apply_width(win)
-    local total = vim.o.columns
-    local width = math.floor(total * (config.width_ratio or 0.2))
-    vim.api.nvim_win_set_width(win, width)
+-- Set a window-local option without leaking it into nvim's hidden global default
+-- (see keystone.tk.fixedwin for the gotcha this avoids).
+---@param win integer
+---@param opt string
+---@param val any
+local function _setlocal(win, opt, val)
+    vim.api.nvim_set_option_value(opt, val, { win = win, scope = "local" })
 end
 
 local function _open()
-    local win = _get_win()
-    if win then return end
+    if _get_win() then return end
 
     if not _tree then
         local FileTree = require("keystone.filetree.FileTree")
@@ -43,10 +45,13 @@ local function _open()
     end
 
     local filename = vim.api.nvim_buf_get_name(0)
-    local last_win = vim.api.nvim_get_current_win()
-    vim.cmd("topleft vsplit")
-    win = vim.api.nvim_get_current_win()
-    vim.api.nvim_set_current_win(last_win)
+
+    -- A width-pinned split on the far left. fixedwin tracks the ratio as the user
+    -- resizes and re-pins it across layout/editor changes; persist the last-known
+    -- ratio so reopening the tree keeps the user's chosen width.
+    local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
+        config.width_ratio = ratio
+    end, { pos = "topleft" })
 
     vim.w[win][_KEY_MARKER] = true
 
@@ -54,38 +59,11 @@ local function _open()
     vim.api.nvim_buf_set_name(bufnr, bufname)
     vim.api.nvim_win_set_buf(win, bufnr)
 
-    vim.wo[win].wrap = false
-    vim.wo[win].spell = false
-    vim.wo[win].winfixbuf = true
-    vim.wo[win].winfixheight = true
-    vim.wo[win].winfixwidth = true
+    _setlocal(win, "wrap", false)
+    _setlocal(win, "spell", false)
+    _setlocal(win, "winfixbuf", true)
+    _setlocal(win, "winfixheight", true)
 
-    _apply_width(win)
-
-    local augroup_name = "keystone_filetree_w" .. win
-    local augroup = vim.api.nvim_create_augroup(augroup_name, { clear = true })
-    vim.api.nvim_create_autocmd("VimResized", {
-        group = augroup,
-        callback = function()
-            _apply_width(win)
-        end,
-    })
-    vim.api.nvim_create_autocmd("WinClosed", {
-        group = augroup,
-        callback = function(args)
-            local closedwin = tonumber(args.match)
-            if closedwin ~= win then
-                vim.schedule(function()
-                    if win then
-                        _apply_width(win)
-                    end
-                end)
-            else
-                win = nil
-                vim.api.nvim_del_augroup_by_id(augroup)
-            end
-        end,
-    })
     _tree:reveal(filename, true, true)
 end
 
