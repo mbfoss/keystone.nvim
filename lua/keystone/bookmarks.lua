@@ -1,8 +1,8 @@
-local M           = {}
+local M            = {}
 
 ---@class keystone.bookmarks.Config
 ---@field enabled boolean
----@field persist_path (string | fun():string)?  -- bookmarks file path; nil = vim.fn.stdpath("data")/keystone/bookmarks.json
+---@field persist_path (string | fun():string)?  -- bookmarks file path; nil = ~/.nvimbookmarks
 ---@field sign_text string
 ---@field sign_hl string
 
@@ -11,17 +11,17 @@ local M           = {}
 ---@field lnum integer   -- 1-based line number
 ---@field label string?  -- optional user-facing label
 
-local store       = require("keystone.bookmarks.store")
-local inputwin    = require("keystone.tk.inputwin")
-local ui          = require("keystone.tk.ui")
-local picker      = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-local extmarks    = require("keystone.tk.extmarks")
-local Signal      = require("keystone.tk.Signal")
+local fsutil       = require("keystone.tk.fsutil")
+local inputwin     = require("keystone.tk.inputwin")
+local ui           = require("keystone.tk.ui")
+local picker       = require("keystone.pick.base.picker")
+local pickertools  = require("keystone.pick.base.pickertools")
+local extmarks     = require("keystone.tk.extmarks")
+local fixedwin     = require("keystone.tk.fixedwin")
 
--- Emitted whenever the bookmark set changes, so open views can refresh.
----@type keystone.tk.Signal<fun()>
-local _changed    = Signal.new()
+-- Height ratio of the bookmarks list split, tracked live by fixedwin and reused
+-- so reopening the list keeps the height the user last dragged it to.
+local _list_ratio  = 0.25
 
 ---@type keystone.tk.extmarks.GroupFunctions
 local _mark_group
@@ -32,7 +32,7 @@ local _mark_opts
 ---@type keystone.bookmarks.Config
 local _config
 
-local _next_id    = 0
+local _next_id     = 0
 
 local function _new_id()
     _next_id = _next_id + 1
@@ -50,6 +50,84 @@ local function _get_default_config()
 end
 
 M.config = _get_default_config()
+
+----------- STORE -----------
+-- The bookmarks file is a plain, human-editable text file. Each non-empty line is
+--
+--     <path>:<lnum>[  <label>]
+--
+-- where <path> is home-relative (`~/...`) when under $HOME, else absolute, and an
+-- optional label follows the location after whitespace. Blank lines are ignored.
+
+---@return string
+local function _store_filepath()
+    local pp = _config.persist_path
+    if type(pp) == "function" then
+        pp = pp()
+    end
+    if type(pp) == "string" and pp ~= "" then
+        return vim.fs.normalize(pp)
+    end
+    return vim.fs.normalize("~/.nvimbookmarks")
+end
+
+---@param file string  absolute path
+---@return string      home-relative when under $HOME, else absolute
+local function _encode_path(file)
+    return vim.fn.fnamemodify(file, ":~")
+end
+
+---@param path string  as written in the file (may be `~`-relative or relative)
+---@return string      absolute path
+local function _decode_path(path)
+    return vim.fn.fnamemodify(vim.fs.normalize(path), ":p")
+end
+
+---@param entry keystone.bookmarks.Entry
+---@return string
+local function _encode_entry(entry)
+    local rel = _encode_path(entry.file)
+    if entry.label and entry.label ~= "" then
+        return string.format("%s:%d  %s", rel, entry.lnum, entry.label)
+    end
+    return string.format("%s:%d", rel, entry.lnum)
+end
+
+---@param line string
+---@return keystone.bookmarks.Entry?
+local function _decode_line(line)
+    -- Non-greedy path up to the first `:<digits>`; anything after is the label.
+    local path, lnum, label = line:match("^%s*(.-):(%d+)%s*(.-)%s*$")
+    if not path or path == "" then return nil end
+    if label == "" then label = nil end
+    return { file = _decode_path(path), lnum = tonumber(lnum), label = label }
+end
+
+---@return keystone.bookmarks.Entry[]
+local function _store_load()
+    local ok, raw = fsutil.read_content(_store_filepath())
+    if not ok or raw == "" then return {} end
+
+    local entries = {}
+    for line in raw:gmatch("[^\r\n]+") do
+        local entry = _decode_line(line)
+        if entry then entries[#entries + 1] = entry end
+    end
+    return entries
+end
+
+---@param entries keystone.bookmarks.Entry[]
+local function _store_save(entries)
+    local path = _store_filepath()
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+
+    local lines = {}
+    for _, e in ipairs(entries) do
+        lines[#lines + 1] = _encode_entry(e)
+    end
+    local content = #lines > 0 and (table.concat(lines, "\n") .. "\n") or ""
+    fsutil.write_content(path, content)
+end
 
 local function _norm(file)
     if not file or file == "" then return file end
@@ -75,10 +153,42 @@ local function _read_entries(live)
     return entries
 end
 
--- Persist the current bookmarks. The extmark group is the single source of
--- truth; the store just serializes the disk-consistent snapshot we hand it.
+---@return keystone.bookmarks.Entry[]
+local function _sorted_entries(live)
+    local entries = _read_entries(live)
+    table.sort(entries, function(a, b)
+        if a.file ~= b.file then return a.file < b.file end
+        return a.lnum < b.lnum
+    end)
+    return entries
+end
+
+-- Persist the current bookmarks. The extmark group is the single source of truth;
+-- the store just serializes the disk-consistent snapshot we hand it.
 local function _persist()
-    store.save(_read_entries(false), _config)
+    _store_save(_sorted_entries(false))
+end
+
+-- Rebuild the extmark group (the signs) from the bookmarks file on disk. This is
+-- the "saving the file synchronises the signs" path: after the user edits and
+-- writes the plain bookmarks file, its content becomes authoritative.
+local function _sync_from_file()
+    _mark_group.remove_extmarks()
+    for _, e in ipairs(_store_load()) do
+        _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
+    end
+end
+
+-- After a mutation persists to disk, refresh the bookmarks file buffer if it is
+-- open and unmodified so the user sees the change without a manual reload.
+local function _refresh_open_file_buffer()
+    local path = _store_filepath()
+    local bufnr = vim.fn.bufnr(path)
+    if bufnr < 0 or not vim.api.nvim_buf_is_loaded(bufnr) then return end
+    if vim.bo[bufnr].modified then return end
+    vim.api.nvim_buf_call(bufnr, function()
+        vim.cmd("silent! edit")
+    end)
 end
 
 ---@return string|nil,number|nil
@@ -101,7 +211,6 @@ local function _get_cur_loc()
     return file, lnum
 end
 
-
 ---@param file string
 ---@param lnum integer
 ---@param label string?
@@ -113,7 +222,7 @@ local function _upsert(file, lnum, label)
 
     _mark_group.set_file_extmark(_new_id(), file, lnum, 0, _mark_opts, { label = label })
     _persist()
-    _changed:emit()
+    _refresh_open_file_buffer()
 end
 
 ---@param file string
@@ -124,14 +233,8 @@ local function _delete_loc(file, lnum)
     if not mark then return false end
     _mark_group.remove_extmark(mark.id)
     _persist()
-    _changed:emit()
+    _refresh_open_file_buffer()
     return true
-end
-
----@param file string
----@return string
-local function _relpath(file)
-    return vim.fn.fnamemodify(file, ":~:.")
 end
 
 ----------- PUBLIC API -----------
@@ -178,7 +281,7 @@ function M.clear_file()
         if not accepted then return end
         _mark_group.remove_file_extmarks(file)
         _persist()
-        _changed:emit()
+        _refresh_open_file_buffer()
     end)
 end
 
@@ -190,7 +293,7 @@ function M.clear_all()
         if not accepted then return end
         _mark_group.remove_extmarks()
         _persist()
-        _changed:emit()
+        _refresh_open_file_buffer()
     end)
 end
 
@@ -200,7 +303,7 @@ function M.get_entries()
 end
 
 function M.pick()
-    local entries = _read_entries()
+    local entries = _sorted_entries()
     if #entries == 0 then
         vim.notify("[keystone] No bookmarks set", vim.log.levels.WARN)
         return
@@ -208,11 +311,6 @@ function M.pick()
 
     local cur_file, cur_lnum = _get_cur_loc()
     if cur_file then cur_file = _norm(cur_file) end
-
-    table.sort(entries, function(a, b)
-        if a.file ~= b.file then return a.file < b.file end
-        return a.lnum < b.lnum
-    end)
 
     picker.open({
         prompt          = "Bookmarks",
@@ -251,22 +349,71 @@ function M.pick()
     end)
 end
 
---- Opens an interactive quickfix-style split editor for bookmarks. Each edit is
---- applied immediately: edit label (r), remove (d) and undo (u); <CR> opens the
---- bookmark under the cursor. The list refreshes live when bookmarks change.
+--- Opens the plain bookmarks file for editing in a split. It is an ordinary file
+--- buffer: edit lines freely, then `:w` to synchronise the signs (see setup's
+--- BufWritePost autocmd). Each line is `<path>:<lnum>[  <label>]`.
 function M.open_list()
-    require("keystone.bookmarks.list_editor").open({
-        get_entries = _read_entries,
-        delete = function(file, lnum)
-            _delete_loc(file, lnum)
-        end,
-        upsert = function(file, lnum, label)
-            _upsert(file, lnum, label)
-        end,
-        subscribe = function(fn)
-            return _changed:subscribe(fn)
-        end,
-    })
+    -- Ensure the on-disk file reflects current (live) sign positions before the
+    -- user starts editing it.
+    _persist()
+
+    local path = _store_filepath()
+    local existing = vim.fn.bufnr(path)
+    if existing >= 0 then
+        local existing_win = vim.fn.bufwinid(existing)
+        if existing_win >= 0 then
+            vim.api.nvim_set_current_win(existing_win)
+            return
+        end
+    end
+
+    local bufnr = vim.fn.bufadd(path)
+    vim.fn.bufload(bufnr)
+    vim.bo[bufnr].buflisted = true
+
+    -- A height-pinned split whose ratio fixedwin tracks across resizes/layout
+    -- changes; persist the last-known ratio so reopening keeps the chosen height.
+    local win = fixedwin.create_fixed_win("height", _list_ratio, function(ratio)
+        _list_ratio = ratio
+    end, { enter = true })
+    vim.api.nvim_win_set_buf(win, bufnr)
+    vim.wo[win].winfixbuf = true
+end
+
+----------- COMMAND -----------
+
+local _subcommand_list = { "set", "setlabel", "delete", "pick", "list", "clear_file", "clear_all" }
+
+---@param _ string
+---@param rest string[]
+---@return string[]
+local function _get_subcommands(_, rest)
+    if #rest == 0 then return _subcommand_list end
+    return {}
+end
+
+---@param _ string
+---@param args string[]
+---@param _opts vim.api.keyset.create_user_command.command_args
+local function _run_command(_, args, _opts)
+    local cmd = args[1] or "set"
+    if cmd == "set" then
+        M.set_at_cursor()
+    elseif cmd == "setlabel" then
+        M.set_label_at_cursor()
+    elseif cmd == "delete" then
+        M.delete_at_cursor()
+    elseif cmd == "pick" then
+        M.pick()
+    elseif cmd == "list" then
+        M.open_list()
+    elseif cmd == "clear_file" then
+        M.clear_file()
+    elseif cmd == "clear_all" then
+        M.clear_all()
+    else
+        vim.notify("[keystone] Unknown Bookmarks subcommand: " .. tostring(cmd), vim.log.levels.WARN)
+    end
 end
 
 ---@param opts keystone.bookmarks.Config?
@@ -279,29 +426,29 @@ function M.setup(opts)
     _mark_opts = { sign_text = _config.sign_text, sign_hl_group = _config.sign_hl }
 
     if not _mark_group then
-        _mark_group  = extmarks.define_group("keystone_bookmarks", { priority = 20 })
+        _mark_group = extmarks.define_group("keystone_bookmarks", { priority = 20 })
 
-        local stored = store.load(_config)
-        for _, e in ipairs(stored) do
+        for _, e in ipairs(_store_load()) do
             _mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, _mark_opts, { label = e.label })
         end
     end
 
+    local augroup = vim.api.nvim_create_augroup("keystone_bookmarks", { clear = true })
     vim.api.nvim_create_autocmd("VimLeave", {
-        group    = vim.api.nvim_create_augroup("keystone_bookmarks_persist", { clear = true }),
+        group    = augroup,
         callback = _persist,
     })
+    -- Writing the bookmarks file makes its content authoritative for the signs.
+    vim.api.nvim_create_autocmd("BufWritePost", {
+        group    = augroup,
+        pattern  = _store_filepath(),
+        callback = _sync_from_file,
+    })
 
-    require("keystone.tk.usercmd").register_user_cmd("Bookmark",
-        function(cmd, args, cmd_opts)
-            require("keystone.bookmarks.command").run_command(cmd, args, cmd_opts)
-        end,
-        {
-            desc          = "Persistent line bookmarks",
-            subcommand_fn = function(cmd, rest)
-                return require("keystone.bookmarks.command").get_subcommands(cmd, rest)
-            end,
-        })
+    require("keystone.tk.usercmd").register_user_cmd("Bookmark", _run_command, {
+        desc          = "Persistent line bookmarks",
+        subcommand_fn = _get_subcommands,
+    })
 end
 
 return M
