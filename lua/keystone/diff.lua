@@ -477,6 +477,11 @@ function M.diff_dirs(a, b)
     _open_session(entries, true)
 end
 
+-- Exposed for testing.
+M._files_differ       = _files_differ
+M._list_files         = _list_files
+M._collect_dir_changes = _collect_dir_changes
+
 ---@class keystone.diff.Config
 ---@field unused any
 

@@ -82,6 +82,7 @@ require("keystone.pick").setup()
 | `pick`        | `:Pick`         | Floating async fuzzy picker; can override `vim.ui.select`                    |
 | `filetree`    | `:FileTree`     | Sidebar file tree                                                           |
 | `explore`     | `:FileSelector` | Floating file explorer / selector                                          |
+| `diff`        | `:DiffFiles` `:DiffDirs` | Side-by-side diff of two files or two directory trees             |
 | `bookmarks`   | `:Bookmark`     | Persistent line bookmarks (with optional labels) shown as signs            |
 | `lspconfig`   | `:Lsp`          | Auto-enable LSP servers, diagnostics, format-on-save, inlay hints          |
 | `tsconfig`    | —               | Auto-start Treesitter highlighting and folds per filetype                  |
@@ -137,6 +138,23 @@ Floating file explorer and selector. Usage: `:FileSelector <subcommand>`.
 
 ```lua
 require("keystone.explore").setup()
+```
+
+### diff
+
+Side-by-side diff of arbitrary filesystem paths, using Neovim's native diff
+mode. Two commands:
+
+- `:DiffFiles <a> <b>` — diff two individual files.
+- `:DiffDirs <a> <b>` — recursively compare two directory trees; the files
+  that differ are listed in a location list (color-coded `A`/`M`/`D`), and the
+  side-by-side diff updates as you navigate the list.
+
+Closing either split window (or, for `:DiffDirs`, the location list) collapses
+back to a single window, restoring the original layout.
+
+```lua
+require("keystone.diff").setup()
 ```
 
 ### bookmarks
@@ -311,6 +329,8 @@ require("keystone.tweaks").setup({
 | `:Pick <type> [query]`  | `pick`      | Open a picker                        |
 | `:FileTree <cmd>`       | `filetree`  | Control the file tree window         |
 | `:FileSelector <cmd>`   | `explore`   | Open the floating file explorer      |
+| `:DiffFiles <a> <b>`    | `diff`      | Diff two files side-by-side          |
+| `:DiffDirs <a> <b>`     | `diff`      | Diff two directory trees             |
 | `:Bookmark <cmd>`       | `bookmarks` | Manage bookmarks                     |
 | `:Lsp <cmd>`            | `lspconfig` | Manage LSP servers and behaviour     |
 
