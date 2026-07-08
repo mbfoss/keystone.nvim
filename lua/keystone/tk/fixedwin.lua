@@ -65,7 +65,7 @@ end
 ---@class keystone.tk.fixedwin.Opts
 ---@field min?   integer  minimum size (lines/columns); default 1
 ---@field enter? boolean  leave the cursor in the new window; default false (returns to the previous window)
----@field pos?   string   placement modifier for the split (e.g. "topleft", "botright", "leftabove"); default "botright"
+---@field pos?   nil|"topleft"|"botright"|"leftabove" placement modifier for the split 
 
 --- Create a fixed-size split that recovers its size across layout changes.
 ---
