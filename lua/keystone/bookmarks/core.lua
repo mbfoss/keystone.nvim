@@ -161,13 +161,14 @@ local function _store_bufnr()
 end
 
 -- Sync the extmark snapshot into the loaded store buffer in place (preserving the
--- cursor/view), then carry it through to disk via the buffer's own write. This
--- keeps the store buffer live-updated as bookmarks are added/removed while leaving
--- it clean and consistent with the file. `noautocmd` on the write avoids
+-- cursor/view). By default the buffer is left modified so the change stays in the
+-- buffer only -- it is carried to disk on exit (VimLeave). Pass `save = true` to
+-- also write the buffer through to disk. `noautocmd` on the write avoids
 -- re-triggering sync_from_file (which would needlessly rebuild the extmark group).
 ---@param bufnr integer
 ---@param entries keystone.bookmarks.Entry[]
-local function _sync_store_buf(bufnr, entries)
+---@param save boolean?  when true, also write the buffer through to disk
+local function _sync_store_buf(bufnr, entries, save)
     local lines = {}
     for _, e in ipairs(entries) do
         lines[#lines + 1] = _encode_entry(e)
@@ -178,9 +179,11 @@ local function _sync_store_buf(bufnr, entries)
 
     vim.bo[bufnr].modifiable = true
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    vim.api.nvim_buf_call(bufnr, function()
-        vim.cmd("silent keepalt noautocmd write")
-    end)
+    if save then
+        vim.api.nvim_buf_call(bufnr, function()
+            vim.cmd("silent keepalt noautocmd write")
+        end)
+    end
 
     if win >= 0 and view then
         vim.api.nvim_win_call(win, function()
@@ -192,17 +195,19 @@ end
 
 -- Push the authoritative extmark snapshot to the bookmarks store. The extmark
 -- group is the single source of truth, and its relation to the store is
--- transitive: when the store buffer is loaded we sync into it and let the buffer
--- carry the change to disk (extmarks -> buffer -> disk), so an open list updates
--- live; otherwise we serialize straight to disk (extmarks -> disk). The buffer is
--- always driven from the extmarks, even if it has unsaved manual edits -- the
--- extmark group wins, and the reverse path (sync_from_file) is what lets a saved
--- edit of the list become authoritative instead.
-function M.persist()
+-- transitive: when the store buffer is loaded we sync into it (extmarks ->
+-- buffer), so an open list updates live but stays unsaved until exit; otherwise
+-- we serialize straight to disk (extmarks -> disk). Pass `save = true` to force
+-- the change all the way to disk -- used on exit (VimLeave) to write the buffer.
+-- The buffer is always driven from the extmarks, even if it has unsaved manual
+-- edits -- the extmark group wins, and the reverse path (sync_from_file) is what
+-- lets a saved edit of the list become authoritative instead.
+---@param save boolean?  when true, write the store buffer through to disk
+function M.persist(save)
     local entries = M.sorted_entries(false)
     local bufnr = _store_bufnr()
     if bufnr then
-        _sync_store_buf(bufnr, entries)
+        _sync_store_buf(bufnr, entries, save)
     else
         _store_save(entries)
     end

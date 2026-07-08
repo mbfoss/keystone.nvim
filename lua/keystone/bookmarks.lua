@@ -118,9 +118,11 @@ function M.setup(opts)
     -- name with clear = true would wipe the BufReadPost handler that applies signs
     -- to buffers loaded after setup, so startup files would show no signs.
     local augroup = vim.api.nvim_create_augroup("keystone_bookmarks_setup", { clear = true })
+    -- Interactive changes only update the loaded store buffer (leaving it
+    -- modified); the write to disk happens here, on exit.
     vim.api.nvim_create_autocmd("VimLeave", {
         group    = augroup,
-        callback = core.persist,
+        callback = function() core.persist(true) end,
     })
     -- Writing the bookmarks file makes its content authoritative for the signs.
     vim.api.nvim_create_autocmd("BufWritePost", {
