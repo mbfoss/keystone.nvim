@@ -300,49 +300,9 @@ function M.info()
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
--- ---------------------------------------------------------------------------
--- User command
--- ---------------------------------------------------------------------------
-
-local _subcommands = {
-  info    = function() M.info() end,
-  format  = function() M.format() end,
-  restart = function() M.restart() end,
-  log     = function() vim.cmd("edit " .. require("vim.lsp.log").get_filename()) end,
-  enable  = function() M.enable_servers() end,
-}
-
----@param _cmd string
----@param args string[]
-local function _run(_cmd, args)
-  local sub = args[1] or "info"
-  local fn = _subcommands[sub]
-  if not fn then
-    vim.notify("[keystone.nvim] :Lsp unknown subcommand '" .. sub .. "'", vim.log.levels.ERROR)
-    return
-  end
-  fn()
-end
-
----@param _cmd string
----@param rest string[]
-local function _complete(_cmd, rest)
-  if #rest > 0 then return {} end
-  return vim.tbl_keys(_subcommands)
-end
-
--- ---------------------------------------------------------------------------
--- Setup
--- ---------------------------------------------------------------------------
-
 ---@param opts keystone.lspconfig.Config?
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
-
-  _usercmd.register_user_cmd("Lsp", _run, {
-    desc = "keystone LSP control",
-    subcommand_fn = _complete,
-  })
 
   if M.config.enabled then
     M.enable()
