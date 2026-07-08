@@ -82,41 +82,97 @@ end
 function M.preset_clues()
     local g = {
         { "gg", desc = "First line" },
+        { "g_", desc = "Last non-blank character" },
+        -- LSP/common
         { "gd", desc = "Goto definition" },
         { "gD", desc = "Goto declaration" },
         { "gi", desc = "Goto implementation" },
         { "gr", desc = "References" },
         { "gx", desc = "Open under cursor" },
+        -- changes
         { "g;", desc = "Older change" },
         { "g,", desc = "Newer change" },
         { "g&", desc = "Repeat last :s" },
+        -- visual
         { "gv", desc = "Reselect" },
-        { "gu", desc = "Lowercase", mode = { "n", "v" } },
-        { "gU", desc = "Uppercase", mode = { "n", "v" } },
-        { "g~", desc = "Toggle case", mode = { "n", "v" } },
+        -- case
+        { "gu", desc = "Lowercase",                 mode = { "n", "v" } },
+        { "gU", desc = "Uppercase",                 mode = { "n", "v" } },
+        { "g~", desc = "Toggle case",               mode = { "n", "v" } },
+        -- formatting
+        { "gq", desc = "Format text",               mode = { "n", "v" } },
+        { "gw", desc = "Format text (keep cursor)", mode = { "n", "v" } },
+        -- information
+        { "K",  desc = "Keyword help" },
     }
     local z = {
-        { "zz", desc = "Center line" },
-        { "zt", desc = "Line to top" },
-        { "zb", desc = "Line to bottom" },
-        { "zf", desc = "Create fold" },
-        { "zo", desc = "Open fold" },
-        { "zc", desc = "Close fold" },
-        { "za", desc = "Toggle fold" },
-        { "zR", desc = "Open all folds" },
-        { "zM", desc = "Close all folds" },
+        -- scrolling
+        { "zz",    desc = "Center line" },
+        { "zt",    desc = "Line to top" },
+        { "zb",    desc = "Line to bottom" },
+        { "z.",    desc = "Center line (first non-blank)" },
+        { "z<CR>", desc = "Line to top (first non-blank)" },
+        { "z-",    desc = "Line to bottom (first non-blank)" },
+        -- folds
+        { "zf",    desc = "Create fold" },
+        { "zF",    desc = "Create fold for lines" },
+        { "zd",    desc = "Delete fold" },
+        { "zD",    desc = "Delete folds recursively" },
+        { "zo",    desc = "Open fold" },
+        { "zO",    desc = "Open folds recursively" },
+        { "zc",    desc = "Close fold" },
+        { "zC",    desc = "Close folds recursively" },
+        { "za",    desc = "Toggle fold" },
+        { "zA",    desc = "Toggle folds recursively" },
+        { "zv",    desc = "Open folds for cursor" },
+        { "zx",    desc = "Update folds" },
+        { "zX",    desc = "Reapply folds" },
+        { "zm",    desc = "More folding" },
+        { "zM",    desc = "Close all folds" },
+        { "zr",    desc = "Less folding" },
+        { "zR",    desc = "Open all folds" },
+        -- spelling
+        { "zg",    desc = "Mark word good" },
+        { "zw",    desc = "Mark word wrong" },
+        { "z=",    desc = "Spelling suggestions" },
     }
     local w = {
+        -- splits
         { "<C-w>s", desc = "Split" },
         { "<C-w>v", desc = "Vsplit" },
+        { "<C-w>n", desc = "New window" },
+        { "<C-w>q", desc = "Quit window" },
         { "<C-w>c", desc = "Close" },
         { "<C-w>o", desc = "Only" },
+        -- navigation
         { "<C-w>w", desc = "Next window" },
+        { "<C-w>W", desc = "Previous window" },
         { "<C-w>h", desc = "Go left" },
         { "<C-w>j", desc = "Go down" },
         { "<C-w>k", desc = "Go up" },
         { "<C-w>l", desc = "Go right" },
+        { "<C-w>t", desc = "Top-left window" },
+        { "<C-w>b", desc = "Bottom-right window" },
+        { "<C-w>p", desc = "Previous window" },
+        -- resizing
         { "<C-w>=", desc = "Equalize" },
+        { "<C-w>+", desc = "Increase height" },
+        { "<C-w>-", desc = "Decrease height" },
+        { "<C-w>>", desc = "Increase width" },
+        { "<C-w><", desc = "Decrease width" },
+        { "<C-w>_", desc = "Maximize height" },
+        { "<C-w>|", desc = "Maximize width" },
+        -- moving/swap
+        { "<C-w>H", desc = "Move window left" },
+        { "<C-w>J", desc = "Move window down" },
+        { "<C-w>K", desc = "Move window up" },
+        { "<C-w>L", desc = "Move window right" },
+        -- tabs
+        { "<C-w>T", desc = "Move to new tab" },
+        -- rotation/exchange
+        { "<C-w>r", desc = "Rotate windows" },
+        { "<C-w>R", desc = "Rotate windows (reverse)" },
+        { "<C-w>x", desc = "Exchange windows" },
     }
 
     local clues = {}
