@@ -148,10 +148,59 @@ function M.sorted_entries(live)
     return entries
 end
 
--- Persist the current bookmarks. The extmark group is the single source of truth;
--- the store just serializes the disk-consistent snapshot we hand it.
+---@return integer?  the loaded bookmarks-store buffer, if one exists
+local function _store_bufnr()
+    local bufnr = vim.fn.bufnr(M.store_filepath())
+    if bufnr >= 0 and vim.api.nvim_buf_is_loaded(bufnr) then return bufnr end
+    return nil
+end
+
+-- Sync the extmark snapshot into the loaded store buffer in place (preserving the
+-- cursor/view), then carry it through to disk via the buffer's own write. This
+-- keeps the store buffer live-updated as bookmarks are added/removed while leaving
+-- it clean and consistent with the file. `noautocmd` on the write avoids
+-- re-triggering sync_from_file (which would needlessly rebuild the extmark group).
+---@param bufnr integer
+---@param entries keystone.bookmarks.Entry[]
+local function _sync_store_buf(bufnr, entries)
+    local lines = {}
+    for _, e in ipairs(entries) do
+        lines[#lines + 1] = _encode_entry(e)
+    end
+
+    local win = vim.fn.bufwinid(bufnr)
+    local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
+
+    vim.bo[bufnr].modifiable = true
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+    vim.api.nvim_buf_call(bufnr, function()
+        vim.cmd("silent keepalt noautocmd write")
+    end)
+
+    if win >= 0 and view then
+        vim.api.nvim_win_call(win, function()
+            view.lnum = math.min(view.lnum, vim.api.nvim_buf_line_count(bufnr))
+            vim.fn.winrestview(view)
+        end)
+    end
+end
+
+-- Push the authoritative extmark snapshot to the bookmarks store. The extmark
+-- group is the single source of truth, and its relation to the store is
+-- transitive: when the store buffer is loaded we sync into it and let the buffer
+-- carry the change to disk (extmarks -> buffer -> disk), so an open list updates
+-- live; otherwise we serialize straight to disk (extmarks -> disk). The buffer is
+-- always driven from the extmarks, even if it has unsaved manual edits -- the
+-- extmark group wins, and the reverse path (sync_from_file) is what lets a saved
+-- edit of the list become authoritative instead.
 function M.persist()
-    _store_save(M.sorted_entries(false))
+    local entries = M.sorted_entries(false)
+    local bufnr = _store_bufnr()
+    if bufnr then
+        _sync_store_buf(bufnr, entries)
+    else
+        _store_save(entries)
+    end
 end
 
 -- Rebuild the extmark group (the signs) from the bookmarks file on disk. This is
@@ -161,38 +210,6 @@ function M.sync_from_file()
     M.mark_group.remove_extmarks()
     for _, e in ipairs(M.store_load()) do
         M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
-    end
-end
-
--- After a mutation persists to disk, live-edit the open bookmarks file buffer so
--- the add/remove shows up immediately. The extmark group is the source of truth,
--- so we rebuild the buffer lines from the disk-consistent snapshot (which we just
--- persisted) and set them in place, preserving the cursor/view. Skipped when the
--- buffer has unsaved manual edits so we never clobber the user's in-progress work.
-function M.refresh_open_file_buffer()
-    local path = M.store_filepath()
-    local bufnr = vim.fn.bufnr(path)
-    if bufnr < 0 or not vim.api.nvim_buf_is_loaded(bufnr) then return end
-    if vim.bo[bufnr].modified then return end
-
-    local lines = {}
-    for _, e in ipairs(M.sorted_entries(false)) do
-        lines[#lines + 1] = _encode_entry(e)
-    end
-
-    local win = vim.fn.bufwinid(bufnr)
-    local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
-
-    vim.bo[bufnr].modifiable = true
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    -- Content matches what we just wrote to disk, so keep the buffer clean.
-    vim.bo[bufnr].modified = false
-
-    if win >= 0 and view then
-        vim.api.nvim_win_call(win, function()
-            view.lnum = math.min(view.lnum, vim.api.nvim_buf_line_count(bufnr))
-            vim.fn.winrestview(view)
-        end)
     end
 end
 
@@ -227,7 +244,6 @@ function M.upsert(file, lnum, label)
 
     M.mark_group.set_file_extmark(_new_id(), file, lnum, 0, M.mark_opts, { label = label })
     M.persist()
-    M.refresh_open_file_buffer()
 end
 
 ---@param file string
@@ -238,7 +254,6 @@ function M.delete_loc(file, lnum)
     if not mark then return false end
     M.mark_group.remove_extmark(mark.id)
     M.persist()
-    M.refresh_open_file_buffer()
     return true
 end
 

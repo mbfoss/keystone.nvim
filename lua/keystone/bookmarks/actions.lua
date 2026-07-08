@@ -42,7 +42,6 @@ function M.clear_file()
         if not accepted then return end
         core.mark_group.remove_file_extmarks(file)
         core.persist()
-        core.refresh_open_file_buffer()
     end)
 end
 
@@ -54,7 +53,6 @@ function M.clear_all()
         if not accepted then return end
         core.mark_group.remove_extmarks()
         core.persist()
-        core.refresh_open_file_buffer()
     end)
 end
 
