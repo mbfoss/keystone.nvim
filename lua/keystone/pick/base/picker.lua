@@ -619,6 +619,34 @@ function Picker:get_cursor()
 	return vim.api.nvim_win_get_cursor(self.lwin)[1]
 end
 
+---Neovim won't scroll to reveal virt_lines hanging below the cursor line, so an
+---entry sitting on the bottom row of the viewport has its virtual lines clipped.
+---When that's the case, scroll the view up by the entry's virt_line count.
+---@param row integer
+function Picker:_reveal_virt_lines(row)
+	if not self.lwin or not vim.api.nvim_win_is_valid(self.lwin) then return end
+	local item = self.list_items[row]
+	if not item then return end
+
+	local vcount = (item.virt_lines and #item.virt_lines or 0)
+		+ (self.opts.enable_list_sep and 1 or 0)
+	if vcount == 0 then return end
+
+	vim.api.nvim_win_call(self.lwin, function()
+		-- Screen height of the entry's own text (wrapped rows, excluding virt_lines).
+		local line_height = vim.api.nvim_win_text_height(self.lwin, {
+			start_row = row - 1,
+			end_row = row - 1,
+		}).all
+		-- Only act when the entry's last row is the bottom row of the viewport.
+		local bottom_row = vim.fn.winline() + line_height - 1
+		if bottom_row < vim.api.nvim_win_get_height(self.lwin) then return end
+		local view = vim.fn.winsaveview()
+		view.topline = view.topline + (item.virt_lines and #item.virt_lines or 0)
+		vim.fn.winrestview(view)
+	end)
+end
+
 ---@param row integer
 ---@param force boolean?
 ---@param clamp boolean?
@@ -638,6 +666,11 @@ function Picker:move_cursor(row, force, clamp)
 	end
 
 	vim.api.nvim_win_set_cursor(self.lwin, { row, 0 })
+	vim.schedule(function()
+		if not self.closed and row == #self.list_items then
+			self:_reveal_virt_lines(row)
+		end
+	end)
 
 	self:render_cursor()
 	self:render_position()
@@ -688,7 +721,8 @@ function Picker:update_preview()
 					self:release_external_preview_buf()
 					self._preview_external_buf = preview.bufnr
 					vim.api.nvim_win_set_buf(self.vwin, preview.bufnr)
-					vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
+					vim.wo[self.vwin].winhighlight =
+						_WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 					_apply_preview_pos(self.vwin, preview.bufnr, preview.pos, preview.pos_end)
 				end
 				return
@@ -696,7 +730,8 @@ function Picker:update_preview()
 
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
-				vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
+				vim.wo[self.vwin].winhighlight =
+					_WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 				self:release_external_preview_buf()
 			end
 
@@ -775,7 +810,8 @@ function Picker:request_clear_preview(immediate)
 		if self.vbuf and not self.closed then
 			if self._preview_external_buf and self.vwin and vim.api.nvim_win_is_valid(self.vwin) then
 				pcall(vim.api.nvim_win_set_buf, self.vwin, self.vbuf)
-				vim.wo[self.vwin].winhighlight = _WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
+				vim.wo[self.vwin].winhighlight =
+					_WINHL -- nvim_win_set_buf mutates winhighlight (drops EndOfBuffer remap)
 			end
 			self:release_external_preview_buf()
 			vim.bo[self.vbuf].modifiable = true

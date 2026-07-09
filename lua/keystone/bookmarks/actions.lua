@@ -1,21 +1,22 @@
 ---@class keystone.bookmarks.actions
-local M            = {}
+local M           = {}
 
 -- Interactive bookmark commands. This module pulls in the heavy UI modules
 -- (inputwin, ui, picker, fixedwin) and is only required the first time the user
 -- triggers a command, keeping startup cheap. The entry point
 -- (`keystone.bookmarks`) forwards to these on demand.
 
-local core         = require("keystone.bookmarks.core")
-local inputwin     = require("keystone.tk.inputwin")
-local ui           = require("keystone.tk.ui")
-local picker       = require("keystone.pick.base.picker")
-local pickertools  = require("keystone.pick.base.pickertools")
-local fixedwin     = require("keystone.tk.fixedwin")
+local core        = require("keystone.bookmarks.core")
+local throttle    = require("keystone.tk.throttle")
+local inputwin    = require("keystone.tk.inputwin")
+local ui          = require("keystone.tk.ui")
+local picker      = require("keystone.pick.base.picker")
+local pickertools = require("keystone.pick.base.pickertools")
+local fixedwin    = require("keystone.tk.fixedwin")
 
 -- Height ratio of the bookmarks list split, tracked live by fixedwin and reused
 -- so reopening the list keeps the height the user last dragged it to.
-local _list_ratio  = 0.25
+local _list_ratio = 0.25
 
 function M.set_label_at_cursor()
     local file, lnum = core.get_cur_loc()
@@ -104,10 +105,10 @@ function M.pick()
 end
 
 --- Opens the bookmarks list for editing in a split. The list is a scratch buffer
---- rendered from the extmarks -- not the file on disk. Edit lines freely, then `:w`
---- to synchronise the signs; the write updates the extmark group in memory (see
---- core.sync_from_buffer) and does not touch disk -- the file is saved on exit.
---- Each line is `<path>:<lnum>[ -- <label>]`.
+--- rendered from the extmarks -- not the file on disk. Edit lines freely; edits
+--- synchronise the signs automatically (throttled), updating the extmark group in
+--- memory (see core.sync_from_buffer) without touching disk -- the file is saved on
+--- exit. `:w` is unnecessary (and a no-op). Each line is `<path>:<lnum>[ -- <label>]`.
 function M.open_list()
     -- Reuse the scratch buffer across opens so its content (kept in step with the
     -- extmarks by core.refresh_list) survives being hidden.
@@ -116,17 +117,35 @@ function M.open_list()
         bufnr = vim.api.nvim_create_buf(true, false)
         core.list_bufnr = bufnr
 
+        -- `acwrite`, not `nofile`: it keeps the no-disk-backing scratch semantics
+        -- while still giving the buffer a name, so `:w` is a clean no-op instead
+        -- of aborting with E32. Syncing no longer depends on `:w` -- edits flow
+        -- into the extmarks automatically (see the throttled TextChanged sync).
+        vim.api.nvim_buf_set_name(bufnr, "keystone://bookmarks")
         vim.bo[bufnr].buftype = "acwrite"
         vim.bo[bufnr].bufhidden = "hide"
         vim.bo[bufnr].swapfile = false
 
-        -- `:w` pushes the edited lines back into the extmarks (no disk write), then
-        -- re-renders the canonical (sorted/normalised) form from the extmarks.
+        -- Push edited lines back into the extmarks as the user edits, throttled so a
+        -- burst of keystrokes rebuilds the group at most once per window. Only syncs
+        -- (no refresh_list): re-rendering the canonical/sorted form mid-edit would
+        -- fight the cursor -- that normalisation happens on the next open_list.
+        local auto_sync = throttle.throttle_wrap(150, function()
+            if vim.api.nvim_buf_is_valid(bufnr) then
+                core.sync_from_buffer(bufnr)
+            end
+        end)
+        vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+            buffer   = bufnr,
+            callback = auto_sync,
+        })
+
+        -- The buffer is kept authoritative live, so `:w` has nothing to do -- absorb
+        -- it (acwrite fires BufWriteCmd) and clear 'modified' so it reads as saved.
         vim.api.nvim_create_autocmd("BufWriteCmd", {
             buffer   = bufnr,
             callback = function()
-                core.sync_from_buffer(bufnr)
-                core.refresh_list()
+                vim.bo[bufnr].modified = false
             end,
         })
 
