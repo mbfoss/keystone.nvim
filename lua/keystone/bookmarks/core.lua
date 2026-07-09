@@ -1,26 +1,26 @@
-local M            = {}
+local M        = {}
 
 -- Internal state and storage shared between the thin entry point
 -- (`keystone.bookmarks`) and the lazily-loaded interactive commands
 -- (`keystone.bookmarks.actions`). Only the modules needed at startup are
 -- required here; the heavy UI modules live in `actions`.
 
-local fsutil       = require("keystone.tk.fsutil")
-local extmarks     = require("keystone.tk.extmarks")
+local fsutil   = require("keystone.tk.fsutil")
+local extmarks = require("keystone.tk.extmarks")
 
 ---@type keystone.tk.extmarks.GroupFunctions
-M.mark_group       = nil
+M.mark_group   = nil
 
 ---@type vim.api.keyset.set_extmark
-M.mark_opts        = nil
+M.mark_opts    = nil
 
 ---@type integer?  the scratch list buffer, when one has been opened
-M.list_bufnr       = nil
+M.list_bufnr   = nil
 
 ---@type keystone.bookmarks.Config
 local _config
 
-local _next_id     = 0
+local _next_id = 0
 
 local function _new_id()
     _next_id = _next_id + 1
@@ -206,18 +206,61 @@ function M.refresh_list()
     end
 end
 
--- Rebuild the extmark group (the signs) from the scratch list buffer's lines. This
--- is the "saving the list synchronises the signs" path: after the user edits the
--- list and writes it (`:w`), the buffer content becomes authoritative. Disk is not
--- touched -- the file is written only on exit.
+-- Reconcile the extmark group (the signs) with the scratch list buffer's lines.
+-- This is the "editing the list synchronises the signs" path: the buffer content
+-- becomes authoritative. Rather than tearing the whole group down and rebuilding it,
+-- only the delta is applied -- marks whose (file, line, label) still appears in the
+-- buffer are left untouched, so they keep their ids and live in-buffer tracking;
+-- vanished marks are removed and new lines are added. This matters because the sync
+-- runs on every edit (throttled), so a full rebuild would needlessly churn every
+-- mark on each keystroke. Disk is not touched -- the file is written only on exit.
 ---@param bufnr integer
 function M.sync_from_buffer(bufnr)
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    M.mark_group.remove_extmarks()
+    vim.bo[bufnr].modified = false
+    ---@param file string
+    ---@param lnum integer
+    ---@param label string?
+    ---@return string
+    local function _key(file, lnum, label)
+        return string.format("%s\0%d\0%s", file, lnum, label or "")
+    end
+
+    -- The lines the buffer wants, as a multiset keyed by location+label so that
+    -- duplicate entries are matched one-for-one against existing marks.
+    local wanted = {}
     for _, line in ipairs(lines) do
         local e = M.decode_line(line)
         if e then
-            M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
+            local key = _key(e.file, e.lnum, e.label)
+            local bucket = wanted[key]
+            if bucket then
+                bucket.count = bucket.count + 1
+            else
+                wanted[key] = { entry = e, count = 1 }
+            end
+        end
+    end
+
+    -- Keep marks the buffer still wants (decrementing their bucket); drop the rest.
+    -- Compare against stored positions -- the same snapshot the list is rendered from.
+    for _, m in ipairs(M.mark_group.get_extmarks(false)) do
+        local label = m.user_data and m.user_data.label or nil
+        local bucket = wanted[_key(m.file, m.lnum, label)]
+        if bucket and bucket.count > 0 then
+            bucket.count = bucket.count - 1
+        else
+            M.mark_group.remove_extmark(m.id)
+        end
+    end
+
+    -- Whatever the buffer still wants had no matching mark: add it.
+    for _, bucket in pairs(wanted) do
+        for _ = 1, bucket.count do
+            local e = bucket.entry
+            if e.lnum and e.lnum > 0 then
+                M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
+            end
         end
     end
 end
@@ -226,6 +269,9 @@ end
 -- Called on exit (VimLeavePre): during a session the extmarks are the single
 -- source of truth and disk is left untouched.
 function M.save_to_disk()
+    if M.list_bufnr then
+        M.sync_from_buffer(M.list_bufnr)
+    end
     _store_save(M.sorted_entries(false))
 end
 

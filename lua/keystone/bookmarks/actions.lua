@@ -114,14 +114,22 @@ function M.open_list()
     -- extmarks by core.refresh_list) survives being hidden.
     local bufnr = core.list_bufnr
     if not (bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
-        bufnr = vim.api.nvim_create_buf(true, false)
+        bufnr = ui.create_scratch_buffer(true, {}, function()
+            bufnr = nil
+            core.list_bufnr = nil
+        end)
         core.list_bufnr = bufnr
 
         -- `acwrite`, not `nofile`: it keeps the no-disk-backing scratch semantics
         -- while still giving the buffer a name, so `:w` is a clean no-op instead
         -- of aborting with E32. Syncing no longer depends on `:w` -- edits flow
         -- into the extmarks automatically (see the throttled TextChanged sync).
-        vim.api.nvim_buf_set_name(bufnr, "keystone://bookmarks")
+        local name = "keystone://bookmarks"
+        local existing = vim.fn.bufnr(name)
+        if existing ~= -1 and existing ~= bufnr then
+            vim.api.nvim_buf_delete(existing, { force = false })
+        end
+        vim.api.nvim_buf_set_name(bufnr, name)
         vim.bo[bufnr].buftype = "acwrite"
         vim.bo[bufnr].bufhidden = "hide"
         vim.bo[bufnr].swapfile = false

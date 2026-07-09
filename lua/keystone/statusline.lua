@@ -151,17 +151,19 @@ end
 
 ---@param bufnr integer
 local function _section_filename(bufnr)
-  if vim.bo[bufnr].buftype == "terminal" then
-    return "%*  "
-  end
-
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" then
     return "%* [No Name]"
   end
 
-  local filename = vim.fn.fnamemodify(name, ":t")
-  local rel      = vim.fn.fnamemodify(name, ":~:.")
+  local filename, rel
+  if vim.bo[bufnr].buftype == "" then
+    filename = vim.fn.fnamemodify(name, ":t")
+    rel      = vim.fn.fnamemodify(name, ":~:.")
+  else
+    filename = ""
+    rel = name:match("([^/\\]+)$") or name
+  end
   local icon, _  = icons.get_icon(filename)
   local icon_str = icon ~= "" and ("%* " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
