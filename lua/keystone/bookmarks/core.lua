@@ -14,6 +14,9 @@ M.mark_group       = nil
 ---@type vim.api.keyset.set_extmark
 M.mark_opts        = nil
 
+---@type integer?  the scratch list buffer, when one has been opened
+M.list_bufnr       = nil
+
 ---@type keystone.bookmarks.Config
 local _config
 
@@ -37,7 +40,7 @@ function M.default_config()
 end
 
 ----------- STORE -----------
--- The bookmarks file is a plain, human-editable text file. Each non-empty line is
+-- The bookmarks file is a plain text file. Each non-empty line is
 --
 --     <path>:<lnum>[ -- <label>]
 --
@@ -45,6 +48,12 @@ end
 -- optional label follows the location after a ` -- ` separator. The explicit
 -- separator keeps colons/digits in the label from confusing the location parse.
 -- Blank lines are ignored.
+--
+-- The extmark group is the single source of truth in memory. The file on disk is
+-- read once at startup and written only on exit (see setup's VimLeavePre). The
+-- interactive list (see actions.open_list) is a scratch buffer rendered from the
+-- extmarks -- never the file itself -- and writing it (`:w`) syncs the edited
+-- lines back into the extmark group without touching disk.
 
 ---@return string
 function M.store_filepath()
@@ -107,14 +116,21 @@ function M.store_load()
 end
 
 ---@param entries keystone.bookmarks.Entry[]
-local function _store_save(entries)
-    local path = M.store_filepath()
-    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-
+---@return string[]
+local function _encode_entries(entries)
     local lines = {}
     for _, e in ipairs(entries) do
         lines[#lines + 1] = _encode_entry(e)
     end
+    return lines
+end
+
+---@param entries keystone.bookmarks.Entry[]
+local function _store_save(entries)
+    local path = M.store_filepath()
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+
+    local lines = _encode_entries(entries)
     local content = #lines > 0 and (table.concat(lines, "\n") .. "\n") or ""
     fsutil.write_content(path, content)
 end
@@ -153,37 +169,34 @@ function M.sorted_entries(live)
     return entries
 end
 
----@return integer?  the loaded bookmarks-store buffer, if one exists
-local function _store_bufnr()
-    local bufnr = vim.fn.bufnr(M.store_filepath())
-    if bufnr >= 0 and vim.api.nvim_buf_is_loaded(bufnr) then return bufnr end
+---@return integer?  the scratch list buffer, if it is currently loaded
+local function _live_list_bufnr()
+    local bufnr = M.list_bufnr
+    if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then
+        return bufnr
+    end
     return nil
 end
 
--- Sync the extmark snapshot into the loaded store buffer in place (preserving the
--- cursor/view). By default the buffer is left modified so the change stays in the
--- buffer only -- it is carried to disk on exit (VimLeave). Pass `save = true` to
--- also write the buffer through to disk. `noautocmd` on the write avoids
--- re-triggering sync_from_file (which would needlessly rebuild the extmark group).
----@param bufnr integer
----@param entries keystone.bookmarks.Entry[]
----@param save boolean?  when true, also write the buffer through to disk
-local function _sync_store_buf(bufnr, entries, save)
-    local lines = {}
-    for _, e in ipairs(entries) do
-        lines[#lines + 1] = _encode_entry(e)
-    end
+-- Render the authoritative extmark snapshot into the scratch list buffer in place
+-- (preserving the cursor/view) and leave it unmodified. Interactive changes call
+-- this so an open list stays in step with the extmarks; the buffer is always
+-- driven from the extmarks, even if it has unsaved manual edits -- the extmark
+-- group wins, and the reverse path (sync_from_buffer) is what lets a saved edit of
+-- the list become authoritative instead. No-op when the list buffer is not loaded;
+-- disk is untouched (the file is written only on exit -- see save_to_disk).
+function M.refresh_list()
+    local bufnr = _live_list_bufnr()
+    if not bufnr then return end
+
+    local lines = _encode_entries(M.sorted_entries(false))
 
     local win = vim.fn.bufwinid(bufnr)
     local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
 
     vim.bo[bufnr].modifiable = true
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    if save then
-        vim.api.nvim_buf_call(bufnr, function()
-            vim.cmd("silent keepalt noautocmd write")
-        end)
-    end
+    vim.bo[bufnr].modified = false
 
     if win >= 0 and view then
         vim.api.nvim_win_call(win, function()
@@ -193,34 +206,27 @@ local function _sync_store_buf(bufnr, entries, save)
     end
 end
 
--- Push the authoritative extmark snapshot to the bookmarks store. The extmark
--- group is the single source of truth, and its relation to the store is
--- transitive: when the store buffer is loaded we sync into it (extmarks ->
--- buffer), so an open list updates live but stays unsaved until exit; otherwise
--- we serialize straight to disk (extmarks -> disk). Pass `save = true` to force
--- the change all the way to disk -- used on exit (VimLeave) to write the buffer.
--- The buffer is always driven from the extmarks, even if it has unsaved manual
--- edits -- the extmark group wins, and the reverse path (sync_from_file) is what
--- lets a saved edit of the list become authoritative instead.
----@param save boolean?  when true, write the store buffer through to disk
-function M.persist(save)
-    local entries = M.sorted_entries(false)
-    local bufnr = _store_bufnr()
-    if bufnr then
-        _sync_store_buf(bufnr, entries, save)
-    else
-        _store_save(entries)
+-- Rebuild the extmark group (the signs) from the scratch list buffer's lines. This
+-- is the "saving the list synchronises the signs" path: after the user edits the
+-- list and writes it (`:w`), the buffer content becomes authoritative. Disk is not
+-- touched -- the file is written only on exit.
+---@param bufnr integer
+function M.sync_from_buffer(bufnr)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    M.mark_group.remove_extmarks()
+    for _, line in ipairs(lines) do
+        local e = M.decode_line(line)
+        if e then
+            M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
+        end
     end
 end
 
--- Rebuild the extmark group (the signs) from the bookmarks file on disk. This is
--- the "saving the file synchronises the signs" path: after the user edits and
--- writes the plain bookmarks file, its content becomes authoritative.
-function M.sync_from_file()
-    M.mark_group.remove_extmarks()
-    for _, e in ipairs(M.store_load()) do
-        M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
-    end
+-- Serialize the authoritative extmark snapshot straight to the bookmarks file.
+-- Called on exit (VimLeavePre): during a session the extmarks are the single
+-- source of truth and disk is left untouched.
+function M.save_to_disk()
+    _store_save(M.sorted_entries(false))
 end
 
 ---@return string|nil,number|nil
@@ -253,7 +259,7 @@ function M.upsert(file, lnum, label)
     end
 
     M.mark_group.set_file_extmark(_new_id(), file, lnum, 0, M.mark_opts, { label = label })
-    M.persist()
+    M.refresh_list()
 end
 
 ---@param file string
@@ -263,7 +269,7 @@ function M.delete_loc(file, lnum)
     local mark = M.mark_group.get_extmark_by_location(file, lnum, true)
     if not mark then return false end
     M.mark_group.remove_extmark(mark.id)
-    M.persist()
+    M.refresh_list()
     return true
 end
 

@@ -41,7 +41,7 @@ function M.clear_file()
     ui.confirm_action("Clear bookmarks in current file", false, function(accepted)
         if not accepted then return end
         core.mark_group.remove_file_extmarks(file)
-        core.persist()
+        core.refresh_list()
     end)
 end
 
@@ -52,7 +52,7 @@ function M.clear_all()
     ui.confirm_action("Clear all bookmarks", false, function(accepted)
         if not accepted then return end
         core.mark_group.remove_extmarks()
-        core.persist()
+        core.refresh_list()
     end)
 end
 
@@ -103,34 +103,51 @@ function M.pick()
     end)
 end
 
---- Opens the plain bookmarks file for editing in a split. It is an ordinary file
---- buffer: edit lines freely, then `:w` to synchronise the signs (see setup's
---- BufWritePost autocmd). Each line is `<path>:<lnum>[ -- <label>]`.
+--- Opens the bookmarks list for editing in a split. The list is a scratch buffer
+--- rendered from the extmarks -- not the file on disk. Edit lines freely, then `:w`
+--- to synchronise the signs; the write updates the extmark group in memory (see
+--- core.sync_from_buffer) and does not touch disk -- the file is saved on exit.
+--- Each line is `<path>:<lnum>[ -- <label>]`.
 function M.open_list()
-    -- Ensure the on-disk file reflects current (live) sign positions before the
-    -- user starts editing it.
-    core.persist()
+    -- Reuse the scratch buffer across opens so its content (kept in step with the
+    -- extmarks by core.refresh_list) survives being hidden.
+    local bufnr = core.list_bufnr
+    if not (bufnr and vim.api.nvim_buf_is_valid(bufnr)) then
+        bufnr = vim.api.nvim_create_buf(true, false)
+        core.list_bufnr = bufnr
 
-    local path = core.store_filepath()
-    local existing = vim.fn.bufnr(path)
-    if existing >= 0 then
-        local existing_win = vim.fn.bufwinid(existing)
-        if existing_win >= 0 then
-            vim.api.nvim_set_current_win(existing_win)
-            return
-        end
+        vim.bo[bufnr].buftype = "acwrite"
+        vim.bo[bufnr].bufhidden = "hide"
+        vim.bo[bufnr].swapfile = false
+
+        -- `:w` pushes the edited lines back into the extmarks (no disk write), then
+        -- re-renders the canonical (sorted/normalised) form from the extmarks.
+        vim.api.nvim_create_autocmd("BufWriteCmd", {
+            buffer   = bufnr,
+            callback = function()
+                core.sync_from_buffer(bufnr)
+                core.refresh_list()
+            end,
+        })
+
+        -- <CR> jumps to the bookmark on the current line via the shared file opener.
+        vim.keymap.set("n", "<CR>", function()
+            local line = vim.api.nvim_get_current_line()
+            local entry = core.decode_line(line)
+            if not entry then return end
+            ui.smart_open_file(entry.file, entry.lnum, 0)
+        end, { buffer = bufnr, desc = "Open bookmark under cursor" })
     end
 
-    local bufnr = vim.fn.bufadd(path)
-    vim.fn.bufload(bufnr)
+    -- Render current bookmarks into the buffer before showing it.
+    core.refresh_list()
 
-    -- <CR> jumps to the bookmark on the current line via the shared file opener.
-    vim.keymap.set("n", "<CR>", function()
-        local line = vim.api.nvim_get_current_line()
-        local entry = core.decode_line(line)
-        if not entry then return end
-        ui.smart_open_file(entry.file, entry.lnum, 0)
-    end, { buffer = bufnr, desc = "Open bookmark under cursor" })
+    -- Already visible: just focus it.
+    local existing_win = vim.fn.bufwinid(bufnr)
+    if existing_win >= 0 then
+        vim.api.nvim_set_current_win(existing_win)
+        return
+    end
 
     -- A height-pinned split whose ratio fixedwin tracks across resizes/layout
     -- changes; persist the last-known ratio so reopening keeps the chosen height.
