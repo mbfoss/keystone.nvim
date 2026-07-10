@@ -3,7 +3,7 @@ local M           = {}
 local ui          = require("keystone.tk.ui")
 local strutil     = require("keystone.tk.strutil")
 local fsutil      = require("keystone.tk.fsutil")
-local regex       = require("keystone.tk.regex")
+local spawn       = require("keystone.tk.spawn")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 
@@ -63,21 +63,15 @@ local function error_item(msg)
     }
 end
 
+--- Fuzzy-match a filename against the query, then apply the case gate on top.
+--- The matcher itself is case-insensitive; when `case_sensitive` is set the
+--- subsequence is re-checked with case and re-highlighted on a hit. Regex mode
+--- does not go through here — it is filtered by ripgrep (see run_regex_filter).
 ---@param filename string
----@param query string fuzzy query (unused when `re` is given)
----@param re keystone.tk.Regex? compiled PCRE2 pattern; when set, runs regex mode
+---@param query string
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
-local function do_match(filename, query, re, case_sensitive)
-    -- regex mode: the compiled pattern is its own engine and already bakes in
-    -- case via its compile flags, so the fuzzy query and case gate don't apply.
-    if re then
-        if not re:test(filename) then return nil end
-        return { score = 0, chunks = { { filename } } }
-    end
-
-    -- fuzzy: match case-insensitively, then apply the case gate on top. The
-    -- matcher knows nothing about case; the gate is the whole case concept.
+local function do_match(filename, query, case_sensitive)
     local res = pickertools.match_label(filename, query)
     if not res then return nil end
     if case_sensitive then
@@ -88,30 +82,146 @@ local function do_match(filename, query, re, case_sensitive)
     return res
 end
 
+--- Build a result row for a matched file: the filetype icon, its directory
+--- prefix, then the filename chunks (fuzzy highlight, or a single plain chunk
+--- for the regex filter, which does not highlight the match).
+---@param filepath string
+---@param filename string
+---@param relative_path string
+---@param name_chunks table[]
+---@param score number
+---@return keystone.Picker.Item
+local function make_file_item(filepath, filename, relative_path, name_chunks, score)
+    local filedir       = relative_path:sub(1, #relative_path - #filename)
+    local icon, icon_hl = icons.get_icon(filename)
+    local chunks        = { { icon, icon_hl }, { " " }, { filedir } }
+    vim.list_extend(chunks, name_chunks)
+    return {
+        label_chunks = chunks,
+        score        = score,
+        data         = { filepath = filepath },
+    }
+end
+
+--- ripgrep command for the regex filename filter: candidate names arrive on
+--- stdin one per line, so `-n` line numbers double as the candidate index. Case
+--- was already decided by resolve_case() in the picker spec.
+---@param query string
+---@param case_sensitive boolean?
+---@return string[] cmd
+local function build_files_rg_cmd(query, case_sensitive)
+    local args = { "rg", "-n", "--line-buffered" }
+    table.insert(args, case_sensitive and "--case-sensitive" or "--ignore-case")
+    table.insert(args, "--")
+    table.insert(args, query)
+    table.insert(args, "-")
+    return args
+end
+
+--- Filter collected candidates through a single ripgrep (regex mode). Each name
+--- is streamed to stdin as its own line with backpressure (peak extra memory
+--- ~one write), and rg's `-n` line number maps straight back to
+--- `candidates[n]`. Delivers via `callback(items)` then `callback(nil)`,
+--- mirroring the fuzzy path; a bad pattern surfaces rg's stderr as an inline row.
+---@param candidates {filepath:string,filename:string,relative_path:string}[]
+---@param query string
+---@param case_sensitive boolean?
+---@param max_results integer
+---@param callback fun(items:keystone.Picker.Item[]?)
+---@return fun() cancel
+local function run_regex_filter(candidates, query, case_sensitive, max_results, callback)
+    if #candidates == 0 then
+        callback({})
+        callback(nil)
+        return function() end
+    end
+
+    local matched   = {} ---@type {filepath:string,filename:string,relative_path:string}[]
+    local err_parts = {}
+    local rg_handle ---@type keystone.tk.SpawnHandle?
+    local stop      = false -- hit max_results: stop feeding but still deliver
+    local aborted   = false -- external cancel: suppress delivery
+
+    -- rg's stdout callback runs in libuv's fast-event context, where the icon
+    -- highlight setup in make_file_item (nvim_set_hl) is banned. So only record
+    -- the matched candidates here (pure Lua) and build the rows on the main loop.
+    local feed = strutil.create_line_buffered_feed(function(lines)
+        for _, line in ipairs(lines) do
+            if stop then return end
+            local n = line:match("^(%d+):")
+            local c = n and candidates[tonumber(n)]
+            if c then
+                matched[#matched + 1] = c
+                if #matched >= max_results then
+                    stop = true
+                    if rg_handle then rg_handle.kill() end
+                    return
+                end
+            end
+        end
+    end)
+
+    local ok, spawn_err = pcall(function()
+        rg_handle = spawn(
+            build_files_rg_cmd(query, case_sensitive),
+            {
+                stdin  = true,
+                stdout = function(data) if not stop then feed(data) end end,
+                stderr = function(data) err_parts[#err_parts + 1] = data end,
+            },
+            function()
+                vim.schedule(function()
+                    if aborted then return end
+                    if #matched == 0 and #err_parts > 0 then
+                        callback({ error_item((table.concat(err_parts):gsub("%s+$", ""))) })
+                    else
+                        local items = {}
+                        for _, c in ipairs(matched) do
+                            items[#items + 1] =
+                                make_file_item(c.filepath, c.filename, c.relative_path, { { c.filename } }, 0)
+                        end
+                        callback(items)
+                    end
+                    callback(nil)
+                end)
+            end
+        )
+    end)
+
+    if not ok or not rg_handle then
+        callback({ error_item(tostring(spawn_err or "failed to launch ripgrep")) })
+        callback(nil)
+        return function() end
+    end
+
+    -- Pump one candidate per stdin write, resuming the next on the main loop.
+    local function pump(i)
+        if aborted then return end
+        if stop or i > #candidates then
+            if rg_handle then rg_handle.write(nil) end
+            return
+        end
+        rg_handle.write(candidates[i].filename .. "\n", function()
+            vim.schedule(function() pump(i + 1) end)
+        end)
+    end
+    pump(1)
+
+    return function()
+        aborted = true
+        if rg_handle then rg_handle.kill() end
+    end
+end
+
 ---@param query string User input
 ---@param opts keystone.filepicker.SearchOpts
 ---@param fetch_opts keystone.Picker.FetcherOpts
 ---@param callback fun(items:keystone.Picker.Item[]?)
 local function async_lua_search(query, opts, fetch_opts, callback)
-    -- Regex mode compiles the query once as a PCRE2 pattern (real ripgrep/PCRE
-    -- syntax). Case is baked into the compile flags; the smart-case decision was
-    -- already made by resolve_case() in the picker spec.
-    local compiled_re
-    if opts.use_regex then
-        local err
-        compiled_re, err = regex.compile(query, opts.case_sensitive and "" or "i")
-        if not compiled_re then
-            -- Surface the compile failure (bad pattern, missing libpcre2-8, ...)
-            -- as an inline ERROR row instead of silently showing no results.
-            callback({ error_item(err or "invalid regex") })
-            callback(nil)
-            return function() end
-        end
-    end
-
     local count              = 0
     local max_results        = opts.max_results or 10000
     local items              = {}
+    local candidates         = {} ---@type {filepath:string,filename:string,relative_path:string}[]
 
     local base_excludes      = opts.show_hidden and {} or { ".*", "**/.*" }
     local exclude_globs      = vim.list_extend(base_excludes, opts.exclude_globs or {})
@@ -133,8 +243,10 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         end
     end
 
-    local cancel_fn
-    cancel_fn                = fsutil.async_walk_dir(
+    local aborted = false
+    local rg_cancel ---@type fun()?
+    local walk_cancel ---@type fun()?
+    walk_cancel = fsutil.async_walk_dir(
         opts.cwd,
         {
             include_regex_list = include_regex_list,
@@ -156,31 +268,44 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                         if pickertools.match_glob(g, relative_path, true) then return end
                     end
                 end
-                local res = do_match(filename, query, compiled_re, opts.case_sensitive)
-                if not res then return end
-                if count >= max_results then
-                    cancel_fn()
+
+                -- Regex mode defers matching: collect candidates and filter them
+                -- through one rg pass on walk completion. A newline in a name
+                -- would desync the one-name-per-line stream, so skip those.
+                if opts.use_regex then
+                    if not filename:find("[\r\n]") then
+                        candidates[#candidates + 1] = {
+                            filepath = filepath, filename = filename, relative_path = relative_path,
+                        }
+                    end
                     return
                 end
-                local filedir       = relative_path:sub(1, #relative_path - #filename)
-                local icon, icon_hl = icons.get_icon(filename)
-                local chunks        = { { icon, icon_hl }, { " " }, { filedir } }
-                vim.list_extend(chunks, res.chunks)
-                table.insert(items, {
-                    label_chunks = chunks,
-                    score        = res.score,
-                    data         = { filepath = filepath },
-                })
+
+                local res = do_match(filename, query, opts.case_sensitive)
+                if not res then return end
+                if count >= max_results then
+                    if walk_cancel then walk_cancel() end
+                    return
+                end
+                items[#items + 1] = make_file_item(filepath, filename, relative_path, res.chunks, res.score)
                 count = count + 1
             end,
             on_done            = function()
-                vim.schedule(function()
+                if aborted then return end
+                if opts.use_regex then
+                    rg_cancel = run_regex_filter(candidates, query, opts.case_sensitive, max_results, callback)
+                else
                     callback(items)
                     callback(nil)
-                end)
+                end
             end
         })
-    return cancel_fn
+
+    return function()
+        aborted = true
+        if walk_cancel then walk_cancel() end
+        if rg_cancel then rg_cancel() end
+    end
 end
 
 ---@param opts keystone.filepicker.Opts?

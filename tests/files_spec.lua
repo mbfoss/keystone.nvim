@@ -1,5 +1,4 @@
 local files = require("keystone.pick.pickers.files")
-local regex = require("keystone.tk.regex")
 
 local resolve_case = files._resolve_case
 local do_match     = files._do_match
@@ -23,51 +22,62 @@ describe("resolve_case", function()
     end)
 end)
 
-describe("do_match (regex)", function()
-    if not regex.is_available() then
-        pending("libpcre2-8 not available on this machine")
+describe("regex filter (integration)", function()
+    if vim.fn.executable("rg") == 0 then
+        pending("ripgrep (rg) not available on this machine")
         return
     end
 
-    -- In regex mode the compiled PCRE2 pattern is the engine: it bakes in case
-    -- via its compile flags and the fuzzy query argument is ignored.
-    it("matches against the compiled pattern, ignoring the fuzzy query", function()
-        local re = assert(regex.compile("(foo|bar)", "i"))
-        assert.not_nil(do_match("BAR.lua", "ignored", re, false))
-        assert.is_nil(do_match("baz.lua", "ignored", re, false))
-    end)
-
-    it("honours the case flag baked into the compiled pattern", function()
-        assert.is_nil(do_match("FOO.txt", "", assert(regex.compile("foo")), false))
-        assert.not_nil(do_match("FOO.txt", "", assert(regex.compile("foo", "i")), false))
-    end)
-
-    it("uses PCRE grammar (groups, alternation, quantifiers, dot)", function()
-        assert.not_nil(do_match("AAAB", "", assert(regex.compile("a+b", "i")), false))
-        assert.not_nil(do_match("foXbar", "", assert(regex.compile("fo.bar", "i")), false))
-        assert.not_nil(do_match("v7", "", assert(regex.compile("v\\d", "i")), false))
-    end)
-end)
-
-describe("regex compile (picker contract)", function()
-    if not regex.is_available() then
-        pending("libpcre2-8 not available on this machine")
-        return
+    -- Regex mode streams candidate filenames through a single ripgrep over
+    -- stdin and maps matches back to their files. Drive the picker's finder
+    -- end to end over a temp directory.
+    local function run(dir, query, flags)
+        local spec = files.spec({ cwd = dir })
+        local result, done = {}, false
+        spec.finder(query, flags, { list_width = 80, list_height = 40 }, function(items)
+            if items == nil then done = true else result = items end
+        end, nil)
+        assert.is_true(vim.wait(5000, function() return done end, 20), "finder timed out")
+        return result
     end
 
-    -- The picker treats a malformed pattern as "no matches" by short-circuiting
-    -- on a nil compile result, rather than erroring on every file.
-    it("returns nil + error for a malformed pattern", function()
-        assert.is_nil((regex.compile("(foo")))
-        assert.is_nil((regex.compile("a{2,1}")))
+    local function basenames(items)
+        local names = {}
+        for _, it in ipairs(items) do
+            if it.data and it.data.filepath then
+                names[#names + 1] = vim.fn.fnamemodify(it.data.filepath, ":t")
+            end
+        end
+        table.sort(names)
+        return names
+    end
+
+    it("keeps only filenames matching the ripgrep regex", function()
+        local dir = vim.fn.resolve(vim.fn.tempname())
+        vim.fn.mkdir(dir, "p")
+        vim.fn.writefile({}, dir .. "/alpha.lua")
+        vim.fn.writefile({}, dir .. "/beta.txt")
+        vim.fn.writefile({}, dir .. "/gamma.lua")
+
+        assert.are.same({ "alpha.lua", "gamma.lua" }, basenames(run(dir, "\\.lua$", { regex = true })))
+    end)
+
+    it("surfaces a bad pattern as an inline error row", function()
+        local dir = vim.fn.resolve(vim.fn.tempname())
+        vim.fn.mkdir(dir, "p")
+        vim.fn.writefile({}, dir .. "/a.txt")
+
+        local result = run(dir, "(unterminated", { regex = true })
+        assert.are.equal(1, #result)
+        assert.is_nil(result[1].data.filepath) -- error rows carry no filepath
     end)
 end)
 
 describe("do_match (fuzzy)", function()
     it("matches case-insensitively then gates on case_sensitive", function()
-        assert.not_nil(do_match("README.md", "rdme", false, false))
-        assert.not_nil(do_match("FooBar", "foo", false, false))
-        assert.is_nil(do_match("FooBar", "foo", false, true))
-        assert.not_nil(do_match("FooBar", "Foo", false, true))
+        assert.not_nil(do_match("README.md", "rdme", false))
+        assert.not_nil(do_match("FooBar", "foo", false))
+        assert.is_nil(do_match("FooBar", "foo", true))
+        assert.not_nil(do_match("FooBar", "Foo", true))
     end)
 end)
