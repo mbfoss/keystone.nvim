@@ -4,7 +4,6 @@ local ui          = require("keystone.tk.ui")
 local strutil     = require("keystone.tk.strutil")
 local fsutil      = require("keystone.tk.fsutil")
 local spawn       = require("keystone.tk.spawn")
-local regex       = require("keystone.tk.regex")
 local pickertools = require("keystone.pick.base.pickertools")
 
 ---@class keystone.rgutil.Submatch
@@ -319,136 +318,56 @@ local function buffer_preview(data, opts, callback)
 end
 
 --------------------------------------------------------------------------------
--- In-process buffer search (PCRE2). Open buffers are searched in Lua instead of
--- spawning one rg per buffer, so thousands of open buffers don't fan out into
--- thousands of subprocesses. The directory search still uses rg.
+-- In-buffer search (single rg over stdin). Every open buffer's in-memory text is
+-- concatenated into one stdin document and streamed to `rg -`, so unsaved edits
+-- win over disk and thousands of open buffers cost one subprocess, not one each.
+-- rg sees a continuous line counter, so match line numbers are mapped back to
+-- their owning buffer via a precomputed offset table. The directory search uses
+-- a second rg over the filesystem.
 --------------------------------------------------------------------------------
 
--- PCRE2 metacharacters escaped when the query is a literal (--fixed-strings).
-local _PCRE_SPECIAL = {}
-for ch in ("\\^$.|?*+()[]{}"):gmatch(".") do _PCRE_SPECIAL[ch] = true end
-
----@param s string
----@return string  s with every PCRE2 metacharacter backslash-escaped
-local function escape_pcre(s)
-    return (s:gsub(".", function(c)
-        if _PCRE_SPECIAL[c] then return "\\" .. c end
-    end))
-end
-
---- Compile the query into a PCRE2 matcher mirroring the rg flags: literal unless
---- `regex`, and case sensitivity from `case` (smart-case = insensitive unless the
---- query has an uppercase letter).
+--- Build the rg command for the in-buffer search. Mirrors the disk flags (case,
+--- fixed-strings, replace) but adds --line-buffered so matches stream out while
+--- later buffers are still being fed, and targets `-` (stdin).
 ---@param parsed keystone.queryflags.ParseResult
----@return keystone.tk.Regex? re, string? err
-local function build_buf_regex(parsed)
-    local flags   = parsed.flags
-    local pattern = flags.regex and parsed.query or escape_pcre(parsed.query)
-
-    local re_flags
-    if flags.case == "on" then
-        re_flags = ""
-    elseif flags.case == "off" then
-        re_flags = "i"
-    else -- smart-case
-        re_flags = parsed.query:find("%u") and "" or "i"
-    end
-
-    return regex.compile(pattern, re_flags)
+---@return string[] cmd
+local function build_rg_stdin_cmd(parsed)
+    local args = build_rg_base(parsed)
+    table.insert(args, "--line-buffered")
+    table.insert(args, "--")
+    table.insert(args, parsed.query)
+    table.insert(args, "-")
+    return vim.list_extend({ "rg" }, args)
 end
 
---- Resolve an rg replacement reference ($0, $1.., ${n}, ${name}) to its text.
----@param name  string  the captured reference name (numeric or group name)
----@param whole string  the whole-match text
----@param caps  (string|nil)[]  capture-group substrings (1-based)
----@param re    keystone.tk.Regex
----@return string
-local function resolve_group(name, whole, caps, re)
-    local num = tonumber(name) or re:group_index(name)
-    if not num then return "" end
-    if num == 0 then return whole end
-    return caps[num] or ""
+--- Precompute where each buffer begins in the concatenated stdin stream:
+--- `starts[i]` is the 1-based line number of `bufs[i]`'s first line. Buffers are
+--- newline-joined and newline-separated, and Neovim buffer lines never contain a
+--- newline, so the stream's line counter is exact and matches never straddle a
+--- buffer boundary (the search is line-oriented).
+---@param bufs keystone.livegrep.OpenBuf[]
+---@return integer[] starts
+local function buffer_line_offsets(bufs)
+    local starts    = {}
+    local next_line = 1
+    for i, b in ipairs(bufs) do
+        starts[i]  = next_line
+        next_line  = next_line + vim.api.nvim_buf_line_count(b.bufnr)
+    end
+    return starts
 end
 
---- Expand an rg-style replacement template for one match: `$0` is the whole
---- match, `$1`/`${1}`/`${name}` are groups, and `$$` is a literal `$`.
----@param template string
----@param whole    string
----@param caps     (string|nil)[]
----@param re       keystone.tk.Regex
----@return string
-local function expand_repl(template, whole, caps, re)
-    local out, i, n = {}, 1, #template
-    while i <= n do
-        if template:sub(i, i) ~= "$" then
-            out[#out + 1] = template:sub(i, i)
-            i = i + 1
-        else
-            local nxt = template:sub(i + 1, i + 1)
-            if nxt == "$" then
-                out[#out + 1] = "$"
-                i = i + 2
-            elseif nxt == "{" then
-                local close = template:find("}", i + 2, true)
-                if close then
-                    out[#out + 1] = resolve_group(template:sub(i + 2, close - 1), whole, caps, re)
-                    i = close + 1
-                else
-                    out[#out + 1] = "$"
-                    i = i + 1
-                end
-            else
-                local ref = template:match("^([%w_]+)", i + 1)
-                if ref then
-                    out[#out + 1] = resolve_group(ref, whole, caps, re)
-                    i = i + 1 + #ref
-                else
-                    out[#out + 1] = "$"
-                    i = i + 1
-                end
-            end
-        end
+--- Map a 1-based stream line back to its buffer: the largest `starts[i] <= gline`.
+---@param starts integer[]  ascending buffer start lines
+---@param gline  integer    1-based line in the concatenated stream
+---@return integer buf_index, integer local_lnum
+local function locate_line(starts, gline)
+    local lo, hi = 1, #starts
+    while lo < hi do
+        local mid = math.floor((lo + hi + 1) / 2)
+        if starts[mid] <= gline then lo = mid else hi = mid - 1 end
     end
-    return table.concat(out)
-end
-
---- Search one open buffer's in-memory lines, appending picker items to `out`.
----@param re         keystone.tk.Regex
----@param repl       string?  replacement template, or nil when not replacing
----@param b          keystone.livegrep.OpenBuf
----@param cwd        string
----@param list_width integer
----@param show_repl  boolean?
----@param out        keystone.Picker.Item[]
----@param remaining  integer  cap on the number of matching lines to add
----@return integer added
-local function search_buffer(re, repl, b, cwd, list_width, show_repl, out, remaining)
-    local lines = vim.api.nvim_buf_get_lines(b.bufnr, 0, -1, false)
-    local added = 0
-    for lnum, line in ipairs(lines) do
-        if added >= remaining then break end
-        local subs = {} ---@type keystone.rgutil.Submatch[]
-        local init, len = 1, #line
-        while init <= len + 1 do
-            local s, e, caps = re:find(line, init)
-            if not s or not e then break end
-            -- find returns 1-based inclusive [s, e]; e doubles as the 0-based
-            -- exclusive end, matching rg's submatch offsets.
-            subs[#subs + 1] = {
-                s    = s - 1,
-                e    = e,
-                repl = repl and expand_repl(repl, line:sub(s, e), caps or {}, re) or nil,
-            }
-            init = (e >= s) and (e + 1) or (s + 1) -- guard against empty matches
-        end
-        if #subs > 0 then
-            ---@type keystone.rgutil.Match
-            local m = { path = b.path, lnum = lnum, col = subs[1].s + 1, text = line, subs = subs }
-            out[#out + 1] = make_item(m, b.path, cwd, list_width, show_repl, b.relpath)
-            added = added + 1
-        end
-    end
-    return added
+    return lo, gline - starts[lo] + 1
 end
 
 ---@param parsed     keystone.queryflags.ParseResult
@@ -475,30 +394,15 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
         open_relpaths[b.relpath] = true
     end
 
-    local cancelled  = false
-    local dir_items  = {} ---@type keystone.Picker.Item[]
+    local cancelled = false
+    local buf_items = {} ---@type keystone.Picker.Item[]
+    local dir_items = {} ---@type keystone.Picker.Item[]
+    local buf_handle ---@type keystone.tk.SpawnHandle?
     local dir_handle ---@type keystone.tk.SpawnHandle?
 
-    ----------------------------------------------------------------------------
-    -- In-buffer searches: in-process via PCRE2 (one compiled matcher reused for
-    -- every buffer), so thousands of open buffers don't spawn thousands of rg
-    -- jobs. This runs synchronously; buffer matches are ready before the dir job.
-    ----------------------------------------------------------------------------
-    local buf_items = {} ---@type keystone.Picker.Item[]
-    local re = build_buf_regex(parsed)
-    if re then
-        local remaining = max_results
-        for _, b in ipairs(bufs) do
-            if remaining <= 0 then break end
-            local ok, added = pcall(
-                search_buffer, re, parsed.flags.replace, b, cwd, list_width, show_repl,
-                buf_items, remaining
-            )
-            if ok then remaining = remaining - added end
-        end
-    end
-
-    -- Fired when the directory job settles; buffer matches lead the merged list.
+    -- Both searches run as async rg jobs; finish() fires once both have settled,
+    -- with buffer matches leading the merged list.
+    local pending = 2
     local function finish()
         if cancelled then return end
         local merged = {}
@@ -508,6 +412,90 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
             merged[i] = nil
         end
         callback(merged)
+    end
+    local function settle()
+        if cancelled then return end
+        pending = pending - 1
+        if pending == 0 then finish() end
+    end
+
+    ----------------------------------------------------------------------------
+    -- In-buffer search: one rg reading every open buffer's in-memory text from
+    -- stdin. Buffers are pumped one at a time with backpressure (peak extra
+    -- memory ~one buffer regardless of how many are open), and each match's
+    -- stream line is mapped back to its owning buffer.
+    ----------------------------------------------------------------------------
+    if #bufs == 0 then
+        settle()
+    else
+        local starts   = buffer_line_offsets(bufs)
+        local stop_buf = false
+        local buf_done = false
+        local buf_count = 0
+
+        local buf_feed = strutil.create_line_buffered_feed(function(lines)
+            for _, line in ipairs(lines) do
+                if stop_buf then return end
+                local m = parse_match(line)
+                if m and m.lnum then
+                    local idx, lnum = locate_line(starts, m.lnum)
+                    local b = bufs[idx]
+                    if b then
+                        m.lnum = lnum
+                        m.path = b.path
+                        buf_items[#buf_items + 1] =
+                            make_item(m, b.path, cwd, list_width, show_repl, b.relpath)
+                        buf_count = buf_count + 1
+                        if buf_count >= max_results then
+                            stop_buf = true
+                            if buf_handle then buf_handle.kill() end
+                            return
+                        end
+                    end
+                end
+            end
+        end)
+
+        -- Pump one buffer per stdin write, resuming the next on the main loop
+        -- (buffer reads are banned in libuv's fast callback context).
+        local function pump(i)
+            if cancelled or stop_buf or buf_done then return end
+            if i > #bufs then
+                if buf_handle then buf_handle.write(nil) end
+                return
+            end
+            local lines = vim.api.nvim_buf_get_lines(bufs[i].bufnr, 0, -1, false)
+            local chunk = table.concat(lines, "\n") .. "\n"
+            if buf_handle then
+                buf_handle.write(chunk, function()
+                    vim.schedule(function() pump(i + 1) end)
+                end)
+            end
+        end
+
+        local ok = pcall(function()
+            buf_handle = spawn(
+                build_rg_stdin_cmd(parsed),
+                {
+                    cwd    = cwd,
+                    stdin  = true,
+                    stdout = function(data)
+                        if not stop_buf then buf_feed(data) end
+                    end,
+                },
+                function()
+                    buf_done = true
+                    settle()
+                end
+            )
+        end)
+
+        if ok and buf_handle then
+            pump(1)
+        else
+            buf_done = true
+            settle()
+        end
     end
 
     ----------------------------------------------------------------------------
@@ -558,17 +546,18 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
                     on_error(data)
                 end,
             },
-            function() finish() end
+            function() settle() end
         )
     end)
 
     if not ok then
         on_error(err or "failed to launch ripgrep")
-        vim.schedule(finish)
+        vim.schedule(settle)
     end
 
     return function()
         cancelled = true
+        if buf_handle then buf_handle.kill() end
         if dir_handle then dir_handle.kill() end
     end
 end
