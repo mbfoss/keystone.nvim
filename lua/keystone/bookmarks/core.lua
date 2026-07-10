@@ -28,6 +28,27 @@ local function _new_id()
 end
 M.new_id = _new_id
 
+-- Namespace for the "this list line doesn't parse" hints (see _mark_invalid_lines).
+-- Kept separate from the sign extmark group so it can be cleared independently.
+local _invalid_ns = vim.api.nvim_create_namespace("keystone_bookmarks_invalid")
+
+-- Flag every non-blank list line that does not parse as
+-- `<path>:<lnum>[ -- label]`, so a typo shows up as an inline warning instead of
+-- silently dropping the bookmark on the next sync. `rows` are 0-based; the whole
+-- namespace is recomputed from scratch each call.
+---@param bufnr integer
+---@param rows integer[]
+local function _mark_invalid_lines(bufnr, rows)
+    vim.api.nvim_buf_clear_namespace(bufnr, _invalid_ns, 0, -1)
+    for _, row in ipairs(rows) do
+        vim.api.nvim_buf_set_extmark(bufnr, _invalid_ns, row, 0, {
+            virt_text     = { { "  ✗ expected  path:line  [ -- label]", "DiagnosticError" } },
+            virt_text_pos = "eol",
+            hl_mode       = "combine",
+        })
+    end
+end
+
 ---@return keystone.bookmarks.Config
 function M.default_config()
     ---@type keystone.bookmarks.Config
@@ -92,9 +113,12 @@ end
 ---@param line string
 ---@return keystone.bookmarks.Entry?
 function M.decode_line(line)
-    -- Split off an optional ` -- <label>` note first (on the first `--`), so any
-    -- colons/digits in the label can't confuse the `<path>:<lnum>` parse.
-    local loc, label = line:match("^(.-)%s*%-%-%s*(.-)%s*$")
+    -- Split off an optional ` -- <label>` note first (on the first *whitespace-
+    -- surrounded* `--`), so colons/digits in the label can't confuse the
+    -- `<path>:<lnum>` parse. Requiring the space before `--` (not `%s*`) means a
+    -- bare `--` inside a filename, e.g. `foo--bar.lua:10`, is left in the path
+    -- rather than being mistaken for the label separator.
+    local loc, label = line:match("^(.-)%s+%-%-%s*(.-)%s*$")
     if not loc then loc = line end
     local path, lnum = loc:match("^%s*(.-):(%d+)%s*$")
     if not path or path == "" then return nil end
@@ -197,6 +221,9 @@ function M.refresh_list()
     vim.bo[bufnr].modifiable = true
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
     vim.bo[bufnr].modified = false
+    -- The rendered lines are the canonical form, so none are invalid: drop any
+    -- lingering "invalid line" hints from a prior edit.
+    vim.api.nvim_buf_clear_namespace(bufnr, _invalid_ns, 0, -1)
 
     if win >= 0 and view then
         vim.api.nvim_win_call(win, function()
@@ -227,9 +254,12 @@ function M.sync_from_buffer(bufnr)
     end
 
     -- The lines the buffer wants, as a multiset keyed by location+label so that
-    -- duplicate entries are matched one-for-one against existing marks.
+    -- duplicate entries are matched one-for-one against existing marks. Non-blank
+    -- lines that fail to parse are collected so they can be flagged in place
+    -- rather than silently discarded.
     local wanted = {}
-    for _, line in ipairs(lines) do
+    local invalid = {}
+    for i, line in ipairs(lines) do
         local e = M.decode_line(line)
         if e then
             local key = _key(e.file, e.lnum, e.label)
@@ -239,8 +269,11 @@ function M.sync_from_buffer(bufnr)
             else
                 wanted[key] = { entry = e, count = 1 }
             end
+        elseif line:match("%S") then
+            invalid[#invalid + 1] = i - 1 -- 0-based row
         end
     end
+    _mark_invalid_lines(bufnr, invalid)
 
     -- Keep marks the buffer still wants (decrementing their bucket); drop the rest.
     -- Compare against stored positions -- the same snapshot the list is rendered from.

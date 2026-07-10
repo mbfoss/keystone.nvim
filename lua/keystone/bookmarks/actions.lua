@@ -76,12 +76,18 @@ function M.pick()
             for _, entry in ipairs(entries) do
                 local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
                 local loc_text = relpath .. ":" .. entry.lnum
-                local match = pickertools.match_label(loc_text, query)
+                local label = entry.label
+                -- Match against the location *and* the label, so a bookmark can be
+                -- found by words in its note. The location keeps its own highlight
+                -- chunks on the main line; the label stays on the virt line below.
+                local search_text = label and (loc_text .. " " .. label) or loc_text
+                local match = pickertools.match_label(search_text, query)
                 if match then
+                    local loc_match = pickertools.match_label(loc_text, query)
                     ---@type keystone.Picker.Item
                     local item = {
-                        label_chunks = match.chunks,
-                        virt_lines   = entry.label and { { { entry.label, "@text.note" } } } or nil,
+                        label_chunks = (loc_match and loc_match.chunks) or { { loc_text } },
+                        virt_lines   = label and { { { label, "@text.note" } } } or nil,
                         score        = match.score,
                         data         = {
                             filepath = entry.file,
@@ -154,6 +160,20 @@ function M.open_list()
             buffer   = bufnr,
             callback = function()
                 vim.bo[bufnr].modified = false
+            end,
+        })
+
+        -- Since edits flow into the extmarks live and the buffer never needs
+        -- writing, keep it perpetually unmodified: reset 'modified' the instant it
+        -- is set. Without this, quitting with a pending edit prompts to save the
+        -- scratch buffer (E37); the reset is synchronous, so the flag is already
+        -- clear by the time `:q` runs its modified check.
+        vim.api.nvim_create_autocmd("BufModifiedSet", {
+            buffer   = bufnr,
+            callback = function()
+                if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified then
+                    vim.bo[bufnr].modified = false
+                end
             end,
         })
 
