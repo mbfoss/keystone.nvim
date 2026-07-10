@@ -8,6 +8,8 @@ local M        = {}
 local fsutil   = require("keystone.tk.fsutil")
 local extmarks = require("keystone.tk.extmarks")
 
+local diagnostic = vim.diagnostic
+
 ---@type keystone.tk.extmarks.GroupFunctions
 M.mark_group   = nil
 
@@ -39,14 +41,19 @@ local _invalid_ns = vim.api.nvim_create_namespace("keystone_bookmarks_invalid")
 ---@param bufnr integer
 ---@param rows integer[]
 local function _mark_invalid_lines(bufnr, rows)
-    vim.api.nvim_buf_clear_namespace(bufnr, _invalid_ns, 0, -1)
+    local diagnostics = {}
+
     for _, row in ipairs(rows) do
-        vim.api.nvim_buf_set_extmark(bufnr, _invalid_ns, row, 0, {
-            virt_text     = { { "  ✗ expected  path:line  [ -- label]", "DiagnosticError" } },
-            virt_text_pos = "eol",
-            hl_mode       = "combine",
-        })
+        diagnostics[#diagnostics + 1] = {
+            lnum = row,
+            col = 0,
+            severity = diagnostic.severity.ERROR,
+            source = "keystone-bookmarks",
+            message = "expected path:line [ -- label]",
+        }
     end
+
+    diagnostic.set(_invalid_ns, bufnr, diagnostics)
 end
 
 ---@return keystone.bookmarks.Config

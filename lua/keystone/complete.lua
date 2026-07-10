@@ -50,6 +50,9 @@ local keys = {
   confirm      = vim.api.nvim_replace_termcodes("<C-y>", true, false, true),
 }
 
+--- Value written to 'completefunc'/'omnifunc' when this module owns the slot.
+local _lsp_func = "v:lua.require'keystone.complete'.completefunc_lsp"
+
 local has_native_snippet = vim.fn.has("nvim-0.10") == 1
 
 local change_tick = 0
@@ -136,7 +139,7 @@ end
 ---@return boolean
 local function lsp_func_set()
   local sf = get_config().lsp_completion.source_func
-  return vim.bo[sf] == "v:lua.require'keystone.complete'.completefunc_lsp"
+  return vim.bo[sf] == _lsp_func
 end
 
 ---@param char string
@@ -611,6 +614,7 @@ end
 
 local function on_insert_char()
   if in_float() then return end
+  if not get_config().enabled then return end
   state.timer:stop()
 
   local is_incomplete = state.lsp.is_incomplete
@@ -709,8 +713,15 @@ local function setup_autocmds(config)
   au("TextChangedP", "*", function() change_tick = change_tick + 1 end)
 
   if config.lsp_completion.auto_setup then
-    local sf = config.lsp_completion.source_func
-    au("BufEnter", "*", function() vim.bo[sf] = "v:lua.require'keystone.complete'.completefunc_lsp" end)
+    -- Read config live so a per-buffer `source_func`/`enabled` is honored, and
+    -- leave the slot alone when a filetype plugin or the user already owns it.
+    au("BufEnter", "*", function()
+      local cfg = get_config()
+      if not cfg.enabled then return end
+      local sf  = cfg.lsp_completion.source_func
+      local cur = vim.bo[sf]
+      if cur == "" or cur == _lsp_func then vim.bo[sf] = _lsp_func end
+    end)
   end
 end
 
@@ -837,6 +848,7 @@ end
 ---@param fallback? boolean
 ---@param force? boolean
 M.complete = function(fallback, force)
+  if not get_config().enabled then return end
   if fallback == nil then fallback = true end
   if force == nil then force = true end
   stop_completion()

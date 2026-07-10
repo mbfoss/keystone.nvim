@@ -18,6 +18,32 @@ local fixedwin    = require("keystone.tk.fixedwin")
 -- so reopening the list keeps the height the user last dragged it to.
 local _list_ratio = 0.25
 
+--- `completefunc` for the bookmarks list buffer (triggered with <C-x><C-u>):
+--- completes the file path in the first field of the current line. Scoped to the
+--- leading path token -- bytes up to the cursor that are neither whitespace nor
+--- the `:` that introduces the line number -- and only when nothing but
+--- whitespace precedes it, so the `:lnum` and ` -- label` after the path are never
+--- treated as a path. `getcompletion(_, "file")` keeps the stored path form
+--- (cwd- or `~`-relative) and marks directories with a trailing `/`.
+---@param findstart 0|1
+---@param base string
+---@return integer|string[]
+function M.complete_path(findstart, base)
+    local line   = vim.api.nvim_get_current_line()
+    local col    = vim.api.nvim_win_get_cursor(0)[2] -- 0-based cursor byte offset
+    local before = line:sub(1, col)
+    local token  = before:match("[^%s:]*$")
+    local start  = col - #token
+
+    if findstart == 1 then
+        -- Not in the first field (or nothing to complete): cancel, stay in insert.
+        if token == "" or before:sub(1, start):match("%S") then return -2 end
+        return start -- 0-based byte column where the path token begins
+    end
+
+    return vim.fn.getcompletion(base, "file")
+end
+
 function M.set_label_at_cursor()
     local file, lnum = core.get_cur_loc()
     if not file or not lnum then
@@ -114,7 +140,8 @@ end
 --- rendered from the extmarks -- not the file on disk. Edit lines freely; edits
 --- synchronise the signs automatically (throttled), updating the extmark group in
 --- memory (see core.sync_from_buffer) without touching disk -- the file is saved on
---- exit. `:w` is unnecessary (and a no-op). Each line is `<path>:<lnum>[ -- <label>]`.
+--- exit. `:w` is unnecessary (and a no-op). Each line is `<path>:<lnum>[ -- <label>]`;
+--- <C-x><C-u> completes the file path in the first field.
 function M.open_list()
     -- Reuse the scratch buffer across opens so its content (kept in step with the
     -- extmarks by core.refresh_list) survives being hidden.
@@ -139,6 +166,11 @@ function M.open_list()
         vim.bo[bufnr].buftype = "acwrite"
         vim.bo[bufnr].bufhidden = "hide"
         vim.bo[bufnr].swapfile = false
+
+        -- Own completion in this buffer: opt out of keystone.complete's managed
+        -- LSP completefunc (it re-asserts it on BufEnter otherwise) and complete
+        -- file paths in the first field via <C-x><C-u>. See M.complete_path.
+        vim.bo[bufnr].completefunc = "v:lua.require'keystone.bookmarks.actions'.complete_path"
 
         -- Push edited lines back into the extmarks as the user edits, throttled so a
         -- burst of keystrokes rebuilds the group at most once per window. Only syncs
