@@ -1,37 +1,4 @@
-local M               = {}
-
---- Highlight group for the file-path/location line shown beneath picker items
---- (the virtual line in grep/diagnostics/lsp/quickfix results).  Defined as a
---- `default` link so users can override it, but it can be restyled freely.
-local _PATH_HL        = "KeystonePickPath"
-
---- Highlight groups for the old/new text shown in search & replace mode
---- (e.g. live grep's `replace:` flag).  The old text is struck through by
---- default to signal it is being replaced.
-local _REPLACE_OLD_HL = "KeystoneReplaceOld"
-local _REPLACE_NEW_HL = "KeystoneReplaceNew"
-
---- Register keystone picker highlight groups.  Re-applied on `ColorScheme`
---- since linked `default` groups are cleared when the colorscheme changes.
-local function _setup_hl()
-    local function apply()
-        vim.api.nvim_set_hl(0, _PATH_HL, { default = true, link = "@namespace" })
-        -- `link` ignores other attributes, so pull NonText's colour and add the
-        -- strikethrough explicitly to render the old text crossed out.
-        local nontext = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
-        vim.api.nvim_set_hl(0, _REPLACE_OLD_HL, {
-            default = true,
-            fg = nontext.fg,
-            strikethrough = true,
-        })
-        vim.api.nvim_set_hl(0, _REPLACE_NEW_HL, { default = true, link = "Added" })
-    end
-    apply()
-    vim.api.nvim_create_autocmd("ColorScheme", {
-        group    = vim.api.nvim_create_augroup("KeystonePickHighlights", { clear = true }),
-        callback = apply,
-    })
-end
+local M        = {}
 
 ---@class keystone.pick.Config
 ---@field override_ui_select boolean?
@@ -130,14 +97,15 @@ end
 ---@param name string
 ---@param spec keystone.PickerSpec | fun(): keystone.PickerSpec?
 function M.register(name, spec)
-    registry.register(name, spec)
+    require("keystone.pick.registry").register(name, spec)
 end
 
 ---@param opts keystone.pick.Config?
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    _setup_hl()
+    vim.api.nvim_set_hl(0, "KeystonePickMatch", { default = true, link = "Label" })
+    vim.api.nvim_set_hl(0, "KeystonePickPath", { default = true, link = "@namespace" })
 
     vim.api.nvim_create_user_command("Pick", function(cmd_opts)
         local picker_type   = cmd_opts.fargs[1]

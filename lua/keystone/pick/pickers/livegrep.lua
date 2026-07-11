@@ -52,10 +52,9 @@ end
 
 ---@param text      string
 ---@param subs      keystone.rgutil.Submatch[]
----@param match_hl  string
 ---@param show_repl boolean?  -- render "old → new" diff chunks instead of a single highlighted match
 ---@return {[1]:string,[2]:string?}[]
-local function build_chunks(text, subs, match_hl, show_repl)
+local function build_chunks(text, subs, show_repl)
     local chunks = {}
     local last   = 1
     for _, sm in ipairs(subs) do
@@ -65,12 +64,11 @@ local function build_chunks(text, subs, match_hl, show_repl)
             chunks[#chunks + 1] = { text:sub(last, s - 1) }
         end
         if show_repl and sm.repl then
-            chunks[#chunks + 1] = { text:sub(s, e), "KeystoneReplaceOld" }
             if #sm.repl > 0 then
-                chunks[#chunks + 1] = { sm.repl, "KeystoneReplaceNew" }
+                chunks[#chunks + 1] = { sm.repl, "IncSearch" }
             end
         else
-            chunks[#chunks + 1] = { text:sub(s, e), match_hl }
+            chunks[#chunks + 1] = { text:sub(s, e), "KeystonePickMatch" }
         end
         last = e + 1
     end
@@ -287,7 +285,7 @@ local function make_item(m, abs_path, cwd, list_width, show_repl, rel_path)
         list_width
     )
     return {
-        label_chunks = build_chunks(m.text, m.subs, "Label", show_repl),
+        label_chunks = build_chunks(m.text, m.subs, show_repl),
         virt_lines   = { { { location, "KeystonePickPath" } } },
         data         = { filepath = abs_path, lnum = m.lnum, col = m.col, subs = m.subs },
     }

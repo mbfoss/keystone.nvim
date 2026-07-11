@@ -4,14 +4,13 @@ local fsutil = require("keystone.tk.fsutil")
 
 ---@param text string The final string to be shown
 ---@param positions integer[] Matched indices
----@param hl_group string? Optional override for the match highlight
 ---@return table[] chunks
-local function _build_highlight_chunks(text, positions, hl_group)
+local function _build_highlight_chunks(text, positions)
     if not positions or #positions == 0 then
         return { { text } }
     end
 
-    local hl = hl_group or "Todo"
+    local hl = "KeystonePickMatch"
     local chunks = {}
     local pos_map = {}
     for _, p in ipairs(positions) do pos_map[p] = true end
