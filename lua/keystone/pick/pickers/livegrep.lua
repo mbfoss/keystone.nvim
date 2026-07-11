@@ -6,6 +6,12 @@ local fsutil      = require("keystone.tk.fsutil")
 local spawn       = require("keystone.tk.spawn")
 local pickertools = require("keystone.pick.base.pickertools")
 
+--- High-water mark (bytes) for stdin backpressure: buffers are fed to rg ahead
+--- of itself for throughput, but once its stdin write queue is backed up past
+--- this we wait for it to drain before pushing more, so buffered memory stays
+--- bounded even with very large or very many open buffers.
+local _MAX_WRITE_QUEUE = 1024 * 1024
+
 ---@class keystone.rgutil.Submatch
 ---@field s    integer  -- 0-indexed byte start in the line
 ---@field e    integer  -- 0-indexed byte end (exclusive) in the line
@@ -457,19 +463,26 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
         end)
 
         -- Pump one buffer per stdin write, resuming the next on the main loop
-        -- (buffer reads are banned in libuv's fast callback context).
+        -- (buffer reads are banned in libuv's fast callback context). Writes are
+        -- fired ahead without blocking on each one, but once rg's stdin queue is
+        -- backed up past the high-water mark we wait for that write to drain
+        -- before feeding more, so buffered memory stays bounded.
         local function pump(i)
             if cancelled or stop_buf or buf_done then return end
             if i > #bufs then
                 if buf_handle then buf_handle.write(nil) end
                 return
             end
+            if not buf_handle then return end
             local lines = vim.api.nvim_buf_get_lines(bufs[i].bufnr, 0, -1, false)
             local chunk = table.concat(lines, "\n") .. "\n"
-            if buf_handle then
+            if buf_handle.get_write_queue_size() >= _MAX_WRITE_QUEUE then
                 buf_handle.write(chunk, function()
                     vim.schedule(function() pump(i + 1) end)
                 end)
+            else
+                buf_handle.write(chunk)
+                vim.schedule(function() pump(i + 1) end)
             end
         end
 

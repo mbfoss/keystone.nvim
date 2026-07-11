@@ -7,6 +7,12 @@ local spawn       = require("keystone.tk.spawn")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 
+--- High-water mark (bytes) for stdin backpressure: candidate filenames are fed
+--- to the regex-filter rg ahead of itself for throughput, but once its stdin
+--- write queue is backed up past this we wait for it to drain before pushing
+--- more, so a huge candidate set can't balloon buffered memory.
+local _MAX_WRITE_QUEUE = 1024 * 1024
+
 ---@class keystone.filepicker.Opts
 ---@field prompt string?
 ---@field cwd string?
@@ -230,16 +236,25 @@ local function run_regex_filter(candidates, query, case_sensitive, max_results, 
         return function() end
     end
 
-    -- Pump one candidate per stdin write, resuming the next on the main loop.
+    -- Pump candidates to stdin, resuming the next on the main loop. Writes are
+    -- fired ahead without blocking on each one, but once rg's stdin queue is
+    -- backed up past the high-water mark we wait for it to drain before pushing
+    -- more, so a huge candidate set can't balloon buffered memory.
     local function pump(i)
         if aborted then return end
         if stop or i > #candidates then
             if rg_handle then rg_handle.write(nil) end
             return
         end
-        rg_handle.write(candidates[i].filename .. "\n", function()
+        local line = candidates[i].filename .. "\n"
+        if rg_handle.get_write_queue_size() >= _MAX_WRITE_QUEUE then
+            rg_handle.write(line, function()
+                vim.schedule(function() pump(i + 1) end)
+            end)
+        else
+            rg_handle.write(line)
             vim.schedule(function() pump(i + 1) end)
-        end)
+        end
     end
     pump(1)
 

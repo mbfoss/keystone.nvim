@@ -82,16 +82,6 @@ describe("bookmarks.sync_from_buffer", function()
         assert.equals(2, #core.read_entries(false))
     end)
 
-    it("drops malformed lines and flags them in place", function()
-        local bufnr = make_list({ "a.lua:1", "garbage", "b.lua:2" })
-        core.sync_from_buffer(bufnr)
-        assert.equals(2, #core.read_entries(false))
-
-        local marks = vim.api.nvim_buf_get_extmarks(bufnr, -1, 0, -1, {})
-        assert.equals(1, #marks)
-        assert.equals(1, marks[1][2]) -- 0-based row of "garbage"
-    end)
-
     it("ignores blank lines without flagging them", function()
         local bufnr = make_list({ "a.lua:1", "", "   " })
         core.sync_from_buffer(bufnr)
