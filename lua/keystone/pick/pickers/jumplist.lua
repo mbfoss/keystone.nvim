@@ -1,11 +1,10 @@
-local M = {}
+local M           = {}
 
 local pickertools = require("keystone.pick.base.pickertools")
 local ui          = require("keystone.tk.ui")
 local fsutil      = require("keystone.tk.fsutil")
 
 ---@param item vim.fn.getjumplist.ret.item
----@return {filepath:string, relpath:string, lnum:number, col:number, bufnr:number}?
 local function read_jump_item(item)
     local bufnr = item.bufnr
     if not bufnr or bufnr == 0 then return nil end
@@ -23,18 +22,23 @@ end
 
 ---@return keystone.PickerSpec?
 function M.spec()
-    local jumplist, _ = unpack(vim.fn.getjumplist())
+    local jumplist, idx = unpack(vim.fn.getjumplist())
     if not jumplist or vim.tbl_isempty(jumplist) then
         vim.notify("Jumplist is empty", vim.log.levels.WARN)
         return nil
     end
 
+    local current = idx + 1
     local entries = {}
     for i = #jumplist, 1, -1 do
         local data = read_jump_item(jumplist[i])
-        if data then table.insert(entries, data) end
+        if data then
+            data.initial = i == current
+            table.insert(entries, data)
+        end
     end
 
+    ---@type keystone.PickerSpec
     return {
         prompt         = "Jumplist",
         enable_preview = true,
@@ -49,7 +53,8 @@ function M.spec()
                     ---@type keystone.Picker.Item
                     table.insert(items, {
                         label_chunks = match.chunks,
-                        score        = match.score,
+                        score        = nil, -- no scoring (reordering) for jumlist
+                        initial      = data.initial,
                         data         = {
                             filepath = data.filepath,
                             bufnr    = data.bufnr,
@@ -61,7 +66,7 @@ function M.spec()
             end
             callback(items)
         end,
-        on_confirm = function(data)
+        on_confirm     = function(data)
             if data then ui.smart_open_buffer(data.bufnr, data.lnum, data.col) end
         end,
     }
