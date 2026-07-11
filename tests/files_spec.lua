@@ -62,6 +62,21 @@ describe("regex filter (integration)", function()
         assert.are.same({ "alpha.lua", "gamma.lua" }, basenames(run(dir, "\\.lua$", { regex = true })))
     end)
 
+    it("highlights the matched portion of the filename", function()
+        local dir = vim.fn.resolve(vim.fn.tempname())
+        vim.fn.mkdir(dir, "p")
+        vim.fn.writefile({}, dir .. "/alpha.lua")
+
+        local result = run(dir, "\\.lua$", { regex = true })
+        assert.are.equal(1, #result)
+        -- the ".lua" suffix should be its own highlighted chunk (fuzzy uses "Todo")
+        local found = false
+        for _, ch in ipairs(result[1].label_chunks) do
+            if ch[1] == ".lua" and ch[2] == "Todo" then found = true end
+        end
+        assert.is_true(found, "expected a highlighted '.lua' chunk")
+    end)
+
     it("surfaces a bad pattern as an inline error row", function()
         local dir = vim.fn.resolve(vim.fn.tempname())
         vim.fn.mkdir(dir, "p")

@@ -83,8 +83,7 @@ local function do_match(filename, query, case_sensitive)
 end
 
 --- Build a result row for a matched file: the filetype icon, its directory
---- prefix, then the filename chunks (fuzzy highlight, or a single plain chunk
---- for the regex filter, which does not highlight the match).
+--- prefix, then the filename chunks (fuzzy or regex match highlight).
 ---@param filepath string
 ---@param filename string
 ---@param relative_path string
@@ -103,14 +102,40 @@ local function make_file_item(filepath, filename, relative_path, name_chunks, sc
     }
 end
 
+--- Highlight the matched byte ranges of a filename, mirroring the fuzzy path's
+--- match highlight group ("Todo"). `subs` are rg submatch offsets: `s` is the
+--- 0-based byte start, `e` the exclusive byte end. Matches are character-aligned
+--- in rg's output, so byte slicing never splits a multibyte character.
+---@param text string
+---@param subs {s:integer,e:integer}[]
+---@return table[] chunks
+local function highlight_name_chunks(text, subs)
+    local chunks = {}
+    local last   = 1
+    for _, sm in ipairs(subs) do
+        local s = sm.s + 1
+        local e = sm.e
+        if s > last then
+            chunks[#chunks + 1] = { text:sub(last, s - 1) }
+        end
+        chunks[#chunks + 1] = { text:sub(s, e), "Todo" }
+        last = e + 1
+    end
+    if last <= #text then
+        chunks[#chunks + 1] = { text:sub(last) }
+    end
+    return chunks
+end
+
 --- ripgrep command for the regex filename filter: candidate names arrive on
---- stdin one per line, so `-n` line numbers double as the candidate index. Case
+--- stdin one per line, so the JSON `line_number` maps straight back to the
+--- candidate index, and `submatches` give the byte offsets to highlight. Case
 --- was already decided by resolve_case() in the picker spec.
 ---@param query string
 ---@param case_sensitive boolean?
 ---@return string[] cmd
 local function build_files_rg_cmd(query, case_sensitive)
-    local args = { "rg", "-n", "--line-buffered" }
+    local args = { "rg", "--json", "--line-buffered" }
     table.insert(args, case_sensitive and "--case-sensitive" or "--ignore-case")
     table.insert(args, "--")
     table.insert(args, query)
@@ -120,9 +145,10 @@ end
 
 --- Filter collected candidates through a single ripgrep (regex mode). Each name
 --- is streamed to stdin as its own line with backpressure (peak extra memory
---- ~one write), and rg's `-n` line number maps straight back to
---- `candidates[n]`. Delivers via `callback(items)` then `callback(nil)`,
---- mirroring the fuzzy path; a bad pattern surfaces rg's stderr as an inline row.
+--- ~one write). rg's `--json` reports, per match, a `line_number` (the candidate
+--- index) and `submatches` (byte offsets to highlight). Delivers via
+--- `callback(items)` then `callback(nil)`, mirroring the fuzzy path; a bad
+--- pattern surfaces rg's stderr as an inline row.
 ---@param candidates {filepath:string,filename:string,relative_path:string}[]
 ---@param query string
 ---@param case_sensitive boolean?
@@ -136,26 +162,34 @@ local function run_regex_filter(candidates, query, case_sensitive, max_results, 
         return function() end
     end
 
-    local matched   = {} ---@type {filepath:string,filename:string,relative_path:string}[]
+    ---@type {cand:{filepath:string,filename:string,relative_path:string},subs:{s:integer,e:integer}[]}[]
+    local matched   = {}
     local err_parts = {}
     local rg_handle ---@type keystone.tk.SpawnHandle?
     local stop      = false -- hit max_results: stop feeding but still deliver
     local aborted   = false -- external cancel: suppress delivery
 
     -- rg's stdout callback runs in libuv's fast-event context, where the icon
-    -- highlight setup in make_file_item (nvim_set_hl) is banned. So only record
-    -- the matched candidates here (pure Lua) and build the rows on the main loop.
+    -- highlight setup in make_file_item (nvim_set_hl) is banned. So only decode
+    -- the JSON matches here (pure Lua) and build the rows on the main loop.
     local feed = strutil.create_line_buffered_feed(function(lines)
         for _, line in ipairs(lines) do
             if stop then return end
-            local n = line:match("^(%d+):")
-            local c = n and candidates[tonumber(n)]
-            if c then
-                matched[#matched + 1] = c
-                if #matched >= max_results then
-                    stop = true
-                    if rg_handle then rg_handle.kill() end
-                    return
+            local ok, decoded = pcall(vim.json.decode, line)
+            if ok and decoded and decoded.type == "match" then
+                local data = decoded.data
+                local c = data.line_number and candidates[data.line_number]
+                if c then
+                    local subs = {}
+                    for _, sm in ipairs(data.submatches or {}) do
+                        subs[#subs + 1] = { s = sm.start, e = sm["end"] }
+                    end
+                    matched[#matched + 1] = { cand = c, subs = subs }
+                    if #matched >= max_results then
+                        stop = true
+                        if rg_handle then rg_handle.kill() end
+                        return
+                    end
                 end
             end
         end
@@ -176,9 +210,11 @@ local function run_regex_filter(candidates, query, case_sensitive, max_results, 
                         callback({ error_item((table.concat(err_parts):gsub("%s+$", ""))) })
                     else
                         local items = {}
-                        for _, c in ipairs(matched) do
-                            items[#items + 1] =
-                                make_file_item(c.filepath, c.filename, c.relative_path, { { c.filename } }, 0)
+                        for _, m in ipairs(matched) do
+                            local c = m.cand
+                            items[#items + 1] = make_file_item(
+                                c.filepath, c.filename, c.relative_path,
+                                highlight_name_chunks(c.filename, m.subs), 0)
                         end
                         callback(items)
                     end
