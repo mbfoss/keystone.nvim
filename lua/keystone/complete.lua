@@ -15,7 +15,7 @@ local M = {}
 ---@field lsp_completion keystone.complete.LspConfig
 ---@field key string
 ---@field tab_completion boolean
----@field fallback_action string|function
+---@field source_order (string[])|fun() Fallback sources, tried in order when LSP yields nothing. Known names: "completefunc", "omnifunc", "buffer".
 
 ---@return keystone.complete.Config
 local function default_config()
@@ -31,7 +31,11 @@ local function default_config()
     },
     key             = "<C-Space>",
     tab_completion  = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
-    fallback_action = "",   -- "<C-n>",
+    -- Fallback sources tried in order when the LSP source yields no items. Each
+    -- source is triggered even when its function is not owned by this module, so
+    -- an ftplugin's completefunc/omnifunc is honored. Append "buffer" to include
+    -- current-buffer keyword completion at the end of the chain.
+    source_order    = { "completefunc", "omnifunc" },
   }
 end
 
@@ -44,7 +48,7 @@ local ns = vim.api.nvim_create_namespace("keystone_complete")
 local keys = {
   completefunc = vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true),
   omnifunc     = vim.api.nvim_replace_termcodes("<C-x><C-o>", true, false, true),
-  ctrl_n       = vim.api.nvim_replace_termcodes("<C-g><C-g><C-n>", true, false, true),
+  buffer       = vim.api.nvim_replace_termcodes("<C-x><C-n>", true, false, true),
   select_next  = vim.api.nvim_replace_termcodes("<C-n>", true, false, true),
   select_prev  = vim.api.nvim_replace_termcodes("<C-p>", true, false, true),
   confirm      = vim.api.nvim_replace_termcodes("<C-y>", true, false, true),
@@ -58,7 +62,6 @@ local has_native_snippet = vim.fn.has("nvim-0.10") == 1
 local change_tick = 0
 
 local state = {
-  fallback  = true,
   force     = false,
   source    = nil,
   tick      = 0,
@@ -71,6 +74,7 @@ local state = {
     resolved      = {},
     cancel_fn     = nil,
     context       = nil,
+    slot          = nil,
   },
   init_base = { lnum = nil, col = nil, length = nil },
 }
@@ -134,12 +138,6 @@ local function has_lsp_clients(capability)
     if vim.tbl_get(c.server_capabilities, capability) then return true end
   end
   return false
-end
-
----@return boolean
-local function lsp_func_set()
-  local sf = get_config().lsp_completion.source_func
-  return vim.bo[sf] == _lsp_func
 end
 
 ---@param char string
@@ -346,30 +344,27 @@ local function stop_completion(keep_source, keep_lsp_incomplete, keep_lsp_resolv
   state.timer:stop()
   cancel_lsp()
   state.lsp.context = nil
-  state.fallback, state.force = true, false
+  state.force = false
   if not keep_source then state.source = nil end
   if not keep_lsp_incomplete then state.lsp.is_incomplete = false end
   if not keep_lsp_resolved then state.lsp.resolved = {} end
 end
 
-local function trigger_fallback()
-  if (pumvisible() and not state.force) or vim.fn.mode() ~= "i" then return end
-  state.source = "fallback"
-  local action = get_config().fallback_action
-  if vim.is_callable(action) then return action() end
-  if type(action) ~= "string" then return end
-  if action == "<C-n>" then
-    vim.api.nvim_feedkeys(keys.ctrl_n, "n", false)
-    return
-  end
-  if action ~= "" then
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-g><C-g>" .. action, true, false, true), "n", false)
-  end
+--- Whether a source exists and can be triggered now. A source is used when it
+--- exists, regardless of whether it will return any items. For completefunc /
+--- omnifunc the option must be set; when the slot holds this module's own LSP
+--- function it exists only while there are LSP completion clients, so an empty
+--- LSP slot falls through to the next source instead of dead-ending here.
+---@param name string
+---@return boolean
+local function source_available(name)
+  if keys[name] == nil then return false end
+  if name ~= "completefunc" and name ~= "omnifunc" then return true end
+  local cur = vim.bo[name]
+  if cur == "" then return false end
+  if cur == _lsp_func then return has_lsp_clients("completionProvider") end
+  return true
 end
-
--- forward declaration: request_completion and trigger_lsp mutually reference each other
----@type function
-local trigger_lsp
 
 local function request_completion()
   local req_id        = state.lsp.id + 1
@@ -384,23 +379,32 @@ local function request_completion()
       if not lsp_request_current(req_id) then return end
       state.lsp.status = "received"
       state.lsp.result = result
-      trigger_lsp()
+      -- Re-feed the slot that fired the request so completefunc_lsp re-enters
+      -- and returns items now that the response is in.
+      if vim.fn.mode() == "i" and not (pumvisible() and not state.force) then
+        vim.api.nvim_feedkeys(keys[state.lsp.slot] or keys.completefunc, "n", false)
+      end
     end)
 end
 
-trigger_lsp = function()
-  if vim.fn.mode() ~= "i" or (pumvisible() and not state.force) then return end
-  if state.lsp.status ~= "received" then return request_completion() end
-  vim.api.nvim_feedkeys(keys[get_config().lsp_completion.source_func], "n", false)
-end
-
+--- Trigger the first available source in `source_order`, in the configured
+--- order with no priority given to the LSP slot. Replaces the old auto / lsp /
+--- fallback split: LSP is just whichever completefunc/omnifunc slot holds our
+--- function, reached only at its position in the list.
 local function trigger_auto()
-  local allow = vim.fn.mode() == "i" and (state.force or state.tick == change_tick)
-  if not allow then return end
-  if has_lsp_clients("completionProvider") and lsp_func_set() then
-    trigger_lsp()
-  elseif state.fallback then
-    trigger_fallback()
+  if vim.fn.mode() ~= "i" or (pumvisible() and not state.force) then return end
+  if not (state.force or state.tick == change_tick) then return end
+
+  local order = get_config().source_order
+  if vim.is_callable(order) then return order() end
+  if type(order) ~= "table" then return end
+
+  for _, name in ipairs(order) do
+    if source_available(name) then
+      state.lsp.slot = vim.bo[name] == _lsp_func and name or nil
+      vim.api.nvim_feedkeys(keys[name], "n", false)
+      return
+    end
   end
 end
 
@@ -629,10 +633,8 @@ local function on_insert_char()
     return stop_completion(false)
   end
 
-  state.fallback, state.force = not force, force
+  state.force = force
   state.tick = change_tick + 1
-
-  if state.source == "lsp" then return trigger_fallback() end
 
   local kind_name = is_trigger and "TriggerCharacter"
       or (is_incomplete and "TriggerForIncompleteCompletions" or "Invoked")
@@ -685,9 +687,6 @@ local function apply_config(config)
   end
   set_if_unset("completeopt", function() vim.o.completeopt = "menuone,noselect" end)
   set_if_unset("shortmess", function() vim.opt.shortmess:append("c") end)
-  if config.fallback_action == "<C-n>" then
-    set_if_unset("complete", function() vim.opt.complete:remove("t") end)
-  end
 end
 
 ---@param config keystone.complete.Config
@@ -764,11 +763,6 @@ M.completefunc_lsp = function(findstart, base)
   state.lsp.status        = "done"
   state.lsp.is_incomplete = is_incomplete
 
-  if vim.tbl_isempty(candidates) and state.fallback then
-    return trigger_fallback()
-  end
-
-  state.source = "lsp"
   return candidates
 end
 
@@ -845,14 +839,12 @@ M.get_lsp_capabilities = function()
 end
 
 --- Force two-stage completion.
----@param fallback? boolean
 ---@param force? boolean
-M.complete = function(fallback, force)
+M.complete = function(force)
   if not get_config().enabled then return end
-  if fallback == nil then fallback = true end
   if force == nil then force = true end
   stop_completion()
-  state.fallback, state.force = fallback, force
+  state.force = force
   trigger_auto()
 end
 
