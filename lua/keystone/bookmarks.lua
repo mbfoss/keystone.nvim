@@ -127,7 +127,7 @@ function M.setup(opts)
 
     require("keystone.tk.usercmd").register_user_cmd("Bookmark", _run_command, {
         desc          = "Persistent line bookmarks",
-        subcommand_fn = _get_subcommands,
+        subcommand = _get_subcommands,
     })
 end
 

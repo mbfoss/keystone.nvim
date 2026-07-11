@@ -26,7 +26,7 @@ function M.setup(opts)
         end,
         {
             desc = "File tree window",
-            subcommand_fn = function(cmd, rest)
+            subcommand = function(cmd, rest)
                 return require("keystone.filetree.command").get_subcommands(cmd, rest)
             end
         })

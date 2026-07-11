@@ -491,14 +491,14 @@ function M.setup(opts)
         M.diff_files(args[1], args[2])
     end, {
         desc          = "Diff two files side-by-side",
-        subcommand_fn = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "file") end,
+        subcommand = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "file") end,
     })
 
     _usercmd.register_user_cmd("DiffDirs", function(_, args)
         M.diff_dirs(args[1], args[2])
     end, {
         desc          = "Diff two directory trees side-by-side",
-        subcommand_fn = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "dir") end,
+        subcommand = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "dir") end,
     })
 
     vim.api.nvim_create_autocmd("VimLeavePre", {

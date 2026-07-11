@@ -20,7 +20,7 @@ function M.setup(opts)
         end,
         {
             desc = "Explore",
-            subcommand_fn = function(cmd, rest, arg_lead)
+            subcommand = function(cmd, rest, arg_lead)
                 return require("keystone.explore.command").get_subcommands(cmd, rest, arg_lead)
             end
         })

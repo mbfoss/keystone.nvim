@@ -296,7 +296,7 @@ function M.setup(opts)
         M.merge3(args[1], args[2], args[3], args[4])
     end, {
         desc          = "3-way merge <local> <base> <remote> [<output>]",
-        subcommand_fn = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "file") end,
+        subcommand = function(_, _, arg_lead) return vim.fn.getcompletion(arg_lead, "file") end,
     })
 
     vim.api.nvim_create_autocmd("VimLeavePre", {
