@@ -105,15 +105,28 @@ function M.pick()
                 local label = entry.label
                 -- Match against the location *and* the label, so a bookmark can be
                 -- found by words in its note. The location keeps its own highlight
-                -- chunks on the main line; the label stays on the virt line below.
+                -- chunks on the main line; the label gets its own on the virt line
+                -- below, with the note group as the base for unmatched text.
                 local search_text = label and (loc_text .. " " .. label) or loc_text
                 local match = pickertools.match_label(search_text, query)
                 if match then
                     local loc_match = pickertools.match_label(loc_text, query)
+                    local virt_lines
+                    if label then
+                        local label_match = pickertools.match_label(label, query)
+                        local chunks = (label_match and label_match.chunks) or { { label } }
+                        -- match_label leaves unmatched chunks without a highlight; give
+                        -- them the note group so the label keeps its styling, while the
+                        -- matched chunks keep their match highlight.
+                        for _, chunk in ipairs(chunks) do
+                            if not chunk[2] then chunk[2] = "@text.note" end
+                        end
+                        virt_lines = { chunks }
+                    end
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = (loc_match and loc_match.chunks) or { { loc_text } },
-                        virt_lines   = label and { { { label, "@text.note" } } } or nil,
+                        virt_lines   = virt_lines,
                         score        = match.score,
                         data         = {
                             filepath = entry.file,
