@@ -2,19 +2,79 @@ local M = {}
 
 local _usercmd = require("keystone.tk.usercmd")
 
+local _uv = vim.uv or vim.loop
+
+-- ---------------------------------------------------------------------------
+-- Rolling log
+-- ---------------------------------------------------------------------------
+
+-- Neovim never rotates `lsp.log`; it only warns once it passes 1 GB. When
+-- `lsp_rolling_log` is enabled we cap the file ourselves: the live log is
+-- copied to `lsp.log.1` (shifting older `.N` files up to `keep`), then
+-- truncated in place. Truncating in place -- rather than renaming -- is
+-- deliberate: Neovim caches an append-mode handle to the live file, so a
+-- rename would leave it writing into the rotated copy. An O_APPEND write
+-- after truncation lands at offset 0, giving a clean new file.
+
+---@type keystone.lspconfig.RollingLogConfig
+local _ROLL_DEFAULTS = { max_bytes = 5 * 1024 * 1024, keep = 3 }
+
+---@return keystone.lspconfig.RollingLogConfig? nil when rolling is disabled
+local function _rolling_opts()
+  local roll = M.config.lsp_rolling_log
+  if not roll then return nil end
+  if roll == true then return _ROLL_DEFAULTS end
+  return vim.tbl_extend("force", _ROLL_DEFAULTS, roll --[[@as table]])
+end
+
+---@param path string live log path
+---@param keep integer number of rotated files to retain
+local function _rotate_log(path, keep)
+  for i = keep - 1, 1, -1 do
+    if _uv.fs_stat(path .. "." .. i) then
+      _uv.fs_rename(path .. "." .. i, path .. "." .. (i + 1))
+    end
+  end
+  if keep >= 1 then
+    _uv.fs_copyfile(path, path .. ".1")
+  end
+  local fd = _uv.fs_open(path, "w", 420) -- truncate in place (0644)
+  if fd then _uv.fs_close(fd) end
+end
+
+-- Rotate the live log if rolling is enabled and it has grown past the cap.
+local function _maybe_rotate()
+  local roll = _rolling_opts()
+  if not roll then return end
+  local path = require("vim.lsp.log").get_filename()
+  local stat = _uv.fs_stat(path)
+  if stat and stat.size > roll.max_bytes then
+    _rotate_log(path, roll.keep)
+  end
+end
+
 -- Neovim's `vim.lsp.log` opens (and writes a "[START] ... LSP logging initiated"
 -- header to) the log file *before* it checks the level, so even at "OFF" the
 -- file is created the moment a server logs to stderr. Wrap the loggers once so
 -- nothing reaches the file while the level is "OFF". The level is read live on
 -- every call, so toggling it at runtime works in both directions; every other
--- level is passed straight through unchanged.
+-- level is passed straight through unchanged. The same wrapper drives rolling:
+-- every `_ROLL_CHECK_EVERY` writes it checks the size and rotates if needed.
+local _ROLL_CHECK_EVERY = 64
+local _write_count = 0
 do
   local log = require("vim.lsp.log")
   for _, name in ipairs({ "trace", "debug", "info", "warn", "error" }) do
     local orig = log[name]
     log[name] = function(...)
       if log.get_level() == log.levels.OFF then return false end
-      return orig(...)
+      local ret = orig(...)
+      _write_count = _write_count + 1
+      if _write_count >= _ROLL_CHECK_EVERY then
+        _write_count = 0
+        _maybe_rotate()
+      end
+      return ret
     end
   end
 end
@@ -30,6 +90,10 @@ end
 ---@field timeout_ms integer
 ---@field filter? fun(client: vim.lsp.Client): boolean only format with clients for which this returns true
 
+---@class keystone.lspconfig.RollingLogConfig
+---@field max_bytes integer rotate the live LSP log once it grows past this many bytes
+---@field keep integer number of rotated files to retain (lsp.log.1 .. lsp.log.<keep>)
+
 ---@class keystone.lspconfig.Config
 ---@field enabled boolean
 ---@field servers string[]|"all" server names to enable; "all" discovers every config found in `lsp/` runtime dirs
@@ -38,6 +102,7 @@ end
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
 ---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
 ---@field log_level string?|integer LSP client log level for `vim.lsp.set_log_level`
+---@field lsp_rolling_log boolean|keystone.lspconfig.RollingLogConfig cap the LSP log file size; `true` uses defaults, a table overrides them, `false` disables
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
 ---@field capabilities? lsp.ClientCapabilities|fun():lsp.ClientCapabilities merged into every server's capabilities
 ---@field settings? table<string, vim.lsp.Config> per-server config overrides, e.g. { lua_ls = { settings = {...} } }
@@ -216,6 +281,8 @@ function M.enable()
   if M.config.log_level ~= nil then
     require("vim.lsp.log").set_level(M.config.log_level)
   end
+
+  _maybe_rotate()
 
   if M.config.diagnostics ~= false then
     vim.diagnostic.config(M.config.diagnostics)
