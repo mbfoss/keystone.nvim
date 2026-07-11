@@ -33,7 +33,6 @@ local _MODULES = {
   "explore",
   "filetree",
   "lspconfig",
-  "merge",
   "pick",
   "statusline",
   "tsconfig",

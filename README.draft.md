@@ -82,8 +82,6 @@ require("keystone.pick").setup()
 | `pick`        | `:Pick`         | Floating async fuzzy picker; can override `vim.ui.select`                    |
 | `filetree`    | `:FileTree`     | Sidebar file tree                                                           |
 | `explore`     | `:FileSelector` | Floating file explorer / selector                                          |
-| `diff`        | `:DiffFiles` `:DiffDirs` | Side-by-side diff of two files or two directory trees             |
-| `merge`       | `:Merge3`       | 3-way merge (LOCAL/BASE/REMOTE + editable result) in the mergetool layout  |
 | `bookmarks`   | `:Bookmark`     | Persistent line bookmarks (with optional labels) shown as signs            |
 | `lspconfig`   | `:Lsp`          | Auto-enable LSP servers, diagnostics, format-on-save, inlay hints          |
 | `tsconfig`    | —               | Auto-start Treesitter highlighting and folds per filetype                  |
@@ -139,58 +137,6 @@ Floating file explorer and selector. Usage: `:FileSelector <subcommand>`.
 
 ```lua
 require("keystone.explore").setup()
-```
-
-### diff
-
-Side-by-side diff of arbitrary filesystem paths, using Neovim's native diff
-mode. Two commands:
-
-- `:DiffFiles <a> <b>` — diff two individual files.
-- `:DiffDirs <a> <b>` — recursively compare two directory trees; the files
-  that differ are listed in a location list (color-coded `A`/`M`/`D`), and the
-  side-by-side diff updates as you navigate the list.
-
-Closing either split window (or, for `:DiffDirs`, the location list) collapses
-back to a single window, restoring the original layout.
-
-```lua
-require("keystone.diff").setup()
-```
-
-### merge
-
-3-way merge of arbitrary filesystem paths, in the classic mergetool layout:
-LOCAL / BASE / REMOTE (read-only) across the top, an editable MERGED result
-full-width below, all four in diff mode.
-
-`:Merge3 <local> <base> <remote> [<output>]`
-
-This does **not** run a merge itself — it is meant to be launched *by* a VCS's
-mergetool machinery (e.g. git's `merge.tool`), which has already written the
-`<output>` file with conflict markers. MERGED opens that file as-is and points
-at `<output>` — defaulting to `<local>`, i.e. resolve in place. Resolve by
-editing MERGED, then `:w`. Native `]c` / `[c` jump between conflicts;
-buffer-local mappings pull a hunk from each side via `:diffget`
-(`<localleader>1`/`2`/`3` by default):
-
-```lua
-require("keystone.merge").setup({
-  keymaps = {
-    get_local  = "<localleader>1",  -- take the hunk from LOCAL
-    get_base   = "<localleader>2",  -- ...from BASE
-    get_remote = "<localleader>3",  -- ...from REMOTE
-  },
-})
-```
-
-Set any keymap to `false` to skip it. To wire it up as git's mergetool:
-
-```gitconfig
-[mergetool "keystone"]
-    cmd = nvim -c "Merge3 \"$LOCAL\" \"$BASE\" \"$REMOTE\" \"$MERGED\""
-[merge]
-    tool = keystone
 ```
 
 ### bookmarks
@@ -365,9 +311,6 @@ require("keystone.tweaks").setup({
 | `:Pick <type> [query]`  | `pick`      | Open a picker                        |
 | `:FileTree <cmd>`       | `filetree`  | Control the file tree window         |
 | `:FileSelector <cmd>`   | `explore`   | Open the floating file explorer      |
-| `:DiffFiles <a> <b>`    | `diff`      | Diff two files side-by-side          |
-| `:DiffDirs <a> <b>`     | `diff`      | Diff two directory trees             |
-| `:Merge3 <l> <b> <r> [out]` | `merge` | 3-way merge in the mergetool layout  |
 | `:Bookmark <cmd>`       | `bookmarks` | Manage bookmarks                     |
 | `:Lsp <cmd>`            | `lspconfig` | Manage LSP servers and behaviour     |
 
