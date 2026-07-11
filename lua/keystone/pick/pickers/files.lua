@@ -24,7 +24,8 @@ local icons       = require("keystone.icons")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
     { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
-    { name = "match",  type = "value",   values = { "fuzzy", "fixed", "glob" }, desc = "match: fuzzy (default) | fixed | glob" },
+    { name = "fixed",  type = "boolean", desc = "literal substring match (overrides glob)" },
+    { name = "glob",   type = "boolean", desc = "rg-style glob match (*.txt, !*.lua, **/dir/**)"               },
     { name = "case",   type = "value",   values = { "smart", "on", "off" }, desc = "case: smart (default) | on | off" },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
     { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"         },
@@ -191,10 +192,14 @@ function M.spec(opts)
             local target_cwd = flags.dir or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
 
+            -- `fixed` and `glob` are independent boolean flags; `fixed` wins
+            -- when both are set. Absent both, matching stays fuzzy.
+            local mode = flags.fixed and "fixed" or flags.glob and "glob" or "fuzzy"
+
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
                 cwd             = target_cwd,
-                mode            = flags.match,
+                mode            = mode,
                 max_results     = opts.max_results,
                 case_sensitive  = resolve_case(flags.case, query),
                 follow_symlinks = flags.follow,
