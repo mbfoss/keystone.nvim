@@ -106,6 +106,7 @@ function M.setup(opts)
 
     vim.api.nvim_set_hl(0, "KeystonePickMatch", { default = true, link = "Label" })
     vim.api.nvim_set_hl(0, "KeystonePickPath", { default = true, link = "@namespace" })
+    vim.api.nvim_set_hl(0, "KeystonePickBufferIndicator", { default = true, link = "Special" })
 
     vim.api.nvim_create_user_command("Pick", function(cmd_opts)
         local picker_type   = cmd_opts.fargs[1]

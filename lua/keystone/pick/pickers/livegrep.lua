@@ -270,23 +270,35 @@ local function collect_open_buffers(cwd, filters)
     return out
 end
 
+--- Marker prefixed to the location line for matches sourced from an open
+--- buffer's in-memory text rather than the on-disk file.
+local _BUFFER_INDICATOR = "≡ "
+local _BUFFER_INDICATOR_WIDTH = vim.fn.strdisplaywidth(_BUFFER_INDICATOR)
+
 --- Build a picker item from a parsed rg match at an absolute path.
----@param m          keystone.rgutil.Match
----@param abs_path   string
----@param cwd        string
----@param list_width integer
----@param show_repl  boolean?
----@param rel_path   string?  precomputed cwd-relative path (avoids recomputation)
+---@param m           keystone.rgutil.Match
+---@param abs_path    string
+---@param cwd         string
+---@param list_width  integer
+---@param show_repl   boolean?
+---@param rel_path    string?  precomputed cwd-relative path (avoids recomputation)
+---@param from_buffer boolean?  match came from an open buffer, not disk
 ---@return keystone.Picker.Item
-local function make_item(m, abs_path, cwd, list_width, show_repl, rel_path)
+local function make_item(m, abs_path, cwd, list_width, show_repl, rel_path, from_buffer)
     rel_path = rel_path or fsutil.get_relative_path(abs_path, cwd) or abs_path
+    local indicator_width = from_buffer and _BUFFER_INDICATOR_WIDTH or 0
     local location = fsutil.smart_crop_path(
         string.format("%s:%s", rel_path, m.lnum),
-        list_width
+        list_width - indicator_width
     )
+    local virt_line = {}
+    if from_buffer then
+        virt_line[#virt_line + 1] = { _BUFFER_INDICATOR, "KeystonePickBufferIndicator" }
+    end
+    virt_line[#virt_line + 1] = { location, "KeystonePickPath" }
     return {
         label_chunks = build_chunks(m.text, m.subs, show_repl),
-        virt_lines   = { { { location, "KeystonePickPath" } } },
+        virt_lines   = { virt_line },
         data         = { filepath = abs_path, lnum = m.lnum, col = m.col, subs = m.subs },
     }
 end
@@ -448,7 +460,7 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
                         m.lnum = lnum
                         m.path = b.path
                         buf_items[#buf_items + 1] =
-                            make_item(m, b.path, cwd, list_width, show_repl, b.relpath)
+                            make_item(m, b.path, cwd, list_width, show_repl, b.relpath, true)
                         buf_count = buf_count + 1
                         if buf_count >= max_results then
                             stop_buf = true
@@ -581,6 +593,7 @@ function M.spec(opts)
     local _last_items    = {} ---@type keystone.Picker.Item[]
     local _replace_value ---@type string?
 
+    ---@type keystone.PickerSpec
     return {
         prompt          = "Live Grep",
         flags           = FLAGS,
