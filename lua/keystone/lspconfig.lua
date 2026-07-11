@@ -37,7 +37,7 @@ end
 ---@field format keystone.lspconfig.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
 ---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
----@field log_level string|integer LSP client log level for `vim.lsp.set_log_level` (e.g. "ERROR", "WARN", "DEBUG", "OFF")
+---@field log_level string?|integer LSP client log level for `vim.lsp.set_log_level`
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
 ---@field capabilities? lsp.ClientCapabilities|fun():lsp.ClientCapabilities merged into every server's capabilities
 ---@field settings? table<string, vim.lsp.Config> per-server config overrides, e.g. { lua_ls = { settings = {...} } }
@@ -47,19 +47,20 @@ end
 local function _get_default_config()
   ---@type keystone.lspconfig.Config
   return {
-    enabled      = true,
-    servers      = "all",
-    auto_enable  = true,
-    format       = {
+    enabled            = true,
+    servers            = "all",
+    auto_enable        = true,
+    format             = {
       on_save    = false,
       async      = false,
       timeout_ms = 2000,
       filter     = nil,
     },
-    inlay_hints  = true,
+    inlay_hints        = true,
     document_highlight = true,
-    log_level    = "OFF",
-    diagnostics  = {
+    log_level          = nil,
+    lsp_rolling_log    = true,
+    diagnostics        = {
       virtual_text     = { spacing = 2, prefix = "●" },
       --virtual_lines    = { current_line = true, },
       signs            = false,
@@ -68,9 +69,9 @@ local function _get_default_config()
       severity_sort    = true,
       float            = { border = "rounded", source = true },
     },
-    capabilities = nil,
-    settings     = nil,
-    on_attach    = nil,
+    capabilities       = nil,
+    settings           = nil,
+    on_attach          = nil,
   }
 end
 
