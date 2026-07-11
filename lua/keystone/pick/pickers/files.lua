@@ -11,11 +11,11 @@ local icons       = require("keystone.icons")
 ---@field cwd string?
 ---@field max_results number?
 
+---@alias keystone.filepicker.Mode "fuzzy"|"fixed"|"glob"
+
 ---@class keystone.filepicker.SearchOpts
 ---@field cwd string The root directory for the search
----@field include_globs string[]? List of glob patterns to include (filtered in Lua)
----@field exclude_globs string[]? List of glob patterns for fd to ignore
----@field in_globs string[]? rg-style glob patterns; file must match at least one positive glob and no `!`-negated glob
+---@field mode keystone.filepicker.Mode? how the query matches a file (default "fuzzy")
 ---@field max_results number?
 ---@field case_sensitive boolean?
 ---@field follow_symlinks boolean?
@@ -24,7 +24,7 @@ local icons       = require("keystone.icons")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS       = {
     { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
-    { name = "filter", type = "value",   multi = true, desc = "glob filter: *.txt, !*.lua, **/dir/**" },
+    { name = "match",  type = "value",   values = { "fuzzy", "fixed", "glob" }, desc = "match: fuzzy (default) | fixed | glob" },
     { name = "case",   type = "value",   values = { "smart", "on", "off" }, desc = "case: smart (default) | on | off" },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
     { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"         },
@@ -51,7 +51,7 @@ end
 ---@param query string
 ---@param case_sensitive boolean?
 ---@return {score:number, chunks:table[]}?
-local function do_match(filename, query, case_sensitive)
+local function fuzzy_match(filename, query, case_sensitive)
     local res = pickertools.match_label(filename, query)
     if not res then return nil end
     if case_sensitive then
@@ -60,6 +60,52 @@ local function do_match(filename, query, case_sensitive)
         res = { score = res.score, chunks = pickertools.highlight_chunks(filename, pos) }
     end
     return res
+end
+
+--- Literal (fixed-string) substring match, highlighting the matched run.
+--- Matches case-insensitively unless `case_sensitive`; earlier matches score
+--- higher so they sort ahead.
+---@param filename string
+---@param query string
+---@param case_sensitive boolean?
+---@return {score:number, chunks:table[]}?
+local function fixed_match(filename, query, case_sensitive)
+    if query == "" then
+        return { score = 0, chunks = pickertools.highlight_chunks(filename) }
+    end
+    local haystack = case_sensitive and filename or filename:lower()
+    local needle   = case_sensitive and query or query:lower()
+    local byte_s   = haystack:find(needle, 1, true)
+    if not byte_s then return nil end
+
+    -- Convert the matched byte span into 1-based char positions for highlighting.
+    local char_s    = vim.fn.charidx(filename, byte_s - 1)
+    local qn        = vim.fn.strchars(query)
+    local positions = {}
+    for k = 0, qn - 1 do positions[#positions + 1] = char_s + 1 + k end
+    return { score = -byte_s, chunks = pickertools.highlight_chunks(filename, positions) }
+end
+
+--- Match a file against the query under the selected `mode`:
+---   * "fuzzy" (default) — fuzzy subsequence over the basename
+---   * "fixed"           — literal substring over the basename
+---   * "glob"            — rg-style glob over the relative path (unhighlighted)
+--- The returned chunks always describe the basename, so the result row renders
+--- identically regardless of mode.
+---@param filename string
+---@param relpath string
+---@param query string
+---@param mode keystone.filepicker.Mode?
+---@param case_sensitive boolean?
+---@return {score:number, chunks:table[]}?
+local function do_match(filename, relpath, query, mode, case_sensitive)
+    if mode == "glob" then
+        if not pickertools.match_glob(query, relpath, not case_sensitive) then return nil end
+        return { score = 0, chunks = pickertools.highlight_chunks(filename) }
+    elseif mode == "fixed" then
+        return fixed_match(filename, query, case_sensitive)
+    end
+    return fuzzy_match(filename, query, case_sensitive)
 end
 
 --- Build a result row for a matched file: the filetype icon, its directory
@@ -90,53 +136,23 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local count              = 0
     local max_results        = opts.max_results or 10000
     local items              = {}
+    local mode               = opts.mode or "fuzzy"
 
     local base_excludes      = opts.show_hidden and {} or { ".*", "**/.*" }
-    local exclude_globs      = vim.list_extend(base_excludes, opts.exclude_globs or {})
-    local include_regex_list = (opts.include_globs and #opts.include_globs > 0)
-        and strutil.compile_globs(opts.include_globs) or nil
-    local exclude_regex_list = strutil.compile_globs(exclude_globs)
-
-    -- Split the rg-style filter globs into positive matches and `!`-negated
-    -- exclusions (e.g. `!*.lua`), mirroring ripgrep's `--glob` semantics.
-    local in_globs, not_globs ---@type string[]?, string[]?
-    for _, g in ipairs(opts.in_globs or {}) do
-        local neg = g:match("^!(.+)$")
-        if neg then
-            not_globs = not_globs or {}
-            not_globs[#not_globs + 1] = neg
-        else
-            in_globs = in_globs or {}
-            in_globs[#in_globs + 1] = g
-        end
-    end
+    local exclude_regex_list = strutil.compile_globs(base_excludes)
 
     local aborted = false
     local walk_cancel ---@type fun()?
     walk_cancel = fsutil.async_walk_dir(
         opts.cwd,
         {
-            include_regex_list = include_regex_list,
             exclude_regex_list = exclude_regex_list,
             follow_symlinks    = opts.follow_symlinks,
             on_dir_enter       = function(_)
                 vim.cmd("redraw")
             end,
             on_file            = function(filepath, filename, relative_path)
-                if in_globs then
-                    local matched = false
-                    for _, g in ipairs(in_globs) do
-                        if pickertools.match_glob(g, relative_path, true) then matched = true; break end
-                    end
-                    if not matched then return end
-                end
-                if not_globs then
-                    for _, g in ipairs(not_globs) do
-                        if pickertools.match_glob(g, relative_path, true) then return end
-                    end
-                end
-
-                local res = do_match(filename, query, opts.case_sensitive)
+                local res = do_match(filename, relative_path, query, mode, opts.case_sensitive)
                 if not res then return end
                 if count >= max_results then
                     if walk_cancel then walk_cancel() end
@@ -167,12 +183,10 @@ function M.spec(opts)
         flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "dir" end, FLAGS) or FLAGS,
         enable_preview = true,
         finder         = function(query, flags, fetch_opts, callback, _)
-            local in_globs = flags.filter or {}
-            if (not query or query == "") and #in_globs == 0 then
+            if not query or query == "" then
                 callback()
                 return
             end
-            query = query or ""
 
             local target_cwd = flags.dir or opts.cwd or vim.fn.getcwd()
             target_cwd = vim.fn.expand(target_cwd)
@@ -180,9 +194,7 @@ function M.spec(opts)
             ---@type keystone.filepicker.SearchOpts
             local search_opts = {
                 cwd             = target_cwd,
-                include_globs   = nil,
-                in_globs        = #in_globs > 0 and in_globs or nil,
-                exclude_globs   = nil,
+                mode            = flags.match,
                 max_results     = opts.max_results,
                 case_sensitive  = resolve_case(flags.case, query),
                 follow_symlinks = flags.follow,
