@@ -1,5 +1,7 @@
 local M = {}
 
+local itemutil = require("keystone.complete.items")
+
 ---@class keystone.complete.LspConfig
 ---@field source_func "completefunc"|"omnifunc"
 ---@field auto_setup boolean
@@ -40,7 +42,7 @@ M.config = default_config()
 
 -- State ----------------------------------------------------------------------
 
-local ns = vim.api.nvim_create_namespace("keystone_complete")
+local _ns = vim.api.nvim_create_namespace("keystone_complete")
 
 --- Keystrokes that trigger each completion source. These names are the only
 --- valid `source_order` entries.
@@ -59,9 +61,9 @@ local _nav_keys = {
 --- Value written to 'completefunc'/'omnifunc' when this module owns the slot.
 local _lsp_func = "v:lua.require'keystone.complete'.completefunc_lsp"
 
-local has_native_snippet = vim.fn.has("nvim-0.10") == 1
+local _has_native_snippet = vim.fn.has("nvim-0.10") == 1
 
-local change_tick = 0
+local _change_tick = 0
 
 ---@class keystone.complete.LspState
 ---@field id integer
@@ -82,7 +84,7 @@ local change_tick = 0
 ---@field init_base { lnum?: integer, col?: integer, length?: integer }
 
 ---@type keystone.complete.State
-local state = {
+local _state = {
   force     = false,
   source    = nil,
   tick      = 0,
@@ -100,10 +102,8 @@ local state = {
   init_base = { lnum = nil, col = nil, length = nil },
 }
 
----@type table<integer, string>?
-local kind_map -- lazily built by build_kind_map()
 ---@type integer? floating documentation window
-local doc_win
+local _doc_win
 
 -- Utilities ------------------------------------------------------------------
 
@@ -137,8 +137,8 @@ end
 ---@param delete_text? boolean
 ---@return table
 local function pop_extmark(id, delete_text)
-  local data = vim.api.nvim_buf_get_extmark_by_id(0, ns, id, { details = true })
-  vim.api.nvim_buf_del_extmark(0, ns, id)
+  local data = vim.api.nvim_buf_get_extmark_by_id(0, _ns, id, { details = true })
+  vim.api.nvim_buf_del_extmark(0, _ns, id)
   local details = data[3] --[[@as any]]
   if not delete_text or data[1] == nil or details.end_row == nil then return data end
   local sr, sc = data[1] --[[@as integer]], data[2] --[[@as integer]]
@@ -183,17 +183,17 @@ local function is_trigger_char(char, kind)
 end
 
 local function cancel_lsp()
-  if vim.tbl_contains({ "sent", "received" }, state.lsp.status) then
-    if state.lsp.cancel_fn then state.lsp.cancel_fn() end
-    state.lsp.status = "canceled"
+  if vim.tbl_contains({ "sent", "received" }, _state.lsp.status) then
+    if _state.lsp.cancel_fn then _state.lsp.cancel_fn() end
+    _state.lsp.status = "canceled"
   end
-  state.lsp.result, state.lsp.cancel_fn = nil, nil
+  _state.lsp.result, _state.lsp.cancel_fn = nil, nil
 end
 
 ---@param id integer
 ---@return boolean
 local function lsp_request_current(id)
-  return state.lsp.id == id and state.lsp.status == "sent"
+  return _state.lsp.id == id and _state.lsp.status == "sent"
 end
 
 ---@param request_result table
@@ -253,131 +253,19 @@ else
   end
 end
 
--- Item processing ------------------------------------------------------------
-
----@param x table
----@return string
-local function lsp_filter_word(x) return x.filterText or x.label end
-
----@param item table
----@return string
-local function lsp_word(item)
-  return vim.tbl_get(item, "textEdit", "newText") or item.insertText or lsp_filter_word(item) or ""
-end
-
----@param items table
----@param defaults table
----@return table
-local function apply_defaults(items, defaults)
-  if type(defaults) ~= "table" then return items end
-  local er, has_er = defaults.editRange, type(defaults.editRange) == "table"
-  local er_range   = (er or {}).start ~= nil and er or nil
-  for _, item in ipairs(items) do
-    item.commitCharacters = item.commitCharacters or defaults.commitCharacters
-    item.data             = item.data or defaults.data
-    item.insertTextFormat = item.insertTextFormat or defaults.insertTextFormat
-    item.insertTextMode   = item.insertTextMode or defaults.insertTextMode
-    if has_er then
-      item.textEdit         = item.textEdit or {}
-      item.textEdit.newText = item.textEdit.newText or item.textEditText or item.label
-      item.textEdit.range   = item.textEdit.range or er_range
-      item.textEdit.insert  = item.textEdit.insert or er.insert
-      item.textEdit.replace = item.textEdit.replace or er.replace
-    end
-  end
-  return items
-end
-
----@param items table
----@return table
-local function to_vim_items(items)
-  if #items == 0 then return {} end
-
-  local res        = {}
-  local item_kinds = vim.lsp.protocol.CompletionItemKind
-  local snip_kind  = vim.lsp.protocol.CompletionItemKind.Snippet
-  local snip_fmt   = vim.lsp.protocol.InsertTextFormat.Snippet
-
-  for i, item in ipairs(items) do
-    local word       = lsp_word(item)
-    local is_sk      = item.kind == snip_kind
-    local is_sf      = item.insertTextFormat == snip_fmt
-    local snip_body  = (word:find("[^\\]%${?%w") or word:find("^%${?%w") or word:find("[\n\t]")) ~= nil
-    local is_snippet = (is_sk or is_sf) and snip_body
-
-    local details    = item.labelDetails or {}
-    local menu_parts = {}
-    if is_snippet then menu_parts[#menu_parts + 1] = "S" end
-    if details.detail and details.detail ~= "" then menu_parts[#menu_parts + 1] = details.detail end
-    if details.description and details.description ~= "" then menu_parts[#menu_parts + 1] = details.description end
-    local menu = table.concat(menu_parts, " ")
-
-    res[#res + 1] = {
-      word = is_snippet and lsp_filter_word(item) or word,
-      abbr = item.label,
-      abbr_hlgroup = item.abbr_hlgroup,
-      kind = item_kinds[item.kind] or "Unknown",
-      kind_hlgroup = item.kind_hlgroup,
-      menu = menu,
-      info = is_snippet and word or nil,
-      icase = 1,
-      dup = 1,
-      empty = 1,
-      user_data = { lsp = { item = item, item_id = i, needs_snippet_insert = is_snippet } },
-    }
-  end
-  return res
-end
-
-local function build_kind_map()
-  if kind_map then return end
-  kind_map = {}
-  for k, v in pairs(vim.lsp.protocol.CompletionItemKind) do
-    if type(k) == "string" and type(v) == "number" then kind_map[v] = k end
-  end
-end
-
----@param items table
----@param kind_priority table
----@return table
-local function sort_by_kind(items, kind_priority)
-  build_kind_map()
-  local map = kind_map --[[@as table<integer, string>]]
-  local raw = {}
-  for i, item in ipairs(items) do
-    local priority = kind_priority[map[item.kind]] or 100
-    if priority >= 0 then table.insert(raw, { priority, i, item }) end
-  end
-  table.sort(raw, function(a, b) return a[1] > b[1] or (a[1] == b[1] and a[2] < b[2]) end)
-  return vim.tbl_map(function(x) return x[3] end, raw)
-end
-
----@param items table
----@return table
-local function add_hlgroups(items)
-  local deprecated_tag = vim.lsp.protocol.CompletionTag.Deprecated
-  for _, item in ipairs(items) do
-    local deprecated = item.deprecated
-        or (item.tags and vim.list_contains(item.tags, deprecated_tag))
-    item.abbr_hlgroup = item.abbr_hlgroup
-        or (deprecated and "KeystoneCompletionDeprecated" or nil)
-  end
-  return items
-end
-
 -- Completion flow ------------------------------------------------------------
 
 ---@param keep_source? boolean
 ---@param keep_lsp_incomplete? boolean
 ---@param keep_lsp_resolved? boolean
 local function stop_completion(keep_source, keep_lsp_incomplete, keep_lsp_resolved)
-  state.timer:stop()
+  _state.timer:stop()
   cancel_lsp()
-  state.lsp.context = nil
-  state.force = false
-  if not keep_source then state.source = nil end
-  if not keep_lsp_incomplete then state.lsp.is_incomplete = false end
-  if not keep_lsp_resolved then state.lsp.resolved = {} end
+  _state.lsp.context = nil
+  _state.force = false
+  if not keep_source then _state.source = nil end
+  if not keep_lsp_incomplete then _state.lsp.is_incomplete = false end
+  if not keep_lsp_resolved then _state.lsp.resolved = {} end
 end
 
 --- Whether a source exists and can be triggered now. A source is used when it
@@ -397,22 +285,22 @@ local function source_available(name)
 end
 
 local function request_completion()
-  local req_id        = state.lsp.id + 1
-  state.lsp.id        = req_id
-  state.lsp.status    = "sent"
+  local req_id        = _state.lsp.id + 1
+  _state.lsp.id        = req_id
+  _state.lsp.status    = "sent"
 
-  local ctx           = state.lsp.context or { triggerKind = vim.lsp.protocol.CompletionTriggerKind.Invoked }
+  local ctx           = _state.lsp.context or { triggerKind = vim.lsp.protocol.CompletionTriggerKind.Invoked }
   local buf_id        = vim.api.nvim_get_current_buf()
 
-  state.lsp.cancel_fn = vim.lsp.buf_request_all(buf_id, "textDocument/completion", position_params(ctx),
+  _state.lsp.cancel_fn = vim.lsp.buf_request_all(buf_id, "textDocument/completion", position_params(ctx),
     function(result)
       if not lsp_request_current(req_id) then return end
-      state.lsp.status = "received"
-      state.lsp.result = result
+      _state.lsp.status = "received"
+      _state.lsp.result = result
       -- Re-feed the slot that fired the request so completefunc_lsp re-enters
       -- and returns items now that the response is in.
-      if vim.fn.mode() == "i" and not (pumvisible() and not state.force) then
-        vim.api.nvim_feedkeys(_source_keys[state.lsp.slot] or _source_keys.completefunc, "n", false)
+      if vim.fn.mode() == "i" and not (pumvisible() and not _state.force) then
+        vim.api.nvim_feedkeys(_source_keys[_state.lsp.slot] or _source_keys.completefunc, "n", false)
       end
     end)
 end
@@ -422,8 +310,8 @@ end
 --- fallback split: LSP is just whichever completefunc/omnifunc slot holds our
 --- function, reached only at its position in the list.
 local function trigger_auto()
-  if vim.fn.mode() ~= "i" or (pumvisible() and not state.force) then return end
-  if not (state.force or state.tick == change_tick) then return end
+  if vim.fn.mode() ~= "i" or (pumvisible() and not _state.force) then return end
+  if not (_state.force or _state.tick == _change_tick) then return end
 
   local order = get_config().source_order
   if vim.is_callable(order) then return order() end
@@ -431,7 +319,7 @@ local function trigger_auto()
 
   for _, name in ipairs(order) do
     if source_available(name) then
-      state.lsp.slot = vim.bo[name] == _lsp_func and name or nil
+      _state.lsp.slot = vim.bo[name] == _lsp_func and name or nil
       vim.api.nvim_feedkeys(_source_keys[name], "n", false)
       return
     end
@@ -468,9 +356,9 @@ local function tracked_text_edits(client_id, text_edits, from, to)
   if text_edits == nil then return from, to end
 
   local cur       = vim.api.nvim_win_get_cursor(0)
-  local cursor_id = vim.api.nvim_buf_set_extmark(0, ns, cur[1] - 1, cur[2], {})
-  local from_id   = vim.api.nvim_buf_set_extmark(0, ns, from[1] - 1, from[2], {})
-  local to_id     = vim.api.nvim_buf_set_extmark(0, ns, to[1] - 1, to[2], {})
+  local cursor_id = vim.api.nvim_buf_set_extmark(0, _ns, cur[1] - 1, cur[2], {})
+  local from_id   = vim.api.nvim_buf_set_extmark(0, _ns, from[1] - 1, from[2], {})
+  local to_id     = vim.api.nvim_buf_set_extmark(0, _ns, to[1] - 1, to[2], {})
 
   apply_text_edits(client_id, text_edits)
 
@@ -484,12 +372,12 @@ end
 
 ---@param lsp_data table
 local function apply_completion_extras(lsp_data)
-  local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
+  local item = _state.lsp.resolved[lsp_data.item_id] or lsp_data.item
   if item.additionalTextEdits == nil and item.command == nil and not lsp_data.needs_snippet_insert then return end
-  local snippet  = lsp_data.needs_snippet_insert and lsp_word(item) or nil
+  local snippet  = lsp_data.needs_snippet_insert and itemutil.word(item) or nil
 
   local cur      = vim.api.nvim_win_get_cursor(0)
-  local track_id = vim.api.nvim_buf_set_extmark(0, ns, cur[1] - 1, cur[2], {
+  local track_id = vim.api.nvim_buf_set_extmark(0, _ns, cur[1] - 1, cur[2], {
     end_row = cur[1] - 1,
     end_col = cur[2],
     right_gravity = false,
@@ -510,14 +398,14 @@ local function apply_completion_extras(lsp_data)
       return
     end
 
-    local ib   = state.init_base
+    local ib   = _state.init_base
     local from = { ib.lnum, ib.col }
     local to   = vim.api.nvim_win_get_cursor(0)
     pcall(vim.api.nvim_buf_set_text, 0, from[1] - 1, from[2], to[1] - 1, to[2],
       { string.rep("x", ib.length) })
     to = { from[1], from[2] + ib.length }
 
-    local prefix_id = vim.api.nvim_buf_set_extmark(0, ns, from[1] - 1, from[2],
+    local prefix_id = vim.api.nvim_buf_set_extmark(0, _ns, from[1] - 1, from[2],
       { end_row = to[1] - 1, end_col = to[2] })
 
     local er = lsp_edit_range({ result = { item } })
@@ -544,10 +432,10 @@ end
 -- Documentation float --------------------------------------------------------
 
 local function close_doc_win()
-  if doc_win and vim.api.nvim_win_is_valid(doc_win) then
-    vim.api.nvim_win_close(doc_win, true)
+  if _doc_win and vim.api.nvim_win_is_valid(_doc_win) then
+    vim.api.nvim_win_close(_doc_win, true)
   end
-  doc_win = nil
+  _doc_win = nil
 end
 
 ---@param documentation? string|table
@@ -575,7 +463,7 @@ local function show_doc_content(documentation)
       focusable  = false,
       offset_x   = offset_x,
     })
-    doc_win         = win
+    _doc_win         = win
   end)
 end
 
@@ -595,7 +483,7 @@ local function on_complete_changed()
     show_doc_content(nil); return
   end
 
-  local item = state.lsp.resolved[lsp_data.item_id] or lsp_data.item
+  local item = _state.lsp.resolved[lsp_data.item_id] or lsp_data.item
   if item.documentation then
     show_doc_content(item.documentation)
     return
@@ -610,7 +498,7 @@ local function on_complete_changed()
   local item_id = lsp_data.item_id
   client:request("completionItem/resolve", item, function(err, result)
     if err or not result then return end
-    state.lsp.resolved[item_id] = result
+    _state.lsp.resolved[item_id] = result
     vim.schedule(function()
       if not pumvisible() then return end
       local cur_item = selected_completed_item()
@@ -644,9 +532,9 @@ local function on_insert_char()
   if in_float() then return end
   local cfg = get_config()
   if not cfg.enabled then return end
-  state.timer:stop()
+  _state.timer:stop()
 
-  local is_incomplete = state.lsp.is_incomplete
+  local is_incomplete = _state.lsp.is_incomplete
   local is_trigger    = is_trigger_char(vim.v.char, "completion")
   local force         = is_trigger or is_incomplete
 
@@ -658,18 +546,18 @@ local function on_insert_char()
     return stop_completion(false)
   end
 
-  state.force = force
-  state.tick = change_tick + 1
+  _state.force = force
+  _state.tick = _change_tick + 1
 
   local kind_name = is_trigger and "TriggerCharacter"
       or (is_incomplete and "TriggerForIncompleteCompletions" or "Invoked")
-  state.lsp.context = {
+  _state.lsp.context = {
     triggerKind      = vim.lsp.protocol.CompletionTriggerKind[kind_name],
     triggerCharacter = kind_name == "TriggerCharacter" and vim.v.char or nil,
   }
 
   local delay = is_incomplete and 0 or cfg.delay
-  state.timer:start(delay, 0, vim.schedule_wrap(trigger_auto))
+  _state.timer:start(delay, 0, vim.schedule_wrap(trigger_auto))
 end
 
 local function on_cursor_moved()
@@ -677,7 +565,7 @@ local function on_cursor_moved()
 end
 
 local function on_complete_done()
-  if state.lsp.status == "received" then return end
+  if _state.lsp.status == "received" then return end
   local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
   if lsp_data ~= nil then apply_completion_extras(lsp_data) end
   M.stop()
@@ -733,8 +621,8 @@ local function setup_autocmds(config)
   au("CompleteDonePre", "*", function()
     close_doc_win(); on_complete_done()
   end)
-  au("TextChangedI", "*", function() change_tick = change_tick + 1 end)
-  au("TextChangedP", "*", function() change_tick = change_tick + 1 end)
+  au("TextChangedI", "*", function() _change_tick = _change_tick + 1 end)
+  au("TextChangedP", "*", function() _change_tick = _change_tick + 1 end)
 
   if config.lsp_completion.auto_setup then
     -- Read config live so a per-buffer `source_func`/`enabled` is honored, and
@@ -756,55 +644,39 @@ end
 ---@param base string
 ---@return integer|table|nil
 M.completefunc_lsp = function(findstart, base)
-  if not has_lsp_clients("completionProvider") or state.lsp.status == "sent" then
+  if not has_lsp_clients("completionProvider") or _state.lsp.status == "sent" then
     return findstart == 1 and -3 or {}
   end
 
-  if state.lsp.status ~= "received" then
+  if _state.lsp.status ~= "received" then
     request_completion()
     return findstart == 1 and -3 or {}
   end
 
   if findstart == 1 then
-    local from, to = completion_range(state.lsp.result)
-    state.init_base = { lnum = from[1], col = from[2], length = math.max(to[2] - from[2], 0) }
+    local from, to = completion_range(_state.lsp.result)
+    _state.init_base = { lnum = from[1], col = from[2], length = math.max(to[2] - from[2], 0) }
     return from[2]
   end
 
   local is_incomplete     = false
-  local all_items         = collect_lsp_results(state.lsp.result, function(response, client_id)
+  local all_items         = collect_lsp_results(_state.lsp.result, function(response, client_id)
     is_incomplete = is_incomplete or (response.isIncomplete == true)
     local items   = response.items or response
     if type(items) ~= "table" then return {} end
-    items = apply_defaults(items, response.itemDefaults)
+    items = itemutil.apply_defaults(items, response.itemDefaults)
     for _, item in ipairs(items) do item.client_id = client_id end
     return items
   end)
 
   local process           = get_config().lsp_completion.process_items or M.default_process_items
   all_items               = process(all_items, base)
-  local candidates        = to_vim_items(all_items)
+  local candidates        = itemutil.to_vim(all_items)
 
-  state.lsp.status        = "done"
-  state.lsp.is_incomplete = is_incomplete
+  _state.lsp.status        = "done"
+  _state.lsp.is_incomplete = is_incomplete
 
   return candidates
-end
-
----@param items table
----@param base string
-local function default_filter_sort(items, base)
-  if base == "" then
-    return vim.deepcopy(items)
-  end
-
-  local res = {}
-  for _, item in ipairs(items) do
-    if vim.startswith(lsp_filter_word(item), base) then
-      res[#res + 1] = vim.deepcopy(item)
-    end
-  end
-  return res
 end
 
 --- Filter and sort LSP completion items.
@@ -814,16 +686,16 @@ end
 ---@return table
 M.default_process_items = function(items, base, opts)
   opts = opts or {}
-  local res = opts.filtersort and opts.filtersort(items, base) or default_filter_sort(items, base)
-  if opts.kind_priority then res = sort_by_kind(res, opts.kind_priority) end
-  add_hlgroups(res)
+  local res = opts.filtersort and opts.filtersort(items, base) or itemutil.filter_sort(items, base)
+  if opts.kind_priority then res = itemutil.sort_by_kind(res, opts.kind_priority) end
+  itemutil.add_hlgroups(res)
   return res
 end
 
 --- Insert a snippet at cursor.
 ---@param snippet string
 M.default_snippet_insert = function(snippet)
-  if has_native_snippet then return vim.snippet.expand(snippet) end
+  if _has_native_snippet then return vim.snippet.expand(snippet) end
   local pos   = vim.api.nvim_win_get_cursor(0)
   local lines = vim.split(snippet, "\n")
   vim.api.nvim_buf_set_text(0, pos[1] - 1, pos[2], pos[1] - 1, pos[2], lines)
@@ -869,7 +741,7 @@ M.complete = function(force)
   if not get_config().enabled then return end
   if force == nil then force = true end
   stop_completion()
-  state.force = force
+  _state.force = force
   trigger_auto()
 end
 
@@ -892,7 +764,7 @@ M.confirm = function(fallback_keys, direction)
     vim.api.nvim_feedkeys(direction == -1 and _nav_keys.select_prev or _nav_keys.select_next, "n", false)
     return
   end
-  if has_native_snippet and vim.snippet.active({ direction = direction }) then
+  if _has_native_snippet and vim.snippet.active({ direction = direction }) then
     return vim.snippet.jump(direction)
   end
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(fallback_keys, true, false, true), "n", false)
