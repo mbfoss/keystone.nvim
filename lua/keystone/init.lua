@@ -28,7 +28,6 @@ local _MODULES = {
   "animate",
   "bookmarks",
   "clue",
-  "lspcompletion",
   "completion",
   "diff",
   "explore",

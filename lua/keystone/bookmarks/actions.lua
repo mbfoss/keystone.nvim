@@ -180,9 +180,7 @@ function M.open_list()
         vim.bo[bufnr].bufhidden = "hide"
         vim.bo[bufnr].swapfile = false
 
-        -- Complete file paths in the first field via <C-x><C-u>. LSP completion
-        -- lives on 'omnifunc' (keystone.lspcompletion), so our own completefunc
-        -- here does not collide with it. See M.complete_path.
+        -- custom completion function
         vim.bo[bufnr].completefunc = "v:lua.require'keystone.bookmarks.actions'.complete_path"
 
         -- Push edited lines back into the extmarks as the user edits, throttled so a
