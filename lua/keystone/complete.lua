@@ -14,7 +14,7 @@ local itemutil = require("keystone.complete.items")
 ---@field lsp_completion keystone.complete.LspConfig
 ---@field key string
 ---@field tab_completion boolean
----@field source_order (string[])|fun() Fallback sources tried in order when LSP yields nothing. Each entry is either a named option-backed source ("completefunc"/"omnifunc") or literal insert-mode keys for any other ins-completion submode, e.g. "<C-x><C-n>" buffer words, "<C-x><C-f>" files.
+---@field source_order (string[])|fun() Completion sources tried in order; the first available one fires (LSP is not special -- it is just the "completefunc"/"omnifunc" slot `lsp_completion` claims). An unavailable slot is skipped, so fallback is automatic. Each entry is a named option-backed source ("completefunc"/"omnifunc") or literal insert-mode keys for any other ins-completion submode, e.g. "<C-x><C-n>" buffer words, "<C-x><C-f>" files.
 
 ---@return keystone.complete.Config
 local function default_config()
@@ -29,12 +29,18 @@ local function default_config()
       snippet_insert = nil,
     },
     key             = "<C-Space>",
-    tab_completion  = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
-    -- Fallback sources tried in order when the LSP source yields no items. The
-    -- named sources ("completefunc"/"omnifunc") are triggered even when their
-    -- function is not owned by this module, so an ftplugin's slot is honored;
-    -- any other entry is literal insert-mode keys, e.g. "<C-x><C-n>" to append
-    -- current-buffer keyword completion at the end of the chain.
+
+  -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
+    tab_completion  = true,
+
+    -- Completion sources, tried in order; the first available one fires. Nothing
+    -- here is special-cased for LSP: it is simply whichever "completefunc"/
+    -- "omnifunc" slot `lsp_completion` claims, and those named slots fire even
+    -- when owned by an ftplugin rather than this module. A slot with no source
+    -- (empty, or an LSP slot with no client) is skipped, so the next entry is
+    -- used automatically -- fallback needs no configuration. Any other entry is
+    -- literal insert-mode keys, e.g. "<C-x><C-n>" to append current-buffer
+    -- keyword completion at the end of the chain.
     source_order    = { "completefunc", "omnifunc" },
   }
 end
