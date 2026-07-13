@@ -356,6 +356,12 @@ function Picker:setup_ui()
 	self:relayout(preview_action)
 
 	assert(self.pbuf ~= nil)
+	-- Expose flag completion as a completefunc so <C-x><C-u> (or any completion
+	-- engine pointed at this buffer) can drive it. The flag schema is stashed on
+	-- the buffer once here; the completefunc computes candidates live from it, so
+	-- it needs no picker reference or module-level state.
+	vim.bo[self.pbuf].completefunc = "v:lua.require'keystone.pick.base.picker'._flag_completefunc"
+	vim.b[self.pbuf].keystone_pick_completion = { flags = self.opts.flags }
 	vim.keymap.set("i", "<C-r><C-w>", function()
 		vim.api.nvim_feedkeys(
 			vim.api.nvim_replace_termcodes(self.original_cword, true, false, true),
@@ -564,21 +570,6 @@ function Picker:render_prompt_highlight(query)
 			end_col  = h.finish,
 			hl_group = h.hl,
 		})
-	end
-end
-
----@param query string
----@param auto boolean?
-function Picker:trigger_flag_completion(query, auto)
-	if #self.opts.flags == 0 then return end
-	if vim.fn.pumvisible() == 1 then return end
-	if not self.pwin or not vim.api.nvim_win_is_valid(self.pwin) then return end
-	if vim.fn.mode() ~= "i" then return end
-
-	local col         = vim.api.nvim_win_get_cursor(self.pwin)[2]
-	local completions = queryflags.get_completions(self.opts.flags, query, col, auto)
-	if completions and #completions.items > 0 then
-		vim.fn.complete(completions.startcol, completions.items)
 	end
 end
 
@@ -1220,7 +1211,7 @@ function Picker:setup_input()
 		vim.keymap.set({ "n", "i" }, "<C-q>", function() self:send_to_qf() end, pbuf_key_opts)
 
 		vim.keymap.set("i", "<C-Space>", function()
-			self:trigger_flag_completion(self.query_text, false)
+			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true), "n", false)
 		end, pbuf_key_opts)
 
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
@@ -1242,7 +1233,6 @@ function Picker:setup_input()
 					self.query_text = text
 					self:render_prompt_highlight(text)
 					self:run_fetch()
-					vim.schedule(function() self:trigger_flag_completion(text, true) end)
 				end
 			end
 		})
@@ -1253,6 +1243,44 @@ function Picker:setup_input()
 		vim.keymap.set("n", "<Esc>", function() self:close() end, lbuf_key_opts)
 		vim.keymap.set("n", "<CR>", function() self:confirm() end, lbuf_key_opts)
 	end
+end
+
+--- Buffer-local 'completefunc' for picker flag completion. The flag schema is
+--- read from a buffer variable set once at picker load; candidates are computed
+--- live from the current prompt line, so this function needs no picker reference
+--- or module-level state.
+---@param findstart 0|1
+---@param base string
+---@return integer|table
+function M._flag_completefunc(findstart, base)
+	local ctx   = vim.b.keystone_pick_completion
+	local flags = ctx and ctx.flags
+	if not flags or #flags == 0 then
+		return findstart == 1 and -3 or {}
+	end
+
+	local line        = vim.api.nvim_get_current_line()
+	local col         = vim.api.nvim_win_get_cursor(0)[2]
+	local completions = queryflags.get_completions(flags, line, col, false)
+	if not completions or #completions.items == 0 then
+		return findstart == 1 and -3 or {}
+	end
+
+	-- get_completions returns a 1-indexed byte column; completefunc wants 0-indexed.
+	if findstart == 1 then return completions.startcol - 1 end
+
+	-- Keep only candidates matching what was typed since startcol. Quotes are
+	-- ignored so an unquoted partial still matches a quoted value (base
+	-- `lang:fo` matches word `lang:"foo bar"`).
+	local function unquoted(s) return (s:gsub("[\"']", "")) end
+	local needle = unquoted(base)
+	local items  = {}
+	for _, item in ipairs(completions.items) do
+		if vim.startswith(unquoted(item.word), needle) then
+			items[#items + 1] = item
+		end
+	end
+	return items
 end
 
 ---@param opts keystone.Picker.opts
