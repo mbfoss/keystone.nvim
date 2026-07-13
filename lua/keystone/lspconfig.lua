@@ -101,6 +101,7 @@ end
 ---@field format keystone.lspconfig.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
 ---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
+---@field signature_help boolean show signature help in a float while typing (CursorMovedI)
 ---@field log_level string?|integer LSP client log level for `vim.lsp.set_log_level`
 ---@field lsp_rolling_log boolean|keystone.lspconfig.RollingLogConfig cap the LSP log file size; `true` uses defaults, a table overrides them, `false` disables
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
@@ -123,6 +124,7 @@ local function _get_default_config()
     },
     inlay_hints        = true,
     document_highlight = true,
+    signature_help     = true,
     log_level          = nil,
     lsp_rolling_log    = true,
     diagnostics        = {
@@ -219,6 +221,32 @@ local function _setup_document_highlight(bufnr)
   })
 end
 
+-- Show signature help in a float on cursor movement in insert mode. The
+-- signature's own documentation is stripped so the float stays compact.
+---@param client vim.lsp.Client
+---@param bufnr integer
+local function _setup_signature_help(client, bufnr)
+  vim.api.nvim_create_autocmd("CursorMovedI", {
+    group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
+    buffer   = bufnr,
+    callback = function()
+      if vim.api.nvim_win_get_config(0).relative ~= "" then return end
+      local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+      client:request("textDocument/signatureHelp", params, function(err, result, ctx)
+        if err or not result or not result.signatures or #result.signatures == 0 then return end
+        for _, sig in ipairs(result.signatures) do
+          sig.documentation = nil
+        end
+        vim.lsp.handlers["textDocument/signatureHelp"](err, result, ctx, {
+          silent    = true,
+          border    = "rounded",
+          focusable = false,
+        })
+      end, bufnr)
+    end,
+  })
+end
+
 ---@param client vim.lsp.Client
 ---@param bufnr integer
 local function _on_attach(client, bufnr)
@@ -235,6 +263,12 @@ local function _on_attach(client, bufnr)
       and client:supports_method("textDocument/documentHighlight")
   then
     _setup_document_highlight(bufnr)
+  end
+
+  if M.config.signature_help
+      and client:supports_method("textDocument/signatureHelp")
+  then
+    _setup_signature_help(client, bufnr)
   end
 
   if M.config.on_attach then

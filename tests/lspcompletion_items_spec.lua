@@ -1,4 +1,4 @@
-local items = require("keystone.complete.items")
+local items = require("keystone.lspcompletion.items")
 
 local CIK = vim.lsp.protocol.CompletionItemKind
 local ITF = vim.lsp.protocol.InsertTextFormat
