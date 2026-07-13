@@ -15,7 +15,7 @@ local M = {}
 ---@field delay integer debounce before autotriggering, in ms
 ---@field key string manual-trigger mapping (insert mode)
 ---@field tab_completion boolean map <Tab>/<S-Tab> to confirm/navigate, VSCode-style
----@field cr_confirm boolean `<CR>` confirms current completion condidate (equivent to <C-y>, can be used to enter snippet mode)
+---@field cr_confirm boolean map `<CR>` to confirm the current completion candidate (equivalent to <C-y>; can be used to enter snippet mode)
 ---@field source_order (string[])|fun() Sources tried in order; the first available one fires. "omnifunc"/"completefunc" are the named option-backed slots (LSP lives on omnifunc); any other entry is literal insert-mode keys, e.g. "<C-x><C-n>" buffer words.
 
 ---@return keystone.completion.Config
@@ -54,6 +54,13 @@ end
 local _nav_keys = {
   select_next = vim.api.nvim_replace_termcodes("<C-n>", true, false, true),
   select_prev = vim.api.nvim_replace_termcodes("<C-p>", true, false, true),
+}
+
+--- Keystrokes used when confirming with `<CR>`.
+local _accept_keys = {
+  yes    = vim.api.nvim_replace_termcodes("<C-y>", true, false, true),      -- accept the selected entry
+  cancel = vim.api.nvim_replace_termcodes("<C-e><CR>", true, false, true),  -- dismiss the menu, then newline
+  cr     = vim.api.nvim_replace_termcodes("<CR>", true, false, true),       -- plain newline, no menu open
 }
 
 local _has_native_snippet = vim.fn.has("nvim-0.10") == 1
@@ -199,6 +206,9 @@ local function apply_config(config)
     map("<Tab>", function() M.confirm("<Tab>", 1) end, { desc = "Confirm completion" })
     map("<S-Tab>", function() M.confirm("<S-Tab>", -1) end, { desc = "Confirm completion (previous item)" })
   end
+  if config.cr_confirm then
+    map("<CR>", M.accept, { desc = "Confirm completion (<CR>)" })
+  end
 
   ---@param opt string
   ---@param val fun()
@@ -260,6 +270,21 @@ M.confirm = function(fallback_keys, direction)
     return vim.snippet.jump(direction)
   end
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(fallback_keys, true, false, true), "n", false)
+end
+
+--- Confirm the current completion candidate with `<CR>`. With the popup menu
+--- open and an entry selected, sends `<C-y>` to accept it -- letting the source
+--- expand a snippet or apply additionalTextEdits on CompleteDone. With the menu
+--- open but nothing selected, dismisses it and inserts a newline; with no menu,
+--- sends a plain `<CR>`. Wired to `<CR>` by the `cr_confirm` config.
+M.accept = function()
+  if pumvisible() then
+    if vim.fn.complete_info({ "selected" }).selected ~= -1 then
+      return vim.api.nvim_feedkeys(_accept_keys.yes, "n", false)
+    end
+    return vim.api.nvim_feedkeys(_accept_keys.cancel, "n", false)
+  end
+  vim.api.nvim_feedkeys(_accept_keys.cr, "n", false)
 end
 
 ---@param opts keystone.completion.Config?
