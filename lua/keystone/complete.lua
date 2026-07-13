@@ -14,7 +14,7 @@ local itemutil = require("keystone.complete.items")
 ---@field lsp_completion keystone.complete.LspConfig
 ---@field key string
 ---@field tab_completion boolean
----@field source_order (string[])|fun() Fallback sources, tried in order when LSP yields nothing. Known names: "completefunc", "omnifunc", "buffer".
+---@field source_order (string[])|fun() Fallback sources tried in order when LSP yields nothing. Each entry is either a named option-backed source ("completefunc"/"omnifunc") or literal insert-mode keys for any other ins-completion submode, e.g. "<C-x><C-n>" buffer words, "<C-x><C-f>" files.
 
 ---@return keystone.complete.Config
 local function default_config()
@@ -30,9 +30,10 @@ local function default_config()
     },
     key             = "<C-Space>",
     tab_completion  = true, -- use <Tab>/<S-Tab> to accept the selected item, VSCode-style; falls back to the keys' normal action when no menu is open
-    -- Fallback sources tried in order when the LSP source yields no items. Each
-    -- source is triggered even when its function is not owned by this module, so
-    -- an ftplugin's completefunc/omnifunc is honored. Append "buffer" to include
+    -- Fallback sources tried in order when the LSP source yields no items. The
+    -- named sources ("completefunc"/"omnifunc") are triggered even when their
+    -- function is not owned by this module, so an ftplugin's slot is honored;
+    -- any other entry is literal insert-mode keys, e.g. "<C-x><C-n>" to append
     -- current-buffer keyword completion at the end of the chain.
     source_order    = { "completefunc", "omnifunc" },
   }
@@ -44,13 +45,20 @@ M.config = default_config()
 
 local _ns = vim.api.nvim_create_namespace("keystone_complete")
 
---- Keystrokes that trigger each completion source. These names are the only
---- valid `source_order` entries.
-local _source_keys = {
-  completefunc = vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true),
-  omnifunc     = vim.api.nvim_replace_termcodes("<C-x><C-o>", true, false, true),
-  buffer       = vim.api.nvim_replace_termcodes("<C-x><C-n>", true, false, true),
+--- The two option-backed sources, named because they carry an availability
+--- check (empty slot / no LSP client). Every other ins-completion submode is
+--- written as raw keys in `source_order`, e.g. "<C-x><C-n>" buffer, "<C-x><C-f>"
+--- files. Values are the raw keys; termcodes are replaced when fed.
+local _slot_keys = {
+  completefunc = "<C-x><C-u>",
+  omnifunc     = "<C-x><C-o>",
 }
+
+--- Resolved keys -> backing option, for the availability check.
+local _opt_of = {}
+for opt, keys in pairs(_slot_keys) do
+  _opt_of[vim.api.nvim_replace_termcodes(keys, true, false, true)] = opt
+end
 
 --- Keystrokes for navigating an open popup menu.
 local _nav_keys = {
@@ -73,7 +81,7 @@ local _change_tick = 0
 ---@field resolved table<integer, table>
 ---@field cancel_fn? function
 ---@field context? table
----@field slot? string
+---@field slot? string resolved keys of the source that fired the request, replayed on response
 
 ---@class keystone.complete.State
 ---@field force boolean
@@ -268,17 +276,18 @@ local function stop_completion(keep_source, keep_lsp_incomplete, keep_lsp_resolv
   if not keep_lsp_resolved then _state.lsp.resolved = {} end
 end
 
---- Whether a source exists and can be triggered now. A source is used when it
---- exists, regardless of whether it will return any items. For completefunc /
---- omnifunc the option must be set; when the slot holds this module's own LSP
---- function it exists only while there are LSP completion clients, so an empty
---- LSP slot falls through to the next source instead of dead-ending here.
----@param name string
+--- Whether the source for `keys` can be triggered now. A source is used when it
+--- exists, regardless of whether it will return any items. Raw-key sources are
+--- always ready; for the option-backed completefunc/omnifunc the option must be
+--- set, and when the slot holds this module's own LSP function it exists only
+--- while there are LSP completion clients, so an empty LSP slot falls through to
+--- the next source instead of dead-ending here.
+---@param keys string resolved (termcode-replaced) insert-mode keys
 ---@return boolean
-local function source_available(name)
-  if _source_keys[name] == nil then return false end
-  if name ~= "completefunc" and name ~= "omnifunc" then return true end
-  local cur = vim.bo[name]
+local function source_available(keys)
+  local opt = _opt_of[keys]
+  if opt == nil then return true end
+  local cur = vim.bo[opt]
   if cur == "" then return false end
   if cur == _lsp_func then return has_lsp_clients("completionProvider") end
   return true
@@ -300,7 +309,8 @@ local function request_completion()
       -- Re-feed the slot that fired the request so completefunc_lsp re-enters
       -- and returns items now that the response is in.
       if vim.fn.mode() == "i" and not (pumvisible() and not _state.force) then
-        vim.api.nvim_feedkeys(_source_keys[_state.lsp.slot] or _source_keys.completefunc, "n", false)
+        local keys = _state.lsp.slot or vim.api.nvim_replace_termcodes(_slot_keys.completefunc, true, false, true)
+        vim.api.nvim_feedkeys(keys, "n", false)
       end
     end)
 end
@@ -317,10 +327,11 @@ local function trigger_auto()
   if vim.is_callable(order) then return order() end
   if type(order) ~= "table" then return end
 
-  for _, name in ipairs(order) do
-    if source_available(name) then
-      _state.lsp.slot = vim.bo[name] == _lsp_func and name or nil
-      vim.api.nvim_feedkeys(_source_keys[name], "n", false)
+  for _, entry in ipairs(order) do
+    local keys = vim.api.nvim_replace_termcodes(_slot_keys[entry] or entry, true, false, true)
+    if source_available(keys) then
+      _state.lsp.slot = keys
+      vim.api.nvim_feedkeys(keys, "n", false)
       return
     end
   end
