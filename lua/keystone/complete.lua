@@ -6,9 +6,6 @@ local M = {}
 ---@field process_items? fun(items: table, base: string): table
 ---@field snippet_insert? fun(snippet: string)
 
----@class keystone.complete.MappingsConfig
----@field force_twostep string
-
 ---@class keystone.complete.Config
 ---@field enabled boolean
 ---@field delay integer
@@ -45,13 +42,18 @@ M.config = default_config()
 
 local ns = vim.api.nvim_create_namespace("keystone_complete")
 
-local keys = {
+--- Keystrokes that trigger each completion source. These names are the only
+--- valid `source_order` entries.
+local _source_keys = {
   completefunc = vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true),
   omnifunc     = vim.api.nvim_replace_termcodes("<C-x><C-o>", true, false, true),
   buffer       = vim.api.nvim_replace_termcodes("<C-x><C-n>", true, false, true),
-  select_next  = vim.api.nvim_replace_termcodes("<C-n>", true, false, true),
-  select_prev  = vim.api.nvim_replace_termcodes("<C-p>", true, false, true),
-  confirm      = vim.api.nvim_replace_termcodes("<C-y>", true, false, true),
+}
+
+--- Keystrokes for navigating an open popup menu.
+local _nav_keys = {
+  select_next = vim.api.nvim_replace_termcodes("<C-n>", true, false, true),
+  select_prev = vim.api.nvim_replace_termcodes("<C-p>", true, false, true),
 }
 
 --- Value written to 'completefunc'/'omnifunc' when this module owns the slot.
@@ -61,6 +63,25 @@ local has_native_snippet = vim.fn.has("nvim-0.10") == 1
 
 local change_tick = 0
 
+---@class keystone.complete.LspState
+---@field id integer
+---@field status? "sent"|"received"|"done"|"canceled"
+---@field is_incomplete boolean
+---@field result? table
+---@field resolved table<integer, table>
+---@field cancel_fn? function
+---@field context? table
+---@field slot? string
+
+---@class keystone.complete.State
+---@field force boolean
+---@field source? string
+---@field tick integer
+---@field timer uv.uv_timer_t?
+---@field lsp keystone.complete.LspState
+---@field init_base { lnum?: integer, col?: integer, length?: integer }
+
+---@type keystone.complete.State
 local state = {
   force     = false,
   source    = nil,
@@ -88,7 +109,9 @@ local doc_win
 
 ---@return keystone.complete.Config
 local function get_config()
-  return vim.tbl_deep_extend("force", M.config, vim.b.keystone_complete_config or {})
+  local override = vim.b.keystone_complete_config
+  if override == nil then return M.config end
+  return vim.tbl_deep_extend("force", M.config, override)
 end
 
 ---@return boolean
@@ -128,16 +151,23 @@ end
 
 -- LSP helpers ----------------------------------------------------------------
 
+--- Buffer-attached clients advertising `capability` (a top-level key under
+--- `server_capabilities`, e.g. "completionProvider").
+---@param capability string
+---@return vim.lsp.Client[]
+local function clients_with(capability)
+  return vim.tbl_filter(function(c)
+    return vim.tbl_get(c.server_capabilities, capability) ~= nil
+  end, vim.lsp.get_clients({ bufnr = 0 }))
+end
+
 ---@param capability? string
 ---@return boolean
 local function has_lsp_clients(capability)
-  local clients = vim.lsp.get_clients({ bufnr = 0 })
-  if vim.tbl_isempty(clients) then return false end
-  if not capability then return true end
-  for _, c in pairs(clients) do
-    if vim.tbl_get(c.server_capabilities, capability) then return true end
+  if not capability then
+    return not vim.tbl_isempty(vim.lsp.get_clients({ bufnr = 0 }))
   end
-  return false
+  return not vim.tbl_isempty(clients_with(capability))
 end
 
 ---@param char string
@@ -145,8 +175,8 @@ end
 ---@return boolean
 local function is_trigger_char(char, kind)
   local providers = { completion = "completionProvider", signature = "signatureHelpProvider" }
-  for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
-    local triggers = vim.tbl_get(client, "server_capabilities", providers[kind], "triggerCharacters")
+  for _, client in ipairs(clients_with(providers[kind])) do
+    local triggers = vim.tbl_get(client.server_capabilities, providers[kind], "triggerCharacters")
     if vim.tbl_contains(triggers or {}, char) then return true end
   end
   return false
@@ -261,7 +291,7 @@ end
 ---@param items table
 ---@return table
 local function to_vim_items(items)
-  if vim.tbl_count(items) == 0 then return {} end
+  if #items == 0 then return {} end
 
   local res        = {}
   local item_kinds = vim.lsp.protocol.CompletionItemKind
@@ -282,7 +312,7 @@ local function to_vim_items(items)
     if details.description and details.description ~= "" then menu_parts[#menu_parts + 1] = details.description end
     local menu = table.concat(menu_parts, " ")
 
-    table.insert(res, {
+    res[#res + 1] = {
       word = is_snippet and lsp_filter_word(item) or word,
       abbr = item.label,
       abbr_hlgroup = item.abbr_hlgroup,
@@ -294,7 +324,7 @@ local function to_vim_items(items)
       dup = 1,
       empty = 1,
       user_data = { lsp = { item = item, item_id = i, needs_snippet_insert = is_snippet } },
-    })
+    }
   end
   return res
 end
@@ -358,7 +388,7 @@ end
 ---@param name string
 ---@return boolean
 local function source_available(name)
-  if keys[name] == nil then return false end
+  if _source_keys[name] == nil then return false end
   if name ~= "completefunc" and name ~= "omnifunc" then return true end
   local cur = vim.bo[name]
   if cur == "" then return false end
@@ -382,7 +412,7 @@ local function request_completion()
       -- Re-feed the slot that fired the request so completefunc_lsp re-enters
       -- and returns items now that the response is in.
       if vim.fn.mode() == "i" and not (pumvisible() and not state.force) then
-        vim.api.nvim_feedkeys(keys[state.lsp.slot] or keys.completefunc, "n", false)
+        vim.api.nvim_feedkeys(_source_keys[state.lsp.slot] or _source_keys.completefunc, "n", false)
       end
     end)
 end
@@ -402,7 +432,7 @@ local function trigger_auto()
   for _, name in ipairs(order) do
     if source_available(name) then
       state.lsp.slot = vim.bo[name] == _lsp_func and name or nil
-      vim.api.nvim_feedkeys(keys[name], "n", false)
+      vim.api.nvim_feedkeys(_source_keys[name], "n", false)
       return
     end
   end
@@ -592,13 +622,7 @@ end
 
 local function show_signature_help()
   if in_float() then return end
-  local client
-  for _, c in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
-    if vim.tbl_get(c, "server_capabilities", "signatureHelpProvider") then
-      client = c
-      break
-    end
-  end
+  local client = clients_with("signatureHelpProvider")[1]
   if not client then return end
   local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
   client:request("textDocument/signatureHelp", params, function(err, result, ctx)
@@ -618,7 +642,8 @@ end
 
 local function on_insert_char()
   if in_float() then return end
-  if not get_config().enabled then return end
+  local cfg = get_config()
+  if not cfg.enabled then return end
   state.timer:stop()
 
   local is_incomplete = state.lsp.is_incomplete
@@ -643,7 +668,7 @@ local function on_insert_char()
     triggerCharacter = kind_name == "TriggerCharacter" and vim.v.char or nil,
   }
 
-  local delay = is_incomplete and 0 or get_config().delay
+  local delay = is_incomplete and 0 or cfg.delay
   state.timer:start(delay, 0, vim.schedule_wrap(trigger_auto))
 end
 
@@ -864,7 +889,7 @@ end
 M.confirm = function(fallback_keys, direction)
   direction = direction == -1 and -1 or 1
   if pumvisible() then
-    vim.api.nvim_feedkeys(direction == -1 and keys.select_prev or keys.select_next, "n", false)
+    vim.api.nvim_feedkeys(direction == -1 and _nav_keys.select_prev or _nav_keys.select_next, "n", false)
     return
   end
   if has_native_snippet and vim.snippet.active({ direction = direction }) then
@@ -874,7 +899,7 @@ M.confirm = function(fallback_keys, direction)
 end
 
 ---@param opts keystone.complete.Config?
-function M.setup(opts)
+M.setup = function(opts)
   M.config = vim.tbl_deep_extend("force", default_config(), opts or {})
   setup_hl()
   if M.config.enabled then
