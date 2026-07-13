@@ -347,6 +347,27 @@ function Picker:init(opts, callback)
 	end)
 end
 
+function Picker:apply_prompt()
+	if self.closed then return end
+	local nlines = vim.api.nvim_buf_line_count(self.pbuf)
+	local raw = nlines > 1
+		and table.concat(vim.api.nvim_buf_get_lines(self.pbuf, 0, -1, false), "")
+		or (vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or "")
+	local text = raw:gsub("[%c]", "")
+
+	if nlines > 1 or text ~= raw then
+		local col = vim.api.nvim_win_get_cursor(self.pwin)[2]
+		vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
+		vim.api.nvim_win_set_cursor(self.pwin, { 1, math.min(col, #text) })
+	end
+
+	if text ~= self.query_text then
+		self.query_text = text
+		self:render_prompt_highlight(text)
+		self:run_fetch()
+	end
+end
+
 ---@return nil
 function Picker:setup_ui()
 	local preview_action
@@ -362,6 +383,11 @@ function Picker:setup_ui()
 	-- it needs no picker reference or module-level state.
 	vim.bo[self.pbuf].completefunc = "v:lua.require'keystone.pick.base.picker'._flag_completefunc"
 	vim.b[self.pbuf].keystone_pick_completion = { flags = self.opts.flags }
+	-- Hook into CompleteDone to restore highlights and trigger a fetch update
+	vim.api.nvim_create_autocmd("CompleteDone", {
+		buffer = self.pbuf,
+		callback = function() self:apply_prompt() end
+	})
 	vim.keymap.set("i", "<C-r><C-w>", function()
 		vim.api.nvim_feedkeys(
 			vim.api.nvim_replace_termcodes(self.original_cword, true, false, true),
@@ -1216,25 +1242,7 @@ function Picker:setup_input()
 
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
 			buffer = self.pbuf,
-			callback = function()
-				local nlines = vim.api.nvim_buf_line_count(self.pbuf)
-				local raw = nlines > 1
-					and table.concat(vim.api.nvim_buf_get_lines(self.pbuf, 0, -1, false), "")
-					or (vim.api.nvim_buf_get_lines(self.pbuf, 0, 1, false)[1] or "")
-				local text = raw:gsub("[%c]", "")
-
-				if nlines > 1 or text ~= raw then
-					local col = vim.api.nvim_win_get_cursor(self.pwin)[2]
-					vim.api.nvim_buf_set_lines(self.pbuf, 0, -1, false, { text })
-					vim.api.nvim_win_set_cursor(self.pwin, { 1, math.min(col, #text) })
-				end
-
-				if text ~= self.query_text then
-					self.query_text = text
-					self:render_prompt_highlight(text)
-					self:run_fetch()
-				end
-			end
+			callback = function() self:apply_prompt() end
 		})
 	end
 
@@ -1259,9 +1267,16 @@ function M._flag_completefunc(findstart, base)
 		return findstart == 1 and -3 or {}
 	end
 
-	local line        = vim.api.nvim_get_current_line()
-	local col         = vim.api.nvim_win_get_cursor(0)[2]
-	local completions = queryflags.get_completions(flags, line, col, false)
+	local line, col, completions
+	if findstart == 1 then
+		line        = vim.api.nvim_get_current_line()
+		col         = vim.api.nvim_win_get_cursor(0)[2]
+		completions = queryflags.get_completions(flags, line, col, false)
+	else
+		line        = base
+		col         = #base
+		completions = queryflags.get_completions(flags, line, col, false)
+	end
 	if not completions or #completions.items == 0 then
 		return findstart == 1 and -3 or {}
 	end
