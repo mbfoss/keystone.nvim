@@ -300,6 +300,7 @@ local function source_available(keys)
 end
 
 local function request_completion()
+  cancel_lsp() -- keep a single request in flight even if a caller skips the guard
   local req_id        = _state.lsp.id + 1
   _state.lsp.id        = req_id
   _state.lsp.status    = "sent"
