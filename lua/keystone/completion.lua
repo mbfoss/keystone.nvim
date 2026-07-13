@@ -15,6 +15,7 @@ local M = {}
 ---@field delay integer debounce before autotriggering, in ms
 ---@field key string manual-trigger mapping (insert mode)
 ---@field tab_completion boolean map <Tab>/<S-Tab> to confirm/navigate, VSCode-style
+---@field cr_confirm boolean `<CR>` confirms current completion condidate (equivent to <C-y>, can be used to enter snippet mode)
 ---@field source_order (string[])|fun() Sources tried in order; the first available one fires. "omnifunc"/"completefunc" are the named option-backed slots (LSP lives on omnifunc); any other entry is literal insert-mode keys, e.g. "<C-x><C-n>" buffer words.
 
 ---@return keystone.completion.Config
@@ -25,6 +26,7 @@ local function default_config()
     delay          = 100,
     key            = "<C-Space>",
     tab_completion = true,
+    cr_confirm     = true,
     source_order   = { "omnifunc", "completefunc" },
   }
 end
