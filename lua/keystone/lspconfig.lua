@@ -260,6 +260,15 @@ local function _setup_signature_help(client, bufnr)
         vim.bo[_buf].modifiable = true
         vim.api.nvim_buf_set_lines(_buf, 0, -1, false, lines)
         vim.bo[_buf].modifiable = false
+
+        local opts = vim.lsp.util.make_floating_popup_options(
+          vim.api.nvim_win_get_width(_win),
+          vim.api.nvim_win_get_height(_win),
+          { border = "rounded" }
+        )
+        opts.width = nil
+        opts.height = nil
+        vim.api.nvim_win_set_config(_win, opts)
       else
         local fbuf, fwin = vim.lsp.util.open_floating_preview(lines, "markdown", {
           silent       = true,
