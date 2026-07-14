@@ -1,6 +1,5 @@
 local M = {}
 
-local _usercmd = require("keystone.tk.usercmd")
 local _throttle = require("keystone.tk.throttle")
 
 local _uv = vim.uv or vim.loop
@@ -231,15 +230,17 @@ local _sig_help_ns = vim.api.nvim_create_namespace("keystone_signature_help")
 local function _setup_signature_help(client, bufnr)
   local _request_id = 0
   local _win --- @type integer?
+  local _buf --- @type integer?
 
   local function _close()
     if _win and vim.api.nvim_win_is_valid(_win) then
       vim.api.nvim_win_close(_win, true)
     end
     _win = nil
+    _buf = nil
   end
 
-  local _request = _throttle.debounce_wrap(80, function()
+  local _request = _throttle.debounce_wrap(100, function()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
     _request_id = _request_id + 1
     local request_id = _request_id
@@ -259,18 +260,24 @@ local function _setup_signature_help(client, bufnr)
         return
       end
 
-      local fbuf, fwin = vim.lsp.util.open_floating_preview(lines, "markdown", {
-        silent       = true,
-        border       = "rounded",
-        focusable    = false,
-        focus        = false,
-        close_events = { "InsertLeave", "BufHidden" },
-        _update_win  = (_win and vim.api.nvim_win_is_valid(_win)) and _win or nil,
-      })
-      _win = fwin
+      if _win and vim.api.nvim_win_is_valid(_win) and _buf and vim.api.nvim_buf_is_valid(_buf) then
+        vim.bo[_buf].modifiable = true
+        vim.api.nvim_buf_set_lines(_buf, 0, -1, false, lines)
+        vim.bo[_buf].modifiable = false
+      else
+        local fbuf, fwin = vim.lsp.util.open_floating_preview(lines, "markdown", {
+          silent       = true,
+          border       = "rounded",
+          focusable    = false,
+          focus        = false,
+          close_events = { "InsertLeave", "BufHidden" },
+        })
+        _win = fwin
+        _buf = fbuf
+      end
 
       if hl then
-        vim.hl.range(fbuf, _sig_help_ns, "LspSignatureActiveParameter", { hl[1], hl[2] }, { hl[3], hl[4] })
+        vim.hl.range(_buf, _sig_help_ns, "LspSignatureActiveParameter", { hl[1], hl[2] }, { hl[3], hl[4] })
       end
     end, bufnr)
   end)
