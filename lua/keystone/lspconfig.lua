@@ -1,6 +1,7 @@
 local M = {}
 
 local _usercmd = require("keystone.tk.usercmd")
+local _throttle = require("keystone.tk.throttle")
 
 local _uv = vim.uv or vim.loop
 
@@ -221,29 +222,72 @@ local function _setup_document_highlight(bufnr)
   })
 end
 
+local _sig_help_ns = vim.api.nvim_create_namespace("keystone_signature_help")
+
 -- Show signature help in a float on cursor movement in insert mode. The
 -- signature's own documentation is stripped so the float stays compact.
 ---@param client vim.lsp.Client
 ---@param bufnr integer
 local function _setup_signature_help(client, bufnr)
+  local _request_id = 0
+  local _win --- @type integer?
+
+  local function _close()
+    if _win and vim.api.nvim_win_is_valid(_win) then
+      vim.api.nvim_win_close(_win, true)
+    end
+    _win = nil
+  end
+
+  local _request = _throttle.debounce_wrap(80, function()
+    if not vim.api.nvim_buf_is_valid(bufnr) then return end
+    _request_id = _request_id + 1
+    local request_id = _request_id
+    local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
+    client:request("textDocument/signatureHelp", params, function(err, result)
+      if request_id ~= _request_id then return end
+      if err or not result or not result.signatures or #result.signatures == 0 then
+        _close()
+        return
+      end
+
+      local triggers = vim.tbl_get(client.server_capabilities, "signatureHelpProvider", "triggerCharacters")
+      local ft = vim.bo[bufnr].filetype
+      local lines, hl = vim.lsp.util.convert_signature_help_to_markdown_lines(result, ft, triggers)
+      if not lines or vim.tbl_isempty(lines) then
+        _close()
+        return
+      end
+
+      local fbuf, fwin = vim.lsp.util.open_floating_preview(lines, "markdown", {
+        silent       = true,
+        border       = "rounded",
+        focusable    = false,
+        focus        = false,
+        close_events = { "InsertLeave", "BufHidden" },
+        _update_win  = (_win and vim.api.nvim_win_is_valid(_win)) and _win or nil,
+      })
+      _win = fwin
+
+      if hl then
+        vim.hl.range(fbuf, _sig_help_ns, "LspSignatureActiveParameter", { hl[1], hl[2] }, { hl[3], hl[4] })
+      end
+    end, bufnr)
+  end)
+
   vim.api.nvim_create_autocmd("CursorMovedI", {
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
       if vim.api.nvim_win_get_config(0).relative ~= "" then return end
-      local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
-      client:request("textDocument/signatureHelp", params, function(err, result, ctx)
-        if err or not result or not result.signatures or #result.signatures == 0 then return end
-        for _, sig in ipairs(result.signatures) do
-          sig.documentation = nil
-        end
-        vim.lsp.handlers["textDocument/signatureHelp"](err, result, ctx, {
-          silent    = true,
-          border    = "rounded",
-          focusable = false,
-        })
-      end, bufnr)
+      _request()
     end,
+  })
+
+  vim.api.nvim_create_autocmd({ "InsertLeave", "BufWipeout" }, {
+    group    = vim.api.nvim_create_augroup(_group .. "_sighelp_cleanup_" .. bufnr, { clear = true }),
+    buffer   = bufnr,
+    callback = _close,
   })
 end
 
