@@ -14,7 +14,7 @@ NVIM_PLENARY_DIR=/path/to/plenary.nvim make test
 
 Tests use [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)'s busted runner. If `NVIM_PLENARY_DIR` is not set, plenary is cloned into `/tmp/plenary.nvim` automatically. Tests live in `tests/` and are discovered by `PlenaryBustedDirectory`.
 
-Requires Neovim >= 0.10.
+Requires Neovim >= 0.11.
 
 ## Architecture
 

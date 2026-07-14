@@ -156,10 +156,6 @@ local _group = "keystone_lspconfig"
 -- Helpers
 -- ---------------------------------------------------------------------------
 
-local function _has_api()
-  return vim.lsp.enable ~= nil and vim.lsp.config ~= nil
-end
-
 -- Discover every server that has an `lsp/<name>.lua` config on the runtimepath.
 -- These come from nvim-lspconfig, the user's own config dir, or other plugins.
 ---@return string[]
@@ -335,8 +331,6 @@ end
 -- (resolving "all" to whatever is on the runtimepath).
 ---@param servers? string[]|"all"
 function M.enable_servers(servers)
-  if not _has_api() then return {} end
-
   local names
   if servers == nil then
     names = _resolve_servers()
@@ -354,13 +348,6 @@ end
 
 function M.enable()
   if _enabled then return end
-  if not _has_api() then
-    vim.notify(
-      "[keystone.nvim] lspconfig module requires Neovim >= 0.11 (vim.lsp.enable). Module disabled.",
-      vim.log.levels.WARN
-    )
-    return
-  end
   _enabled = true
 
   if M.config.log_level ~= nil then

@@ -9,12 +9,6 @@ local M = {}
 ---@field augroup string augroup name, also used to tear the feature down
 ---@field setup fun(config: keystone.tweaks.Config) install autocmds/options
 
--- The yank/highlight API moved from `vim.highlight` to `vim.hl` in 0.11;
--- prefer the new home and fall back so we work on 0.10 too.
-local function _hl()
-  return vim.hl or vim.highlight
-end
-
 -- Briefly flash the just-yanked region. Purely visual feedback; nothing here
 -- changes buffer contents.
 ---@type keystone.tweaks.Feature
@@ -26,7 +20,7 @@ M.highlight_on_yank = {
       group = group,
       desc = "Highlight yanked text",
       callback = function()
-        _hl().on_yank({ higroup = config.yank_hlgroup, timeout = config.yank_timeout })
+        vim.hl.on_yank({ higroup = config.yank_hlgroup, timeout = config.yank_timeout })
       end,
     })
   end,

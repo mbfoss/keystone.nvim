@@ -41,10 +41,6 @@ local _group = "keystone_tsconfig"
 -- Helpers
 -- ---------------------------------------------------------------------------
 
-local function _has_api()
-  return vim.treesitter ~= nil and vim.treesitter.start ~= nil
-end
-
 -- Resolve the treesitter language for a buffer from its filetype, honouring
 -- any registered aliases (e.g. filetype `typescriptreact` -> parser `tsx`).
 ---@param bufnr integer
@@ -104,7 +100,6 @@ end
 -- subject to config. No-op when the buffer's language has no parser installed.
 ---@param bufnr? integer defaults to the current buffer
 function M.attach(bufnr)
-  if not _has_api() then return end
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   if bufnr == 0 then bufnr = vim.api.nvim_get_current_buf() end
 
@@ -139,13 +134,6 @@ end
 
 function M.enable()
   if _enabled then return end
-  if not _has_api() then
-    vim.notify(
-      "[keystone.nvim] tsconfig requires Neovim >= 0.10 (vim.treesitter.start)",
-      vim.log.levels.WARN
-    )
-    return
-  end
   _enabled = true
 
   -- Register filetype -> parser aliases so `get_lang`/`start` resolve correctly.

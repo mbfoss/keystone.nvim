@@ -63,8 +63,6 @@ local _accept_keys = {
   cr     = vim.api.nvim_replace_termcodes("<CR>", true, false, true),       -- plain newline, no menu open
 }
 
-local _has_native_snippet = vim.fn.has("nvim-0.10") == 1
-
 local _change_tick = 0
 
 ---@class keystone.completion.State
@@ -266,7 +264,7 @@ M.confirm = function(fallback_keys, direction)
     vim.api.nvim_feedkeys(direction == -1 and _nav_keys.select_prev or _nav_keys.select_next, "n", false)
     return
   end
-  if _has_native_snippet and vim.snippet.active({ direction = direction }) then
+  if vim.snippet.active({ direction = direction }) then
     return vim.snippet.jump(direction)
   end
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(fallback_keys, true, false, true), "n", false)

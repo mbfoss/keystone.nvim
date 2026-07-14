@@ -30,10 +30,6 @@ function M.check()
   _h.start("keystone.tsconfig")
 
   -- API availability ---------------------------------------------------------
-  if not (vim.treesitter and vim.treesitter.start) then
-    _h.error("vim.treesitter.start missing; requires Neovim >= 0.10")
-    return
-  end
   _h.ok("treesitter API available")
 
   -- Module state -------------------------------------------------------------
