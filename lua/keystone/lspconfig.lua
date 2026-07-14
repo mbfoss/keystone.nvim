@@ -282,7 +282,7 @@ local function _setup_signature_help(client, bufnr)
     end, bufnr)
   end)
 
-  vim.api.nvim_create_autocmd("CursorMovedI", {
+  vim.api.nvim_create_autocmd({ "InsertEnter", "CursorMovedI" }, {
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
