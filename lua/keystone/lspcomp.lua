@@ -1,4 +1,4 @@
---- keystone.lspcompletion
+--- keystone.lspcomp
 ---
 --- A self-contained LSP completion source, the pre-0.11 equivalent of Neovim's
 --- built-in `vim.lsp.completion`. It owns `completefunc` and everything downstream
@@ -10,16 +10,16 @@
 --- `vim.lsp.completion`; this module is the legacy fallback.
 local M = {}
 
----@class keystone.lspcompletion.Config
+---@class keystone.lspcomp.Config
 ---@field enabled boolean
 ---@field auto_setup boolean set `completefunc` automatically on BufEnter (leaving an ftplugin/user slot alone)
 ---@field process_items? fun(items: table, base: string): table filter+sort hook
 ---@field snippet_insert? fun(snippet: string) snippet-expansion hook
 ---@field doc_float boolean show a documentation float for the selected item
 
----@return keystone.lspcompletion.Config
+---@return keystone.lspcomp.Config
 local function default_config()
-    ---@type keystone.lspcompletion.Config
+    ---@type keystone.lspcomp.Config
     return {
         enabled        = true,
         auto_setup     = true,
@@ -33,17 +33,17 @@ M.config = default_config()
 
 -- State ----------------------------------------------------------------------
 
-local _ns = vim.api.nvim_create_namespace("keystone_lspcompletion")
+local _ns = vim.api.nvim_create_namespace("keystone_lspcomp")
 
 --- Value written to 'completefunc' when this module owns the slot.
-local _complete_func = "v:lua.require'keystone.lspcompletion'.completefunc"
+local _complete_func = "v:lua.require'keystone.lspcomp'.completefunc"
 
 --- Keys that re-enter our completefunc once an async response is in.
 local _complete_keys = vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true)
 
 local _has_native_snippet = vim.fn.has("nvim-0.10") == 1
 
----@class keystone.lspcompletion.State
+---@class keystone.lspcomp.State
 ---@field id integer monotonic request id
 ---@field status? "sent"|"received"|"done"|"canceled"
 ---@field is_incomplete boolean
@@ -52,7 +52,7 @@ local _has_native_snippet = vim.fn.has("nvim-0.10") == 1
 ---@field cancel_fn? function
 ---@field init_base { lnum?: integer, col?: integer, length?: integer }
 
----@type keystone.lspcompletion.State
+---@type keystone.lspcomp.State
 local _state = {
     id            = 0,
     status        = nil,
@@ -68,9 +68,9 @@ local _doc_win
 
 -- Utilities ------------------------------------------------------------------
 
----@return keystone.lspcompletion.Config
+---@return keystone.lspcomp.Config
 local function get_config()
-    local override = vim.b.keystone_lspcompletion_config
+    local override = vim.b.keystone_lspcomp_config
     if override == nil then return M.config end
     return vim.tbl_deep_extend("force", M.config, override)
 end
@@ -594,9 +594,9 @@ local function setup_hl()
     vim.api.nvim_set_hl(0, "KeystoneCompletionDeprecated", { default = true, link = "DiagnosticDeprecated" })
 end
 
----@param config keystone.lspcompletion.Config
+---@param config keystone.lspcomp.Config
 local function setup_autocmds(config)
-    local gr = vim.api.nvim_create_augroup("keystone_lspcompletion", { clear = true })
+    local gr = vim.api.nvim_create_augroup("keystone_lspcomp", { clear = true })
     ---@param event string|string[]
     ---@param pattern string
     ---@param cb function
@@ -730,7 +730,7 @@ M.stop = function()
     stop()
 end
 
----@param opts keystone.lspcompletion.Config?
+---@param opts keystone.lspcomp.Config?
 M.setup = function(opts)
     M.config = vim.tbl_deep_extend("force", default_config(), opts or {})
     setup_hl()
