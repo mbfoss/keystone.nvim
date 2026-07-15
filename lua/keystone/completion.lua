@@ -27,7 +27,7 @@ local function default_config()
     key            = "<C-Space>",
     tab_completion = true,
     cr_confirm     = true,
-    source_order   = { "omnifunc", "completefunc" },
+    source_order   = { "completefunc", "omnifunc" },
   }
 end
 
