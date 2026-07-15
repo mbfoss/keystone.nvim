@@ -967,14 +967,6 @@ function Picker:run_fetch()
 	local query_text   = self.query_text
 	self.current_query = query_text
 
-	if self.async_fetch_cancel then
-		self.async_fetch_cancel()
-		self.async_fetch_cancel = nil
-	end
-
-	self:stop_spinner()
-	self:request_clear_preview()
-
 	local fetch_opts = {
 		list_width  = math.max(1, self.layout.list_width - 2),
 		list_height = math.max(1, self.layout.list_height - 2),
@@ -991,11 +983,22 @@ function Picker:run_fetch()
 		flags       = {}
 	end
 
+	-- Parse before touching the in-flight fetch or the preview: an edit that
+	-- leaves the parsed query unchanged (a trailing space, doubled separators)
+	-- must be a no-op, not a cancel-and-clear of results that still apply.
 	if clean_query == self._last_clean_query and _flags_equal(flags, self._last_flags or {}) then
 		return
 	end
-	self._last_clean_query   = clean_query
-	self._last_flags         = flags
+	self._last_clean_query = clean_query
+	self._last_flags       = flags
+
+	if self.async_fetch_cancel then
+		self.async_fetch_cancel()
+		self.async_fetch_cancel = nil
+	end
+
+	self:stop_spinner()
+	self:request_clear_preview()
 
 	self.async_fetch_context = self.async_fetch_context + 1
 	local context            = self.async_fetch_context
