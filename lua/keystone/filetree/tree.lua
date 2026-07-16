@@ -64,7 +64,7 @@ local function _open()
     _setlocal(win, "winfixbuf", true)
     _setlocal(win, "winfixheight", true)
 
-    _tree:reveal(filename, true, true)
+    _tree:reveal(filename, true)
 end
 
 function M.toggle()

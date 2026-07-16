@@ -15,7 +15,6 @@ local icons          = require("keystone.icons")
 ---@field is_link boolean?
 ---@field icon string
 ---@field icon_hl string
----@field is_current boolean?
 ---@field error_flag boolean?
 ---@field error_icon string?
 ---@field children_loading boolean?
@@ -95,7 +94,7 @@ local function _file_formatter(id, data, selected)
     if selected then
         table.insert(virt_chunks, { "●", "Special" })
     end
-    local name_hl = selected and "Visual" or (data.is_current and "Type" or nil)
+    local name_hl = selected and "Visual" or nil
     local chunks = {
         { data.icon, data.icon_hl },
         { " " },
@@ -196,7 +195,7 @@ function FileTree:_on_buffer_created()
             local path = vim.api.nvim_buf_get_name(buf)
             if path ~= "" then
                 vim.schedule(function()
-                    self:_reveal(path, track_collapse_others, true)
+                    self:_reveal(path, track_collapse_others)
                 end)
             end
         end
@@ -719,16 +718,14 @@ end
 
 ---@param path string
 ---@param collapse_others boolean?
----@param set_current boolean?
-function FileTree:reveal(path, collapse_others, set_current)
-    self:_reveal(path, collapse_others, set_current)
+function FileTree:reveal(path, collapse_others)
+    self:_reveal(path, collapse_others)
 end
 
 ---@private
 ---@param path string
 ---@param collapse_others boolean?
----@param set_current boolean?
-function FileTree:_reveal(path, collapse_others, set_current)
+function FileTree:_reveal(path, collapse_others)
     local root = self._root
     if not root or not path or path == "" then return end
 
@@ -745,21 +742,11 @@ function FileTree:_reveal(path, collapse_others, set_current)
             end
         end
     end
-    if self._last_revealed_id then
-        local old = self._treebuf:get_item(self._last_revealed_id)
-        if old then
-            old.data.is_current = false
-            self._treebuf:refresh_item(old.id)
-        end
-        self._last_revealed_id = nil
-    end
-
     local parts = rel ~= "" and vim.split(rel, "/", { plain = true }) or {}
     self._pending_reveal = {
         parts = parts,
         idx = 1,
         current = root,
-        set_current = set_current or false,
     }
 
     self:_reveal_step()
@@ -775,15 +762,6 @@ function FileTree:_reveal_step()
 
         if idx > #state.parts then
             self._treebuf:set_cursor_by_id(parent)
-
-            if state.set_current then
-                local item = self._treebuf:get_item(parent)
-                if item then
-                    item.data.is_current = true
-                    self._treebuf:refresh_item(parent)
-                    self._last_revealed_id = parent
-                end
-            end
             self._pending_reveal = nil
             return
         end
@@ -820,7 +798,7 @@ function FileTree:_reveal_prev_buffer()
     if not _is_regular_buffer(buf) then return end
     local path = vim.api.nvim_buf_get_name(buf)
     if path == "" then return end
-    self:_reveal(path, true, true)
+    self:_reveal(path, true)
 end
 
 ---@param collapse_others boolean?
@@ -829,7 +807,7 @@ function FileTree:reveal_current_file(collapse_others)
     if _is_regular_buffer(buf) then
         local path = vim.api.nvim_buf_get_name(buf)
         if path ~= "" then
-            self:_reveal(path, collapse_others or false, true)
+            self:_reveal(path, collapse_others or false)
         end
     end
 end
