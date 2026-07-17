@@ -95,19 +95,19 @@ describe("queryflags value flags", function()
         assert.are.equal("", r.query)
     end)
 
-    it("keeps an unterminated value quote as a literal char", function()
+    it("reports an error on an unterminated value quote", function()
         local r = qf.parse(schema, 'path:"foo ba')
-        -- the key is unquoted so it is still a value flag; the unterminated
-        -- quote survives as a literal char in the value (mid-typing).
-        assert.are.equal('"foo ba', r.flags.path)
+        -- an unclosed quote is a malformed query: report it instead of guessing.
+        assert.is_truthy(r.error)
+        assert.are.same({}, r.flags)
         assert.are.equal("", r.query)
     end)
 
-    it("keeps a fully unterminated quote out of the flags", function()
+    it("reports an error on a fully unterminated quote", function()
         local r = qf.parse(schema, '"foo ba')
-        -- a quote opening the token quotes the whole thing: query text.
+        assert.is_truthy(r.error)
         assert.are.same({}, r.flags)
-        assert.are.equal('"foo ba', r.query)
+        assert.are.equal("", r.query)
     end)
 
     it("collects quoted values for multi flags", function()

@@ -17,6 +17,7 @@ local M = {}
 ---@class keystone.queryflags.ParseResult
 ---@field query string  -- the literal query (all non-flag tokens, joined by space)
 ---@field flags table   -- {[name] = true | string | string[]}
+---@field error string? -- set when the query is malformed (e.g. an unclosed quote)
 
 ---@class keystone.queryflags.Completions
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
@@ -187,6 +188,16 @@ function M.parse(schema, raw)
     local flags  = {}
     local tokens = _tokenize(raw)
     local parts  = {}
+
+    for _, token in ipairs(tokens) do
+        if token.quotes then
+            for _, q in ipairs(token.quotes) do
+                if not q.close then
+                    return { query = "", flags = {}, error = "Unclosed quote" }
+                end
+            end
+        end
+    end
 
     for _, token in ipairs(tokens) do
         local kind, key, value = _classify(defs, token)

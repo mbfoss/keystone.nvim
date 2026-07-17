@@ -963,6 +963,36 @@ function Picker:set_items(items)
 	vim.wo[self.lwin].cursorline = #self.list_items > 0
 end
 
+---Display a single-line parse error in the results list, replacing any items.
+---@param msg string
+function Picker:show_query_error(msg)
+	if self.async_fetch_cancel then
+		self.async_fetch_cancel()
+		self.async_fetch_cancel = nil
+	end
+	self:stop_spinner()
+	self:request_clear_preview()
+
+	self.async_fetch_context = self.async_fetch_context + 1
+	self._last_clean_query   = nil
+	self._last_flags         = nil
+
+	self.list_items = {}
+
+	vim.bo[self.lbuf].modifiable = true
+	vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, { "  " .. msg })
+	vim.bo[self.lbuf].modifiable = false
+	vim.wo[self.lwin].cursorline = false
+
+	vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
+	vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, 0, 0, {
+		end_col  = #("  " .. msg),
+		hl_group = "NonText",
+	})
+	self:render_cursor()
+	self:render_position()
+end
+
 function Picker:run_fetch()
 	local query_text   = self.query_text
 	self.current_query = query_text
@@ -975,6 +1005,10 @@ function Picker:run_fetch()
 	local clean_query, flags
 	if #self.opts.flags > 0 then
 		local parsed      = queryflags.parse(self.opts.flags, query_text)
+		if parsed.error then
+			self:show_query_error(parsed.error)
+			return
+		end
 		clean_query       = parsed.query
 		flags             = parsed.flags
 		fetch_opts.parsed = parsed
