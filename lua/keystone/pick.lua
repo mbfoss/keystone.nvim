@@ -28,11 +28,18 @@ end
 ---@type keystone.pick.Config
 M.config = _get_default_config()
 
+---The most recent picker invocation, replayed by M.repeat_last(). Holds the
+---resolved spec and its setup data so repeat reopens without re-running setup,
+---plus the final prompt text so the same query is restored.
+---@type {spec:keystone.PickerSpec, data:table?, query:string}?
+local _last_pick = nil
+
 ---@param spec keystone.PickerSpec
 ---@param data table?
 ---@param initial_query string?
 local function _do_open(spec, data, initial_query)
     local picker = require("keystone.pick.base.picker")
+    _last_pick = { spec = spec, data = data, query = initial_query or "" }
     picker.open({
         prompt             = spec.prompt,
         flags              = spec.flags,
@@ -48,7 +55,22 @@ local function _do_open(spec, data, initial_query)
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,
+        on_close           = function(query)
+            if _last_pick and _last_pick.spec == spec then
+                _last_pick.query = query
+            end
+        end,
     }, spec.on_confirm or function() end)
+end
+
+--- Reopen the most recent picker with its last query. Reuses the resolved spec
+--- and setup data, so setup is not run again.
+function M.repeat_last()
+    if not _last_pick then
+        vim.notify("No previous picker session", vim.log.levels.INFO)
+        return
+    end
+    _do_open(_last_pick.spec, _last_pick.data, _last_pick.query)
 end
 
 ---@param spec keystone.PickerSpec?
@@ -67,7 +89,6 @@ end
 ---@param picker_type string?
 ---@param initial_query string?
 function M.pick(picker_type, initial_query)
-    local picker      = require("keystone.pick.base.picker")
     local registry    = require("keystone.pick.registry")
     local pickertools = require("keystone.pick.base.pickertools")
     if not picker_type or picker_type == "" then
@@ -81,7 +102,7 @@ function M.pick(picker_type, initial_query)
     end
 
     if picker_type == "repeat_last" then
-        picker.repeat_last()
+        M.repeat_last()
         return
     end
 

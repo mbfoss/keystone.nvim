@@ -75,6 +75,7 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 when enable_list_sep, else 4.
 ---@field enable_list_sep boolean?
 ---@field initial_query  string?
+---@field on_close fun(query:string)? Called when the picker closes, with the final raw prompt text.
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -216,7 +217,6 @@ local function _sort_by_score(items)
 	return with_score
 end
 
-local _last_session  = nil
 local _active_picker = nil
 
 ---@param a table
@@ -1172,15 +1172,9 @@ function Picker:close(selected_data)
 	if self.async_fetch_cancel then self.async_fetch_cancel() end
 	if self.async_preview_cancel then self.async_preview_cancel() end
 
-	local cursor      = self:get_cursor()
-	local cursor_item = cursor and self.list_items[cursor]
-	_last_session     = {
-		cursor_index = cursor_item and cursor or nil,
-		cursor_text  = cursor_item and _item_label(cursor_item) or nil,
-		query        = self.query_text,
-		opts         = self.opts,
-		callback     = self.callback,
-	}
+	if self.opts.on_close then
+		self.opts.on_close(self.query_text)
+	end
 
 	self:release_external_preview_buf()
 
@@ -1343,36 +1337,6 @@ function M.open(opts, callback)
 		_active_picker:close()
 	end
 	Picker:new(opts, callback)
-end
-
-function M.repeat_last()
-	if not _last_session then
-		vim.notify("No previous picker session", vim.log.levels.INFO)
-		return
-	end
-	local session    = _last_session
-	local first_call = true
-
-	local opts       = vim.tbl_extend("force", session.opts, {
-		initial_query = session.query,
-		finder        = function(query, flags, fetch_opts, callback)
-			if first_call then
-				first_call = false
-				return session.opts.finder(query, flags, fetch_opts, function(items)
-					if items and session.cursor_index then
-						local target = _sort_by_score(items)[session.cursor_index]
-						if target and _item_label(target) == session.cursor_text then
-							target.initial = true
-						end
-					end
-					callback(items)
-				end)
-			end
-			return session.opts.finder(query, flags, fetch_opts, callback)
-		end,
-	})
-
-	Picker:new(opts, session.callback)
 end
 
 return M
