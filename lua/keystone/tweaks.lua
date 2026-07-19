@@ -14,7 +14,6 @@ local _features = require("keystone.tweaks.features")
 ---@field restore_cursor boolean? jump to the last cursor position when reopening a file
 ---@field auto_create_dir boolean? create missing parent directories when saving
 ---@field auto_reload boolean? reload files changed outside Neovim (`autoread` + `checktime`)
----@field equalize_splits boolean? re-balance splits on `VimResized`
 ---@field quick_close boolean? close utility buffers (help, qf, ...) with `q`
 ---@field quick_close_filetypes string[]? filetypes affected by `quick_close`
 ---@field disable_auto_comment boolean? stop auto-continuing comment leaders on new lines
@@ -31,7 +30,6 @@ local function _get_default_config()
     restore_cursor       = true,
     auto_create_dir      = true,
     auto_reload          = true,
-    equalize_splits      = true,
     quick_close          = false,
     quick_close_filetypes = {
       "help", "qf", "man", "lspinfo", "checkhealth",
@@ -56,7 +54,6 @@ local _feature_names = {
   "restore_cursor",
   "auto_create_dir",
   "auto_reload",
-  "equalize_splits",
   "quick_close",
   "disable_auto_comment",
   "trim_whitespace",

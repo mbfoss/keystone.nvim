@@ -103,25 +103,6 @@ M.auto_reload = {
   end,
 }
 
--- Re-balance split sizes when the terminal/Neovim window is resized, so panes
--- don't end up lopsided after a font change or terminal resize.
----@type keystone.tweaks.Feature
-M.equalize_splits = {
-  augroup = "keystone_tweaks_equalize_splits",
-  setup = function()
-    local group = vim.api.nvim_create_augroup("keystone_tweaks_equalize_splits", { clear = true })
-    vim.api.nvim_create_autocmd("VimResized", {
-      group = group,
-      desc = "Equalize splits on resize",
-      callback = function()
-        local tab = vim.api.nvim_get_current_tabpage()
-        vim.cmd("tabdo wincmd =")
-        pcall(vim.api.nvim_set_current_tabpage, tab)
-      end,
-    })
-  end,
-}
-
 -- Let `q` close throwaway/utility buffers (help, quickfix, man, ...) the way
 -- you'd expect, instead of having to `:q`.
 ---@type keystone.tweaks.Feature
