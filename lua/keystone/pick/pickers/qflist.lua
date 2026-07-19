@@ -62,11 +62,9 @@ local function read_qf_item(item, rendered_text)
     }
 end
 
--- Lists can customize their displayed label via the 'quickfixtextfunc'
--- list-property (see :h quickfix-window-function); the native quickfix
--- window renders through it, but `item.text` from get{qf,loc}list() stays
--- the raw, unrendered field. Render through it here too so pickers show the
--- same label the native window would (e.g. gittools' rename/status lines).
+-- Lists can customize their displayed label via the 'quickfixtextfunc' list-property
+-- (:h quickfix-window-function); the native window renders through it, but `item.text`
+-- from get{qf,loc}list() is raw. Render through it here too so pickers match the native label.
 ---@param list_type keystone.pick.qflist_type
 ---@param winid integer
 ---@param list table[]

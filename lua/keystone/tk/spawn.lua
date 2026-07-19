@@ -36,11 +36,9 @@ local function spawn(cmd, opts, on_exit)
         end
     end
 
-    -- vim.uv.spawn's `env` REPLACES the child environment wholesale (it does not
-    -- merge with the parent) and must be an array of "NAME=VALUE" strings, not a
-    -- dict. So the moment we need to inject anything (a custom env or PWD), we
-    -- seed from the full parent environment first, or the child loses PATH and
-    -- can't even find its executable.
+    -- vim.uv.spawn's `env` REPLACES the child environment wholesale (no merge) and must
+    -- be an array of "NAME=VALUE" strings. So to inject anything (custom env or PWD) we
+    -- seed from the full parent environment first, or the child loses PATH.
     local env = nil
     if (opts.env and next(opts.env)) or (opts.cwd and vim.fn.has("win32") == 0) then
         local merged = vim.fn.environ() ---@type table<string, string>

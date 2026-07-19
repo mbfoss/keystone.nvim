@@ -64,12 +64,7 @@ function M.get_vertical_layout(opts)
     local row = math.floor((lines - total_height) / 2)
     local col = math.floor((cols - width) / 2)
 
-    -- layout:
-    -- prompt
-    -- gap
-    -- list
-    -- gap
-    -- preview (optional)
+    -- layout (top to bottom): prompt, gap, list, gap, preview (optional)
 
     local prompt_height = 1
     local gap = 2

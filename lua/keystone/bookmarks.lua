@@ -11,10 +11,9 @@ local M    = {}
 ---@field lnum integer   -- 1-based line number
 ---@field label string?  -- optional user-facing label
 
--- Startup-time state (store, extmark group, autocmds) lives in
--- `keystone.bookmarks.core`. The interactive commands live in
--- `keystone.bookmarks.actions`, which pulls in the heavy UI modules and is only
--- required the first time a command runs -- keeping `setup` cheap.
+-- Startup-time state (store, extmark group, autocmds) lives in `keystone.bookmarks.core`.
+-- Interactive commands live in `keystone.bookmarks.actions`, which pulls in the heavy UI
+-- modules and is required only the first time a command runs -- keeping `setup` cheap.
 local core = require("keystone.bookmarks.core")
 
 ---@return keystone.bookmarks.actions
@@ -113,10 +112,9 @@ function M.setup(opts)
 
     core.init(config)
 
-    -- Distinct from the "keystone_bookmarks" augroup that the extmark group
-    -- registers its Buf* handlers under (see extmarks.define_group): reusing that
-    -- name with clear = true would wipe the BufReadPost handler that applies signs
-    -- to buffers loaded after setup, so startup files would show no signs.
+    -- Distinct from the "keystone_bookmarks" augroup the extmark group registers its
+    -- Buf* handlers under (see extmarks.define_group): reusing that name with clear=true
+    -- would wipe the BufReadPost handler that applies signs to later-loaded buffers.
     local augroup = vim.api.nvim_create_augroup("keystone_bookmarks_setup", { clear = true })
     -- During a session the extmark group is the single source of truth and disk is
     -- left untouched; the one write to the bookmarks file happens here, on exit.

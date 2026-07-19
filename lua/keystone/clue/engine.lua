@@ -228,11 +228,9 @@ local function _loop(mode, start, node)
             by_key[c.key] = c
         end
 
-        -- Show the popup after `delay` ms (immediately if already visible). The
-        -- timer fires while we block in getcharstr because that pumps the loop.
-        -- Skip it entirely while a macro is replaying (the resolve loop still runs,
-        -- reading from the macro typeahead, but no popup flickers mid-replay) and
-        -- in cmdline mode, where opening a float over the command line is unsafe.
+        -- Show the popup after `delay` ms (immediately if already visible); the timer
+        -- fires while we block in getcharstr, which pumps the loop. Skipped while a macro
+        -- replays (no mid-replay flicker) and in cmdline mode (float over cmdline unsafe).
         local current = node
         local timer
         if vim.fn.reg_executing() == "" and mode ~= "c" then

@@ -100,7 +100,6 @@ local function pop_extmark(id, delete_text)
 end
 
 -- Item processing ------------------------------------------------------------
---
 -- Pure `textDocument/completion` item handling: turning results into
 -- `complete()`-shaped candidate lists. Nothing below touches editor state.
 

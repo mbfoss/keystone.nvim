@@ -61,9 +61,8 @@ local function _parser_available(lang)
 end
 
 -- True when `lang` has a query of the given kind on the runtimepath. Starting
--- highlighting without a `highlights` query attaches a highlighter that colours
--- nothing *and* disables regex syntax -- strictly worse than leaving regex on
--- (this is the usual "parser installed but no queries" trap). So we gate on it.
+-- highlighting without a `highlights` query colours nothing *and* disables regex
+-- syntax -- worse than leaving regex on (the "parser but no queries" trap). So we gate.
 ---@param lang string
 ---@param kind string e.g. "highlights" | "folds"
 ---@return boolean

@@ -2,9 +2,8 @@
 local M           = {}
 
 -- Interactive bookmark commands. This module pulls in the heavy UI modules
--- (inputwin, ui, picker, fixedwin) and is only required the first time the user
--- triggers a command, keeping startup cheap. The entry point
--- (`keystone.bookmarks`) forwards to these on demand.
+-- (inputwin, ui, picker, fixedwin) and is required only the first time a command
+-- runs, keeping startup cheap. `keystone.bookmarks` forwards to these on demand.
 
 local core        = require("keystone.bookmarks.core")
 local throttle    = require("keystone.tk.throttle")
@@ -104,9 +103,8 @@ function M.pick()
                 local loc_text = relpath .. ":" .. entry.lnum
                 local label = entry.label
                 -- Match against the location *and* the label, so a bookmark can be
-                -- found by words in its note. The location keeps its own highlight
-                -- chunks on the main line; the label gets its own on the virt line
-                -- below, with the note group as the base for unmatched text.
+                -- found by words in its note. The location's highlight chunks stay on
+                -- the main line; the label's go on the virt line below (note base).
                 local search_text = label and (loc_text .. " " .. label) or loc_text
                 local match = pickertools.match_label(search_text, query)
                 if match then
@@ -166,10 +164,9 @@ function M.open_list()
         end)
         core.list_bufnr = bufnr
 
-        -- `acwrite`, not `nofile`: it keeps the no-disk-backing scratch semantics
-        -- while still giving the buffer a name, so `:w` is a clean no-op instead
-        -- of aborting with E32. Syncing no longer depends on `:w` -- edits flow
-        -- into the extmarks automatically (see the throttled TextChanged sync).
+        -- `acwrite`, not `nofile`: keeps the no-disk-backing scratch semantics but
+        -- gives the buffer a name, so `:w` is a clean no-op instead of E32. Syncing
+        -- doesn't depend on `:w` -- edits flow to the extmarks (throttled TextChanged).
         local name = "keystone://bookmarks"
         local existing = vim.fn.bufnr(name)
         if existing ~= -1 and existing ~= bufnr then
@@ -184,9 +181,8 @@ function M.open_list()
         vim.bo[bufnr].completefunc = "v:lua.require'keystone.bookmarks.actions'.complete_path"
 
         -- Push edited lines back into the extmarks as the user edits, throttled so a
-        -- burst of keystrokes rebuilds the group at most once per window. Only syncs
-        -- (no refresh_list): re-rendering the canonical/sorted form mid-edit would
-        -- fight the cursor -- that normalisation happens on the next open_list.
+        -- burst rebuilds the group at most once per window. Only syncs (no refresh_list):
+        -- re-rendering the sorted form mid-edit would fight the cursor (done on next open).
         local auto_sync = throttle.throttle_wrap(150, function()
             if vim.api.nvim_buf_is_valid(bufnr) then
                 core.sync_from_buffer(bufnr)
@@ -206,11 +202,9 @@ function M.open_list()
             end,
         })
 
-        -- Since edits flow into the extmarks live and the buffer never needs
-        -- writing, keep it perpetually unmodified: reset 'modified' the instant it
-        -- is set. Without this, quitting with a pending edit prompts to save the
-        -- scratch buffer (E37); the reset is synchronous, so the flag is already
-        -- clear by the time `:q` runs its modified check.
+        -- Edits flow into the extmarks live and the buffer never needs writing, so keep
+        -- it perpetually unmodified: reset 'modified' the instant it's set. Otherwise
+        -- quitting with a pending edit prompts to save (E37); the reset is synchronous.
         vim.api.nvim_create_autocmd("BufModifiedSet", {
             buffer   = bufnr,
             callback = function()

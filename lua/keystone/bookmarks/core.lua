@@ -1,9 +1,8 @@
 local M        = {}
 
 -- Internal state and storage shared between the thin entry point
--- (`keystone.bookmarks`) and the lazily-loaded interactive commands
--- (`keystone.bookmarks.actions`). Only the modules needed at startup are
--- required here; the heavy UI modules live in `actions`.
+-- (`keystone.bookmarks`) and the lazily-loaded commands (`keystone.bookmarks.actions`).
+-- Only startup modules are required here; the heavy UI modules live in `actions`.
 
 local fsutil   = require("keystone.tk.fsutil")
 local extmarks = require("keystone.tk.extmarks")
@@ -34,10 +33,9 @@ M.new_id = _new_id
 -- Kept separate from the sign extmark group so it can be cleared independently.
 local _invalid_ns = vim.api.nvim_create_namespace("keystone_bookmarks_invalid")
 
--- Flag every non-blank list line that does not parse as
--- `<path>:<lnum>[ -- label]`, so a typo shows up as an inline warning instead of
--- silently dropping the bookmark on the next sync. `rows` are 0-based; the whole
--- namespace is recomputed from scratch each call.
+-- Flag every non-blank list line that does not parse as `<path>:<lnum>[ -- label]`,
+-- so a typo shows as an inline warning instead of silently dropping the bookmark on
+-- the next sync. `rows` are 0-based; the namespace is recomputed from scratch.
 ---@param bufnr integer
 ---@param rows integer[]
 local function _mark_invalid_lines(bufnr, rows)
@@ -68,20 +66,16 @@ function M.default_config()
 end
 
 ----------- STORE -----------
--- The bookmarks file is a plain text file. Each non-empty line is
+-- On-disk format, one bookmark per non-empty line (blank lines ignored):
 --
 --     <path>:<lnum>[ -- <label>]
 --
--- where <path> is home-relative (`~/...`) when under $HOME, else absolute, and an
--- optional label follows the location after a ` -- ` separator. The explicit
--- separator keeps colons/digits in the label from confusing the location parse.
--- Blank lines are ignored.
+-- <path> is home-relative (`~/...`) under $HOME else absolute; the ` -- ` separator
+-- keeps colons/digits in the label from confusing the location parse.
 --
--- The extmark group is the single source of truth in memory. The file on disk is
--- read once at startup and written only on exit (see setup's VimLeavePre). The
--- interactive list (see actions.open_list) is a scratch buffer rendered from the
--- extmarks -- never the file itself -- and writing it (`:w`) syncs the edited
--- lines back into the extmark group without touching disk.
+-- The extmark group is the in-memory source of truth. Disk is read once at startup
+-- and written only on exit (setup's VimLeavePre); the interactive list is a scratch
+-- buffer rendered from the extmarks, and `:w` syncs edits back without touching disk.
 
 ---@return string
 function M.store_filepath()
@@ -120,11 +114,9 @@ end
 ---@param line string
 ---@return keystone.bookmarks.Entry?
 function M.decode_line(line)
-    -- Split off an optional ` -- <label>` note first (on the first *whitespace-
-    -- surrounded* `--`), so colons/digits in the label can't confuse the
-    -- `<path>:<lnum>` parse. Requiring the space before `--` (not `%s*`) means a
-    -- bare `--` inside a filename, e.g. `foo--bar.lua:10`, is left in the path
-    -- rather than being mistaken for the label separator.
+    -- Split off an optional ` -- <label>` note first (on the first whitespace-
+    -- surrounded `--`) so colons/digits in the label can't confuse the `<path>:<lnum>`
+    -- parse; requiring the space means `foo--bar.lua:10` keeps the `--` in the path.
     local loc, label = line:match("^(.-)%s+%-%-%s*(.-)%s*$")
     if not loc then loc = line end
     local path, lnum = loc:match("^%s*(.-):(%d+)%s*$")
@@ -210,12 +202,8 @@ local function _live_list_bufnr()
 end
 
 -- Render the authoritative extmark snapshot into the scratch list buffer in place
--- (preserving the cursor/view) and leave it unmodified. Interactive changes call
--- this so an open list stays in step with the extmarks; the buffer is always
--- driven from the extmarks, even if it has unsaved manual edits -- the extmark
--- group wins, and the reverse path (sync_from_buffer) is what lets a saved edit of
--- the list become authoritative instead. No-op when the list buffer is not loaded;
--- disk is untouched (the file is written only on exit -- see save_to_disk).
+-- (preserving cursor/view), leaving it unmodified. The extmarks always win, even over
+-- unsaved edits; sync_from_buffer is the reverse path. No-op if the buffer isn't loaded.
 function M.refresh_list()
     local bufnr = _live_list_bufnr()
     if not bufnr then return end
@@ -240,14 +228,9 @@ function M.refresh_list()
     end
 end
 
--- Reconcile the extmark group (the signs) with the scratch list buffer's lines.
--- This is the "editing the list synchronises the signs" path: the buffer content
--- becomes authoritative. Rather than tearing the whole group down and rebuilding it,
--- only the delta is applied -- marks whose (file, line, label) still appears in the
--- buffer are left untouched, so they keep their ids and live in-buffer tracking;
--- vanished marks are removed and new lines are added. This matters because the sync
--- runs on every edit (throttled), so a full rebuild would needlessly churn every
--- mark on each keystroke. Disk is not touched -- the file is written only on exit.
+-- Reconcile the extmark group (signs) with the list buffer's lines: the buffer wins.
+-- Only the delta is applied -- unchanged (file, line, label) marks keep their ids and
+-- live tracking, so the throttled per-edit sync doesn't churn every mark. Disk untouched.
 ---@param bufnr integer
 function M.sync_from_buffer(bufnr)
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -260,10 +243,9 @@ function M.sync_from_buffer(bufnr)
         return string.format("%s\0%d\0%s", file, lnum, label or "")
     end
 
-    -- The lines the buffer wants, as a multiset keyed by location+label so that
-    -- duplicate entries are matched one-for-one against existing marks. Non-blank
-    -- lines that fail to parse are collected so they can be flagged in place
-    -- rather than silently discarded.
+    -- The lines the buffer wants, as a multiset keyed by location+label so duplicate
+    -- entries match one-for-one against existing marks. Non-blank lines that fail to
+    -- parse are collected to be flagged in place rather than silently discarded.
     local wanted = {}
     local invalid = {}
     for i, line in ipairs(lines) do

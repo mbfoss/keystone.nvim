@@ -8,13 +8,9 @@ local _uv = vim.uv or vim.loop
 -- Rolling log
 -- ---------------------------------------------------------------------------
 
--- Neovim never rotates `lsp.log`; it only warns once it passes 1 GB. When
--- `lsp_rolling_log` is enabled we cap the file ourselves: the live log is
--- copied to `lsp.log.1` (shifting older `.N` files up to `keep`), then
--- truncated in place. Truncating in place -- rather than renaming -- is
--- deliberate: Neovim caches an append-mode handle to the live file, so a
--- rename would leave it writing into the rotated copy. An O_APPEND write
--- after truncation lands at offset 0, giving a clean new file.
+-- Neovim never rotates `lsp.log` (only warns past 1 GB). With `lsp_rolling_log` we cap
+-- it: copy the live log to `lsp.log.1` (shifting older `.N` up to `keep`), then truncate
+-- in place -- not rename, since Neovim's cached O_APPEND handle would write to the old copy.
 
 ---@type keystone.lspconfig.RollingLogConfig
 local _ROLL_DEFAULTS = { max_bytes = 5 * 1024 * 1024, keep = 3 }
@@ -53,13 +49,9 @@ local function _maybe_rotate()
   end
 end
 
--- Neovim's `vim.lsp.log` opens (and writes a "[START] ... LSP logging initiated"
--- header to) the log file *before* it checks the level, so even at "OFF" the
--- file is created the moment a server logs to stderr. Wrap the loggers once so
--- nothing reaches the file while the level is "OFF". The level is read live on
--- every call, so toggling it at runtime works in both directions; every other
--- level is passed straight through unchanged. The same wrapper drives rolling:
--- every `_ROLL_CHECK_EVERY` writes it checks the size and rotates if needed.
+-- Neovim's `vim.lsp.log` creates the file (writing a "[START]" header) *before* it checks
+-- the level, so it appears even at "OFF". Wrap the loggers once so nothing reaches the file
+-- at "OFF" (level read live, toggles both ways); the wrapper also rolls every N writes.
 local _ROLL_CHECK_EVERY = 64
 local _write_count = 0
 do

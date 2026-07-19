@@ -377,10 +377,9 @@ function Picker:setup_ui()
 	self:relayout(preview_action)
 
 	assert(self.pbuf ~= nil)
-	-- Expose flag completion as a completefunc so <C-x><C-u> (or any completion
-	-- engine pointed at this buffer) can drive it. The flag schema is stashed on
-	-- the buffer once here; the completefunc computes candidates live from it, so
-	-- it needs no picker reference or module-level state.
+	-- Expose flag completion as a completefunc so <C-x><C-u> (or any completion engine
+	-- on this buffer) can drive it. The flag schema is stashed on the buffer once here;
+	-- the completefunc computes candidates live from it, needing no picker or module state.
 	vim.bo[self.pbuf].completefunc = "v:lua.require'keystone.pick.base.picker'._flag_completefunc"
 	vim.b[self.pbuf].keystone_pick_completion = { flags = self.opts.flags }
 	-- Hook into CompleteDone to restore highlights and trigger a fetch update

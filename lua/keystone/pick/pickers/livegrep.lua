@@ -334,12 +334,9 @@ local function buffer_preview(data, opts, callback)
 end
 
 --------------------------------------------------------------------------------
--- In-buffer search (single rg over stdin). Every open buffer's in-memory text is
--- concatenated into one stdin document and streamed to `rg -`, so unsaved edits
--- win over disk and thousands of open buffers cost one subprocess, not one each.
--- rg sees a continuous line counter, so match line numbers are mapped back to
--- their owning buffer via a precomputed offset table. The directory search uses
--- a second rg over the filesystem.
+-- In-buffer search (single rg over stdin): every open buffer's in-memory text is
+-- concatenated into one stdin doc streamed to `rg -` (unsaved edits win; N buffers
+-- cost one subprocess), and the continuous line counter is mapped back per buffer.
 --------------------------------------------------------------------------------
 
 --- Build the rg command for the in-buffer search. Mirrors the disk flags (case,
@@ -436,10 +433,9 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
     end
 
     ----------------------------------------------------------------------------
-    -- In-buffer search: one rg reading every open buffer's in-memory text from
-    -- stdin. Buffers are pumped one at a time with backpressure (peak extra
-    -- memory ~one buffer regardless of how many are open), and each match's
-    -- stream line is mapped back to its owning buffer.
+    -- In-buffer search: one rg reading every open buffer's in-memory text from stdin.
+    -- Buffers are pumped one at a time with backpressure (peak extra memory ~one buffer),
+    -- and each match's stream line is mapped back to its owning buffer.
     ----------------------------------------------------------------------------
     if #bufs == 0 then
         settle()
@@ -472,11 +468,9 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
             end
         end)
 
-        -- Pump one buffer per stdin write, resuming the next on the main loop
-        -- (buffer reads are banned in libuv's fast callback context). Writes are
-        -- fired ahead without blocking on each one, but once rg's stdin queue is
-        -- backed up past the high-water mark we wait for that write to drain
-        -- before feeding more, so buffered memory stays bounded.
+        -- Pump one buffer per stdin write, resuming the next on the main loop (buffer
+        -- reads are banned in libuv's fast callbacks). Writes fire ahead without blocking,
+        -- but once rg's stdin backs up past the high-water mark we drain before feeding more.
         local function pump(i)
             if cancelled or stop_buf or buf_done then return end
             if i > #bufs then

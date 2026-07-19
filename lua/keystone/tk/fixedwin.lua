@@ -105,14 +105,9 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         return math.max(min, math.floor(spec.total() * r))
     end
 
-    -- Programmatic sizing (the initial fit and the layout-change re-pins) and
-    -- the transient equalisation nvim performs while a split is being created
-    -- or removed all emit WinResized, just like a user drag. Two guards keep
-    -- those from clobbering the tracked ratio with a bogus, transient size:
-    --   * `last_applied` — the size we set ourselves; a WinResized reporting it
-    --     is our own doing and carries no new information.
-    --   * `settling`     — held while a layout change is being absorbed, so the
-    --     transient resizes it emits are ignored until the window re-settles.
+    -- Programmatic sizing and nvim's transient equalisation during split create/remove
+    -- both emit WinResized like a user drag. Two guards reject those bogus sizes:
+    -- `last_applied` (a resize reporting our own set) and `settling` (held across a layout change).
     local last_applied ---@type integer?
     local settling = false
 
@@ -128,10 +123,9 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         vim.api.nvim_set_current_win(prev_win)
     end
 
-    -- Whether re-pinning the window to its fixed size is safe: its parent frame
-    -- must be on the fixed axis (a "col" frame for height, a "row" frame for
-    -- width) AND hold at least one neighbour that can absorb the freed space. If
-    -- the window is the only one on that axis, the freed space is stranded.
+    -- Whether re-pinning to the fixed size is safe: the parent frame must be on the fixed
+    -- axis ("col" for height, "row" for width) AND hold a neighbour to absorb the freed
+    -- space. If the window is alone on that axis, the freed space would be stranded.
     ---@return boolean
     local function pinnable()
         if not win or not vim.api.nvim_win_is_valid(win) then return false end
@@ -146,10 +140,9 @@ function M.create_fixed_win(axis, ratio, on_delete, opts)
         if win and pinnable() then apply_size(size_for(state.ratio)) end
     end
 
-    -- Absorb a layout change (new/closed split) on the next tick, holding
-    -- `settling` across the re-pin and one tick past it so both the transient
-    -- resizes the change emits and the re-pin's own resize are ignored by the
-    -- WinResized handler.
+    -- Absorb a layout change (new/closed split) on the next tick, holding `settling`
+    -- across the re-pin and one tick past it so both the change's transient resizes and
+    -- the re-pin's own resize are ignored by the WinResized handler.
     local function absorb_layout_change()
         settling = true
         vim.schedule(function()

@@ -139,10 +139,9 @@ local function _apply(bufnr)
     vim.cmd("NoMatchParen")
   end
 
-  -- Syntax: either restore cheap regex highlighting for the real filetype
-  -- (clamped by synmaxcol) or leave it off entirely. Deferred so it runs after
-  -- the read settles, and `vim.filetype.match` re-resolves the real filetype
-  -- (the sentinel_ft guard in `_detect` lets it fall through).
+  -- Syntax: either restore cheap regex highlighting for the real filetype (clamped by
+  -- synmaxcol) or leave it off. Deferred so it runs after the read settles, when
+  -- `vim.filetype.match` re-resolves the real ft (the sentinel_ft guard lets it fall through).
   vim.schedule(function()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
     if cfg.keep_syntax then
@@ -190,10 +189,9 @@ end
 function M.enable()
   _enabled = true
 
-  -- Global, registered once. `[".*"]` is evaluated for every file; the hook
-  -- returns nil for non-large files so normal detection is unaffected. A high
-  -- priority ensures it runs before extension/pattern matches that would
-  -- otherwise short-circuit detection for known types.
+  -- Global, registered once. `[".*"]` runs for every file; the hook returns nil for
+  -- non-large files so normal detection is unaffected. A high priority ensures it runs
+  -- before extension/pattern matches that would otherwise short-circuit known types.
   vim.filetype.add({
     pattern = {
       [".*"] = { _detect, { priority = 200 } },

@@ -261,10 +261,9 @@ function M.spec()
                 if flags.user and cmd.is_builtin then goto continue end
 
                 local info = cmd.info
-                -- `definition` is the description for Lua callbacks, the body
-                -- for `:command`-defined commands, and the help one-liner for
-                -- built-ins. Matched against together with the name so the
-                -- query can hit either.
+                -- `definition` is the description for Lua callbacks, the body for
+                -- `:command`-defined commands, and the help one-liner for built-ins.
+                -- Matched together with the name so the query can hit either.
                 local has_desc = info.definition and info.definition ~= ""
                 local search_text = has_desc and (info.name .. "  " .. info.definition) or info.name
                 local match = pickertools.match_label(search_text, query)

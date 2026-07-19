@@ -44,7 +44,6 @@ function M.highlight_chunks(text, positions)
     return _build_highlight_chunks(text, positions or {})
 end
 
--- ── Matcher (case-insensitive) ───────────────────────────────────────────────
 -- match_label only knows how to *find* `query` in `text`; it never reasons about
 -- case. Case sensitivity is layered on top separately by the gate below.
 
@@ -66,7 +65,6 @@ function M.match_label(text, query)
     return { score = result[3][1], chunks = _build_highlight_chunks(text, positions) }
 end
 
--- ── Case gate ────────────────────────────────────────────────────────────────
 -- The case concept, standalone: given the same text/query as match_label, does a
 -- *case-exact* subsequence exist, and where? Returns the 1-based char positions
 -- of that match (for highlighting) or nil.
@@ -92,13 +90,9 @@ function M.case_subseq(text, query)
     return positions
 end
 
--- Match a glob `[...]` character class against a single character.
---
--- `j` is the 1-indexed position of the first char *inside* the class (i.e. just
--- after the opening `[`). Supports `!`/`^` negation, `a-z` ranges, `\` escapes
--- and a literal leading `]`. Returns `matched, next_index` where `next_index`
--- points just past the closing `]`, or `nil` when the class is unterminated (in
--- which case the caller should treat `[` as a literal character).
+-- Match a glob `[...]` class against one char. `j` is the 1-indexed position
+-- just inside the `[`. Supports `!`/`^` negation, `a-z` ranges, `\` escapes, a
+-- literal leading `]`. Returns `matched, next_index` (past `]`), `nil` if unterminated.
 ---@param pat string
 ---@param j integer
 ---@param ch string
@@ -140,12 +134,9 @@ local function _class_match(pat, j, ch)
     return nil -- unterminated `[`
 end
 
--- Match a single glob segment (no `/`) against a single path component.
---
--- `*` matches any run of characters, `?` any single character, `[...]` a class,
--- `\` escapes the next character; everything else is literal. Both indices are
--- 1-indexed. Path components never contain `/`, so neither `*` nor `?` can cross
--- a separator here — that is enforced by `_match_components` splitting on `/`.
+-- Match one glob segment (no `/`) against one path component: `*` any run, `?`
+-- any single char, `[...]` a class, `\` escapes; else literal. Indices 1-indexed.
+-- `*`/`?` can't cross `/` (enforced by `_match_components` splitting on `/`).
 ---@param pat string
 ---@param pi integer
 ---@param str string
@@ -188,10 +179,9 @@ local function _seg_match(pat, pi, str, ti)
     return ti > slen
 end
 
--- Match a list of glob segments against a list of path components, honouring
--- `**` (globstar): a leading or interior `**` matches zero or more components,
--- while a trailing `**` matches one or more (everything *inside* a directory,
--- per gitignore's `abc/**`).
+-- Match glob segments against path components, honouring `**` (globstar): a
+-- leading or interior `**` matches zero or more components, a trailing `**` one
+-- or more (everything inside a directory, per gitignore's `abc/**`).
 ---@param gsegs string[]
 ---@param gi integer
 ---@param psegs string[]

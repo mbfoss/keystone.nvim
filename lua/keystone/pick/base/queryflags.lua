@@ -136,13 +136,9 @@ local function _tokenize(str)
     return tokens
 end
 
--- Classify a single token against the flag schema.
---
--- A value flag is a "key:value" token whose key is unquoted and matches a value
--- def; the value may be quoted to contain spaces. A boolean flag is an
--- "is:flagname" token whose flagname matches a boolean def — there is no
--- standalone form. Everything else is query text. Quoting the key part forces
--- a token to be query text even if it looks like a flag.
+-- Classify a single token against the flag schema. A value flag is "key:value" (unquoted
+-- key matching a value def; value may be quoted); a boolean flag is "is:flagname" matching
+-- a boolean def. Else query text -- quoting the key forces query text even if flag-looking.
 ---@param defs  table<string, keystone.queryflags.FlagDef>
 ---@param token keystone.queryflags.Token
 ---@return "boolean"|"value"|nil kind, string? key, string? value
@@ -243,10 +239,9 @@ function M.highlight(schema, raw)
             table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
         end
 
-        -- Quote chars are highlighted wherever they appear: around a value
-        -- flag's value (e.g. path:"foo bar") and in plain query text where a
-        -- quote escapes a flag-looking token into literal text (e.g. "is:fixed").
-        -- Inserted last so they win over the value's String/Keyword highlight.
+        -- Quote chars are highlighted wherever they appear: around a value flag's value
+        -- (path:"foo bar") and in query text where a quote escapes a flag-looking token
+        -- ("is:fixed"). Inserted last so they win over the value's String/Keyword highlight.
         if token.quotes then
             for _, q in ipairs(token.quotes) do
                 if q.close then
