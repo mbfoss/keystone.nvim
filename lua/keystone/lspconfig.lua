@@ -297,7 +297,7 @@ local function _setup_signature_help(client, bufnr)
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
-      _insert_gen = math.abs(_insert_gen) + 1
+      _insert_gen = _insert_gen + 1
       if vim.api.nvim_win_get_config(0).relative ~= "" then return end
       _request()
     end,
@@ -307,7 +307,7 @@ local function _setup_signature_help(client, bufnr)
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_cleanup_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
-      _insert_gen = - math.abs(_insert_gen)
+      _insert_gen = _insert_gen + 1
       _close()
     end,
   })
