@@ -225,6 +225,7 @@ local _sig_help_ns = vim.api.nvim_create_namespace("keystone_signature_help")
 ---@param bufnr integer
 local function _setup_signature_help(client, bufnr)
   local _request_id = 0
+  local _insert_gen = 0
   local _win --- @type integer?
   local _buf --- @type integer?
 
@@ -240,9 +241,14 @@ local function _setup_signature_help(client, bufnr)
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
     _request_id = _request_id + 1
     local request_id = _request_id
+    local insert_gen = _insert_gen
     local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
     client:request("textDocument/signatureHelp", params, function(err, result)
       if request_id ~= _request_id then return end
+      if insert_gen ~= _insert_gen then
+        _close()
+        return
+      end
       if err or not result or not result.signatures or #result.signatures == 0 then
         _close()
         return
@@ -291,6 +297,7 @@ local function _setup_signature_help(client, bufnr)
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
+      _insert_gen = math.abs(_insert_gen) + 1
       if vim.api.nvim_win_get_config(0).relative ~= "" then return end
       _request()
     end,
@@ -299,7 +306,10 @@ local function _setup_signature_help(client, bufnr)
   vim.api.nvim_create_autocmd({ "InsertLeave", "BufWipeout" }, {
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_cleanup_" .. bufnr, { clear = true }),
     buffer   = bufnr,
-    callback = _close,
+    callback = function()
+      _insert_gen = - math.abs(_insert_gen)
+      _close()
+    end,
   })
 end
 
