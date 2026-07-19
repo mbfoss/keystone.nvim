@@ -155,6 +155,56 @@ describe("match_glob negation (!)", function()
     end)
 end)
 
+describe("match_globs (rg --glob lists)", function()
+    local match_globs = pickertools.match_globs
+
+    it("keeps everything for an empty list", function()
+        assert.is_true(match_globs({}, "foo.txt"))
+    end)
+
+    it("treats a list of positives as a whitelist", function()
+        assert.is_true(match_globs({ "*.lua", "*.txt" }, "a/foo.txt"))
+        assert.is_false(match_globs({ "*.lua", "*.txt" }, "a/foo.md"))
+    end)
+
+    it("treats a list of negations as a blacklist", function()
+        assert.is_false(match_globs({ "!*.lua" }, "a/foo.lua"))
+        assert.is_true(match_globs({ "!*.lua" }, "a/foo.md"))
+    end)
+
+    it("lets the last applicable glob win", function()
+        local globs = { "*.lua", "!*_spec.lua" }
+        assert.is_true(match_globs(globs, "lua/foo.lua"))
+        assert.is_false(match_globs(globs, "tests/foo_spec.lua"))
+        assert.is_false(match_globs(globs, "README.md"))
+    end)
+
+    it("is order-sensitive, like rg", function()
+        local globs = { "!*_spec.lua", "*.lua" }
+        assert.is_true(match_globs(globs, "tests/foo_spec.lua"))
+        assert.is_true(match_globs(globs, "lua/foo.lua"))
+    end)
+
+    it("re-includes after excluding a directory", function()
+        local globs = { "!vendor/**", "vendor/keep/**" }
+        assert.is_false(match_globs(globs, "vendor/a/b.lua"))
+        assert.is_true(match_globs(globs, "vendor/keep/b.lua"))
+        -- the positive glob makes the whole list a whitelist
+        assert.is_false(match_globs(globs, "src/a.lua"))
+    end)
+
+    it("ignores empty patterns when deciding the default", function()
+        assert.is_true(match_globs({ "" }, "foo.txt"))
+        assert.is_true(match_globs({ "!" }, "foo.txt"))
+    end)
+
+    it("honours nocase", function()
+        assert.is_true(match_globs({ "*.LUA" }, "foo.lua", true))
+        assert.is_false(match_globs({ "*.LUA" }, "foo.lua"))
+        assert.is_false(match_globs({ "*.lua", "!*_SPEC.lua" }, "foo_spec.lua", true))
+    end)
+end)
+
 describe("match_glob edge cases", function()
     it("returns false for an empty pattern", function()
         assert.is_false(match("", "foo.txt"))

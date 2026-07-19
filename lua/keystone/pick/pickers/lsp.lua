@@ -104,13 +104,7 @@ function M.references_spec()
             for _, ref in ipairs(data.lsp_items) do
                 local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
                 local in_globs     = flags["filter"] or {}
-                if #in_globs > 0 then
-                    local matched = false
-                    for _, g in ipairs(in_globs) do
-                        if pickertools.match_glob(g, display_path, true) then matched = true; break end
-                    end
-                    if not matched then goto continue end
-                end
+                if not pickertools.match_globs(in_globs, display_path, true) then goto continue end
 
                 local text  = ref.text and vim.fn.trim(ref.text) or ""
                 local match = pickertools.match_label(text, query)

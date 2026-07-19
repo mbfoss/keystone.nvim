@@ -205,6 +205,29 @@ local function _match_components(gsegs, gi, psegs, pj)
     return pj > #psegs
 end
 
+-- Split a glob into its polarity and its path segments. Returns `nil` when the
+-- pattern carries no glob at all (`""`, `"!"`), which selects nothing.
+---@param pattern string
+---@return string[]? gsegs
+---@return boolean negated
+local function _parse_glob(pattern)
+    -- only the first `!` is special, mirroring gitignore/rg
+    local negated = pattern:sub(1, 1) == "!"
+    if negated then pattern = pattern:sub(2) end
+
+    local trimmed = pattern:gsub("/+$", "") -- a trailing `/` only marks directories
+    if trimmed == "" then return nil, negated end
+
+    local pat
+    if trimmed:find("/", 1, true) then
+        pat = trimmed:gsub("^/+", "") -- a leading `/` just anchors to the root
+    else
+        pat = "**/" .. trimmed        -- no separator → match the basename anywhere
+    end
+
+    return vim.split(pat, "/", { plain = true }), negated
+end
+
 --- Match a path against a ripgrep/gitignore-style glob.
 ---
 --- Semantics mirror ripgrep `--glob` (case-sensitive; pass `nocase` for the
@@ -228,25 +251,45 @@ function M.match_glob(pattern, relpath, nocase)
         relpath = relpath:lower()
     end
 
-    -- only the first `!` is special, mirroring gitignore/rg
-    local negated = pattern:sub(1, 1) == "!"
-    if negated then pattern = pattern:sub(2) end
+    local gsegs, negated = _parse_glob(pattern)
+    if not gsegs then return false end
 
-    local trimmed = pattern:gsub("/+$", "") -- a trailing `/` only marks directories
-    if trimmed == "" then return false end  -- a bare `!` selects nothing
-
-    local pat
-    if trimmed:find("/", 1, true) then
-        pat = trimmed:gsub("^/+", "") -- a leading `/` just anchors to the root
-    else
-        pat = "**/" .. trimmed        -- no separator → match the basename anywhere
-    end
-
-    local gsegs = vim.split(pat, "/", { plain = true })
     local psegs = vim.split(relpath, "/", { plain = true })
     local matched = _match_components(gsegs, 1, psegs, 1)
     if negated then return not matched end
     return matched
+end
+
+--- Match a path against a *list* of globs the way ripgrep applies `--glob`.
+---
+--- The last glob that applies to the path decides: a positive glob includes it,
+--- a negated (`!`) glob excludes it. So `{"*.lua", "!*_spec.lua"}` keeps Lua
+--- files but drops the specs, while flipping the order keeps the specs too.
+--- When nothing applies, the path is kept only if the list is all negations —
+--- a single positive glob turns the list into a whitelist. An empty list keeps
+--- everything.
+---@param patterns string[] rg-style globs, applied in order
+---@param relpath string    relative file path
+---@param nocase boolean?   when true, match case-insensitively (like `rg --iglob`)
+---@return boolean
+function M.match_globs(patterns, relpath, nocase)
+    if #patterns == 0 then return true end
+    if nocase then relpath = relpath:lower() end
+
+    local psegs = vim.split(relpath, "/", { plain = true })
+    local decided = nil ---@type boolean?
+    local has_positive = false
+
+    for _, pattern in ipairs(patterns) do
+        local gsegs, negated = _parse_glob(nocase and pattern:lower() or pattern)
+        if gsegs then
+            if not negated then has_positive = true end
+            if _match_components(gsegs, 1, psegs, 1) then decided = not negated end
+        end
+    end
+
+    if decided ~= nil then return decided end
+    return not has_positive
 end
 
 ---@type keystone.Picker.AsyncPreviewLoader

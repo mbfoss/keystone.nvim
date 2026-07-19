@@ -100,12 +100,8 @@ function M.spec(opts)
                     if not entry.source:find(v:lower(), 1, true) then skip = true; break end
                 end
                 local in_globs = flags["filter"] or {}
-                if not skip and #in_globs > 0 then
-                    local matched = false
-                    for _, g in ipairs(in_globs) do
-                        if pickertools.match_glob(g, entry.relpath, true) then matched = true; break end
-                    end
-                    if not matched then skip = true end
+                if not skip and not pickertools.match_globs(in_globs, entry.relpath, true) then
+                    skip = true
                 end
                 if skip then goto continue end
 
