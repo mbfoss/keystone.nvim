@@ -117,6 +117,44 @@ describe("match_glob case sensitivity", function()
     end)
 end)
 
+describe("match_glob negation (!)", function()
+    it("inverts a basename pattern", function()
+        assert.is_false(match("!*.txt", "foo.txt"))
+        assert.is_false(match("!*.txt", "a/b/foo.txt"))
+        assert.is_true(match("!*.txt", "foo.lua"))
+    end)
+
+    it("inverts an anchored pattern", function()
+        assert.is_false(match("!src/*.lua", "src/foo.lua"))
+        assert.is_true(match("!src/*.lua", "lua/foo.lua"))
+    end)
+
+    it("inverts globstar patterns", function()
+        assert.is_false(match("!**/test/**", "a/test/b.lua"))
+        assert.is_true(match("!**/test/**", "a/src/b.lua"))
+    end)
+
+    it("honours nocase", function()
+        assert.is_false(match("!*.TXT", "foo.txt", true))
+        assert.is_true(match("!*.TXT", "foo.txt"))
+    end)
+
+    it("treats an escaped bang as a literal", function()
+        assert.is_true(match("\\!foo.txt", "!foo.txt"))
+        assert.is_false(match("\\!foo.txt", "foo.txt"))
+    end)
+
+    it("treats only the first bang as special", function()
+        -- `!!foo` is a negation of the literal pattern `!foo`, not a double negation
+        assert.is_false(match("!!foo", "!foo"))
+        assert.is_true(match("!!foo", "foo"))
+    end)
+
+    it("returns false for a bare bang", function()
+        assert.is_false(match("!", "foo.txt"))
+    end)
+end)
+
 describe("match_glob edge cases", function()
     it("returns false for an empty pattern", function()
         assert.is_false(match("", "foo.txt"))

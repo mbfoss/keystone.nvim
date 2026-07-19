@@ -216,7 +216,9 @@ end
 ---              a trailing `/**` matches everything inside a directory
 ---   * a pattern with no `/` matches the basename at any depth (e.g. `*.txt`),
 ---     while a pattern containing `/` is anchored to the path root (`src/*.txt`)
----@param pattern string  rg-style glob (e.g. "*.txt", "**/src/**", "src/*.lua")
+---   * a leading `!` negates the pattern (`!*.txt` matches every path that is
+---     not a `*.txt`); `\!` starts a pattern with a literal `!`
+---@param pattern string  rg-style glob (e.g. "*.txt", "!*.txt", "src/*.lua")
 ---@param relpath string  relative file path (e.g. "lua/keystone/util/foo.lua")
 ---@param nocase boolean? when true, match case-insensitively (like `rg --iglob`)
 ---@return boolean
@@ -226,8 +228,12 @@ function M.match_glob(pattern, relpath, nocase)
         relpath = relpath:lower()
     end
 
+    -- only the first `!` is special, mirroring gitignore/rg
+    local negated = pattern:sub(1, 1) == "!"
+    if negated then pattern = pattern:sub(2) end
+
     local trimmed = pattern:gsub("/+$", "") -- a trailing `/` only marks directories
-    if trimmed == "" then return false end
+    if trimmed == "" then return false end  -- a bare `!` selects nothing
 
     local pat
     if trimmed:find("/", 1, true) then
@@ -238,7 +244,9 @@ function M.match_glob(pattern, relpath, nocase)
 
     local gsegs = vim.split(pat, "/", { plain = true })
     local psegs = vim.split(relpath, "/", { plain = true })
-    return _match_components(gsegs, 1, psegs, 1)
+    local matched = _match_components(gsegs, 1, psegs, 1)
+    if negated then return not matched end
+    return matched
 end
 
 ---@type keystone.Picker.AsyncPreviewLoader
