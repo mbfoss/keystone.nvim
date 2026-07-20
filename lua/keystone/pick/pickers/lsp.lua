@@ -24,43 +24,48 @@ local REF_FLAGS = {
     { name = "filter", type = "value", multi = true, desc = "glob filter: *.txt, **/dir/**" },
 }
 
----@type keystone.queryflags.FlagDef[]
-local SYMBOL_FLAGS = {
-    {
-        name = "kind",
-        type = "value",
-        multi = true,
-        desc = "filter by symbol kind: Function, Method, Class, ...",
-        values = {
-            "File",
-            "Module",
-            "Namespace",
-            "Package",
-            "Class",
-            "Method",
-            "Property",
-            "Field",
-            "Constructor",
-            "Enum",
-            "Interface",
-            "Function",
-            "Variable",
-            "Constant",
-            "String",
-            "Number",
-            "Boolean",
-            "Array",
-            "Object",
-            "Key",
-            "Null",
-            "EnumMember",
-            "Struct",
-            "Event",
-            "Operator",
-            "TypeParameter",
-        }
-    },
+---Every LSP SymbolKind name, in protocol order (SymbolKind 1..26).
+---@type string[]
+local SYMBOL_KINDS = {
+    "File",
+    "Module",
+    "Namespace",
+    "Package",
+    "Class",
+    "Method",
+    "Property",
+    "Field",
+    "Constructor",
+    "Enum",
+    "Interface",
+    "Function",
+    "Variable",
+    "Constant",
+    "String",
+    "Number",
+    "Boolean",
+    "Array",
+    "Object",
+    "Key",
+    "Null",
+    "EnumMember",
+    "Struct",
+    "Event",
+    "Operator",
+    "TypeParameter",
 }
+
+-- One boolean flag per symbol kind, so kinds are selected as "is:Function
+-- is:Class" rather than a single "kind:" value list. Several at once are OR'd.
+---@type keystone.queryflags.FlagDef[]
+local SYMBOL_FLAGS = {}
+for _, name in ipairs(SYMBOL_KINDS) do
+    table.insert(SYMBOL_FLAGS, {
+        name = name,
+        type = "boolean",
+        desc = ("%s symbols"):format(name),
+    })
+end
 
 ---@return keystone.PickerSpec
 function M.references_spec()
@@ -192,25 +197,23 @@ function M.document_symbols_spec(opts)
             end)
         end,
         finder          = function(query, flags, _, callback, data)
-            local flag_kinds = flags.kind or {}
-            local filtered   = {}
+            -- Kind booleans select a union: "is:Function is:Class" keeps both,
+            -- none set keeps every kind.
+            local flag_kinds = {}
+            local any_kind   = false
+            for _, name in ipairs(SYMBOL_KINDS) do
+                if flags[name] then
+                    flag_kinds[name] = true
+                    any_kind         = true
+                end
+            end
+
+            local filtered = {}
             for _, item in ipairs(data.items) do
-                local kind_lower = item.kind:lower()
-                if next(opts_kind_filter) ~= nil and not opts_kind_filter[kind_lower] then
+                if next(opts_kind_filter) ~= nil and not opts_kind_filter[item.kind:lower()] then
                     goto continue
                 end
-                if #flag_kinds > 0 then
-                    local matched = false
-                    for _, v in ipairs(flag_kinds) do
-                        for part in v:lower():gmatch("[^,]+") do
-                            if kind_lower == part then
-                                matched = true; break
-                            end
-                        end
-                        if matched then break end
-                    end
-                    if not matched then goto continue end
-                end
+                if any_kind and not flag_kinds[item.kind] then goto continue end
 
                 local match = pickertools.match_label(item.data.name, query)
                 if match then
