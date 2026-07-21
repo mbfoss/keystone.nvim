@@ -1,18 +1,19 @@
 local M = {}
 
 local throttle = require("keystone.tk.throttle")
+local usercmd = require("keystone.tk.usercmd")
 
----@class keystone.winbar.Config
----@field enabled boolean
+---@class keystone.breadcrumbs.Config
+---@field enabled boolean Enable breadcrumbs on setup (default: false)
 
 local function _get_default_config()
-  ---@type keystone.winbar.Config
+  ---@type keystone.breadcrumbs.Config
   return {
-    enabled = true,
+    enabled = false,
   }
 end
 
----@type keystone.winbar.Config
+---@type keystone.breadcrumbs.Config
 M.config = _get_default_config()
 
 -- [bufnr] = DocumentSymbol[] | SymbolInformation[]
@@ -25,6 +26,8 @@ local _managed_bufs = {}
 local _refresh_fns = {}
 
 local _OUR_WINBAR = '%{%v:lua.require("keystone.breadcrumbs").render()%}'
+
+local _AUGROUP = "keystone_breadcrumbs"
 
 local _KIND_ICONS = {
   [1]  = "󰈙", -- File
@@ -259,7 +262,7 @@ function M.enable()
     end
   end
 
-  local group = vim.api.nvim_create_augroup("keystone_breadcrumbs", { clear = true })
+  local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
 
   vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
     group = group,
@@ -323,7 +326,7 @@ end
 function M.disable()
   if not _enabled then return end
   _enabled = false
-  vim.api.nvim_del_augroup_by_name("keystone_breadcrumbs")
+  vim.api.nvim_del_augroup_by_name(_AUGROUP)
   for _, winid in ipairs(vim.api.nvim_list_wins()) do
     _clear_winbar(winid)
   end
@@ -332,9 +335,51 @@ function M.disable()
   _managed_bufs = {}
 end
 
----@param opts keystone.winbar.Config?
+---@return boolean
+function M.is_enabled()
+  return _enabled
+end
+
+--- Toggles breadcrumbs on/off.
+---@return boolean enabled the state after toggling
+function M.toggle()
+  if _enabled then
+    M.disable()
+  else
+    M.enable()
+  end
+  return _enabled
+end
+
+---@type table<string, fun()>
+local _SUBCOMMANDS = {
+  enable = function() M.enable() end,
+  disable = function() M.disable() end,
+  toggle = function() M.toggle() end,
+}
+
+local function _register_user_cmd()
+  usercmd.register_user_cmd("Breadcrumbs", function(_, args)
+    local action = args[1] or "toggle"
+    local fn = _SUBCOMMANDS[action]
+    if not fn then
+      vim.notify("Breadcrumbs: unknown action " .. vim.inspect(action), vim.log.levels.WARN)
+      return
+    end
+    fn()
+  end, {
+    desc = "Enable, disable or toggle LSP breadcrumbs in the winbar",
+    subcommand = function(_, rest)
+      if #rest > 0 then return {} end
+      return vim.tbl_keys(_SUBCOMMANDS)
+    end,
+  })
+end
+
+---@param opts keystone.breadcrumbs.Config?
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  _register_user_cmd()
   if M.config.enabled then
     M.enable()
   else

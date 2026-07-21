@@ -303,7 +303,8 @@ function SymbolTree:_request_symbols()
         if self._source_buf ~= bufnr then return end
         if self._treebuf:get_bufnr() == -1 then return end
 
-        if err or not result or #result == 0 then
+        -- A null result can arrive as vim.NIL, so check the type.
+        if err or type(result) ~= "table" or #result == 0 then
             self._symbols = {}
             self:_show_placeholder(err and "Symbol request failed" or "No symbols")
             return
