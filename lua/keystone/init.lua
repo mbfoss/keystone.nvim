@@ -36,6 +36,7 @@ local _MODULES = {
   "lspconfig",
   "pick",
   "statusline",
+  "symboltree",
   "tsconfig",
   "unsaved",
 }
