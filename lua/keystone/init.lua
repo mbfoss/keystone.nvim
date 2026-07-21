@@ -26,6 +26,7 @@ local _MODULES = {
   "tweaks",
   "largefile",
   "animate",
+  "breadcrumbs",
   "bookmarks",
   "clue",
   "completion",
