@@ -357,20 +357,27 @@ end
 ---@param winid integer
 local function _fit(left, right, winid)
   local used = 0
+  for _, list in ipairs({ left, right }) do
+    for _, entry in ipairs(list) do
+      used = used + entry.width
+    end
+  end
+
+  local win_width = vim.api.nvim_win_get_width(winid)
+  if used <= win_width then return end
+
+  -- Over budget (the uncommon case): now collect the droppable sections,
+  -- tagging each with its position so ties break toward the later one.
   local droppable = {}
   local ord = 0
   for _, list in ipairs({ left, right }) do
     for _, entry in ipairs(list) do
-      used = used + entry.width
       if entry.rank then
         ord = ord + 1
         droppable[#droppable + 1] = { entry = entry, ord = ord }
       end
     end
   end
-
-  local win_width = vim.api.nvim_win_get_width(winid)
-  if used <= win_width then return end
 
   table.sort(droppable, function(a, b)
     if a.entry.rank ~= b.entry.rank then return a.entry.rank > b.entry.rank end
