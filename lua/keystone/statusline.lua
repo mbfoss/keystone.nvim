@@ -123,7 +123,7 @@ local function _get_default_config()
   return {
     enabled = true,
     sections = {
-      left  = { "mode", "git", "filename" },
+      left  = { "mode", "git", "filename", "symbol_path" },
       right = { "lsp_progress", "diagnostics", "filetype", "position" },
     },
     priority = {
@@ -134,6 +134,7 @@ local function _get_default_config()
       "git",
       "filetype",
       "lsp_progress",
+      "symbol_path",
     },
   }
 end
@@ -240,6 +241,7 @@ local function _register_builtins()
   M.register("filetype", _section_filetype)
   M.register("position", _section_position)
   M.register("lsp_progress", require("keystone.statusline.lsp_progress"))
+  M.register("symbol_path", require("keystone.statusline.symbol_path"))
 end
 
 _register_builtins()
