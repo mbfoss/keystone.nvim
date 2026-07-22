@@ -42,12 +42,13 @@ end
 -- Boolean flags have no standalone form — "flagname" alone is always query
 -- text; the "is:" prefix is what distinguishes a flag from a query word.
 --
--- Quoting (' or ") lets a token contain spaces, and forces a token to be
+-- Quoting (via ") lets a token contain spaces, and forces a token to be
 -- literal query text even when it would otherwise look like a flag:
 --   'path:"foo bar"' → value flag whose value contains a space
 --   '"is:fixed"'     → query text "is:fixed" (the key is quoted, so not a flag)
 --   '"path:foo"'     → query text "path:foo" (the key is quoted, so not a flag)
--- An unterminated quote runs to the end of the token.
+-- Inside a quoted span, a literal double quote is written as \" and does not
+-- close the span. An unterminated quote runs to the end of the token.
 
 ---@class keystone.queryflags.Token
 ---@field text          string                           -- verbatim token text
@@ -81,20 +82,25 @@ local function _tokenize(str)
         while i <= len do
             local c = str:sub(i, i)
             if quote then
-                -- inside a quoted span: whitespace is literal, matching quote
-                -- chars are stripped from `text` but remain in `raw`.
-                if c == quote then
+                -- inside a quoted span: whitespace is literal, the delimiting
+                -- quote char is stripped from `text` but remains in `raw`, and
+                -- \" is a literal double quote that does not close the span.
+                if c == "\\" and str:sub(i + 1, i + 1) == quote then
+                    table.insert(chars, quote)
+                    i = i + 2
+                elseif c == quote then
                     table.insert(_quote_spans, { open = _quote_open_raw, close = i - tok_start + 1 })
                     _quote_open_raw = nil
                     quote           = nil
                     quote_idx       = nil
+                    i               = i + 1
                 else
                     table.insert(chars, c)
+                    i = i + 1
                 end
-                i = i + 1
             elseif c:match("%s") then
                 break
-            elseif c == '"' or c == "'" then
+            elseif c == '"' then
                 -- opening quote: allows whitespace within the token
                 _quote_open_raw = i - tok_start + 1
                 quote           = c
@@ -278,7 +284,7 @@ function M.get_completions(schema, line, cursor_byte, auto)
     local colon = last and last.finish == #before and last.colon_pos
     if colon and colon > 1 then
         local prefix  = current_word:sub(1, colon - 1)
-        local partial = current_word:sub(colon + 1):gsub("^[\"']", "")
+        local partial = current_word:sub(colon + 1):gsub('^"', "")
 
         local defs    = _build_map(schema)
 
@@ -304,8 +310,8 @@ function M.get_completions(schema, line, cursor_byte, auto)
         if def and def.type == "value" and (def.values or def.complete) then
             local items = {}
             local function add(v)
-                local word = v:find("%s")
-                    and (prefix .. ':"' .. v .. '"')
+                local word = v:find('[%s"]')
+                    and (prefix .. ':"' .. v:gsub('"', '\\"') .. '"')
                     or (prefix .. ":" .. v)
                 table.insert(items, { word = word, abbr = v })
             end
