@@ -31,9 +31,17 @@ local _enabled = false
 ---@field left  keystone.statusline.Section[]
 ---@field right keystone.statusline.Section[]
 
+---Section names ordered by priority, **most important first**. When the
+---window is too narrow to hold every section, the least important sections are
+---dropped one at a time until the rest fit — starting from the end of this
+---list. Named sections not listed here are considered lower priority than any
+---listed one (dropped first); inline function sections are never dropped.
+---@alias keystone.statusline.Priority string[]
+---
 ---@class keystone.statusline.Config
 ---@field enabled  boolean
 ---@field sections keystone.statusline.Sections
+---@field priority keystone.statusline.Priority
 
 -- ---------------------------------------------------------------------------
 -- Provider registry
@@ -117,6 +125,15 @@ local function _get_default_config()
     sections = {
       left  = { "mode", "git", "filename" },
       right = { "lsp_progress", "diagnostics", "filetype", "position" },
+    },
+    priority = {
+      "filename",
+      "position",
+      "diagnostics",
+      "mode",
+      "git",
+      "filetype",
+      "lsp_progress",
     },
   }
 end
@@ -241,24 +258,102 @@ end
 -- Render
 -- ---------------------------------------------------------------------------
 
+---One rendered section, carrying the state the fit pass needs.
+---@class keystone.statusline._Entry
+---@field text  string    rendered statusline text (never empty)
+---@field width integer   its display width, measured once
+---@field rank  integer?  priority rank; lower = more important, `nil` = never dropped
+---@field shown boolean   whether it is currently kept in the output
+
+---Priority rank of a section: its 1-based index in `config.priority` (lower is
+---more important, dropped last). Named sections that are not listed rank after
+---every listed one. Inline function sections cannot be named, so they return
+---`nil` and are never dropped.
+---@param section keystone.statusline.Section
+---@return integer?
+local function _rank(section)
+  if type(section) ~= "string" then return nil end
+  for i, name in ipairs(M.config.priority) do
+    if name == section then return i end
+  end
+  return math.huge
+end
+
+---Render each section once and measure its display width (statusline widths are
+---additive — highlight/field syntax stays zero- or fixed-width regardless of
+---neighbours — so per-section widths can later be summed and subtracted without
+---re-measuring).
 ---@param section_list keystone.statusline.Section[]
 ---@param bufnr        integer
----@return string
-local function _render_sections(section_list, bufnr)
-  local out = {}
+---@param winid        integer
+---@return keystone.statusline._Entry[]
+local function _build_entries(section_list, bufnr, winid)
+  local entries = {}
   for _, section in ipairs(section_list) do
-    local chunk
+    local text
     if type(section) == "function" then
-      chunk = section(bufnr)
+      text = section(bufnr)
     elseif type(section) == "string" then
       local provider = _registry[section]
-      chunk = provider and provider.render(bufnr) or ""
+      text = provider and provider.render(bufnr) or ""
     end
-    if chunk and chunk ~= "" then
-      table.insert(out, chunk)
+    if text and text ~= "" then
+      entries[#entries + 1] = {
+        text  = text,
+        width = vim.api.nvim_eval_statusline(text, { winid = winid }).width,
+        rank  = _rank(section),
+        shown = true,
+      }
     end
   end
-  return table.concat(out)
+  return entries
+end
+
+---@param entries keystone.statusline._Entry[]
+---@return string
+local function _concat_shown(entries)
+  local parts = {}
+  for _, entry in ipairs(entries) do
+    if entry.shown then parts[#parts + 1] = entry.text end
+  end
+  return table.concat(parts)
+end
+
+---Hide the lowest-priority sections until what remains fits the window width.
+---Operates purely on the pre-measured widths — no strings are touched here.
+---The droppable sections are sorted once into drop order (least important, and
+---among ties the later one, first) then walked, so the whole pass is O(n log n)
+---rather than rescanning for a victim on every drop.
+---@param left  keystone.statusline._Entry[]
+---@param right keystone.statusline._Entry[]
+---@param winid integer
+local function _fit(left, right, winid)
+  local used = 0
+  local droppable = {}
+  local ord = 0
+  for _, list in ipairs({ left, right }) do
+    for _, entry in ipairs(list) do
+      used = used + entry.width
+      if entry.rank then
+        ord = ord + 1
+        droppable[#droppable + 1] = { entry = entry, ord = ord }
+      end
+    end
+  end
+
+  local win_width = vim.api.nvim_win_get_width(winid)
+  if used <= win_width then return end
+
+  table.sort(droppable, function(a, b)
+    if a.entry.rank ~= b.entry.rank then return a.entry.rank > b.entry.rank end
+    return a.ord > b.ord
+  end)
+
+  for _, item in ipairs(droppable) do
+    item.entry.shown = false
+    used = used - item.entry.width
+    if used <= win_width then return end
+  end
 end
 
 function M.render()
@@ -273,10 +368,11 @@ function M.render()
     local bufnr = vim.api.nvim_win_get_buf(winid)
 
     local secs  = M.config.sections
-    local left  = _render_sections(secs.left,  bufnr)
-    local right = _render_sections(secs.right, bufnr)
+    local left  = _build_entries(secs.left,  bufnr, winid)
+    local right = _build_entries(secs.right, bufnr, winid)
+    _fit(left, right, winid)
 
-    return left .. "%=" .. right
+    return _concat_shown(left) .. "%=" .. _concat_shown(right)
   end)
   return ok and result or ""
 end
@@ -331,4 +427,3 @@ function M.setup(opts)
 end
 
 return M
-
