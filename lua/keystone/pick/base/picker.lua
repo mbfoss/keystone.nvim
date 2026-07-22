@@ -75,8 +75,9 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 when enable_list_sep, else 4.
 ---@field enable_list_sep boolean?
 ---@field initial_query  string?
+---@field initial_index integer? 1-based list row to select on the first fetch (unless the finder marks an item `initial`).
 ---@field auto_complete_flags boolean? Auto-open flag completion while typing (default true).
----@field on_close fun(query:string)? Called when the picker closes, with the final raw prompt text.
+---@field on_close fun(query:string, index:integer?)? Called when the picker closes, with the final raw prompt text and the highlighted item's 1-based list row.
 
 ---@class keystone.Picker.Layout
 ---@field prompt_row number
@@ -1097,6 +1098,11 @@ function Picker:run_fetch()
 							break
 						end
 					end
+				elseif self.opts.initial_index then
+					-- Consume the stored index so it only steers the first fetch;
+					-- later queries reset to the top-ranked item.
+					target_row = _clamp(self.opts.initial_index, 1, #self.list_items)
+					self.opts.initial_index = nil
 				end
 				self:move_cursor(target_row, true, true)
 			else
@@ -1195,6 +1201,11 @@ end
 ---@param selected_data keystone.picker.ItemData?
 function Picker:close(selected_data)
 	if self.closed then return end
+
+	-- Capture the highlighted row before tearing down (get_cursor needs the list
+	-- window), so on_close can report it and a reopen can reselect the same row.
+	local cursor = self:get_cursor()
+
 	self.closed = true
 	if _active_picker == self then _active_picker = nil end
 
@@ -1206,7 +1217,7 @@ function Picker:close(selected_data)
 	if self.async_preview_cancel then self.async_preview_cancel() end
 
 	if self.opts.on_close then
-		self.opts.on_close(self.query_text)
+		self.opts.on_close(self.query_text, cursor)
 	end
 
 	self:release_external_preview_buf()

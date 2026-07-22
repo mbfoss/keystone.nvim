@@ -33,15 +33,18 @@ M.config = _get_default_config()
 ---The most recent picker invocation, replayed by M.repeat_last(). Holds the
 ---resolved spec and its setup data so repeat reopens without re-running setup,
 ---plus the final prompt text so the same query is restored.
----@type {spec:keystone.PickerSpec, data:table?, query:string}?
+---@type {spec:keystone.PickerSpec, data:table?, query:string, index:integer?, items:keystone.Picker.Item[]?}?
 local _last_pick = nil
 
 ---@param spec keystone.PickerSpec
 ---@param data table?
 ---@param initial_query string?
-local function _do_open(spec, data, initial_query)
+---@param initial_index integer?
+---@param replay_items keystone.Picker.Item[]? Cached results to seed the first fetch instead of re-running the finder.
+local function _do_open(spec, data, initial_query, initial_index, replay_items)
     local picker = require("keystone.pick.base.picker")
-    _last_pick = { spec = spec, data = data, query = initial_query or "" }
+    _last_pick = { spec = spec, data = data, query = initial_query or "", index = initial_index, items = replay_items }
+    local replayed = false
     picker.open({
         prompt             = spec.prompt,
         flags              = spec.flags,
@@ -54,13 +57,32 @@ local function _do_open(spec, data, initial_query)
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
         initial_query      = initial_query,
+        initial_index      = initial_index,
         auto_complete_flags = M.config.auto_complete_flags,
         finder             = function(query, flags, fetch_opts, callback)
-            return spec.finder(query, flags, fetch_opts, callback, data)
+            -- Serve the cached snapshot for the first (unchanged) query so a
+            -- repeated picker opens instantly; any edit falls through to a fresh
+            -- finder run.
+            if replay_items and not replayed then
+                replayed = true
+                callback(replay_items)
+                return nil
+            end
+            -- Keep a reference to each fresh result set as it flows to the picker,
+            -- capped, so repeat_last can replay it without re-running the finder.
+            return spec.finder(query, flags, fetch_opts, function(items)
+                if _last_pick and _last_pick.spec == spec then
+                    _last_pick.items = items
+                end
+                callback(items)
+            end, data)
         end,
-        on_close           = function(query)
+        on_close           = function(query, index)
+            -- Remember the final query and highlighted row so repeat_last restores
+            -- both.
             if _last_pick and _last_pick.spec == spec then
                 _last_pick.query = query
+                _last_pick.index = index
             end
         end,
     }, spec.on_confirm or function() end)
@@ -73,7 +95,7 @@ function M.repeat_last()
         vim.notify("No previous picker session", vim.log.levels.INFO)
         return
     end
-    _do_open(_last_pick.spec, _last_pick.data, _last_pick.query)
+    _do_open(_last_pick.spec, _last_pick.data, _last_pick.query, _last_pick.index, _last_pick.items)
 end
 
 ---@param spec keystone.PickerSpec?
