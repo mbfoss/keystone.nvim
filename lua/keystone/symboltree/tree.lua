@@ -50,7 +50,7 @@ local function _open()
     -- last-known ratio so reopening the tree keeps the user's chosen width.
     local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
         config.width_ratio = ratio
-    end, { pos = "botright" })
+    end, { pos = "topleft" })
 
     vim.w[win][_KEY_MARKER] = true
 

@@ -98,4 +98,73 @@ function M.path_at_line(symbols, line)
     return path
 end
 
+-- ---------------------------------------------------------------------------
+-- Provider: fetches document symbols for a buffer over LSP and normalizes the
+-- reply with `M.normalize` above. Hides the request/reply plumbing from
+-- SymbolTree: client lookup and request-counter staleness live here.
+-- ---------------------------------------------------------------------------
+
+---@param bufnr integer
+---@return vim.lsp.Client?
+local function _symbol_client(bufnr)
+    local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })
+    return clients[1]
+end
+
+---@class keystone.symboltree.symbols.Provider.Handlers
+---@field on_symbols fun(symbols: keystone.symboltree.Symbol[]) received a non-empty symbol list
+---@field on_unavailable fun(reason: string) no symbols to show; `reason` is a human-readable placeholder
+
+---@class keystone.symboltree.symbols.Provider
+---@field new fun(self:keystone.symboltree.symbols.Provider):keystone.symboltree.symbols.Provider
+---@field private _request_counter integer
+local Provider = {}
+Provider.__index = Provider
+
+function Provider:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
+
+function Provider:init()
+    self._request_counter = 0
+end
+
+--- Requests document symbols for `bufnr`. Exactly one handler fires, and never
+--- for a reply that has been overtaken by a later `request` on this provider.
+---@param bufnr integer
+---@param handlers keystone.symboltree.symbols.Provider.Handlers
+function Provider:request(bufnr, handlers)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        handlers.on_unavailable("No buffer")
+        return
+    end
+
+    local client = _symbol_client(bufnr)
+    if not client then
+        handlers.on_unavailable("No LSP symbols")
+        return
+    end
+
+    self._request_counter = self._request_counter + 1
+    local request_id = self._request_counter
+
+    local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
+    client:request("textDocument/documentSymbol", params, function(err, result)
+        -- Drop replies overtaken by a newer request.
+        if request_id ~= self._request_counter then return end
+
+        -- A null result can arrive as vim.NIL, so check the type.
+        if err or type(result) ~= "table" or #result == 0 then
+            handlers.on_unavailable(err and "Symbol request failed" or "No symbols")
+            return
+        end
+
+        handlers.on_symbols(M.normalize(result))
+    end, bufnr)
+end
+
+M.Provider = Provider
+
 return M

@@ -75,13 +75,6 @@ local function _is_regular_buffer(bufnr)
     return vim.bo[bufnr].buftype == ""
 end
 
----@param bufnr integer
----@return vim.lsp.Client?
-local function _symbol_client(bufnr)
-    local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })
-    return clients[1]
-end
-
 ---@class keystone.SymbolTree.Opts
 ---@field track_cursor boolean? follow the cursor in the source buffer (default true)
 ---@field auto_expand boolean? expand every symbol on load (default true)
@@ -94,6 +87,7 @@ end
 ---@field private _treebuf keystone.tk.TreeBuffer
 ---@field private _source_buf integer
 ---@field private _symbols keystone.symboltree.Symbol[]
+---@field private _provider keystone.symboltree.symbols.Provider
 ---@field private _excluded table<integer, true>
 local SymbolTree = {}
 SymbolTree.__index = SymbolTree
@@ -109,7 +103,7 @@ function SymbolTree:init(opts)
     self._opts = opts and vim.deepcopy(opts) or {}
     self._source_buf = -1
     self._symbols = {}
-    self._request_counter = 0
+    self._provider = symbols.Provider:new()
     self._current_id = nil
     self._autocmd_ids = {}
 
@@ -279,41 +273,30 @@ function SymbolTree:_show_placeholder(text)
 end
 
 function SymbolTree:_request_symbols()
-    local bufnr = self._source_buf
     if self._treebuf:get_bufnr() == -1 then return end
-    if not vim.api.nvim_buf_is_valid(bufnr) then
-        self:_show_placeholder("No buffer")
-        return
+    local bufnr = self._source_buf
+
+    -- Guards a reply against the tree having moved on: navigated to a different
+    -- source buffer, or the tree buffer torn down while the request was in
+    -- flight. (Superseded requests for the same buffer are dropped inside the
+    -- provider.)
+    local function stale()
+        return self._source_buf ~= bufnr or self._treebuf:get_bufnr() == -1
     end
 
-    local client = _symbol_client(bufnr)
-    if not client then
-        self:_show_placeholder("No LSP symbols")
-        return
-    end
-
-    self._request_counter = self._request_counter + 1
-    local request_id = self._request_counter
-
-    local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
-    client:request("textDocument/documentSymbol", params, function(err, result)
-        -- Drop replies overtaken by a newer request, or for a buffer we have
-        -- since navigated away from.
-        if request_id ~= self._request_counter then return end
-        if self._source_buf ~= bufnr then return end
-        if self._treebuf:get_bufnr() == -1 then return end
-
-        -- A null result can arrive as vim.NIL, so check the type.
-        if err or type(result) ~= "table" or #result == 0 then
+    self._provider:request(bufnr, {
+        on_symbols = function(syms)
+            if stale() then return end
+            self._symbols = syms
+            self:_populate()
+            self:_sync_to_cursor()
+        end,
+        on_unavailable = function(reason)
+            if stale() then return end
             self._symbols = {}
-            self:_show_placeholder(err and "Symbol request failed" or "No symbols")
-            return
-        end
-
-        self._symbols = symbols.normalize(result)
-        self:_populate()
-        self:_sync_to_cursor()
-    end, bufnr)
+            self:_show_placeholder(reason)
+        end,
+    })
 end
 
 --- Build the id for a symbol from its position in the tree. Position-based so
