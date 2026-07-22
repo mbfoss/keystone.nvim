@@ -118,7 +118,7 @@ function SymbolTree:init(opts)
     -- window is focused, so the Visual-style highlight never clashes with a real
     -- selection while browsing the tree.
     self._current_shown = true
-    self._autocmd_ids = {}
+    self._augroup = nil
 
     -- Kind names are friendlier to configure than the numeric LSP codes, so
     -- resolve them to codes once here.
@@ -208,10 +208,17 @@ function SymbolTree:get_bufnr()
 end
 
 function SymbolTree:_on_buffer_created()
-    assert(#self._autocmd_ids == 0)
+    assert(not self._augroup)
+
+    local bufnr = self._treebuf:get_bufnr()
+    assert(bufnr > 0)
+    
+    self._augroup = vim.api.nvim_create_augroup(
+        "KeystoneSymbolTree_" .. bufnr, { clear = true })
 
     local function track(event, opts)
-        self._autocmd_ids[#self._autocmd_ids + 1] = vim.api.nvim_create_autocmd(event, opts)
+        opts.group = self._augroup
+        vim.api.nvim_create_autocmd(event, opts)
     end
 
     track({ "BufEnter", "BufWinEnter" }, {
@@ -277,10 +284,10 @@ function SymbolTree:_on_buffer_created()
 end
 
 function SymbolTree:_on_buffer_deleted()
-    for _, id in ipairs(self._autocmd_ids) do
-        vim.api.nvim_del_autocmd(id)
+    if self._augroup then
+        vim.api.nvim_del_augroup_by_id(self._augroup)
+        self._augroup = nil
     end
-    self._autocmd_ids = {}
     self._source_buf = -1
     self._symbols = {}
 end

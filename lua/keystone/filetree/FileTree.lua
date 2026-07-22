@@ -181,8 +181,18 @@ function FileTree:_setup_tree()
 end
 
 function FileTree:_on_buffer_created()
-    assert(not self._bufenter_autocmd_id)
-    assert(not self._dirchanged_autocmd_id)
+    assert(not self._augroup)
+
+    local bufnr = self._treebuf:get_bufnr()
+    assert(bufnr > 0)
+
+    self._augroup = vim.api.nvim_create_augroup(
+        "KeystoneFileTree_" .. bufnr, { clear = true })
+
+    local function track(event, opts)
+        opts.group = self._augroup
+        vim.api.nvim_create_autocmd(event, opts)
+    end
 
     local track_config = self._opts.track_current_file or {}
     local track_collapse_others = track_config.auto_collapse_others ~= false
@@ -207,13 +217,13 @@ function FileTree:_on_buffer_created()
     end
 
     if track_config.enabled ~= false then
-        self._bufenter_autocmd_id = vim.api.nvim_create_autocmd("BufEnter", {
+        track("BufEnter", {
             callback = on_buffer_enter,
         })
     end
 
     if self._opts.follow_cwd ~= false then
-        self._dirchanged_autocmd_id = vim.api.nvim_create_autocmd("DirChanged", {
+        track("DirChanged", {
             callback = on_dir_changed,
         })
     end
@@ -221,13 +231,9 @@ function FileTree:_on_buffer_created()
 end
 
 function FileTree:_on_buffer_deleted()
-    if self._bufenter_autocmd_id then
-        vim.api.nvim_del_autocmd(self._bufenter_autocmd_id)
-        self._bufenter_autocmd_id = nil
-    end
-    if self._dirchanged_autocmd_id then
-        vim.api.nvim_del_autocmd(self._dirchanged_autocmd_id)
-        self._dirchanged_autocmd_id = nil
+    if self._augroup then
+        vim.api.nvim_del_augroup_by_id(self._augroup)
+        self._augroup = nil
     end
     self:_clear_all_monitors()
 end
