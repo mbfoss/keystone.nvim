@@ -17,7 +17,7 @@ M.highlights = {
 }
 
 ---@param bufnr integer
----@return string
+---@return string full, string short
 function M.render(bufnr)
   local parts = {}
   for _, token in pairs(_progress) do
@@ -26,8 +26,10 @@ function M.render(bufnr)
       table.insert(parts, text)
     end
   end
-  if #parts == 0 then return "" end
-  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %*"
+  if #parts == 0 then return "", "" end
+  -- Short form drops the client names/percentages, keeping just the icon.
+  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %*",
+      "%#KeystoneSLLspProgress# 󰒓 %*"
 end
 
 local _group = nil

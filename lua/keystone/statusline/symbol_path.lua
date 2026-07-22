@@ -65,14 +65,15 @@ local function _collect_enclosing(symbols, line0, chain)
   end
 end
 
+---The enclosing-symbol chain at `line`, outermost first.
 ---@param symbols table[]?
 ---@param line integer 1-based cursor line
----@return string
-local function _build_symbol_trail(symbols, line)
-  if not symbols or #symbols == 0 then return "" end
+---@return table[] chain
+local function _build_chain(symbols, line)
+  local chain = {}
+  if not symbols or #symbols == 0 then return chain end
   local line0 = line - 1
 
-  local chain = {}
   if symbols[1] and symbols[1].range then
     -- DocumentSymbol tree
     _collect_enclosing(symbols, line0, chain)
@@ -85,31 +86,54 @@ local function _build_symbol_trail(symbols, line)
       end
     end
   end
-
-  if #chain == 0 then return "" end
-
-  local parts = {}
-  for _, sym in ipairs(chain) do
-    local kind_icon = _KIND_ICONS[sym.kind] or "󰊕"
-    local name = sym.name:gsub("%%", "%%%%")
-    table.insert(parts, kind_icon .. " " .. name)
-  end
-
-  return "%#KeystoneSLSymbolPath# " .. table.concat(parts, " › ") .. " %*"
+  return chain
 end
 
----@param bufnr integer
+---Crop `s` to at most `max` characters, appending an ellipsis when truncated.
+---@param s   string
+---@param max integer
 ---@return string
-function M.render(bufnr)
+local function _crop(s, max)
+  if vim.fn.strchars(s) <= max then return s end
+  return vim.fn.strcharpart(s, 0, max - 1) .. "…"
+end
+
+--- The enclosing-symbol chain for `bufnr` at the cursor of the window being
+--- rendered, or `nil` when the buffer is not the one shown there.
+---@param bufnr integer
+---@return table[]?
+local function _chain_at_cursor(bufnr)
   local winid = vim.g.statusline_winid
   if not winid or winid == 0 then
     winid = vim.api.nvim_get_current_win()
   end
-  if not vim.api.nvim_win_is_valid(winid) then return "" end
-  if vim.api.nvim_win_get_buf(winid) ~= bufnr then return "" end
+  if not vim.api.nvim_win_is_valid(winid) then return nil end
+  if vim.api.nvim_win_get_buf(winid) ~= bufnr then return nil end
 
   local cursor = vim.api.nvim_win_get_cursor(winid)
-  return _build_symbol_trail(_symbol_cache[bufnr], cursor[1])
+  return _build_chain(_symbol_cache[bufnr], cursor[1])
+end
+
+--- Full form is the whole symbol trail; the short form is the innermost symbol
+--- only, with its name cropped to 20 characters.
+---@param bufnr integer
+---@return string full, string short
+function M.render(bufnr)
+  local chain = _chain_at_cursor(bufnr)
+  if not chain or #chain == 0 then return "", "" end
+
+  local parts = {}
+  for _, sym in ipairs(chain) do
+    local kind_icon = _KIND_ICONS[sym.kind] or "󰊕"
+    table.insert(parts, kind_icon .. " " .. sym.name:gsub("%%", "%%%%"))
+  end
+
+  local last      = chain[#chain]
+  local last_icon = _KIND_ICONS[last.kind] or "󰊕"
+  local short      = last_icon .. " " .. _crop(last.name, 20):gsub("%%", "%%%%")
+
+  return "%#KeystoneSLSymbolPath# " .. table.concat(parts, " › ") .. " %*",
+      "%#KeystoneSLSymbolPath# " .. short .. " %*"
 end
 
 ---@param bufnr integer

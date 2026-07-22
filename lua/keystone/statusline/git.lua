@@ -81,12 +81,23 @@ local function _refresh(bufnr)
   end)
 end
 
----@param bufnr integer
+---Crop `s` to at most `max` characters, appending an ellipsis when truncated.
+---@param s   string
+---@param max integer
 ---@return string
+local function _crop(s, max)
+  if vim.fn.strchars(s) <= max then return s end
+  return vim.fn.strcharpart(s, 0, max - 1) .. "…"
+end
+
+---@param bufnr integer
+---@return string full, string short
 function M.render(bufnr)
   local branch = _branch[bufnr]
-  if not branch or branch == "" then return "" end
-  return "%#KeystoneSLGit# 󰘬 " .. branch:gsub("%%", "%%%%") .. " %*"
+  if not branch or branch == "" then return "", "" end
+  local prefix = "%#KeystoneSLGit# 󰘬 "
+  return prefix .. branch:gsub("%%", "%%%%") .. " %*",
+      prefix .. _crop(branch, 12):gsub("%%", "%%%%") .. " %*"
 end
 
 ---@param on_change fun() called whenever a cached branch changes

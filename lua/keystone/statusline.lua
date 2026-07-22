@@ -11,6 +11,12 @@ local _enabled = false
 ---user-provided ones — see `M.register`.
 ---
 ---  - `render`     returns the section text (statusline syntax); `""` to omit it.
+---                 It may return a *second* value: a compact variant used when the
+---                 window is too narrow to fit every section at full width. The fit
+---                 pass switches the least important sections to their short form
+---                 before dropping any outright. Return only one value (or an equal
+---                 second one) when a section has no shorter form. Returning both in
+---                 one call lets a section share work between the two variants.
 ---  - `highlights` highlight groups to define on enable / `ColorScheme`. They are
 ---                 only set if not already defined, so users can override them.
 ---  - `enable`     sets up any state/autocmds. Receives an `on_change` callback to
@@ -18,14 +24,15 @@ local _enabled = false
 ---                 throttled `redrawstatus`.
 ---  - `disable`    tears down whatever `enable` set up.
 ---@class keystone.statusline.Provider
----@field render     fun(bufnr: integer): string
----@field highlights table<string, vim.api.keyset.highlight>?
----@field enable     fun(on_change: fun())?
----@field disable    fun()?
+---@field render      fun(bufnr: integer): string, string?
+---@field highlights? table<string, vim.api.keyset.highlight>
+---@field enable?     fun(on_change: fun())
+---@field disable?    fun()
 
 ---A section is either the name of a registered provider or an inline function
----returning a statusline string.
----@alias keystone.statusline.Section string | fun(bufnr: integer): string
+---returning a statusline string (and, optionally, a short variant as a second
+---return — see `Provider.render`).
+---@alias keystone.statusline.Section string | fun(bufnr: integer): string, string?
 
 ---@class keystone.statusline.Sections
 ---@field left  keystone.statusline.Section[]
@@ -147,46 +154,54 @@ M.config = _get_default_config()
 -- ---------------------------------------------------------------------------
 
 local _MODE_MAP = {
-  n       = { label = "NORMAL",   hl = "KeystoneSLModeNormal" },
-  i       = { label = "INSERT",   hl = "KeystoneSLModeInsert" },
-  v       = { label = "VISUAL",   hl = "KeystoneSLModeVisual" },
-  V       = { label = "V-LINE",   hl = "KeystoneSLModeVisual" },
-  ["\22"] = { label = "V-BLOCK",  hl = "KeystoneSLModeVisual" },
-  c       = { label = "COMMAND",  hl = "KeystoneSLModeCommand" },
-  r       = { label = "CONFIRM",  hl = "KeystoneSLModeCommand" },
-  R       = { label = "REPLACE",  hl = "KeystoneSLModeReplace" },
-  s       = { label = "SELECT",   hl = "KeystoneSLModeVisual" },
-  S       = { label = "S-LINE",   hl = "KeystoneSLModeVisual" },
-  ["\19"] = { label = "S-BLOCK",  hl = "KeystoneSLModeVisual" },
-  t       = { label = "TERMINAL", hl = "KeystoneSLModeInsert" },
+  n       = { label = "NORMAL",   short = "N", hl = "KeystoneSLModeNormal" },
+  i       = { label = "INSERT",   short = "I", hl = "KeystoneSLModeInsert" },
+  v       = { label = "VISUAL",   short = "V", hl = "KeystoneSLModeVisual" },
+  V       = { label = "V-LINE",   short = "V", hl = "KeystoneSLModeVisual" },
+  ["\22"] = { label = "V-BLOCK",  short = "V", hl = "KeystoneSLModeVisual" },
+  c       = { label = "COMMAND",  short = "C", hl = "KeystoneSLModeCommand" },
+  r       = { label = "CONFIRM",  short = "?", hl = "KeystoneSLModeCommand" },
+  R       = { label = "REPLACE",  short = "R", hl = "KeystoneSLModeReplace" },
+  s       = { label = "SELECT",   short = "S", hl = "KeystoneSLModeVisual" },
+  S       = { label = "S-LINE",   short = "S", hl = "KeystoneSLModeVisual" },
+  ["\19"] = { label = "S-BLOCK",  short = "S", hl = "KeystoneSLModeVisual" },
+  t       = { label = "TERMINAL", short = "T", hl = "KeystoneSLModeInsert" },
 }
 
+--- Full mode is the word label; the short form is the single-character label.
+---@return string full, string short
 local function _section_mode(_)
-  local raw  = vim.fn.mode()
-  local info = _MODE_MAP[raw] or { label = "?", hl = "KeystoneSLModeNormal" }
-  return "%#" .. info.hl .. "# " .. info.label .. " %*"
+  local info = _MODE_MAP[vim.fn.mode()] or { label = "?", short = "?", hl = "KeystoneSLModeNormal" }
+  local prefix = "%#" .. info.hl .. "# "
+  return prefix .. info.label .. " %*", prefix .. info.short .. " %*"
 end
 
+--- Full filename is the path relative to cwd; the short form is the tail only.
 ---@param bufnr integer
+---@return string full, string short
 local function _section_filename(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" then
-    return "%* [No Name]"
+    return "%* [No Name]", "%* [No Name]"
   end
 
-  local filename, rel
+  local filename, rel, tail
   if vim.bo[bufnr].buftype == "" then
     filename = vim.fn.fnamemodify(name, ":t")
     rel      = vim.fn.fnamemodify(name, ":~:.")
+    tail     = filename
   else
     filename = ""
-    rel = name:match("([^/\\]+)$") or name
+    tail     = name:match("([^/\\]+)$") or name
+    rel      = tail
   end
-  local icon, _  = icons.get_icon(filename)
+  local icon     = icons.get_icon(filename)
   local icon_str = icon ~= "" and ("%* " .. icon) or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
-  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. mod .. ro
+  local suffix   = mod .. ro
+  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. suffix,
+      icon_str .. "%* " .. tail:gsub("%%", "%%%%") .. suffix
 end
 
 ---@param bufnr integer
@@ -260,12 +275,16 @@ end
 -- Render
 -- ---------------------------------------------------------------------------
 
----One rendered section, carrying the state the fit pass needs.
+---One rendered section, carrying the state the fit pass needs. `text`/`width`
+---track the currently-selected variant; the fit pass may swap them for the
+---short variant (`short_text`/`short_width`) before dropping the section.
 ---@class keystone.statusline._Entry
----@field text  string    rendered statusline text (never empty)
----@field width integer   its display width, measured once
----@field rank  integer?  priority rank; lower = more important, `nil` = never dropped
----@field shown boolean   whether it is currently kept in the output
+---@field text        string   currently-selected statusline text (never empty)
+---@field width       integer  display width of `text`, measured once
+---@field short_text  string   short variant (equals `text` when there is none)
+---@field short_width integer  display width of `short_text`
+---@field rank        integer? priority rank; lower = more important, `nil` = never dropped
+---@field shown       boolean  whether it is currently kept in the output
 
 ---Priority rank of a section: its 1-based index in `config.priority` (lower is
 ---more important, dropped last). Named sections that are not listed rank after
@@ -292,19 +311,25 @@ end
 local function _build_entries(section_list, bufnr, winid)
   local entries = {}
   for _, section in ipairs(section_list) do
-    local text
+    local text, short
     if type(section) == "function" then
-      text = section(bufnr)
+      text, short = section(bufnr)
     elseif type(section) == "string" then
       local provider = _registry[section]
-      text = provider and provider.render(bufnr) or ""
+      if provider then text, short = provider.render(bufnr) end
     end
     if text and text ~= "" then
+      -- A section with no shorter form reuses its full text/width — measured
+      -- once, since the statusline eval is the costly part here.
+      local width = vim.api.nvim_eval_statusline(text, { winid = winid }).width
+      local has_short = short and short ~= "" and short ~= text
       entries[#entries + 1] = {
-        text  = text,
-        width = vim.api.nvim_eval_statusline(text, { winid = winid }).width,
-        rank  = _rank(section),
-        shown = true,
+        text        = text,
+        width       = width,
+        short_text  = has_short and short or text,
+        short_width = has_short and vim.api.nvim_eval_statusline(short, { winid = winid }).width or width,
+        rank        = _rank(section),
+        shown       = true,
       }
     end
   end
@@ -321,11 +346,12 @@ local function _concat_shown(entries)
   return table.concat(parts)
 end
 
----Hide the lowest-priority sections until what remains fits the window width.
----Operates purely on the pre-measured widths — no strings are touched here.
----The droppable sections are sorted once into drop order (least important, and
----among ties the later one, first) then walked, so the whole pass is O(n log n)
----rather than rescanning for a victim on every drop.
+---Shrink the statusline to the window width in two passes over the same drop
+---order (least important first, and among ties the later one first): first
+---switch sections to their short variant, then — if that is still not enough —
+---hide sections outright. Operates purely on the pre-measured widths; the only
+---string touched is swapping an entry to its already-rendered short text.
+---The drop order is sorted once, so the whole pass is O(n log n).
 ---@param left  keystone.statusline._Entry[]
 ---@param right keystone.statusline._Entry[]
 ---@param winid integer
@@ -351,6 +377,18 @@ local function _fit(left, right, winid)
     return a.ord > b.ord
   end)
 
+  -- Pass 1: switch to short variants, starting from the least important.
+  for _, item in ipairs(droppable) do
+    local entry = item.entry
+    if entry.short_width < entry.width then
+      used        = used - (entry.width - entry.short_width)
+      entry.text  = entry.short_text
+      entry.width = entry.short_width
+      if used <= win_width then return end
+    end
+  end
+
+  -- Pass 2: still too wide — hide sections, starting from the least important.
   for _, item in ipairs(droppable) do
     item.entry.shown = false
     used = used - item.entry.width
