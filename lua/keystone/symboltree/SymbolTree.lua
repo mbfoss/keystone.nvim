@@ -1,9 +1,9 @@
-local TreeBuffer = require("keystone.tk.TreeBuffer")
-local ui         = require("keystone.tk.ui")
-local floatwin   = require("keystone.tk.floatwin")
-local throttle   = require("keystone.tk.throttle")
-local kinds      = require("keystone.symboltree.kinds")
-local symbols    = require("keystone.symboltree.symbols")
+local TreeBuffer      = require("keystone.tk.TreeBuffer")
+local ui              = require("keystone.tk.ui")
+local floatwin        = require("keystone.tk.floatwin")
+local throttle        = require("keystone.tk.throttle")
+local kinds           = require("keystone.symboltree.kinds")
+local symbols         = require("keystone.symboltree.symbols")
 
 ---@class keystone.symboltree.ItemData
 ---@field name string
@@ -18,6 +18,11 @@ local symbols    = require("keystone.symboltree.symbols")
 
 --- Id of the single placeholder node shown when there is nothing to display.
 local _placeholder_id = {}
+
+--- Full-line highlight for the symbol enclosing the source cursor. Linked with
+--- `default` so a colorscheme or the user can override it.
+local _current_hl = "KeystoneSymbolTreeCurrent"
+vim.api.nvim_set_hl(0, _current_hl, { default = true, link = "Visual" })
 
 local function _show_help()
     local help_text = { [[
@@ -49,14 +54,14 @@ end
 
 ---@param id any
 ---@param data keystone.symboltree.ItemData
----@return string[][] chunks, string[][] virt_chunks
+---@return string[][] chunks, string[][] virt_chunks, string? line_hl
 local function _symbol_formatter(id, data)
     if not data then return {}, {} end
 
     local chunks = {
         { data.icon, data.icon_hl },
         { " " },
-        { data.name, data.is_current and "Visual" or nil },
+        { data.name },
     }
     if data.detail and data.detail ~= "" then
         table.insert(chunks, { " " })
@@ -65,9 +70,13 @@ local function _symbol_formatter(id, data)
 
     local virt_chunks = {}
     if data.lnum > 0 then
-        table.insert(virt_chunks, { tostring(data.lnum), "LineNr" })
+        -- Stack the current-line highlight over LineNr so the line number's
+        -- background blends into the full-line highlight while keeping its own
+        -- foreground colour.
+        local nr_hl = data.is_current and { "LineNr", _current_hl } or "LineNr"
+        table.insert(virt_chunks, { tostring(data.lnum), nr_hl })
     end
-    return chunks, virt_chunks
+    return chunks, virt_chunks, data.is_current and _current_hl or nil
 end
 
 local function _is_regular_buffer(bufnr)
@@ -105,6 +114,10 @@ function SymbolTree:init(opts)
     self._symbols = {}
     self._provider = symbols.Provider:new()
     self._current_id = nil
+    -- Whether the current-symbol highlight is shown. Only shown while the source
+    -- window is focused, so the Visual-style highlight never clashes with a real
+    -- selection while browsing the tree.
+    self._current_shown = true
     self._autocmd_ids = {}
 
     -- Kind names are friendlier to configure than the numeric LSP codes, so
@@ -214,8 +227,10 @@ function SymbolTree:_on_buffer_created()
     track("LspAttach", {
         callback = function(args)
             if args.buf == self._source_buf then
-                vim.schedule(function () -- schedule because lsp (especially in-process) may not ready yet
-                    self:_request_symbols()                    
+                vim.schedule(function()  -- schedule because lsp (especially in-process) may not ready yet
+                    if vim.api.nvim_get_current_buf() == args.buf then
+                        self:_request_symbols()
+                    end
                 end)
             end
         end,
@@ -234,6 +249,20 @@ function SymbolTree:_on_buffer_created()
             callback = function(args)
                 if args.buf == self._source_buf then
                     self:_sync_to_cursor()
+                end
+            end,
+        })
+
+        -- Only keep the current-symbol highlight while the source window is
+        -- focused: hide it on entering the tree (or any other window) and
+        -- restore it on returning to the source.
+        track("WinEnter", {
+            callback = function()
+                if vim.api.nvim_get_current_buf() == self._source_buf then
+                    self:_set_current_shown(true)
+                    self:_sync_to_cursor()
+                else
+                    self:_set_current_shown(false)
                 end
             end,
         })
@@ -385,6 +414,21 @@ function SymbolTree:_find_item_at_line(line)
     return found
 end
 
+--- Show or hide the current-symbol highlight without forgetting which symbol is
+--- current, so it can be restored when focus returns to the source window.
+---@param shown boolean
+function SymbolTree:_set_current_shown(shown)
+    if self._current_shown == shown then return end
+    self._current_shown = shown
+    local id = self._current_id
+    if not id then return end
+    local data = self._treebuf:get_item_data(id)
+    if data then
+        data.is_current = shown or nil
+        self._treebuf:refresh_item(id)
+    end
+end
+
 --- Highlight the symbol enclosing the source cursor and scroll it into view.
 function SymbolTree:_sync_to_cursor()
     if self._opts.track_cursor == false then return end
@@ -408,10 +452,12 @@ function SymbolTree:_sync_to_cursor()
     self._current_id = id
     if not id then return end
 
-    local data = self._treebuf:get_item_data(id)
-    if data then
-        data.is_current = true
-        self._treebuf:refresh_item(id)
+    if self._current_shown then
+        local data = self._treebuf:get_item_data(id)
+        if data then
+            data.is_current = true
+            self._treebuf:refresh_item(id)
+        end
     end
 
     -- Only move the tree cursor when the tree is not the focused window, so we
