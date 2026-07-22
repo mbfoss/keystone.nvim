@@ -245,6 +245,22 @@ describe("queryflags completion", function()
         end
         assert.is_true(found)
     end)
+
+    it("quotes space-free candidates when inside an open quote", function()
+        -- Inside an open quote every candidate must carry the quote so it keeps
+        -- the typed `"` prefix; otherwise Vim's live pum filter drops them all.
+        local line  = 'path:"f'
+        local comps = qf.get_completions(schema, line, #line)
+        assert.not_nil(comps)
+
+        local plain
+        for _, item in ipairs(comps.items) do
+            if item.abbr == "foo" then plain = item end
+        end
+        assert.not_nil(plain)
+        assert.are.equal('path:"foo"', plain.word)
+        assert.are.equal("foo", qf.parse(schema, plain.word).flags.path)
+    end)
 end)
 
 describe("queryflags value completion type", function()

@@ -284,8 +284,10 @@ function M.get_completions(schema, line, cursor_byte, auto)
 
     local colon = last and last.finish == #before and last.colon_pos
     if colon and colon > 1 then
-        local prefix  = current_word:sub(1, colon - 1)
-        local partial = current_word:sub(colon + 1):gsub('^"', "")
+        local prefix   = current_word:sub(1, colon - 1)
+        local raw_val  = current_word:sub(colon + 1)
+        local in_quote = raw_val:sub(1, 1) == '"' -- cursor sits inside an open quote
+        local partial  = raw_val:gsub('^"', "")
 
         local defs    = _build_map(schema)
 
@@ -306,13 +308,16 @@ function M.get_completions(schema, line, cursor_byte, auto)
 
         -- Case 2: Inside a "value_flag:<partial_value>" block. Candidates come
         -- from the flag's static `values` and/or its dynamic `complete` source
-        -- (e.g. file/dir completion); the value is quoted when it contains a space.
+        -- (e.g. file/dir completion). A value is quoted when it contains a space,
+        -- or when the cursor already sits inside an open quote -- otherwise the
+        -- unquoted candidates would not share the typed `"` prefix and Vim's live
+        -- pum filter would drop them all as more of the value is typed.
         local def = defs[prefix]
         if def and def.type == "value" and (def.values or def.complete) then
             local items = {}
             local function add(v)
-                local word = v:find('[%s"]')
-                    and (prefix .. ':"' .. v:gsub('"', '\\"') .. '"')
+                local word = (in_quote or v:find('[%s"]'))
+                    and (prefix .. ':"' .. v:gsub('"', '\\"'))
                     or (prefix .. ":" .. v)
                 table.insert(items, { word = word, abbr = v })
             end
