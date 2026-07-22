@@ -2,6 +2,7 @@ local M        = {}
 
 ---@class keystone.pick.Config
 ---@field override_ui_select boolean?
+---@field auto_complete_flags boolean? Auto-open flag completion while typing (default true).
 
 ---@class keystone.PickerSpec
 ---@field prompt string
@@ -21,7 +22,8 @@ local M        = {}
 local function _get_default_config()
     ---@type keystone.pick.Config
     return {
-        override_ui_select = true,
+        override_ui_select  = true,
+        auto_complete_flags = true,
     }
 end
 
@@ -52,6 +54,7 @@ local function _do_open(spec, data, initial_query)
         quickfix_formatter = spec.quickfix_formatter,
         previewer          = spec.previewer,
         initial_query      = initial_query,
+        auto_complete_flags = M.config.auto_complete_flags,
         finder             = function(query, flags, fetch_opts, callback)
             return spec.finder(query, flags, fetch_opts, callback, data)
         end,

@@ -75,6 +75,7 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 when enable_list_sep, else 4.
 ---@field enable_list_sep boolean?
 ---@field initial_query  string?
+---@field auto_complete_flags boolean? Auto-open flag completion while typing (default true).
 ---@field on_close fun(query:string)? Called when the picker closes, with the final raw prompt text.
 
 ---@class keystone.Picker.Layout
@@ -281,6 +282,7 @@ end
 ---@field current_query string?
 ---@field history string[]
 ---@field history_idx number
+---@field _suppress_autocomplete boolean?
 local Picker = {}
 Picker.__index = Picker
 
@@ -368,6 +370,32 @@ function Picker:apply_prompt()
 	end
 end
 
+--- Fire flag completion (the completefunc, via <C-x><C-u>) while typing so the
+--- menu appears without pressing <C-Space>. Only triggers inside an in-progress
+--- flag (right after "key:"/"is:" or while typing a value), never on query text.
+---@return nil
+function Picker:maybe_autocomplete()
+	if self.closed or self.opts.auto_complete_flags == false then return end
+	-- Skip while the menu is open (Vim filters it as you type) and just after
+	-- accepting an item, so a chosen value does not immediately reopen its menu.
+	if vim.fn.pumvisible() == 1 then return end
+	if self._suppress_autocomplete then
+		self._suppress_autocomplete = false
+		return
+	end
+
+	local flags = self.opts.flags
+	if not flags or #flags == 0 then return end
+
+	local line = vim.api.nvim_get_current_line()
+	local col  = vim.api.nvim_win_get_cursor(0)[2]
+	if not queryflags.get_completions(flags, line, col, true) then return end
+
+	vim.api.nvim_feedkeys(
+		vim.api.nvim_replace_termcodes("<C-x><C-u>", true, false, true), "n", false
+	)
+end
+
 ---@return nil
 function Picker:setup_ui()
 	local preview_action
@@ -385,7 +413,13 @@ function Picker:setup_ui()
 	-- Hook into CompleteDone to restore highlights and trigger a fetch update
 	vim.api.nvim_create_autocmd("CompleteDone", {
 		buffer = self.pbuf,
-		callback = function() self:apply_prompt() end
+		callback = function()
+			-- Accepting an item fires TextChangedI; suppress its auto-trigger.
+			if next(vim.v.completed_item or {}) ~= nil then
+				self._suppress_autocomplete = true
+			end
+			self:apply_prompt()
+		end
 	})
 	vim.keymap.set("i", "<C-r><C-w>", function()
 		vim.api.nvim_feedkeys(
@@ -1272,7 +1306,10 @@ function Picker:setup_input()
 
 		vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
 			buffer = self.pbuf,
-			callback = function() self:apply_prompt() end
+			callback = function(ev)
+				self:apply_prompt()
+				if ev.event == "TextChangedI" then self:maybe_autocomplete() end
+			end
 		})
 	end
 
