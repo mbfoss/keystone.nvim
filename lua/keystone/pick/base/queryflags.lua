@@ -247,11 +247,12 @@ function M.highlight(schema, raw)
 
         -- Quote chars are highlighted wherever they appear: around a value flag's value
         -- (path:"foo bar") and in query text where a quote escapes a flag-looking token
-        -- ("is:fixed"). Inserted last so they win over the value's String/Keyword highlight.
+        -- ("is:fixed"). An unterminated quote still highlights its opening char so the
+        -- open span is visible. Inserted last so they win over the String/Keyword highlight.
         if token.quotes then
             for _, q in ipairs(token.quotes) do
+                table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
                 if q.close then
-                    table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
                     table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
                 end
             end

@@ -166,6 +166,17 @@ describe("queryflags highlight", function()
         end
     end)
 
+    it("highlights the opening quote of an unterminated quote", function()
+        local hls = qf.highlight(schema, 'path:"foo ba')
+        local delimiters = {}
+        for _, h in ipairs(hls) do
+            if h.hl == "Delimiter" then table.insert(delimiters, h) end
+        end
+        assert.are.same({
+            { start = 5, finish = 6, hl = "Delimiter" },
+        }, delimiters)
+    end)
+
     it("highlights quotes in escaped query text", function()
         -- '"is:fixed"' is query text (the key is quoted), but the surrounding
         -- quote chars should still be highlighted as delimiters.
