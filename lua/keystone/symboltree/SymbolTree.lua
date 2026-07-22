@@ -214,7 +214,9 @@ function SymbolTree:_on_buffer_created()
     track("LspAttach", {
         callback = function(args)
             if args.buf == self._source_buf then
-                self:_request_symbols()
+                vim.schedule(function () -- schedule because lsp (especially in-process) may not ready yet
+                    self:_request_symbols()                    
+                end)
             end
         end,
     })
