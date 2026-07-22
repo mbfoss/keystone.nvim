@@ -68,15 +68,7 @@ local function _symbol_formatter(id, data)
         table.insert(chunks, { data.detail, "Comment" })
     end
 
-    local virt_chunks = {}
-    if data.lnum > 0 then
-        -- Stack the current-line highlight over LineNr so the line number's
-        -- background blends into the full-line highlight while keeping its own
-        -- foreground colour.
-        local nr_hl = data.is_current and { "LineNr", _current_hl } or "LineNr"
-        table.insert(virt_chunks, { tostring(data.lnum), nr_hl })
-    end
-    return chunks, virt_chunks, data.is_current and _current_hl or nil
+    return chunks, {}, data.is_current and _current_hl or nil
 end
 
 local function _is_regular_buffer(bufnr)
