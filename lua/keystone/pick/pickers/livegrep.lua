@@ -160,7 +160,7 @@ local FLAGS       = {
     { name = "follow",    type = "boolean", desc = "follow symlinks"                                             },
     { name = "hidden",    type = "boolean", desc = "include hidden (dotfiles)"                                   },
     { name = "no-ignore", type = "boolean", desc = "disable .gitignore / .ignore rules"                         },
-    { name = "replace",   type = "value", allow_empty = true,        desc = "replacement text (enables search & replace; empty deletes matches)" },
+    { name = "replace",   type = "value", allow_empty = true,        desc = "replacement text (search & replace; empty deletes matches)" },
 }
 
 
