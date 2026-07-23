@@ -164,15 +164,19 @@ function M.document_symbols_spec(opts)
                 local items = {}
                 local function flatten(symbols)
                     for _, s in ipairs(symbols) do
-                        table.insert(items, {
-                            kind = kind_to_string(s.kind),
-                            data = {
-                                name     = s.name,
-                                filepath = filepath,
-                                lnum     = s.selectionRange.start.line + 1,
-                                col      = s.selectionRange.start.character,
-                            },
-                        })
+                        -- DocumentSymbol uses selectionRange; SymbolInformation uses location.range
+                        local range = s.selectionRange or (s.location and s.location.range)
+                        if range then
+                            table.insert(items, {
+                                kind = kind_to_string(s.kind),
+                                data = {
+                                    name     = s.name,
+                                    filepath = filepath,
+                                    lnum     = range.start.line + 1,
+                                    col      = range.start.character,
+                                },
+                            })
+                        end
                         if s.children then flatten(s.children) end
                     end
                 end

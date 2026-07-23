@@ -1,17 +1,50 @@
 local M = {}
 
+local _attrs = {
+    "bold", "italic", "underline", "undercurl", "underdouble",
+    "underdotted", "underdashed", "strikethrough", "reverse",
+    "standout", "nocombine",
+}
+
+---@type keystone.queryflags.FlagDef[]
+local FLAGS = {
+    { name = "linksto", type = "value",   multi = true, desc = "filter by link target group" },
+    { name = "linked",  type = "boolean", desc = "only groups that link to another group" },
+    { name = "attr",    type = "value",   multi = true, values = _attrs, desc = "has attribute: bold, italic, underline, ..." },
+}
+
 ---@param name string
 ---@param hl table
 ---@param query string
----@param list_width number
----@return keystone.Picker.Item?
-local function highlight_to_item(name, hl, query, list_width)
+---@param flags table
+---@return boolean
+local function highlight_matches(name, hl, query, flags)
     if query ~= "" then
-        local name_l  = name:lower()
-        local query_l = query:lower()
-        if not name_l:find(query_l, 1, true) then return nil end
+        if not name:lower():find(query:lower(), 1, true) then return false end
     end
 
+    if flags.linked and not hl.link then return false end
+
+    local linksto = flags.linksto or {}
+    if #linksto > 0 then
+        local link = (hl.link or ""):lower()
+        if link == "" then return false end
+        for _, v in ipairs(linksto) do
+            if not link:find(v:lower(), 1, true) then return false end
+        end
+    end
+
+    for _, v in ipairs(flags.attr or {}) do
+        if not hl[v] then return false end
+    end
+
+    return true
+end
+
+---@param name string
+---@param hl table
+---@return keystone.Picker.Item
+local function highlight_to_item(name, hl)
     local chunks = { { name, name } }
 
     local link = hl.link
@@ -32,12 +65,14 @@ function M.spec()
 
     return {
         prompt         = "Highlights",
+        flags          = FLAGS,
         enable_preview = false,
-        finder         = function(query, _, fetch_opts, callback)
+        finder         = function(query, flags, _, callback)
             local items = {}
             for name, hl in pairs(highlights) do
-                local item = highlight_to_item(name, hl, query, fetch_opts.list_width)
-                if item then table.insert(items, item) end
+                if highlight_matches(name, hl, query, flags) then
+                    table.insert(items, highlight_to_item(name, hl))
+                end
             end
             callback(items)
         end,

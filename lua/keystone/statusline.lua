@@ -200,8 +200,8 @@ local function _section_filename(bufnr)
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
   local suffix   = mod .. ro
-  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. suffix,
-      icon_str .. "%* " .. tail:gsub("%%", "%%%%") .. suffix
+  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. suffix .. " ",
+      icon_str .. "%* " .. tail:gsub("%%", "%%%%") .. suffix .. " "
 end
 
 ---@param bufnr integer
