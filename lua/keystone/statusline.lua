@@ -1,10 +1,10 @@
-local M = {}
+local M             = {}
 
-local icons    = require("keystone.icons")
-local throttle = require("keystone.tk.throttle")
+local icons         = require("keystone.icons")
+local throttle      = require("keystone.tk.throttle")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
-local _enabled = false
+local _enabled      = false
 
 ---A section provider renders one statusline section and optionally owns its own
 ---highlights and lifecycle. The built-in sections are registered exactly like
@@ -55,13 +55,13 @@ local _enabled = false
 -- ---------------------------------------------------------------------------
 
 ---@type table<string, keystone.statusline.Provider>
-local _registry = {}
+local _registry     = {}
 
 ---Names of providers whose `enable` hook is currently running, so `disable`
 ---tears down exactly those — not whatever `M.config.sections` says *now*,
 ---which may have already changed by the time `disable` runs (see `M.setup`).
 ---@type table<string, true>
-local _active = {}
+local _active       = {}
 
 ---Whether `name` is referenced anywhere in the current config's sections, i.e.
 ---whether its `enable`/`disable` lifecycle should actually run.
@@ -154,17 +154,17 @@ M.config = _get_default_config()
 -- ---------------------------------------------------------------------------
 
 local _MODE_MAP = {
-  n       = { label = "NORMAL",   short = "N", hl = "KeystoneSLModeNormal" },
-  i       = { label = "INSERT",   short = "I", hl = "KeystoneSLModeInsert" },
-  v       = { label = "VISUAL",   short = "V", hl = "KeystoneSLModeVisual" },
-  V       = { label = "V-LINE",   short = "V", hl = "KeystoneSLModeVisual" },
-  ["\22"] = { label = "V-BLOCK",  short = "V", hl = "KeystoneSLModeVisual" },
-  c       = { label = "COMMAND",  short = "C", hl = "KeystoneSLModeCommand" },
-  r       = { label = "CONFIRM",  short = "?", hl = "KeystoneSLModeCommand" },
-  R       = { label = "REPLACE",  short = "R", hl = "KeystoneSLModeReplace" },
-  s       = { label = "SELECT",   short = "S", hl = "KeystoneSLModeVisual" },
-  S       = { label = "S-LINE",   short = "S", hl = "KeystoneSLModeVisual" },
-  ["\19"] = { label = "S-BLOCK",  short = "S", hl = "KeystoneSLModeVisual" },
+  n       = { label = "NORMAL", short = "N", hl = "KeystoneSLModeNormal" },
+  i       = { label = "INSERT", short = "I", hl = "KeystoneSLModeInsert" },
+  v       = { label = "VISUAL", short = "V", hl = "KeystoneSLModeVisual" },
+  V       = { label = "V-LINE", short = "V", hl = "KeystoneSLModeVisual" },
+  ["\22"] = { label = "V-BLOCK", short = "V", hl = "KeystoneSLModeVisual" },
+  c       = { label = "COMMAND", short = "C", hl = "KeystoneSLModeCommand" },
+  r       = { label = "CONFIRM", short = "?", hl = "KeystoneSLModeCommand" },
+  R       = { label = "REPLACE", short = "R", hl = "KeystoneSLModeReplace" },
+  s       = { label = "SELECT", short = "S", hl = "KeystoneSLModeVisual" },
+  S       = { label = "S-LINE", short = "S", hl = "KeystoneSLModeVisual" },
+  ["\19"] = { label = "S-BLOCK", short = "S", hl = "KeystoneSLModeVisual" },
   t       = { label = "TERMINAL", short = "T", hl = "KeystoneSLModeInsert" },
 }
 
@@ -208,8 +208,8 @@ end
 local function _section_diagnostics(bufnr)
   local counts = vim.diagnostic.count(bufnr)
   local e = counts[vim.diagnostic.severity.ERROR] or 0
-  local w = counts[vim.diagnostic.severity.WARN]  or 0
-  local h = counts[vim.diagnostic.severity.HINT]  or 0
+  local w = counts[vim.diagnostic.severity.WARN] or 0
+  local h = counts[vim.diagnostic.severity.HINT] or 0
 
   local parts = {}
   if e > 0 then table.insert(parts, "%#KeystoneSLDiagError#󰅚 " .. e) end
@@ -222,6 +222,7 @@ end
 
 ---@param bufnr integer
 local function _section_filetype(bufnr)
+  if vim.bo[bufnr].buftype ~= "" then return end
   local ft = vim.bo[bufnr].filetype
   if ft == "" then return "" end
   return "%* " .. ft .. " "
@@ -415,7 +416,7 @@ function M.render()
     local bufnr = vim.api.nvim_win_get_buf(winid)
 
     local secs  = M.config.sections
-    local left  = _build_entries(secs.left,  bufnr, winid)
+    local left  = _build_entries(secs.left, bufnr, winid)
     local right = _build_entries(secs.right, bufnr, winid)
     _fit(left, right, winid)
 
