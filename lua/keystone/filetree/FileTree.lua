@@ -91,15 +91,15 @@ local function _file_formatter(id, data, selected)
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
     end
-    if selected then
-        table.insert(virt_chunks, { "●", "Special" })
-    end
-    local name_hl = selected and "Visual" or nil
+    local name_hl = selected and "Special" or nil
     local chunks = {
         { data.icon, data.icon_hl },
         { " " },
-        { data.name, name_hl }
     }
+    if selected then
+        table.insert(chunks, { "✳", "Special" })
+    end
+    table.insert(chunks, { data.name, name_hl })
     return chunks, virt_chunks
 end
 
