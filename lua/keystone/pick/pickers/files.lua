@@ -25,7 +25,7 @@ local icons       = require("keystone.icons")
 local FLAGS       = {
     { name = "dir",    type = "value",   complete = "dir", desc = "override search root directory"    },
     { name = "fixed",  type = "boolean", desc = "literal substring match (overrides glob)" },
-    { name = "glob",   type = "boolean", desc = "rg-style glob match (*.txt, !*.lua, **/dir/**)"               },
+    { name = "glob",   type = "boolean", desc = "rg-style globs, space separated (*.txt !*.lua **/dir/**)"    },
     { name = "case",   type = "value",   values = { "smart", "on", "off" }, desc = "case: smart (default) | on | off" },
     { name = "follow", type = "boolean", desc = "follow symlinks"                   },
     { name = "hidden", type = "boolean", desc = "include hidden (dotfiles)"         },
@@ -87,10 +87,19 @@ local function fixed_match(filename, query, case_sensitive)
     return { score = -byte_s, chunks = pickertools.highlight_chunks(filename, positions) }
 end
 
+--- Split a glob-mode query into the sequence of globs it names.
+--- Globs are whitespace separated, so `*.lua !*_spec.lua` reads as an rg
+--- `--glob *.lua --glob !*_spec.lua` invocation.
+---@param query string
+---@return string[]
+local function split_globs(query)
+    return vim.split(query, "%s+", { trimempty = true })
+end
+
 --- Match a file against the query under the selected `mode`:
 ---   * "fuzzy" (default) — fuzzy subsequence over the basename
 ---   * "fixed"           — literal substring over the basename
----   * "glob"            — rg-style glob over the relative path (unhighlighted)
+---   * "glob"            — rg-style globs over the relative path (unhighlighted)
 --- The returned chunks always describe the basename, so the result row renders
 --- identically regardless of mode.
 ---@param filename string
@@ -98,10 +107,12 @@ end
 ---@param query string
 ---@param mode keystone.filepicker.Mode?
 ---@param case_sensitive boolean?
+---@param globs string[]? `query` pre-split by `split_globs` (glob mode only)
 ---@return {score:number, chunks:table[]}?
-local function do_match(filename, relpath, query, mode, case_sensitive)
+local function do_match(filename, relpath, query, mode, case_sensitive, globs)
     if mode == "glob" then
-        if not pickertools.match_glob(query, relpath, not case_sensitive) then return nil end
+        globs = globs or split_globs(query)
+        if not pickertools.match_globs(globs, relpath, not case_sensitive) then return nil end
         return { score = 0, chunks = pickertools.highlight_chunks(filename) }
     elseif mode == "fixed" then
         return fixed_match(filename, query, case_sensitive)
@@ -138,6 +149,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local max_results        = opts.max_results or 10000
     local items              = {}
     local mode               = opts.mode or "fuzzy"
+    local globs              = mode == "glob" and split_globs(query) or nil
 
     local base_excludes      = opts.show_hidden and {} or { ".*", "**/.*" }
     local exclude_regex_list = strutil.compile_globs(base_excludes)
@@ -153,7 +165,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 vim.cmd("redraw")
             end,
             on_file            = function(filepath, filename, relative_path)
-                local res = do_match(filename, relative_path, query, mode, opts.case_sensitive)
+                local res = do_match(filename, relative_path, query, mode, opts.case_sensitive, globs)
                 if not res then return end
                 if count >= max_results then
                     if walk_cancel then walk_cancel() end

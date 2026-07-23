@@ -228,38 +228,6 @@ local function _parse_glob(pattern)
     return vim.split(pat, "/", { plain = true }), negated
 end
 
---- Match a path against a ripgrep/gitignore-style glob.
----
---- Semantics mirror ripgrep `--glob` (case-sensitive; pass `nocase` for the
---- `--iglob` equivalent):
----   * `*`      matches any run of characters except `/`
----   * `?`      matches any single character except `/`
----   * `[...]`  a character class (`[!...]`/`[^...]` negate, `a-z` ranges)
----   * `**`     as a whole path component matches zero or more directories;
----              a trailing `/**` matches everything inside a directory
----   * a pattern with no `/` matches the basename at any depth (e.g. `*.txt`),
----     while a pattern containing `/` is anchored to the path root (`src/*.txt`)
----   * a leading `!` negates the pattern (`!*.txt` matches every path that is
----     not a `*.txt`); `\!` starts a pattern with a literal `!`
----@param pattern string  rg-style glob (e.g. "*.txt", "!*.txt", "src/*.lua")
----@param relpath string  relative file path (e.g. "lua/keystone/util/foo.lua")
----@param nocase boolean? when true, match case-insensitively (like `rg --iglob`)
----@return boolean
-function M.match_glob(pattern, relpath, nocase)
-    if nocase then
-        pattern = pattern:lower()
-        relpath = relpath:lower()
-    end
-
-    local gsegs, negated = _parse_glob(pattern)
-    if not gsegs then return false end
-
-    local psegs = vim.split(relpath, "/", { plain = true })
-    local matched = _match_components(gsegs, 1, psegs, 1)
-    if negated then return not matched end
-    return matched
-end
-
 --- Match a path against a *list* of globs the way ripgrep applies `--glob`.
 ---
 --- The last glob that applies to the path decides: a positive glob includes it,
@@ -268,8 +236,20 @@ end
 --- When nothing applies, the path is kept only if the list is all negations —
 --- a single positive glob turns the list into a whitelist. An empty list keeps
 --- everything.
+---
+--- Per-pattern semantics mirror ripgrep `--glob` (case-sensitive; pass `nocase`
+--- for the `--iglob` equivalent):
+---   * `*`      matches any run of characters except `/`
+---   * `?`      matches any single character except `/`
+---   * `[...]`  a character class (`[!...]`/`[^...]` negate, `a-z` ranges)
+---   * `**`     as a whole path component matches zero or more directories;
+---              a trailing `/**` matches everything inside a directory
+---   * a pattern with no `/` matches the basename at any depth (e.g. `*.txt`),
+---     while a pattern containing `/` is anchored to the path root (`src/*.txt`)
+---   * a leading `!` negates the pattern (`!*.txt` excludes every `*.txt`);
+---     `\!` starts a pattern with a literal `!`
 ---@param patterns string[] rg-style globs, applied in order
----@param relpath string    relative file path
+---@param relpath string    relative file path (e.g. "lua/keystone/util/foo.lua")
 ---@param nocase boolean?   when true, match case-insensitively (like `rg --iglob`)
 ---@return boolean
 function M.match_globs(patterns, relpath, nocase)

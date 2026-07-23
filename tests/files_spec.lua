@@ -54,4 +54,17 @@ describe("do_match (glob)", function()
         assert.not_nil(do_match("Foo.LUA", "Foo.LUA", "*.lua", "glob", false))
         assert.is_nil(do_match("Foo.LUA", "Foo.LUA", "*.lua", "glob", true))
     end)
+
+    it("takes a whitespace-separated sequence of globs", function()
+        local q = "*.lua *.txt"
+        assert.not_nil(do_match("foo.lua", "src/foo.lua", q, "glob", false))
+        assert.not_nil(do_match("foo.txt", "src/foo.txt", q, "glob", false))
+        assert.is_nil(do_match("foo.md", "src/foo.md", q, "glob", false))
+    end)
+
+    it("lets a later negation exclude, like rg --glob", function()
+        local q = "*.lua  !*_spec.lua"
+        assert.not_nil(do_match("foo.lua", "lua/foo.lua", q, "glob", false))
+        assert.is_nil(do_match("foo_spec.lua", "tests/foo_spec.lua", q, "glob", false))
+    end)
 end)

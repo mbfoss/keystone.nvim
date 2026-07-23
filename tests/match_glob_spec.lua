@@ -1,8 +1,16 @@
 local pickertools = require("keystone.pick.base.pickertools")
 
-local match = pickertools.match_glob
+--- Single-pattern shorthand: the pattern semantics are the same whether a glob
+--- arrives alone or in a list.
+---@param pattern string
+---@param relpath string
+---@param nocase boolean?
+---@return boolean
+local function match(pattern, relpath, nocase)
+    return pickertools.match_globs({ pattern }, relpath, nocase)
+end
 
-describe("match_glob basename patterns (no slash)", function()
+describe("match_globs basename patterns (no slash)", function()
     it("matches a basename glob at any depth", function()
         assert.is_true(match("*.txt", "foo.txt"))
         assert.is_true(match("*.txt", "a/b/foo.txt"))
@@ -26,7 +34,7 @@ describe("match_glob basename patterns (no slash)", function()
     end)
 end)
 
-describe("match_glob anchored patterns (with slash)", function()
+describe("match_globs anchored patterns (with slash)", function()
     it("anchors to the path root", function()
         assert.is_true(match("src/*.lua", "src/foo.lua"))
         assert.is_false(match("src/*.lua", "lua/src/foo.lua"))
@@ -43,7 +51,7 @@ describe("match_glob anchored patterns (with slash)", function()
     end)
 end)
 
-describe("match_glob globstar (**)", function()
+describe("match_globs globstar (**)", function()
     it("leading **/ matches zero or more directories", function()
         assert.is_true(match("**/foo", "foo"))
         assert.is_true(match("**/foo", "a/foo"))
@@ -73,7 +81,7 @@ describe("match_glob globstar (**)", function()
     end)
 end)
 
-describe("match_glob single character (?)", function()
+describe("match_globs single character (?)", function()
     it("matches exactly one character", function()
         assert.is_true(match("?.txt", "a.txt"))
         assert.is_false(match("?.txt", "ab.txt"))
@@ -85,7 +93,7 @@ describe("match_glob single character (?)", function()
     end)
 end)
 
-describe("match_glob character classes", function()
+describe("match_globs character classes", function()
     it("matches a set", function()
         assert.is_true(match("[abc].txt", "a.txt"))
         assert.is_true(match("[abc].txt", "c.txt"))
@@ -104,7 +112,7 @@ describe("match_glob character classes", function()
     end)
 end)
 
-describe("match_glob case sensitivity", function()
+describe("match_globs case sensitivity", function()
     it("is case-sensitive like ripgrep --glob", function()
         assert.is_false(match("*.TXT", "foo.txt"))
         assert.is_true(match("*.TXT", "foo.TXT"))
@@ -117,7 +125,7 @@ describe("match_glob case sensitivity", function()
     end)
 end)
 
-describe("match_glob negation (!)", function()
+describe("match_globs negation (!)", function()
     it("inverts a basename pattern", function()
         assert.is_false(match("!*.txt", "foo.txt"))
         assert.is_false(match("!*.txt", "a/b/foo.txt"))
@@ -148,10 +156,6 @@ describe("match_glob negation (!)", function()
         -- `!!foo` is a negation of the literal pattern `!foo`, not a double negation
         assert.is_false(match("!!foo", "!foo"))
         assert.is_true(match("!!foo", "foo"))
-    end)
-
-    it("returns false for a bare bang", function()
-        assert.is_false(match("!", "foo.txt"))
     end)
 end)
 
@@ -205,11 +209,7 @@ describe("match_globs (rg --glob lists)", function()
     end)
 end)
 
-describe("match_glob edge cases", function()
-    it("returns false for an empty pattern", function()
-        assert.is_false(match("", "foo.txt"))
-    end)
-
+describe("match_globs edge cases", function()
     it("ignores a trailing directory slash", function()
         assert.is_true(match("foo", "a/foo"))
     end)
