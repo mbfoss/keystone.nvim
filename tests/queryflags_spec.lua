@@ -106,6 +106,32 @@ describe("queryflags value flags", function()
         assert.are.equal('say "hi" there', r.query)
     end)
 
+    it("inserts a literal double quote outside any quoted span via \\\"", function()
+        local r = qf.parse(schema, 'say \\"hi\\" there')
+        assert.are.equal('say "hi" there', r.query)
+        assert.are.same({}, r.flags)
+    end)
+
+    it("does not open a quoted span with an escaped quote", function()
+        -- the \" is literal, so the space still ends the token and the trailing
+        -- token is separate query text -- not an unterminated quote.
+        local r = qf.parse(schema, 'foo\\" bar')
+        assert.is_nil(r.error)
+        assert.are.equal('foo" bar', r.query)
+    end)
+
+    it("accepts an escaped quote in an unquoted value flag", function()
+        local r = qf.parse(schema, 'path:foo\\"bar')
+        assert.are.equal('foo"bar', r.flags.path)
+        assert.are.equal("", r.query)
+    end)
+
+    it("does not treat an escaped quote before the key colon as quoting the key", function()
+        local r = qf.parse(schema, '\\"path:foo')
+        assert.are.equal('"path:foo', r.query)
+        assert.is_nil(r.flags.path)
+    end)
+
     it("reports an error on an unterminated value quote", function()
         local r = qf.parse(schema, 'path:"foo ba')
         -- an unclosed quote is a malformed query: report it instead of guessing.

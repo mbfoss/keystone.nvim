@@ -47,8 +47,9 @@ end
 --   'path:"foo bar"' → value flag whose value contains a space
 --   '"is:fixed"'     → query text "is:fixed" (the key is quoted, so not a flag)
 --   '"path:foo"'     → query text "path:foo" (the key is quoted, so not a flag)
--- Inside a quoted span, a literal double quote is written as \" and does not
--- close the span. An unterminated quote runs to the end of the token.
+-- Anywhere in the input, a literal double quote is written as \": inside a
+-- quoted span it does not close the span, and outside one it does not open a
+-- span. An unterminated quote runs to the end of the token.
 
 ---@class keystone.queryflags.Token
 ---@field text          string                           -- verbatim token text
@@ -98,6 +99,11 @@ local function _tokenize(str)
                     table.insert(chars, c)
                     i = i + 1
                 end
+            elseif c == "\\" and str:sub(i + 1, i + 1) == '"' then
+                -- outside a quoted span \" is a literal double quote and does
+                -- not open a span.
+                table.insert(chars, '"')
+                i = i + 2
             elseif c:match("%s") then
                 break
             elseif c == '"' then
@@ -287,7 +293,7 @@ function M.get_completions(schema, line, cursor_byte, auto)
         local prefix   = current_word:sub(1, colon - 1)
         local raw_val  = current_word:sub(colon + 1)
         local in_quote = raw_val:sub(1, 1) == '"' -- cursor sits inside an open quote
-        local partial  = raw_val:gsub('^"', "")
+        local partial  = raw_val:gsub('^"', ""):gsub('\\"', '"')
 
         local defs    = _build_map(schema)
 
@@ -317,7 +323,7 @@ function M.get_completions(schema, line, cursor_byte, auto)
             local items = {}
             local function add(v)
                 local word = (in_quote or v:find('[%s"]'))
-                    and (prefix .. ':"' .. v:gsub('"', '\\"'))
+                    and (prefix .. ':"' .. v:gsub('"', '\\"') .. '"')
                     or (prefix .. ":" .. v)
                 table.insert(items, { word = word, abbr = v })
             end
