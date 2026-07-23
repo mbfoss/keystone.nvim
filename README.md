@@ -96,6 +96,7 @@ At a glance:
 | [pick](#pick) | Fuzzy picker for files, grep, buffers, symbols, and more |
 | [filetree](#filetree) | A file explorer in a side window |
 | [explore](#explore) | A file selector for jumping around the filesystem |
+| [calltree](#calltree) | The LSP call hierarchy of the symbol under the cursor |
 | [clue](#clue) | A which-key style popup of follow-up keys |
 | [completion](#completion) | LSP-driven autocompletion with `<Tab>`/`<CR>` |
 | [statusline](#statusline) | A configurable statusline |
@@ -158,6 +159,42 @@ open the selector with `:FileSelector`.
 ```lua
 explore = true
 ```
+
+### calltree
+
+A side window showing the LSP call hierarchy of the symbol under the cursor:
+who calls it (*incoming*, the default) or what it calls (*outgoing*). Each level
+is fetched only when you expand it, so a wide hierarchy costs nothing until you
+look at it. A function that reaches itself is marked `↺` and left as a leaf, so
+recursion cannot expand forever.
+
+```lua
+calltree = {
+  width_ratio      = 0.25,       -- fraction of the editor width
+  position         = "left",     -- side the window opens on ("left"|"right")
+  direction        = "incoming", -- which way to walk ("incoming"|"outgoing")
+  show_detail      = true,       -- show the server-provided detail text
+  auto_expand_root = true,       -- expand the root as soon as it resolves
+}
+```
+
+Open it with `:CallTree` on the symbol you care about. Running it again re-roots
+the tree on whatever the cursor is on now, so you can walk the code and keep the
+window pointed at where you are — use `toggle` when you actually want it gone.
+
+| Argument | What it does |
+| --- | --- |
+| *(none)* / `open` | Build the tree for the symbol under the cursor |
+| `incoming` / `outgoing` | Same, forcing a direction |
+| `swap` | Flip direction, keeping the current root |
+| `refresh` | Re-fetch everything from the current root |
+| `toggle` | Open, or close if already showing |
+| `close` | Close the window |
+
+Inside the window, `g?` lists the keys. The essentials: `<CR>` expands or
+collapses, `o` jumps to the symbol (`O` also moves focus there), `c` jumps to
+the call site, `s` swaps direction, `r` re-roots on the symbol under the cursor
+and `<BS>` goes back.
 
 ### clue
 
@@ -345,6 +382,8 @@ Enabling the relevant module registers its command:
 | `:Pick` | pick | Open a picker (files, grep, buffers, …) |
 | `:FileTree` | filetree | Toggle the file-tree side window |
 | `:FileSelector` | explore | Open the file selector |
+| `:CallTree` | calltree | Show the call hierarchy of the symbol under the cursor |
+| `:SymbolTree` | symboltree | Toggle the document-symbol side window |
 | `:Bookmark` | bookmarks | Manage line bookmarks |
 | `:DiffUnsaved` | unsaved | Diff unsaved buffers against disk |
 

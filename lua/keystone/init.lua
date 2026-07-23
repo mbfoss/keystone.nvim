@@ -27,6 +27,7 @@ local _MODULES = {
   "largefile",
   "animate",
   "bookmarks",
+  "calltree",
   "clue",
   "completion",
   "diff",
