@@ -140,3 +140,61 @@ describe("calltree.calls.identity", function()
         assert.equals(calls.identity(a), calls.identity(again))
     end)
 end)
+
+describe("calltree.calls.enclosing_callable", function()
+    ---@param line integer
+    ---@param character integer
+    local function at(line, character)
+        return { line = line, character = character }
+    end
+
+    -- class Widget { field; method() { local } }  with a free function after it
+    local symbols = {
+        {
+            name = "Widget",
+            kind = 5, -- Class
+            range = range(0, 0, 10, 1),
+            selectionRange = range(0, 6, 0, 12),
+            children = {
+                { name = "field", kind = 8, range = range(1, 4, 1, 20), selectionRange = range(1, 4, 1, 9) },
+                {
+                    name = "method",
+                    kind = 6,
+                    range = range(3, 4, 8, 5),
+                    selectionRange = range(3, 4, 3, 10),
+                    children = {
+                        { name = "local", kind = 13, range = range(5, 8, 5, 30), selectionRange = range(5, 8, 5, 13) },
+                    },
+                },
+            },
+        },
+        { name = "free", kind = 12, range = range(12, 0, 15, 1), selectionRange = range(12, 9, 12, 13) },
+    }
+
+    it("finds the function enclosing a non-callable symbol", function()
+        local found = calls.enclosing_callable(symbols, at(5, 10))
+        assert.not_nil(found)
+        assert.equals("method", found.name)
+    end)
+
+    it("finds the enclosing function from anywhere in its body", function()
+        local found = calls.enclosing_callable(symbols, at(7, 0))
+        assert.equals("method", found.name)
+        assert.equals("free", calls.enclosing_callable(symbols, at(14, 2)).name)
+    end)
+
+    it("returns nil when only non-callable symbols enclose the position", function()
+        assert.is_nil(calls.enclosing_callable(symbols, at(1, 6)))
+        assert.is_nil(calls.enclosing_callable(symbols, at(11, 0)))
+        assert.is_nil(calls.enclosing_callable(nil, at(0, 0)))
+    end)
+
+    it("handles flat SymbolInformation replies", function()
+        local flat = {
+            { name = "outer", kind = 12, location = { range = range(0, 0, 9, 1) } },
+            { name = "other", kind = 12, location = { range = range(11, 0, 20, 1) } },
+        }
+        assert.equals("outer", calls.enclosing_callable(flat, at(4, 2)).name)
+        assert.is_nil(calls.enclosing_callable(flat, at(10, 0)))
+    end)
+end)

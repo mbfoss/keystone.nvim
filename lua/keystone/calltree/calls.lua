@@ -120,6 +120,44 @@ function M.identity(call)
     return call.uri .. ":" .. call.lnum .. ":" .. call.col .. ":" .. call.name
 end
 
+--- LSP `SymbolKind`s a call hierarchy can be rooted on.
+local _CALLABLE_KINDS = {
+    [6]  = true, -- Method
+    [9]  = true, -- Constructor
+    [12] = true, -- Function
+}
+
+---@param range table?
+---@param position { line: integer, character: integer }
+---@return boolean
+local function _contains(range, position)
+    local start, stop = range and range.start, range and range["end"]
+    if not start or not stop then return false end
+    if position.line < start.line or position.line > stop.line then return false end
+    if position.line == start.line and position.character < start.character then return false end
+    if position.line == stop.line and position.character > stop.character then return false end
+    return true
+end
+
+--- Innermost callable symbol whose range covers `position`, so a cursor sitting
+--- on a variable, a field or a comment can still name the function it lives in.
+--- Accepts either shape a `textDocument/documentSymbol` reply may take:
+--- hierarchical `DocumentSymbol`s or flat `SymbolInformation`s.
+---@param symbols table[]? raw reply
+---@param position { line: integer, character: integer } in the offset encoding the symbols came in
+---@return table? symbol
+function M.enclosing_callable(symbols, position)
+    local found = nil
+    for _, symbol in ipairs(symbols or {}) do
+        local range = symbol.range or (symbol.location and symbol.location.range)
+        if _contains(range, position) then
+            if _CALLABLE_KINDS[symbol.kind] then found = symbol end
+            found = M.enclosing_callable(symbol.children, position) or found
+        end
+    end
+    return found
+end
+
 -- ---------------------------------------------------------------------------
 -- Provider: resolves the symbol under the cursor to a call hierarchy root and
 -- fetches a node's calls over LSP. Hides the request/reply plumbing from
@@ -130,6 +168,7 @@ end
 local _METHOD_PREPARE  = "textDocument/prepareCallHierarchy"
 local _METHOD_INCOMING = "callHierarchy/incomingCalls"
 local _METHOD_OUTGOING = "callHierarchy/outgoingCalls"
+local _METHOD_SYMBOLS  = "textDocument/documentSymbol"
 
 ---@class keystone.calltree.calls.Provider.PrepareHandlers
 ---@field on_root fun(root: keystone.calltree.Call) resolved the symbol under the cursor
@@ -158,6 +197,10 @@ end
 --- Resolves the symbol at the cursor of `winid` to a call hierarchy root.
 --- Exactly one handler fires, and never for a reply overtaken by a later
 --- `prepare` on this provider.
+---
+--- A cursor that does not sit on a callable symbol — a local, a field, a type
+--- name, a comment, blank space inside a body — falls back to the function that
+--- encloses it, so the tree opens on something useful instead of an error.
 ---@param bufnr integer
 ---@param winid integer window whose cursor names the symbol
 ---@param handlers keystone.calltree.calls.Provider.PrepareHandlers
@@ -177,22 +220,80 @@ function Provider:prepare(bufnr, winid, handlers)
     local request_id = self._prepare_counter
 
     local params = vim.lsp.util.make_position_params(winid, client.offset_encoding)
+    self:_prepare_at(bufnr, client, params, request_id, {
+        on_root = handlers.on_root,
+        on_unavailable = function(reason)
+            if reason then
+                handlers.on_unavailable(reason)
+            else
+                self:_prepare_enclosing(bufnr, client, params, request_id, handlers)
+            end
+        end,
+    })
+end
+
+--- One `prepareCallHierarchy` round trip. `on_unavailable` is called with nil
+--- when the position simply named nothing, which is the case a fallback can
+--- still recover from, and with a reason when it cannot.
+---@private
+---@param bufnr integer
+---@param client table lsp client
+---@param params table position params
+---@param request_id integer value `_prepare_counter` must still hold when the reply lands
+---@param handlers { on_root: fun(root: keystone.calltree.Call), on_unavailable: fun(reason: string?) }
+function Provider:_prepare_at(bufnr, client, params, request_id, handlers)
     client:request(_METHOD_PREPARE, params, function(err, result)
         -- Drop replies overtaken by a newer request.
         if request_id ~= self._prepare_counter then return end
 
-        -- A null result can arrive as vim.NIL, so check the type.
-        if err or type(result) ~= "table" or #result == 0 then
-            handlers.on_unavailable(err and "Call hierarchy request failed" or "No symbol under cursor")
+        if err then
+            handlers.on_unavailable("Call hierarchy request failed")
             return
         end
 
-        local root = M.normalize_item(result[1], client.id)
-        if not root then
-            handlers.on_unavailable("No symbol under cursor")
+        -- A null result can arrive as vim.NIL, so check the type.
+        local root = type(result) == "table" and M.normalize_item(result[1], client.id) or nil
+        if root then
+            handlers.on_root(root)
+        else
+            handlers.on_unavailable(nil)
+        end
+    end, bufnr)
+end
+
+--- Retry `prepare` at the name of the innermost function enclosing the cursor.
+---@private
+---@param bufnr integer
+---@param client table lsp client
+---@param params table position params of the original, failed, attempt
+---@param request_id integer
+---@param handlers keystone.calltree.calls.Provider.PrepareHandlers
+function Provider:_prepare_enclosing(bufnr, client, params, request_id, handlers)
+    if not client:supports_method(_METHOD_SYMBOLS, bufnr) then
+        handlers.on_unavailable("No symbol under cursor")
+        return
+    end
+
+    client:request(_METHOD_SYMBOLS, { textDocument = params.textDocument }, function(err, result)
+        if request_id ~= self._prepare_counter then return end
+
+        -- Both replies come from the same client, so the symbol ranges are in
+        -- the same offset encoding as `params.position` and compare directly.
+        local symbol = not err and type(result) == "table"
+            and M.enclosing_callable(result, params.position)
+            or nil
+        local range = symbol and (symbol.selectionRange or symbol.range
+            or (symbol.location and symbol.location.range))
+        if not range or not range.start then
+            handlers.on_unavailable("No function under cursor")
             return
         end
-        handlers.on_root(root)
+
+        local at = { textDocument = params.textDocument, position = range.start }
+        self:_prepare_at(bufnr, client, at, request_id, {
+            on_root = handlers.on_root,
+            on_unavailable = function() handlers.on_unavailable("No function under cursor") end,
+        })
     end, bufnr)
 end
 
