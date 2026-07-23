@@ -5,15 +5,15 @@ local pickertools = require("keystone.pick.base.pickertools")
 ---@type keystone.queryflags.FlagDef[]
 local FLAGS = {
     { name = "float",  type = "boolean", desc = "include floating windows" },
-    { name = "hidden", type = "boolean", desc = "include hidden buffers"   },
+    { name = "hidden", type = "boolean", desc = "include hidden windows"   },
 }
 
 ---@param winid number
 ---@param query string
----@param is_float boolean
+---@param config table window config from `nvim_win_get_config()`
 ---@param current_win number
 ---@return keystone.Picker.Item?
-local function window_to_picker_item(winid, query, is_float, current_win)
+local function window_to_picker_item(winid, query, config, current_win)
     if not vim.api.nvim_win_is_valid(winid) then return nil end
 
     local bufnr    = vim.api.nvim_win_get_buf(winid)
@@ -29,14 +29,10 @@ local function window_to_picker_item(winid, query, is_float, current_win)
     }
     vim.list_extend(label_chunks, match.chunks)
 
-    local filetype = vim.bo[bufnr].filetype
-    if filetype ~= "" then
-        table.insert(label_chunks, { "  " .. filetype, "Comment" })
-    end
-    if is_float then
+    if config.relative ~= "" then
         table.insert(label_chunks, { " [float]", "Special" })
     end
-    if not vim.bo[bufnr].buflisted then
+    if config.hide then
         table.insert(label_chunks, { " [hidden]", "Special" })
     end
 
@@ -71,10 +67,9 @@ function M.spec(opts)
                 local is_float = config.relative ~= ""
                 if is_float and not flags.float then goto continue end
 
-                local bufnr = vim.api.nvim_win_get_buf(winid)
-                if not vim.bo[bufnr].buflisted and not flags.hidden then goto continue end
+                if config.hide and not flags.hidden then goto continue end
 
-                local item = window_to_picker_item(winid, query, is_float, current_win)
+                local item = window_to_picker_item(winid, query, config, current_win)
                 if item then table.insert(items, item) end
                 ::continue::
             end
