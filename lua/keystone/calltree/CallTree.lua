@@ -32,6 +32,7 @@ NAVIGATION
 `o`       Jump to the symbol, keep focus in the tree
 `O`       Jump to the symbol and focus it
 `c`       Jump to the call site
+`K`       Hover info (kind, location, call sites)
 
 FOLDING
 =======
@@ -43,14 +44,13 @@ FOLDING
 
 HIERARCHY
 =========
-`s`       Swap direction (incoming <-> outgoing)
+`<Tab>`   Swap direction (incoming <-> outgoing)
 `r`       Re-root the tree on the symbol under the cursor
 `<BS>`    Back to the previous root
 `R`       Refresh
 
 OTHER
 =====
-`K`       Hover info (kind, location, call sites)
 `g?`      Show this help]]
     }
 
@@ -184,6 +184,7 @@ function CallTree:create_buffer()
     end
 
     local keymaps = {
+        -- Navigation
         ["o"] = {
             function() with_call(function(call) self:_jump_to(call, false) end) end,
             "Jump to symbol (keep focus)",
@@ -196,7 +197,12 @@ function CallTree:create_buffer()
             function() with_call(function(call) self:_jump_to_call_site(call) end) end,
             "Jump to call site",
         },
-        ["s"] = {
+        ["K"] = {
+            function() with_call(function(call) self:_show_hover(call) end) end,
+            "Show symbol info",
+        },
+        -- Hierarchy
+        ["<Tab>"] = {
             function() self:swap_direction() end,
             "Swap call direction",
         },
@@ -212,10 +218,7 @@ function CallTree:create_buffer()
             function() self:refresh() end,
             "Refresh",
         },
-        ["K"] = {
-            function() with_call(function(call) self:_show_hover(call) end) end,
-            "Show symbol info",
-        },
+        -- Other
         ["g?"] = {
             function() _show_help() end,
             "Show Help",
