@@ -59,6 +59,7 @@ end
 ---@field colon_pos     integer?                         -- 1-indexed position of first ':' in text
 ---@field colon_raw_pos integer?                         -- 1-indexed position of first ':' in raw (for buffer offsets)
 ---@field quotes        {open:integer,close:integer?}[]? -- raw-relative 1-indexed positions of each quote char; close=nil when unterminated
+---@field escapes       integer[]?                       -- raw-relative 1-indexed positions of each escaping '\' (the '\' of a \")
 
 ---@param str string
 ---@return keystone.queryflags.Token[]
@@ -78,6 +79,7 @@ local function _tokenize(str)
         local quote           = nil -- active quote char while inside a quoted span
         local quote_idx       = nil -- index in `chars` where the active quote opened
         local _quote_spans    = {}
+        local _escapes        = {}  -- raw-relative 1-indexed positions of each escaping '\'
         local _quote_open_raw = nil -- raw-relative 1-indexed position of the active opening quote
 
         while i <= len do
@@ -87,6 +89,7 @@ local function _tokenize(str)
                 -- quote char is stripped from `text` but remains in `raw`, and
                 -- \" is a literal double quote that does not close the span.
                 if c == "\\" and str:sub(i + 1, i + 1) == quote then
+                    table.insert(_escapes, i - tok_start + 1)
                     table.insert(chars, quote)
                     i = i + 2
                 elseif c == quote then
@@ -102,6 +105,7 @@ local function _tokenize(str)
             elseif c == "\\" and str:sub(i + 1, i + 1) == '"' then
                 -- outside a quoted span \" is a literal double quote and does
                 -- not open a span.
+                table.insert(_escapes, i - tok_start + 1)
                 table.insert(chars, '"')
                 i = i + 2
             elseif c:match("%s") then
@@ -131,8 +135,11 @@ local function _tokenize(str)
             end
         end
 
+        -- An empty pair of quotes ("") has no text but is still a real token:
+        -- it must be emitted so the quote chars can be highlighted (and so an
+        -- unclosed one is still reported).
         local text = table.concat(chars)
-        if text ~= "" then
+        if text ~= "" or #_quote_spans > 0 then
             tokens[#tokens + 1] = {
                 text          = text,
                 raw           = str:sub(tok_start, i - 1),
@@ -141,6 +148,7 @@ local function _tokenize(str)
                 colon_pos     = colon_pos,
                 colon_raw_pos = colon_raw_pos,
                 quotes        = #_quote_spans > 0 and _quote_spans or nil,
+                escapes       = #_escapes > 0 and _escapes or nil,
             }
         end
     end
@@ -221,7 +229,7 @@ function M.parse(schema, raw)
             end
         elseif kind == "boolean" and key then
             flags[key] = true
-        else
+        elseif token.text ~= "" then
             parts[#parts + 1] = token.text
         end
     end
@@ -261,6 +269,14 @@ function M.highlight(schema, raw)
                 if q.close then
                     table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
                 end
+            end
+        end
+
+        -- The '\' of an escaped quote (\") is syntax, not content: dim it so the
+        -- quote it protects still reads as a literal character.
+        if token.escapes then
+            for _, pos in ipairs(token.escapes) do
+                table.insert(hls, { start = s0 + pos - 1, finish = s0 + pos, hl = "NonText" })
             end
         end
     end
