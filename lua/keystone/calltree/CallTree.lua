@@ -24,6 +24,17 @@ local _PLACEHOLDER_KIND = { name = "Placeholder", icon = "󰋗", hl = "Comment" 
 local _root_hl = "KeystoneCallTreeRoot"
 vim.api.nvim_set_hl(0, _root_hl, { default = true, link = "Title" })
 
+--- Highlight for the direction tag on the root line.
+local _direction_hl = "KeystoneCallTreeDirection"
+vim.api.nvim_set_hl(0, _direction_hl, { default = true, link = "Special" })
+
+--- How each direction announces itself, named after what the rows under the root
+--- actually are rather than after the LSP method.
+local _DIRECTIONS = {
+    incoming = "CALLERS",
+    outgoing = "CALLS",
+}
+
 local function _show_help()
     local help_text = { [[
 NAVIGATION
@@ -44,6 +55,9 @@ FOLDING
 
 HIERARCHY
 =========
+The tag on the root line names what the rows below the root are:
+`CALLERS` (incoming) or `CALLS` (outgoing).
+
 `<Tab>`   Swap direction (incoming <-> outgoing)
 `r`       Re-root the tree on the symbol under the cursor
 `<BS>`    Back to the previous root
@@ -69,8 +83,9 @@ end
 
 ---@param data keystone.calltree.ItemData
 ---@param show_detail boolean
+---@param direction keystone.calltree.Direction
 ---@return string[][] chunks, string[][] virt_chunks, string? line_hl
-local function _call_formatter(data, show_detail)
+local function _call_formatter(data, show_detail, direction)
     if not data then return {}, {} end
 
     local call = data.call
@@ -78,11 +93,17 @@ local function _call_formatter(data, show_detail)
         return { { data.icon, data.icon_hl }, { " " }, { data.text or "", "Comment" } }, {}
     end
 
-    local chunks = {
+    local chunks = {}
+    -- Only the root carries the tag: every other row is reached through it, so
+    -- one marker says which way the whole tree is being walked.
+    if data.is_root then
+        chunks[#chunks + 1] = { _DIRECTIONS[direction] .. " ", _direction_hl }
+    end
+    vim.list_extend(chunks, {
         { data.icon, data.icon_hl },
         { " " },
         { call.name },
-    }
+    })
     if data.recursive then
         table.insert(chunks, { " ↺", "WarningMsg" })
     end
@@ -146,7 +167,7 @@ function CallTree:_setup_tree()
     self._treebuf = TreeBuffer.new({
         filetype  = "keystone-calltree",
         formatter = function(_, data)
-            return _call_formatter(data, self._opts.show_detail ~= false)
+            return _call_formatter(data, self._opts.show_detail ~= false, self._direction)
         end,
     })
 
