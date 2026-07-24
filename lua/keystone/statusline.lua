@@ -172,8 +172,8 @@ local _MODE_MAP = {
 ---@return string full, string short
 local function _section_mode(_)
   local info = _MODE_MAP[vim.fn.mode()] or { label = "?", short = "?", hl = "KeystoneSLModeNormal" }
-  local prefix = "%#" .. info.hl .. "# "
-  return prefix .. info.label .. " %*", prefix .. info.short .. " %*"
+  local prefix = "%#" .. info.hl .. "#"
+  return prefix .. info.label .. "%*", prefix .. info.short .. "%*"
 end
 
 --- Full filename is the path relative to cwd; the short form is the tail only.
@@ -182,7 +182,7 @@ end
 local function _section_filename(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" then
-    return "%* [No Name]", "%* [No Name]"
+    return "%*[No Name]", "%*[No Name]"
   end
 
   local filename, rel, tail
@@ -196,12 +196,12 @@ local function _section_filename(bufnr)
     rel      = tail
   end
   local icon     = icons.get_icon(filename)
-  local icon_str = icon ~= "" and ("%* " .. icon) or ""
+  local icon_str = icon ~= "" and (icon .. " ") or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
   local suffix   = mod .. ro
-  return icon_str .. "%* " .. rel:gsub("%%", "%%%%") .. suffix .. " ",
-      icon_str .. "%* " .. tail:gsub("%%", "%%%%") .. suffix .. " "
+  return "%*" .. icon_str .. rel:gsub("%%", "%%%%") .. suffix,
+      "%*" .. icon_str .. tail:gsub("%%", "%%%%") .. suffix
 end
 
 ---@param bufnr integer
@@ -217,7 +217,7 @@ local function _section_diagnostics(bufnr)
   if h > 0 then table.insert(parts, "%#KeystoneSLDiagHint#󰋽 " .. h) end
   if #parts == 0 then return "" end
 
-  return table.concat(parts, " ") .. " %*"
+  return table.concat(parts, " ") .. "%*"
 end
 
 ---@param bufnr integer
@@ -225,11 +225,11 @@ local function _section_filetype(bufnr)
   if vim.bo[bufnr].buftype ~= "" then return end
   local ft = vim.bo[bufnr].filetype
   if ft == "" then return "" end
-  return "%* " .. ft .. " "
+  return "%*" .. ft
 end
 
 local function _section_position(_)
-  return "%* %4l:%-3c "
+  return "%*%4l:%-3c"
 end
 
 ---Register the built-in sections through the same public registry users use.
