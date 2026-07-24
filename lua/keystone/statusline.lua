@@ -289,6 +289,24 @@ end
 ---@field rank        integer? priority rank; lower = more important, `nil` = never dropped
 ---@field shown       boolean  whether it is currently kept in the output
 
+-- name -> rank lookup, rebuilt only when the priority list itself changes
+-- (`M.setup` assigns a fresh table, so identity comparison suffices).
+local _rank_map
+local _rank_map_src
+
+---@return table<string, integer> name -> 1-based rank (lower is more important)
+local function _rank_lookup()
+  local priority = M.config.priority
+  if _rank_map_src ~= priority then
+    _rank_map = {}
+    for i, name in ipairs(priority) do
+      if _rank_map[name] == nil then _rank_map[name] = i end
+    end
+    _rank_map_src = priority
+  end
+  return _rank_map
+end
+
 ---Priority rank of a section: its 1-based index in `config.priority` (lower is
 ---more important, dropped last). Named sections that are not listed rank after
 ---every listed one. Inline function sections cannot be named, so they return
@@ -297,10 +315,7 @@ end
 ---@return integer?
 local function _rank(section)
   if type(section) ~= "string" then return nil end
-  for i, name in ipairs(M.config.priority) do
-    if name == section then return i end
-  end
-  return math.huge
+  return _rank_lookup()[section] or math.huge
 end
 
 ---Render each section once and measure its display width (statusline widths are
