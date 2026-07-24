@@ -46,9 +46,10 @@ local _enabled      = false
 ---@alias keystone.statusline.Priority string[]
 ---
 ---@class keystone.statusline.Config
----@field enabled  boolean
----@field sections keystone.statusline.Sections
----@field priority keystone.statusline.Priority
+---@field enabled   boolean
+---@field sections  keystone.statusline.Sections
+---@field priority  keystone.statusline.Priority
+---@field separator string  drawn between adjacent sections, always highlighted `NonText`
 
 -- ---------------------------------------------------------------------------
 -- Provider registry
@@ -129,6 +130,7 @@ local function _get_default_config()
   ---@type keystone.statusline.Config
   return {
     enabled = true,
+    separator = "│",
     sections = {
       left  = { "mode", "git", "filename", "symbol_path" },
       right = { "lsp_progress", "diagnostics", "filetype", "position" },
@@ -337,14 +339,26 @@ local function _build_entries(section_list, bufnr, winid)
   return entries
 end
 
----@param entries keystone.statusline._Entry[]
+---The separator string drawn between adjacent sections, in the `NonText`
+---highlight, flanked by a space on each side. Sections themselves emit no
+---surrounding padding — spacing lives here so it is uniform and configurable.
 ---@return string
-local function _concat_shown(entries)
+local function _separator()
+  return " %#NonText#" .. M.config.separator .. "%* "
+end
+
+---Join the shown entries with `sep`, adding one space of edge padding on each
+---side of a non-empty group.
+---@param entries keystone.statusline._Entry[]
+---@param sep     string
+---@return string
+local function _concat_shown(entries, sep)
   local parts = {}
   for _, entry in ipairs(entries) do
     if entry.shown then parts[#parts + 1] = entry.text end
   end
-  return table.concat(parts)
+  if #parts == 0 then return "" end
+  return " " .. table.concat(parts, sep) .. " "
 end
 
 ---Shrink the statusline to the window width in two passes over the same drop
@@ -353,29 +367,45 @@ end
 ---hide sections outright. Operates purely on the pre-measured widths; the only
 ---string touched is swapping an entry to its already-rendered short text.
 ---The drop order is sorted once, so the whole pass is O(n log n).
----@param left  keystone.statusline._Entry[]
----@param right keystone.statusline._Entry[]
----@param winid integer
-local function _fit(left, right, winid)
-  local used = 0
-  for _, list in ipairs({ left, right }) do
+---@param left    keystone.statusline._Entry[]
+---@param right   keystone.statusline._Entry[]
+---@param winid   integer
+---@param sep_w   integer display width of one separator
+local function _fit(left, right, winid, sep_w)
+  -- Rendered width of a group and its shown-section count: the shown sections,
+  -- one separator between each adjacent pair, plus a space of edge padding on
+  -- each side when non-empty.
+  local function group_width(list)
+    local width, shown = 0, 0
     for _, entry in ipairs(list) do
-      used = used + entry.width
+      if entry.shown then
+        width = width + entry.width
+        shown = shown + 1
+      end
     end
+    if shown > 0 then width = width + (shown - 1) * sep_w + 2 end
+    return width, shown
   end
+
+  -- Measure both groups once; from here `used` and the per-group shown counts
+  -- are maintained incrementally, so no pass ever re-scans the entries.
+  local lw, l_shown = group_width(left)
+  local rw, r_shown = group_width(right)
+  local used = lw + rw
 
   local win_width = vim.api.nvim_win_get_width(winid)
   if used <= win_width then return end
 
   -- Over budget (the uncommon case): now collect the droppable sections,
-  -- tagging each with its position so ties break toward the later one.
+  -- tagging each with its position (ties break toward the later one) and the
+  -- side it lives on, so hides can adjust that side's separator count.
   local droppable = {}
   local ord = 0
-  for _, list in ipairs({ left, right }) do
-    for _, entry in ipairs(list) do
+  for _, side in ipairs({ { list = left, key = "l" }, { list = right, key = "r" } }) do
+    for _, entry in ipairs(side.list) do
       if entry.rank then
         ord = ord + 1
-        droppable[#droppable + 1] = { entry = entry, ord = ord }
+        droppable[#droppable + 1] = { entry = entry, ord = ord, side = side.key }
       end
     end
   end
@@ -385,7 +415,8 @@ local function _fit(left, right, winid)
     return a.ord > b.ord
   end)
 
-  -- Pass 1: switch to short variants, starting from the least important.
+  -- Pass 1: switch to short variants, starting from the least important. A
+  -- short swap only shrinks a section — separator count is unchanged.
   for _, item in ipairs(droppable) do
     local entry = item.entry
     if entry.short_width < entry.width then
@@ -397,9 +428,15 @@ local function _fit(left, right, winid)
   end
 
   -- Pass 2: still too wide — hide sections, starting from the least important.
+  -- Hiding an entry also drops one separator, or the group's edge padding when
+  -- it was the last section shown on that side.
+  local shown = { l = l_shown, r = r_shown }
   for _, item in ipairs(droppable) do
-    item.entry.shown = false
-    used = used - item.entry.width
+    local entry = item.entry
+    entry.shown = false
+    local n = shown[item.side]
+    used = used - entry.width - (n >= 2 and sep_w or 2)
+    shown[item.side] = n - 1
     if used <= win_width then return end
   end
 end
@@ -418,9 +455,12 @@ function M.render()
     local secs  = M.config.sections
     local left  = _build_entries(secs.left, bufnr, winid)
     local right = _build_entries(secs.right, bufnr, winid)
-    _fit(left, right, winid)
 
-    return _concat_shown(left) .. "%=" .. _concat_shown(right)
+    local sep   = _separator()
+    local sep_w = vim.api.nvim_eval_statusline(sep, { winid = winid }).width
+    _fit(left, right, winid, sep_w)
+
+    return _concat_shown(left, sep) .. "%=" .. _concat_shown(right, sep)
   end)
   return ok and result or ""
 end

@@ -28,8 +28,8 @@ function M.render(bufnr)
   end
   if #parts == 0 then return "", "" end
   -- Short form drops the client names/percentages, keeping just the icon.
-  return "%#KeystoneSLLspProgress# 󰒓 " .. table.concat(parts, "  ") .. " %*",
-      "%#KeystoneSLLspProgress# 󰒓 %*"
+  return "%#KeystoneSLLspProgress#󰒓 " .. table.concat(parts, "  ") .. "%*",
+      "%#KeystoneSLLspProgress#󰒓 %*"
 end
 
 local _group = nil

@@ -132,8 +132,8 @@ function M.render(bufnr)
   local last_icon = _KIND_ICONS[last.kind] or "󰊕"
   local short      = last_icon .. " " .. _crop(last.name, 20):gsub("%%", "%%%%")
 
-  return "%#KeystoneSLSymbolPath# " .. table.concat(parts, " › ") .. " %*",
-      "%#KeystoneSLSymbolPath# " .. short .. " %*"
+  return "%#KeystoneSLSymbolPath#" .. table.concat(parts, " › ") .. "%*",
+      "%#KeystoneSLSymbolPath#" .. short .. "%*"
 end
 
 ---@param bufnr integer
