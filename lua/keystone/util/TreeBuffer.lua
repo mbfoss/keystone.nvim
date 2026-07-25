@@ -54,7 +54,7 @@ TreeBuffer.__index = TreeBuffer
 ---@return keystone.util.TreeBuffer
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
-    local expand_char = opts.expand_char or "▶"
+    local expand_char = opts.expand_char or "›"
     local indent_cache = {}
     for i = 0, 20 do
         indent_cache[i] = string.rep(indent_str, i)
@@ -63,7 +63,7 @@ function TreeBuffer.new(opts)
         _filetype       = opts.filetype,
         _formatter      = opts.formatter,
         _expand_char    = expand_char,
-        _collapse_char  = opts.collapse_char or "▼",
+        _collapse_char  = opts.collapse_char or "⌄",
         _icon_hl        = opts.icon_hl or "FoldColumn",
         _indent_string  = indent_str,
         _expand_padding = string.rep(" ", vim.fn.strdisplaywidth(expand_char)) .. " ",
