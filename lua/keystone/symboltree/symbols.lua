@@ -62,15 +62,62 @@ local function _sort_recursive(symbols)
     end
 end
 
+--- Rebuild a parent/child tree from a flat symbol list by range containment.
+--- `SymbolInformation[]` replies (e.g. some Python servers) carry no `children`;
+--- nesting is implied by which symbol's range encloses which. Symbols are sorted
+--- outermost-first (start ascending, span descending) and threaded onto a stack,
+--- so each symbol becomes a child of the innermost preceding symbol that fully
+--- covers it, or a root when nothing does.
+---@param flat keystone.symboltree.Symbol[]
+---@return keystone.symboltree.Symbol[]
+local function _build_hierarchy(flat)
+    table.sort(flat, function(a, b)
+        if a.lnum ~= b.lnum then return a.lnum < b.lnum end
+        if a.end_lnum ~= b.end_lnum then return a.end_lnum > b.end_lnum end
+        if a.col ~= b.col then return a.col < b.col end
+        return a.name < b.name
+    end)
+
+    local roots = {}
+    local stack = {}
+    for _, symbol in ipairs(flat) do
+        while #stack > 0 and stack[#stack].end_lnum < symbol.end_lnum do
+            stack[#stack] = nil
+        end
+        local parent = stack[#stack]
+        if parent then
+            parent.children[#parent.children + 1] = symbol
+        else
+            roots[#roots + 1] = symbol
+        end
+        stack[#stack + 1] = symbol
+    end
+    return roots
+end
+
+--- True when the reply is a flat `SymbolInformation[]`: those entries carry a
+--- `location` and no hierarchical `range`/`children` of their own.
+---@param result table[]
+---@return boolean
+local function _is_flat(result)
+    local first = result[1]
+    return type(first) == "table" and first.location ~= nil and first.range == nil
+end
+
 --- Normalize a `textDocument/documentSymbol` reply into a position-sorted tree.
---- Accepts both reply shapes; a flat `SymbolInformation[]` yields a flat list.
+--- Accepts both reply shapes; a flat `SymbolInformation[]` is threaded back into
+--- a hierarchy by range containment.
 ---@param result table[]?
 ---@return keystone.symboltree.Symbol[]
 function M.normalize(result)
+    result = result or {}
     local symbols = {}
-    for _, sym in ipairs(result or {}) do
+    for _, sym in ipairs(result) do
         local normalized = _normalize(sym)
         if normalized then symbols[#symbols + 1] = normalized end
+    end
+    if _is_flat(result) then
+        symbols = _build_hierarchy(symbols)
     end
     _sort_recursive(symbols)
     return symbols

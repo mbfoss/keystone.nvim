@@ -55,6 +55,22 @@ describe("symboltree.symbols.normalize", function()
         assert.equals(10, out[1].end_lnum)
     end)
 
+    it("rebuilds a hierarchy from a flat SymbolInformation list by containment", function()
+        -- Shape returned by servers like pylsp: a flat list where nesting is
+        -- implied by range containment rather than a `children` field.
+        local out = symbols.normalize({
+            { name = "meth", kind = 6, location = { uri = "file:///x", range = range(2, 4, 5, 0) } },
+            { name = "Klass", kind = 5, location = { uri = "file:///x", range = range(0, 0, 8, 0) } },
+            { name = "top", kind = 12, location = { uri = "file:///x", range = range(10, 0, 12, 0) } },
+        })
+        assert.equals(2, #out)
+        assert.equals("Klass", out[1].name)
+        assert.equals(1, #out[1].children)
+        assert.equals("meth", out[1].children[1].name)
+        assert.equals("top", out[2].name)
+        assert.equals(0, #out[2].children)
+    end)
+
     it("sorts siblings by position at every depth", function()
         local out = symbols.normalize({
             { name = "second", kind = 12, range = range(10, 0, 12, 0) },
