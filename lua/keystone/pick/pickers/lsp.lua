@@ -130,6 +130,17 @@ function M.references_spec()
                 end
                 ::continue::
             end
+            if query == "" then
+                table.sort(picker_items, function(a, b)
+                    if a.data.filepath ~= b.data.filepath then
+                        return a.data.filepath < b.data.filepath
+                    end
+                    if a.data.lnum ~= b.data.lnum then
+                        return a.data.lnum < b.data.lnum
+                    end
+                    return a.data.col < b.data.col
+                end)
+            end
             callback(picker_items)
         end,
         on_confirm      = function(data)
@@ -151,10 +162,10 @@ function M.document_symbols_spec(opts)
     for _, k in ipairs(opts.kinds or {}) do opts_kind_filter[k:lower()] = true end
 
     return {
-        prompt          = opts.prompt or "Document Symbols",
-        flags           = SYMBOL_FLAGS,
-        enable_preview  = true,
-        setup           = function(callback)
+        prompt         = opts.prompt or "Document Symbols",
+        flags          = SYMBOL_FLAGS,
+        enable_preview = true,
+        setup          = function(callback)
             vim.lsp.buf_request(0, "textDocument/documentSymbol", params, function(err, result, _)
                 if err or not result then
                     callback(nil)
@@ -200,7 +211,7 @@ function M.document_symbols_spec(opts)
                 callback({ items = items })
             end)
         end,
-        finder          = function(query, flags, _, callback, data)
+        finder         = function(query, flags, _, callback, data)
             -- Kind booleans select a union: "is:Function is:Class" keeps both,
             -- none set keeps every kind.
             local flag_kinds = {}
@@ -233,7 +244,7 @@ function M.document_symbols_spec(opts)
             table.sort(filtered, function(a, b) return a.score > b.score end)
             callback(filtered)
         end,
-        on_confirm      = function(data)
+        on_confirm     = function(data)
             if data then vim.api.nvim_win_set_cursor(0, { data.lnum, data.col }) end
         end,
     }
