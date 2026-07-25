@@ -104,7 +104,8 @@ function M.references_spec()
                 callback({ lsp_items = lsp_items })
             end)
         end,
-        finder          = function(query, flags, fetch_opts, callback, data)
+        finder          = function(query, flags, fetch_opts, callback)
+            local data         = fetch_opts.data
             local picker_items = {}
             for _, ref in ipairs(data.lsp_items) do
                 local display_path = fsutil.get_relative_path(ref.filename) or ref.filename or ""
@@ -211,7 +212,8 @@ function M.document_symbols_spec(opts)
                 callback({ items = items })
             end)
         end,
-        finder         = function(query, flags, _, callback, data)
+        finder         = function(query, flags, fetch_opts, callback)
+            local data       = fetch_opts.data
             -- Kind booleans select a union: "is:Function is:Class" keeps both,
             -- none set keeps every kind.
             local flag_kinds = {}

@@ -195,7 +195,7 @@ function M.spec(opts)
         prompt         = opts.prompt or "Files",
         flags          = opts.cwd and vim.tbl_filter(function(f) return f.name ~= "dir" end, FLAGS) or FLAGS,
         enable_preview = true,
-        finder         = function(query, flags, fetch_opts, callback, _)
+        finder         = function(query, flags, fetch_opts, callback)
             if not query or query == "" then
                 callback()
                 return

@@ -15,7 +15,7 @@ local M        = {}
 ---@field history_provider keystone.Picker.QueryHistoryProvider?
 ---@field quickfix_formatter (fun(data:any):vim.quickfix.entry?)?
 ---@field setup (fun(callback:fun(data:table?)))?
----@field finder fun(query:string, flags:table, fetch_opts:keystone.Picker.FetcherOpts, callback:fun(items:keystone.Picker.Item[]?), data:table?):fun()?
+---@field finder fun(query:string, flags:table, fetch_opts:keystone.Picker.FetcherOpts, callback:fun(items:keystone.Picker.Item[]?)):fun()?
 ---@field previewer keystone.Picker.AsyncPreviewLoader?
 ---@field on_confirm fun(data:keystone.picker.ItemData?)
 
@@ -70,12 +70,13 @@ local function _do_open(spec, data, initial_query, initial_index, replay_items)
             end
             -- Keep a reference to each fresh result set as it flows to the picker,
             -- capped, so repeat_last can replay it without re-running the finder.
+            fetch_opts.data = data
             return spec.finder(query, flags, fetch_opts, function(items)
                 if _last_pick and _last_pick.spec == spec then
                     _last_pick.items = items
                 end
                 callback(items)
-            end, data)
+            end)
         end,
         on_close           = function(query, index)
             -- Remember the final query and highlighted row so repeat_last restores

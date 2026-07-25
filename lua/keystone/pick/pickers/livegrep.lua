@@ -594,7 +594,7 @@ function M.spec(opts)
         enable_preview  = true,
         previewer       = buffer_preview,
         enable_list_sep = true,
-        finder           = function(query, flags, fetch_opts, callback, _)
+        finder           = function(query, flags, fetch_opts, callback)
             local parsed     = { query = query, flags = flags }
             local target_cwd = flags.dir and vim.fn.expand(flags.dir) or vim.fn.getcwd()
             _replace_value   = flags.replace

@@ -45,6 +45,7 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field list_width number
 ---@field list_height number
 ---@field parsed keystone.queryflags.ParseResult?
+---@field data table? Setup data supplied by the picker spec.
 
 ---@class keystone.Picker.QueryHistoryProvider
 ---@field load fun():string[]
