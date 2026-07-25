@@ -5,7 +5,7 @@
 ---request and refreshed on edits; the section redraws as the cursor moves.
 local M = {}
 
-local throttle = require("keystone.tk.throttle")
+local throttle = require("keystone.util.throttle")
 
 local _AUGROUP = "keystone_statusline_symbol_path"
 

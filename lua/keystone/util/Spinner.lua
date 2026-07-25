@@ -1,6 +1,6 @@
-local timer = require('keystone.tk.timer')
+local timer = require('keystone.util.timer')
 
----@class keystone.tk.Spinner
+---@class keystone.util.Spinner
 ---@field frames string[]
 ---@field interval integer
 ---@diagnostic disable-next-line: undefined-doc-name
@@ -15,10 +15,10 @@ local _default_frames = {
 }
 
 
----@alias keystone.tk.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
+---@alias keystone.util.SpinnerOpts {frames?:string[], interval?:integer, on_update?:fun(frame:string, index:integer)}
 
----@class keystone.tk.Spinner
----@field new fun(self:keystone.tk.Spinner,opts:keystone.tk.SpinnerOpts):keystone.tk.Spinner
+---@class keystone.util.Spinner
+---@field new fun(self:keystone.util.Spinner,opts:keystone.util.SpinnerOpts):keystone.util.Spinner
 local Spinner = {}
 Spinner.__index = Spinner
 
@@ -28,7 +28,7 @@ function Spinner:new(...)
     return obj
 end
 
----@param opts keystone.tk.SpinnerOpts?
+---@param opts keystone.util.SpinnerOpts?
 function Spinner:init(opts)
     opts = opts or {}
     self.frames = opts.frames or _default_frames

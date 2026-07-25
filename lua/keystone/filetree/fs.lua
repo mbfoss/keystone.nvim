@@ -1,7 +1,7 @@
 --- File system manipulation layer for the file tree.
 --- The tree/UI layer (keystone.filetree.FileTree) goes through this module for
 --- every file system access so it never touches the fs primitives directly.
-local fsutil = require("keystone.tk.fsutil")
+local fsutil = require("keystone.util.fsutil")
 
 local M = {}
 

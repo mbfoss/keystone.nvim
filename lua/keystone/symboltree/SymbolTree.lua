@@ -1,7 +1,7 @@
-local TreeBuffer      = require("keystone.tk.TreeBuffer")
-local ui              = require("keystone.tk.ui")
-local floatwin        = require("keystone.tk.floatwin")
-local throttle        = require("keystone.tk.throttle")
+local TreeBuffer      = require("keystone.util.TreeBuffer")
+local ui              = require("keystone.util.ui")
+local floatwin        = require("keystone.util.floatwin")
+local throttle        = require("keystone.util.throttle")
 local kinds           = require("keystone.symboltree.kinds")
 local symbols         = require("keystone.symboltree.symbols")
 
@@ -85,7 +85,7 @@ end
 
 ---@class keystone.SymbolTree
 ---@field new fun(self:keystone.SymbolTree, opts:keystone.SymbolTree.Opts?):keystone.SymbolTree
----@field private _treebuf keystone.tk.TreeBuffer
+---@field private _treebuf keystone.util.TreeBuffer
 ---@field private _source_buf integer
 ---@field private _symbols keystone.symboltree.Symbol[]
 ---@field private _provider keystone.symboltree.symbols.Provider
@@ -341,7 +341,7 @@ end
 
 ---@param list keystone.symboltree.Symbol[]
 ---@param parent_id string?
----@return keystone.tk.TreeBuffer.ItemDef[]
+---@return keystone.util.TreeBuffer.ItemDef[]
 function SymbolTree:_build_items(list, parent_id)
     local items = {}
     for index, symbol in ipairs(list) do
@@ -480,7 +480,7 @@ function SymbolTree:_jump_to(data, activate)
     end
 end
 
----@param item keystone.tk.TreeBuffer.Item
+---@param item keystone.util.TreeBuffer.Item
 function SymbolTree:_show_hover(item)
     local data = item.data ---@type keystone.symboltree.ItemData
     local kind = kinds.get(data.kind)

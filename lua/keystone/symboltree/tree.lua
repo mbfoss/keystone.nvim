@@ -1,7 +1,7 @@
 local M = {}
 
 local config   = require("keystone.symboltree").config
-local fixedwin = require("keystone.tk.fixedwin")
+local fixedwin = require("keystone.util.fixedwin")
 
 local _KEY_MARKER = "Keystone_symboltreewin"
 
@@ -17,7 +17,7 @@ local function _get_win()
 end
 
 -- Set a window-local option without leaking it into nvim's hidden global default
--- (see keystone.tk.fixedwin for the gotcha this avoids).
+-- (see keystone.util.fixedwin for the gotcha this avoids).
 ---@param win integer
 ---@param opt string
 ---@param val any

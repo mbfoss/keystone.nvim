@@ -4,12 +4,12 @@ local M        = {}
 -- (`keystone.bookmarks`) and the lazily-loaded commands (`keystone.bookmarks.actions`).
 -- Only startup modules are required here; the heavy UI modules live in `actions`.
 
-local fsutil   = require("keystone.tk.fsutil")
-local extmarks = require("keystone.tk.extmarks")
+local fsutil   = require("keystone.util.fsutil")
+local extmarks = require("keystone.util.fileextmarks")
 
 local diagnostic = vim.diagnostic
 
----@type keystone.tk.extmarks.GroupFunctions
+---@type keystone.util.fileextmarks.GroupFunctions
 M.mark_group   = nil
 
 ---@type vim.api.keyset.set_extmark

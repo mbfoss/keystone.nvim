@@ -1,10 +1,10 @@
-local strutil        = require("keystone.tk.strutil")
-local ui             = require("keystone.tk.ui")
+local strutil        = require("keystone.util.strutil")
+local ui             = require("keystone.util.ui")
 local fs             = require("keystone.filetree.fs")
-local TreeBuffer     = require("keystone.tk.TreeBuffer")
-local LRU            = require("keystone.tk.LRU")
-local floatwin       = require("keystone.tk.floatwin")
-local inputwin       = require("keystone.tk.inputwin")
+local TreeBuffer     = require("keystone.util.TreeBuffer")
+local LRU            = require("keystone.util.LRU")
+local floatwin       = require("keystone.util.floatwin")
+local inputwin       = require("keystone.util.inputwin")
 local icons          = require("keystone.icons")
 
 ---@class keystone.FileTree.ItemData
@@ -20,7 +20,7 @@ local icons          = require("keystone.icons")
 ---@field children_loading boolean?
 ---@field childrenload_req_id number
 
----@alias keystone.FileTree.ItemDef keystone.tk.TreeBuffer.ItemData
+---@alias keystone.FileTree.ItemDef keystone.util.TreeBuffer.ItemData
 
 ---@class keystone.FileTree.UpsetSingleItemArgs
 ---@field parent_path string
@@ -548,7 +548,7 @@ end
 
 ---@private
 ---@param parent_id string
----@param item keystone.tk.TreeBuffer.ItemDef
+---@param item keystone.util.TreeBuffer.ItemDef
 function FileTree:_upsert_single_item(parent_id, item)
     local root = self._root
     if not root then return end
@@ -682,12 +682,12 @@ function FileTree:_process_dir(path, entries, error_flag)
         end
     end
 
-    local children = {} ---@type keystone.tk.TreeBuffer.ItemDef[]
+    local children = {} ---@type keystone.util.TreeBuffer.ItemDef[]
     for _, entry in pairs(new_entries_map) do
         local icon, icon_hl = self:_get_icon_for_node(entry.name, entry.is_dir, entry.is_link)
         local expanded = self._pending_expand[entry.full_path]
         if expanded ~= nil then self._pending_expand[entry.full_path] = nil end
-        ---@type keystone.tk.TreeBuffer.ItemDef
+        ---@type keystone.util.TreeBuffer.ItemDef
         local child = {
             id = entry.full_path,
             expandable = entry.is_dir,
@@ -931,7 +931,7 @@ function FileTree:_rename_node(item)
 end
 
 ---@private
----@param item keystone.tk.TreeBuffer.ItemDef
+---@param item keystone.util.TreeBuffer.ItemDef
 function FileTree:_show_hover(item)
     local data = item.data ---@type keystone.FileTree.ItemData
     local path = data.path
@@ -1005,7 +1005,7 @@ end
 
 ---@private
 --- Toggle the selection state of the item under the cursor.
----@param item keystone.tk.TreeBuffer.Item
+---@param item keystone.util.TreeBuffer.Item
 function FileTree:_toggle_select(item)
     local path = item.data.path
     if path == self._root then return end -- the root is not selectable
@@ -1019,7 +1019,7 @@ end
 
 ---@private
 --- Collect the items covered by the current visual selection.
----@return keystone.tk.TreeBuffer.Item[]
+---@return keystone.util.TreeBuffer.Item[]
 function FileTree:_get_visual_items()
     local winid = self._treebuf:get_winid()
     if winid <= 0 then return {} end
@@ -1065,7 +1065,7 @@ end
 
 ---@private
 --- Collect the currently selected items that still exist, pruning stale paths.
----@return keystone.tk.TreeBuffer.Item[]
+---@return keystone.util.TreeBuffer.Item[]
 function FileTree:_get_selected_items()
     local items = {}
     for path in pairs(self._selected) do
@@ -1095,7 +1095,7 @@ end
 --- Delete the given items (recursively for directories), pruning any of them
 --- from the marked selection. Uses the system trash when `use_trash` is true
 --- and available, otherwise deletes permanently.
----@param items keystone.tk.TreeBuffer.Item[]
+---@param items keystone.util.TreeBuffer.Item[]
 ---@param use_trash boolean
 function FileTree:_delete_items(items, use_trash)
     local targets = {}
@@ -1153,7 +1153,7 @@ end
 ---@private
 --- Move or copy every selected item into the directory implied by `target_item`
 --- (the item itself when it is a directory, otherwise its parent directory).
----@param target_item keystone.tk.TreeBuffer.Item
+---@param target_item keystone.util.TreeBuffer.Item
 ---@param is_copy boolean
 function FileTree:_transfer_selected(target_item, is_copy)
     local items = self:_get_selected_items()

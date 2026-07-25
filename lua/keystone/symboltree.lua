@@ -29,7 +29,7 @@ M.config = _get_default_config()
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    require("keystone.tk.usercmd").register_user_cmd("SymbolTree", function(cmd, args, opts)
+    require("keystone.util.usercmd").register_user_cmd("SymbolTree", function(cmd, args, opts)
             require("keystone.symboltree.command").run_command(cmd, args, opts)
         end,
         {

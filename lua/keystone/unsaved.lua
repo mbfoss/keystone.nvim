@@ -1,6 +1,6 @@
 local M       = {}
 
-local usercmd = require("keystone.tk.usercmd")
+local usercmd = require("keystone.util.usercmd")
 
 -- The diff session machinery (and its `fsutil` dependency) lives in
 -- `keystone.unsaved.session`, which is only required the first time the user

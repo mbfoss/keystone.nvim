@@ -9,8 +9,8 @@ local M = {}
 
 local notifications = require("keystone.notify")
 local pickertools   = require("keystone.pick.base.pickertools")
-local strutil       = require("keystone.tk.strutil")
-local ui            = require("keystone.tk.ui")
+local strutil       = require("keystone.util.strutil")
+local ui            = require("keystone.util.ui")
 
 local _icons = {
     info  = "󰋽",

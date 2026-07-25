@@ -1,9 +1,9 @@
 local M           = {}
 
-local ui          = require("keystone.tk.ui")
-local strutil     = require("keystone.tk.strutil")
-local fsutil      = require("keystone.tk.fsutil")
-local spawn       = require("keystone.tk.spawn")
+local ui          = require("keystone.util.ui")
+local strutil     = require("keystone.util.strutil")
+local fsutil      = require("keystone.util.fsutil")
+local spawn       = require("keystone.util.spawn")
 local pickertools = require("keystone.pick.base.pickertools")
 
 --- High-water mark (bytes) for stdin backpressure: buffers are fed to rg ahead
@@ -410,8 +410,8 @@ local function async_grep(parsed, grep_opts, fetch_opts, callback)
     local cancelled = false
     local buf_items = {} ---@type keystone.Picker.Item[]
     local dir_items = {} ---@type keystone.Picker.Item[]
-    local buf_handle ---@type keystone.tk.SpawnHandle?
-    local dir_handle ---@type keystone.tk.SpawnHandle?
+    local buf_handle ---@type keystone.util.SpawnHandle?
+    local dir_handle ---@type keystone.util.SpawnHandle?
 
     -- Both searches run as async rg jobs; finish() fires once both have settled,
     -- with buffer matches leading the merged list.

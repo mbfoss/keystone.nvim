@@ -1,6 +1,6 @@
-local TreeBuffer = require("keystone.tk.TreeBuffer")
-local ui         = require("keystone.tk.ui")
-local floatwin   = require("keystone.tk.floatwin")
+local TreeBuffer = require("keystone.util.TreeBuffer")
+local ui         = require("keystone.util.ui")
+local floatwin   = require("keystone.util.floatwin")
 local kinds      = require("keystone.symboltree.kinds")
 local calls      = require("keystone.calltree.calls")
 
@@ -128,7 +128,7 @@ end
 
 ---@class keystone.CallTree
 ---@field new fun(self:keystone.CallTree, opts:keystone.CallTree.Opts?):keystone.CallTree
----@field private _treebuf keystone.tk.TreeBuffer
+---@field private _treebuf keystone.util.TreeBuffer
 ---@field private _provider keystone.calltree.calls.Provider
 ---@field private _direction keystone.calltree.Direction
 ---@field private _root keystone.calltree.Call?
@@ -374,7 +374,7 @@ end
 ---@param id any
 ---@param call keystone.calltree.Call
 ---@param is_root boolean
----@return keystone.tk.TreeBuffer.ItemDef
+---@return keystone.util.TreeBuffer.ItemDef
 function CallTree:_make_item(id, call, is_root)
     local kind = kinds.get(call.kind)
     local recursive = not is_root and self:_is_recursive(call)

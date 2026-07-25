@@ -1,6 +1,6 @@
 local M = {}
 
-local _throttle = require("keystone.tk.throttle")
+local _throttle = require("keystone.util.throttle")
 
 local _uv = vim.uv or vim.loop
 

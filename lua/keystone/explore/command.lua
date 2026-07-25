@@ -2,8 +2,8 @@ local M        = {}
 
 local _uv      = vim.uv
 local explorer = require("keystone.explore.explorer")
-local fsutil   = require("keystone.tk.fsutil")
-local ui       = require("keystone.tk.ui")
+local fsutil   = require("keystone.util.fsutil")
+local ui       = require("keystone.util.ui")
 local icons    = require("keystone.icons")
 
 ---@param name string The filename or directory name

@@ -1,8 +1,8 @@
 local M           = {}
 
-local ui          = require("keystone.tk.ui")
-local strutil     = require("keystone.tk.strutil")
-local fsutil      = require("keystone.tk.fsutil")
+local ui          = require("keystone.util.ui")
+local strutil     = require("keystone.util.strutil")
+local fsutil      = require("keystone.util.fsutil")
 local pickertools = require("keystone.pick.base.pickertools")
 local icons       = require("keystone.icons")
 

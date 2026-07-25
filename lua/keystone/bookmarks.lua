@@ -123,7 +123,7 @@ function M.setup(opts)
         callback = function() core.save_to_disk() end,
     })
 
-    require("keystone.tk.usercmd").register_user_cmd("Bookmark", _run_command, {
+    require("keystone.util.usercmd").register_user_cmd("Bookmark", _run_command, {
         desc          = "Persistent line bookmarks",
         subcommand = _get_subcommands,
     })

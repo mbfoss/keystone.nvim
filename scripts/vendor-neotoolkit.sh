@@ -2,9 +2,31 @@
 set -euo pipefail
 
 REPO="https://github.com/mbfoss/neotoolkit.nvim"
-DEST="lua/keystone/tk"
+DEST="lua/keystone/util"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+
+# Only the neotoolkit modules keystone actually needs (transitive closure).
+# keystone ships its own Explorer/Picker/etc. under lua/keystone, so those are
+# not vendored, and `term` is deliberately excluded since nothing requires it.
+FILES=(
+    LRU
+    Signal
+    Spinner
+    Tree
+    TreeBuffer
+    fileextmarks
+    fixedwin
+    floatwin
+    fsutil
+    inputwin
+    spawn
+    strutil
+    throttle
+    timer
+    ui
+    usercmd
+)
 
 cd "$(dirname "$0")/.."
 
@@ -16,15 +38,21 @@ else
     git clone --depth=1 "$REPO" "$TMP/neotoolkit"
 fi
 
-echo "Syncing files into $DEST..."
+SRC="$TMP/neotoolkit/lua/neotoolkit"
+
+echo "Copying ${#FILES[@]} files into $DEST..."
 mkdir -p "$DEST"
-rm -f "$DEST"/*.lua
-cp "$TMP/neotoolkit/lua/neotoolkit/"*.lua "$DEST/"
+for f in "${FILES[@]}"; do
+    if [[ ! -f "$SRC/$f.lua" ]]; then
+        echo "error: $f.lua not found in neotoolkit source" >&2
+        exit 1
+    fi
+    cp "$SRC/$f.lua" "$DEST/$f.lua"
+done
 
-echo "Rewriting require paths and type annotations..."
-sed -i '' 's/neotoolkit\./keystone.tk./g' "$DEST"/*.lua
+echo "Rewriting require paths and type annotations (neotoolkit. -> keystone.util.)..."
+for f in "${FILES[@]}"; do
+    sed -i '' 's/neotoolkit\./keystone.util./g' "$DEST/$f.lua"
+done
 
-echo "Removing vendored unit test files..."
-rm -f tests/regex_spec.lua tests/tree_spec.lua
-
-echo "Done."
+echo "Done. Vendored ${#FILES[@]} modules into $DEST; keystone's own files are untouched."

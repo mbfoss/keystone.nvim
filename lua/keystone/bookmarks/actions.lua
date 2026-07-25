@@ -6,12 +6,12 @@ local M           = {}
 -- runs, keeping startup cheap. `keystone.bookmarks` forwards to these on demand.
 
 local core        = require("keystone.bookmarks.core")
-local throttle    = require("keystone.tk.throttle")
-local inputwin    = require("keystone.tk.inputwin")
-local ui          = require("keystone.tk.ui")
+local throttle    = require("keystone.util.throttle")
+local inputwin    = require("keystone.util.inputwin")
+local ui          = require("keystone.util.ui")
 local picker      = require("keystone.pick.base.picker")
 local pickertools = require("keystone.pick.base.pickertools")
-local fixedwin    = require("keystone.tk.fixedwin")
+local fixedwin    = require("keystone.util.fixedwin")
 
 -- Height ratio of the bookmarks list split, tracked live by fixedwin and reused
 -- so reopening the list keeps the height the user last dragged it to.

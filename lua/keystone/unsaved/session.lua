@@ -1,6 +1,6 @@
 local M           = {}
 
-local fsutil      = require("keystone.tk.fsutil")
+local fsutil      = require("keystone.util.fsutil")
 local pick_select = require("keystone.pick.select")
 
 --- Picker-driven diff of a modified buffer's unsaved (in-memory) state against
