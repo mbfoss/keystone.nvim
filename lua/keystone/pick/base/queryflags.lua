@@ -28,6 +28,19 @@ local M = {}
 ---not define a flag by this name.
 local _QUERY = "query"
 
+---`vim.fn.getcompletion()` types whose candidates are path fragments: a
+---completed value is often only a prefix of what the user is after, so its
+---quote is left open for further typing.
+---@type table<string, boolean>
+local _PATH_COMPLETE = {
+    dir = true,
+    dir_in_path = true,
+    file = true,
+    file_in_path = true,
+    runtime = true,
+    shellcmdline = true,
+}
+
 ---Add the implicit "query" flag to a schema. The name is reserved: a schema
 ---that defines it is a programming error, not a flag that shadows the literal.
 ---@param schema keystone.queryflags.FlagDef[]
@@ -359,9 +372,12 @@ function M.get_completions(schema, line, cursor_byte, auto)
         local def = defs[prefix]
         if def and def.type == "value" and (def.values or def.complete) then
             local items = {}
-            local function add(v)
+            -- `open_ended` candidates (paths) keep the quote open so the value can
+            -- be extended -- completing a directory is usually a step towards a
+            -- deeper path, and a closing quote would sit in the way.
+            local function add(v, open_ended)
                 local word = (in_quote or v:find('[%s"]'))
-                    and (prefix .. ':"' .. v:gsub('"', '\\"') .. '"')
+                    and (prefix .. ':"' .. v:gsub('"', '\\"') .. (open_ended and "" or '"'))
                     or (prefix .. ":" .. v)
                 table.insert(items, { word = word, abbr = v })
             end
@@ -371,15 +387,16 @@ function M.get_completions(schema, line, cursor_byte, auto)
             end
 
             if def.complete then
-                local cands
+                local cands, open_ended
                 if type(def.complete) == "function" then
                     cands = def.complete(partial)
                 else
+                    open_ended = _PATH_COMPLETE[def.complete] or false
                     -- getcompletion already filters by `partial`; trust its output.
                     local ok, res = pcall(vim.fn.getcompletion, partial, def.complete)
                     cands = ok and res or nil
                 end
-                for _, v in ipairs(cands or {}) do add(v) end
+                for _, v in ipairs(cands or {}) do add(v, open_ended) end
             end
 
             return #items > 0 and { startcol = word_start_1, items = items } or nil

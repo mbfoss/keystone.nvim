@@ -19,7 +19,7 @@ local _antiflicker_delay = 200
 
 ---@class keystone.Explorer.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
----@field virt_lines? {[1]:string,[2]:string?}[][]
+---@field virt_line? {[1]:string,[2]:string?}[] Single virtual line rendered below the entry.
 ---@field name string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
@@ -58,7 +58,6 @@ local _antiflicker_delay = 200
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
----@field enable_list_sep boolean?
 
 ---@class keystone.Explorer.Layout
 ---@field prompt_row number
@@ -170,6 +169,8 @@ end
 ---@field preview_timer table?
 ---@field nav_history string[]
 ---@field show_hidden boolean
+---@field _list_sep_line string
+---@field _show_list_sep boolean
 local Explorer = {}
 Explorer.__index = Explorer
 
@@ -208,6 +209,11 @@ function Explorer:init(opts, callback)
     self.closed = false
 
     self.show_hidden = opts.show_hidden or false
+
+    -- Separators are not a user option: they switch on by themselves as soon as an
+    -- item carries a virtual line, so the extra line reads as part of its entry.
+    self._show_list_sep = false
+    self._list_sep_line = ""
 
     self.async_fetch_context = 0
     self.async_fetch_cancel = nil
@@ -260,9 +266,7 @@ function Explorer:relayout(action)
         width_ratio = self.opts.width_ratio,
     }
 
-    if self.opts.enable_list_sep then
-        self.list_sep_line = string.rep("─", self.layout.list_width)
-    end
+    self._list_sep_line = string.rep("─", self.layout.list_width)
 
     local base_cfg = {
         relative = "editor",
@@ -586,6 +590,7 @@ end
 
 function Explorer:clear_list()
     self.list_items = {}
+    self._show_list_sep = false
 
     vim.bo[self.lbuf].modifiable = true
     vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
@@ -601,6 +606,15 @@ end
 function Explorer:add_new_lines(items)
     local prefix = "  "
     local is_fresh = self._list_fresh
+
+    -- A separator is what keeps a virtual line attached to its own entry, so it
+    -- turns on for the whole list as soon as any item carries one.
+    for _, item in ipairs(items) do
+        if item.virt_line and #item.virt_line > 0 then
+            self._show_list_sep = true
+            break
+        end
+    end
 
     vim.bo[self.lbuf].modifiable = true
     for _, item in ipairs(items) do
@@ -653,15 +667,13 @@ function Explorer:add_new_lines(items)
             end
         end
         local vlines = {}
-        if item.virt_lines and #item.virt_lines > 0 then
-            for _, line in ipairs(item.virt_lines) do
-                local vl = { { prefix } }
-                vim.list_extend(vl, line)
-                table.insert(vlines, vl)
-            end
+        if item.virt_line and #item.virt_line > 0 then
+            local vl = { { prefix } }
+            vim.list_extend(vl, item.virt_line)
+            table.insert(vlines, vl)
         end
-        if self.opts.enable_list_sep then
-            table.insert(vlines, { { self.list_sep_line, "Nontext" } })
+        if self._show_list_sep then
+            table.insert(vlines, { { self._list_sep_line, "NonText" } })
         end
         if #vlines > 0 then
             vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
