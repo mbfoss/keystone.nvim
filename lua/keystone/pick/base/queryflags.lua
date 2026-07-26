@@ -42,24 +42,29 @@ end
 -- Boolean flags have no standalone form — "flagname" alone is always query
 -- text; the "is:" prefix is what distinguishes a flag from a query word.
 --
--- Quoting (via ") lets a token contain spaces, and forces a token to be
--- literal query text even when it would otherwise look like a flag:
+-- Quoting (via ") only applies to a flag's value, and only when the opening
+-- quote sits directly after the key's ':'. It lets the value contain spaces:
 --   'path:"foo bar"' → value flag whose value contains a space
---   '"is:fixed"'     → query text "is:fixed" (the key is quoted, so not a flag)
---   '"path:foo"'     → query text "path:foo" (the key is quoted, so not a flag)
--- Anywhere in the input, a literal double quote is written as \": inside a
--- quoted span it does not close the span, and outside one it does not open a
--- span. An unterminated quote runs to the end of the token.
+-- A '"' anywhere else -- in query text, inside a key, or in the middle of an
+-- unquoted value -- is an ordinary literal character. Inside a quoted value a
+-- literal double quote is written as \". Text after the closing quote simply
+-- continues the value ('key:"foo bar"baz' → value "foo barbaz"), but an
+-- unterminated quote is an error.
+--
+-- Escaping a colon with '\:' makes it a literal colon that never separates a
+-- key from a value, which is how a flag-looking token is forced to query text:
+--   'is\:fixed'  → query text "is:fixed"
+--   'path\:foo'  → query text "path:foo"
 
 ---@class keystone.queryflags.Token
----@field text          string                           -- verbatim token text
----@field raw           string                           -- verbatim slice of source
----@field start         integer                          -- 1-indexed start in source
----@field finish        integer                          -- 1-indexed finish in source (inclusive)
----@field colon_pos     integer?                         -- 1-indexed position of first ':' in text
----@field colon_raw_pos integer?                         -- 1-indexed position of first ':' in raw (for buffer offsets)
----@field quotes        {open:integer,close:integer?}[]? -- raw-relative 1-indexed positions of each quote char; close=nil when unterminated
----@field escapes       integer[]?                       -- raw-relative 1-indexed positions of each escaping '\' (the '\' of a \")
+---@field text          string                         -- verbatim token text
+---@field raw           string                         -- verbatim slice of source
+---@field start         integer                        -- 1-indexed start in source
+---@field finish        integer                        -- 1-indexed finish in source (inclusive)
+---@field colon_pos     integer?                       -- 1-indexed position of the separating ':' in text
+---@field colon_raw_pos integer?                       -- 1-indexed position of the separating ':' in raw (for buffer offsets)
+---@field quote         {open:integer,close:integer?}? -- raw-relative 1-indexed positions of the value quote chars; close=nil when unterminated
+---@field escapes       integer[]?                     -- raw-relative 1-indexed positions of each escaping '\' (the '\' of a \: or \")
 
 ---@param str string
 ---@return keystone.queryflags.Token[]
@@ -72,50 +77,49 @@ local function _tokenize(str)
         while i <= len and str:sub(i, i):match("%s") do i = i + 1 end
         if i > len then break end
 
-        local tok_start       = i
-        local chars           = {}
-        local colon_pos       = nil
-        local colon_raw_pos   = nil
-        local quote           = nil -- active quote char while inside a quoted span
-        local quote_idx       = nil -- index in `chars` where the active quote opened
-        local _quote_spans    = {}
-        local _escapes        = {}  -- raw-relative 1-indexed positions of each escaping '\'
-        local _quote_open_raw = nil -- raw-relative 1-indexed position of the active opening quote
+        local tok_start     = i
+        local chars         = {}
+        local colon_pos     = nil
+        local colon_raw_pos = nil
+        ---@type {open:integer, close:integer?}?
+        local _quote        = nil   -- the value quote span once one has opened
+        local _quote_idx    = nil   -- index in `chars` where the value quote opened
+        local _in_quote     = false -- inside the value quote span
+        local _escapes      = {}    -- raw-relative 1-indexed positions of each escaping '\'
 
         while i <= len do
             local c = str:sub(i, i)
-            if quote then
-                -- inside a quoted span: whitespace is literal, the delimiting
+            if _in_quote then
+                -- inside the value quote: whitespace is literal, the delimiting
                 -- quote char is stripped from `text` but remains in `raw`, and
                 -- \" is a literal double quote that does not close the span.
-                if c == "\\" and str:sub(i + 1, i + 1) == quote then
+                if c == "\\" and str:sub(i + 1, i + 1) == '"' then
                     table.insert(_escapes, i - tok_start + 1)
-                    table.insert(chars, quote)
+                    table.insert(chars, '"')
                     i = i + 2
-                elseif c == quote then
-                    table.insert(_quote_spans, { open = _quote_open_raw, close = i - tok_start + 1 })
-                    _quote_open_raw = nil
-                    quote           = nil
-                    quote_idx       = nil
-                    i               = i + 1
+                elseif c == '"' then
+                    _quote.close = i - tok_start + 1
+                    _in_quote    = false
+                    i            = i + 1
                 else
                     table.insert(chars, c)
                     i = i + 1
                 end
-            elseif c == "\\" and str:sub(i + 1, i + 1) == '"' then
-                -- outside a quoted span \" is a literal double quote and does
-                -- not open a span.
+            elseif c == "\\" and str:sub(i + 1, i + 1) == ":" then
+                -- \: is a literal colon: it never separates a key from a value,
+                -- which is what keeps a flag-looking token as query text.
                 table.insert(_escapes, i - tok_start + 1)
-                table.insert(chars, '"')
+                table.insert(chars, ":")
                 i = i + 2
             elseif c:match("%s") then
                 break
-            elseif c == '"' then
-                -- opening quote: allows whitespace within the token
-                _quote_open_raw = i - tok_start + 1
-                quote           = c
-                quote_idx       = #chars + 1
-                i               = i + 1
+            elseif c == '"' and colon_raw_pos and not _quote and (i - tok_start + 1) == colon_raw_pos + 1 then
+                -- a quote directly after the key's ':' opens the value span;
+                -- every other quote is an ordinary literal character.
+                _quote     = { open = i - tok_start + 1 }
+                _quote_idx = #chars + 1
+                _in_quote  = true
+                i          = i + 1
             else
                 if c == ":" and colon_pos == nil then
                     colon_pos     = #chars + 1
@@ -128,18 +132,10 @@ local function _tokenize(str)
 
         -- An unterminated quote is not a real delimiter: keep it as a literal
         -- char instead of silently swallowing it.
-        if quote and quote_idx then
-            table.insert(chars, quote_idx, quote)
-            if _quote_open_raw then
-                table.insert(_quote_spans, { open = _quote_open_raw, close = nil })
-            end
-        end
+        if _in_quote and _quote_idx then table.insert(chars, _quote_idx, '"') end
 
-        -- An empty pair of quotes ("") has no text but is still a real token:
-        -- it must be emitted so the quote chars can be highlighted (and so an
-        -- unclosed one is still reported).
         local text = table.concat(chars)
-        if text ~= "" or #_quote_spans > 0 then
+        if text ~= "" then
             tokens[#tokens + 1] = {
                 text          = text,
                 raw           = str:sub(tok_start, i - 1),
@@ -147,7 +143,7 @@ local function _tokenize(str)
                 finish        = i - 1,
                 colon_pos     = colon_pos,
                 colon_raw_pos = colon_raw_pos,
-                quotes        = #_quote_spans > 0 and _quote_spans or nil,
+                quote         = _quote,
                 escapes       = #_escapes > 0 and _escapes or nil,
             }
         end
@@ -156,27 +152,16 @@ local function _tokenize(str)
     return tokens
 end
 
--- Classify a single token against the flag schema. A value flag is "key:value" (unquoted
--- key matching a value def; value may be quoted); a boolean flag is "is:flagname" matching
--- a boolean def. Else query text -- quoting the key forces query text even if flag-looking.
+-- Classify a single token against the flag schema. A value flag is "key:value" (key
+-- matching a value def; the value may be quoted); a boolean flag is "is:flagname"
+-- matching a boolean def. Else query text -- an escaped colon (\:) leaves the token
+-- without a separator, so a flag-looking token stays query text.
 ---@param defs  table<string, keystone.queryflags.FlagDef>
 ---@param token keystone.queryflags.Token
 ---@return "boolean"|"value"|nil kind, string? key, string? value
 local function _classify(defs, token)
     local colon = token.colon_pos
     if not colon or colon <= 1 then return nil end
-
-    -- "key:value" shape; only a flag when the key is not quoted.
-    local key_quoted = false
-    if token.quotes then
-        for _, q in ipairs(token.quotes) do
-            if q.open <= (token.colon_raw_pos or 0) then
-                key_quoted = true
-                break
-            end
-        end
-    end
-    if key_quoted then return nil end
 
     local key  = token.text:sub(1, colon - 1)
     local rest = token.text:sub(colon + 1)
@@ -206,12 +191,8 @@ function M.parse(schema, raw)
     local parts  = {}
 
     for _, token in ipairs(tokens) do
-        if token.quotes then
-            for _, q in ipairs(token.quotes) do
-                if not q.close then
-                    return { query = "", flags = {}, error = "Unclosed quote" }
-                end
-            end
+        if token.quote and not token.quote.close then
+            return { query = "", flags = {}, error = "Unclosed quote" }
         end
     end
 
@@ -259,21 +240,19 @@ function M.highlight(schema, raw)
             table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
         end
 
-        -- Quote chars are highlighted wherever they appear: around a value flag's value
-        -- (path:"foo bar") and in query text where a quote escapes a flag-looking token
-        -- ("is:fixed"). An unterminated quote still highlights its opening char so the
-        -- open span is visible. Inserted last so they win over the String/Keyword highlight.
-        if token.quotes then
-            for _, q in ipairs(token.quotes) do
-                table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
-                if q.close then
-                    table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
-                end
+        -- The quote chars delimiting a value (path:"foo bar") are syntax: highlight
+        -- them as such. An unterminated quote still highlights its opening char so
+        -- the open span is visible. Inserted last so they win over String/Keyword.
+        local q = token.quote
+        if q then
+            table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
+            if q.close then
+                table.insert(hls, { start = s0 + q.close - 1, finish = s0 + q.close, hl = "Delimiter" })
             end
         end
 
-        -- The '\' of an escaped quote (\") is syntax, not content: dim it so the
-        -- quote it protects still reads as a literal character.
+        -- The '\' of an escaped colon (\:) or quote (\") is syntax, not content:
+        -- dim it so the char it protects still reads as a literal character.
         if token.escapes then
             for _, pos in ipairs(token.escapes) do
                 table.insert(hls, { start = s0 + pos - 1, finish = s0 + pos, hl = "NonText" })
@@ -309,7 +288,8 @@ function M.get_completions(schema, line, cursor_byte, auto)
         local prefix   = current_word:sub(1, colon - 1)
         local raw_val  = current_word:sub(colon + 1)
         local in_quote = raw_val:sub(1, 1) == '"' -- cursor sits inside an open quote
-        local partial  = raw_val:gsub('^"', ""):gsub('\\"', '"')
+        -- \" is only an escape inside a quoted value; unquoted it is literal.
+        local partial  = in_quote and raw_val:sub(2):gsub('\\"', '"') or raw_val
 
         local defs    = _build_map(schema)
 

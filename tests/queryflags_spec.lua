@@ -28,10 +28,10 @@ describe("queryflags query", function()
         assert.are.equal("hello world", r.query)
     end)
 
-    it("keeps a quoted query token with spaces as one piece", function()
+    it("treats quotes in query text as literal characters", function()
         local r = qf.parse(schema, 'is:fixed "foo bar" baz')
         assert.is_true(r.flags.fixed)
-        assert.are.equal("foo bar baz", r.query)
+        assert.are.equal('"foo bar" baz', r.query)
     end)
 
     it("yields an empty query when only flags are present", function()
@@ -42,17 +42,29 @@ describe("queryflags query", function()
     end)
 end)
 
-describe("queryflags quoting as a flag escape", function()
-    it("treats a quoted boolean flag as query text", function()
-        local r = qf.parse(schema, '"is:fixed" hello')
+describe("queryflags escaped colon as a flag escape", function()
+    it("treats an escaped boolean flag as query text", function()
+        local r = qf.parse(schema, "is\\:fixed hello")
         assert.is_nil(r.flags.fixed)
         assert.are.equal("is:fixed hello", r.query)
     end)
 
-    it("treats a quoted key:value token as query text", function()
-        local r = qf.parse(schema, '"path:foo" bar')
+    it("treats an escaped key:value token as query text", function()
+        local r = qf.parse(schema, "path\\:foo bar")
         assert.is_nil(r.flags.path)
         assert.are.equal("path:foo bar", r.query)
+    end)
+
+    it("only escapes the colon it precedes", function()
+        local r = qf.parse(schema, "path\\:foo:bar")
+        assert.is_nil(r.flags.path)
+        assert.are.equal("path:foo:bar", r.query)
+    end)
+
+    it("keeps an escaped colon inside a value literal", function()
+        local r = qf.parse(schema, "path:a\\:b")
+        assert.are.equal("a:b", r.flags.path)
+        assert.are.equal("", r.query)
     end)
 
     it("leaves an unknown key:value token in the query", function()
@@ -101,47 +113,50 @@ describe("queryflags value flags", function()
         assert.are.equal("", r.query)
     end)
 
-    it("keeps a whole escaped-quote token as query text", function()
-        local r = qf.parse(schema, '"say \\"hi\\" there"')
-        assert.are.equal('say "hi" there', r.query)
+    it("only opens a quoted value directly after the key colon", function()
+        -- the quote is not adjacent to the ':' so it is an ordinary character
+        -- and the space still ends the token.
+        local r = qf.parse(schema, 'path:foo"bar baz')
+        assert.are.equal('foo"bar', r.flags.path)
+        assert.are.equal("baz", r.query)
     end)
 
-    it("inserts a literal double quote outside any quoted span via \\\"", function()
-        local r = qf.parse(schema, 'say \\"hi\\" there')
-        assert.are.equal('say "hi" there', r.query)
+    it("treats quotes around a flag-looking token as literal query text", function()
+        local r = qf.parse(schema, '"path:foo"')
+        assert.is_nil(r.flags.path)
+        assert.are.equal('"path:foo"', r.query)
+    end)
+
+    it("does not open a quoted span in query text", function()
+        local r = qf.parse(schema, 'say "hi there')
+        assert.is_nil(r.error)
+        assert.are.equal('say "hi there', r.query)
         assert.are.same({}, r.flags)
     end)
 
-    it("does not open a quoted span with an escaped quote", function()
-        -- the \" is literal, so the space still ends the token and the trailing
-        -- token is separate query text -- not an unterminated quote.
-        local r = qf.parse(schema, 'foo\\" bar')
-        assert.is_nil(r.error)
-        assert.are.equal('foo" bar', r.query)
-    end)
-
-    it("accepts an escaped quote in an unquoted value flag", function()
+    it("keeps a backslash-quote outside a quoted value literal", function()
         local r = qf.parse(schema, 'path:foo\\"bar')
-        assert.are.equal('foo"bar', r.flags.path)
+        assert.are.equal('foo\\"bar', r.flags.path)
         assert.are.equal("", r.query)
     end)
 
-    it("does not treat an escaped quote before the key colon as quoting the key", function()
-        local r = qf.parse(schema, '\\"path:foo')
-        assert.are.equal('"path:foo', r.query)
-        assert.is_nil(r.flags.path)
+    it("continues the value with text after the closing quote", function()
+        local r = qf.parse(schema, 'path:"foo bar"baz')
+        assert.is_nil(r.error)
+        assert.are.equal("foo barbaz", r.flags.path)
+        assert.are.equal("", r.query)
+    end)
+
+    it("accepts a quoted value ending the token", function()
+        local r = qf.parse(schema, 'path:"foo bar" baz')
+        assert.is_nil(r.error)
+        assert.are.equal("foo bar", r.flags.path)
+        assert.are.equal("baz", r.query)
     end)
 
     it("reports an error on an unterminated value quote", function()
         local r = qf.parse(schema, 'path:"foo ba')
         -- an unclosed quote is a malformed query: report it instead of guessing.
-        assert.is_truthy(r.error)
-        assert.are.same({}, r.flags)
-        assert.are.equal("", r.query)
-    end)
-
-    it("reports an error on a fully unterminated quote", function()
-        local r = qf.parse(schema, '"foo ba')
         assert.is_truthy(r.error)
         assert.are.same({}, r.flags)
         assert.are.equal("", r.query)
@@ -184,12 +199,17 @@ describe("queryflags highlight", function()
         assert.is_true(has_string)
     end)
 
-    it("does not treat quoted (escaped) flag tokens as flags", function()
-        -- the quoted tokens are literal query text, so nothing is keyword/string
-        -- highlighted; only the quote chars themselves are highlighted.
-        for _, h in ipairs(qf.highlight(schema, '"is:fixed" "path:foo"')) do
+    it("does not treat colon-escaped flag tokens as flags", function()
+        -- the escaped tokens are literal query text, so nothing is keyword/string
+        -- highlighted; only the escaping backslashes are.
+        for _, h in ipairs(qf.highlight(schema, "is\\:fixed path\\:foo")) do
             assert.is_true(h.hl ~= "Keyword" and h.hl ~= "String")
         end
+    end)
+
+    it("dims the backslash of an escaped colon", function()
+        local hls = qf.highlight(schema, "is\\:fixed")
+        assert.are.same({ { start = 2, finish = 3, hl = "NonText" } }, hls)
     end)
 
     it("highlights the opening quote of an unterminated quote", function()
@@ -203,18 +223,22 @@ describe("queryflags highlight", function()
         }, delimiters)
     end)
 
-    it("highlights quotes in escaped query text", function()
-        -- '"is:fixed"' is query text (the key is quoted), but the surrounding
-        -- quote chars should still be highlighted as delimiters.
-        local hls = qf.highlight(schema, '"is:fixed"')
+    it("does not highlight quotes in query text", function()
+        -- quotes only delimit a flag value; in query text they are literal.
+        for _, h in ipairs(qf.highlight(schema, '"is:fixed"')) do
+            assert.is_true(h.hl ~= "Delimiter")
+        end
+    end)
+
+    it("highlights the quotes delimiting a value", function()
+        local hls = qf.highlight(schema, 'path:"foo bar"')
         local delimiters = {}
         for _, h in ipairs(hls) do
             if h.hl == "Delimiter" then table.insert(delimiters, h) end
         end
-        -- opening quote at byte 0, closing quote at byte 9
         assert.are.same({
-            { start = 0,  finish = 1,  hl = "Delimiter" },
-            { start = 9,  finish = 10, hl = "Delimiter" },
+            { start = 5,  finish = 6,  hl = "Delimiter" },
+            { start = 13, finish = 14, hl = "Delimiter" },
         }, delimiters)
     end)
 end)
