@@ -42,29 +42,41 @@ describe("queryflags query", function()
     end)
 end)
 
-describe("queryflags escaped colon as a flag escape", function()
-    it("treats an escaped boolean flag as query text", function()
-        local r = qf.parse(schema, "is\\:fixed hello")
+describe("queryflags implicit query flag", function()
+    it("passes a flag-looking string through as query text", function()
+        local r = qf.parse(schema, 'query:"is:fixed" hello')
         assert.is_nil(r.flags.fixed)
+        assert.is_nil(r.flags.query)
         assert.are.equal("is:fixed hello", r.query)
     end)
 
-    it("treats an escaped key:value token as query text", function()
-        local r = qf.parse(schema, "path\\:foo bar")
+    it("passes a key:value string through as query text", function()
+        local r = qf.parse(schema, 'query:"path:foo" bar')
         assert.is_nil(r.flags.path)
         assert.are.equal("path:foo bar", r.query)
     end)
 
-    it("only escapes the colon it precedes", function()
-        local r = qf.parse(schema, "path\\:foo:bar")
-        assert.is_nil(r.flags.path)
-        assert.are.equal("path:foo:bar", r.query)
+    it("keeps spaces inside a quoted query value", function()
+        local r = qf.parse(schema, 'query:"path:foo bar"')
+        assert.are.equal("path:foo bar", r.query)
+        assert.are.same({}, r.flags)
     end)
 
-    it("keeps an escaped colon inside a value literal", function()
-        local r = qf.parse(schema, "path:a\\:b")
-        assert.are.equal("a:b", r.flags.path)
-        assert.are.equal("", r.query)
+    it("joins each occurrence in the position it was written", function()
+        local r = qf.parse(schema, "a query:b c query:d")
+        assert.are.equal("a b c d", r.query)
+        assert.are.same({}, r.flags)
+    end)
+
+    it("works without quotes for a plain value", function()
+        local r = qf.parse(schema, "query:hello is:fixed")
+        assert.is_true(r.flags.fixed)
+        assert.are.equal("hello", r.query)
+    end)
+
+    it("rejects a schema that defines its own query flag", function()
+        local own = { { name = "query", type = "value" } }
+        assert.has_error(function() qf.parse(own, "hello") end)
     end)
 
     it("leaves an unknown key:value token in the query", function()
@@ -111,6 +123,21 @@ describe("queryflags value flags", function()
         local r = qf.parse(schema, 'path:"foo \\"bar\\" baz"')
         assert.are.equal('foo "bar" baz', r.flags.path)
         assert.are.equal("", r.query)
+    end)
+
+    it("only opens a quoted value after a known value flag", function()
+        -- "nope" is not a flag, so its quotes are literal and the space still
+        -- ends the token.
+        local r = qf.parse(schema, 'nope:"foo bar"')
+        assert.is_nil(r.error)
+        assert.are.equal('nope:"foo bar"', r.query)
+        assert.are.same({}, r.flags)
+    end)
+
+    it("does not quote after a boolean flag's is: prefix", function()
+        local r = qf.parse(schema, 'is:"fixed"')
+        assert.is_nil(r.flags.fixed)
+        assert.are.equal('is:"fixed"', r.query)
     end)
 
     it("only opens a quoted value directly after the key colon", function()
@@ -199,17 +226,13 @@ describe("queryflags highlight", function()
         assert.is_true(has_string)
     end)
 
-    it("does not treat colon-escaped flag tokens as flags", function()
-        -- the escaped tokens are literal query text, so nothing is keyword/string
-        -- highlighted; only the escaping backslashes are.
-        for _, h in ipairs(qf.highlight(schema, "is\\:fixed path\\:foo")) do
-            assert.is_true(h.hl ~= "Keyword" and h.hl ~= "String")
-        end
-    end)
-
-    it("dims the backslash of an escaped colon", function()
-        local hls = qf.highlight(schema, "is\\:fixed")
-        assert.are.same({ { start = 2, finish = 3, hl = "NonText" } }, hls)
+    it("highlights the implicit query flag like any other value flag", function()
+        local hls = qf.highlight(schema, 'query:"is:fixed"')
+        local kinds = {}
+        for _, h in ipairs(hls) do kinds[h.hl] = true end
+        assert.is_true(kinds.Keyword)
+        assert.is_true(kinds.String)
+        assert.is_true(kinds.Delimiter)
     end)
 
     it("highlights the opening quote of an unterminated quote", function()
@@ -260,6 +283,16 @@ describe("queryflags completion", function()
         local found = false
         for _, item in ipairs(comps.items) do
             if item.word == "path:" then found = true end
+        end
+        assert.is_true(found)
+    end)
+
+    it("offers the implicit query flag", function()
+        local comps = qf.get_completions(schema, "qu", 2)
+        assert.not_nil(comps)
+        local found = false
+        for _, item in ipairs(comps.items) do
+            if item.word == "query:" then found = true end
         end
         assert.is_true(found)
     end)

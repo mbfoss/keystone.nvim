@@ -15,7 +15,7 @@ local M = {}
 ---@field desc     string?    -- shown in the completion menu
 
 ---@class keystone.queryflags.ParseResult
----@field query string  -- the literal query (all non-flag tokens, joined by space)
+---@field query string  -- the literal query (all non-flag tokens and "query:" values, joined by space)
 ---@field flags table   -- {[name] = true | string | string[]}
 ---@field error string? -- set when the query is malformed (e.g. an unclosed quote)
 
@@ -23,6 +23,33 @@ local M = {}
 ---@field startcol integer  -- 1-indexed column for vim.fn.complete()
 ---@field items    table[]
 
+---The implicit flag every flagged query carries: its value is appended to the
+---query as literal text instead of becoming a flag. Reserved -- a schema may
+---not define a flag by this name.
+local _QUERY = "query"
+
+---Add the implicit "query" flag to a schema. The name is reserved: a schema
+---that defines it is a programming error, not a flag that shadows the literal.
+---@param schema keystone.queryflags.FlagDef[]
+---@return keystone.queryflags.FlagDef[]
+local function _augment(schema)
+    if #schema == 0 then return schema end
+    for _, def in ipairs(schema) do
+        assert(def.name ~= _QUERY, '"' .. _QUERY .. '" is a reserved flag name')
+    end
+
+    local out = vim.list_extend({}, schema)
+    out[#out + 1] = {
+        name  = _QUERY,
+        type  = "value",
+        multi = true,
+        desc  = "[literal text]",
+    }
+    return out
+end
+
+---@param schema keystone.queryflags.FlagDef[] -- already augmented
+---@return table<string, keystone.queryflags.FlagDef>
 local function _build_map(schema)
     local m = {}
     for _, def in ipairs(schema) do m[def.name] = def end
@@ -38,23 +65,28 @@ end
 --   boolean flag:  "is:flagname" → flags.flagname = true  (matching a boolean def)
 --   value flag:    "key:value"   → flags.key = value      (or string[] if multi)
 --   anything else: query text
--- The query is every non-flag token joined back together with single spaces.
+-- The query is every non-flag token (plus every "query:" value, see below)
+-- joined back together with single spaces, in the order written.
 -- Boolean flags have no standalone form — "flagname" alone is always query
 -- text; the "is:" prefix is what distinguishes a flag from a query word.
 --
--- Quoting (via ") only applies to a flag's value, and only when the opening
--- quote sits directly after the key's ':'. It lets the value contain spaces:
+-- Quoting (via ") only applies to a value flag's value, and only when the
+-- opening quote sits directly after the ':' of a key that really is one of the
+-- schema's value flags. It lets the value contain spaces:
 --   'path:"foo bar"' → value flag whose value contains a space
+--   'nope:"foo bar"' → query text 'nope:"foo' and 'bar"' (no such flag)
 -- A '"' anywhere else -- in query text, inside a key, or in the middle of an
 -- unquoted value -- is an ordinary literal character. Inside a quoted value a
 -- literal double quote is written as \". Text after the closing quote simply
 -- continues the value ('key:"foo bar"baz' → value "foo barbaz"), but an
 -- unterminated quote is an error.
 --
--- Escaping a colon with '\:' makes it a literal colon that never separates a
--- key from a value, which is how a flag-looking token is forced to query text:
---   'is\:fixed'  → query text "is:fixed"
---   'path\:foo'  → query text "path:foo"
+-- There is no escape character. A flag-looking string is searched for verbatim
+-- by passing it through the implicit "query" flag -- a reserved name every
+-- schema carries -- which appends its value to the query instead of setting a
+-- flag:
+--   'query:"is:fixed"'   → query text "is:fixed"
+--   'query:"path:foo x"' → query text "path:foo x"
 
 ---@class keystone.queryflags.Token
 ---@field text          string                         -- verbatim token text
@@ -64,11 +96,22 @@ end
 ---@field colon_pos     integer?                       -- 1-indexed position of the separating ':' in text
 ---@field colon_raw_pos integer?                       -- 1-indexed position of the separating ':' in raw (for buffer offsets)
 ---@field quote         {open:integer,close:integer?}? -- raw-relative 1-indexed positions of the value quote chars; close=nil when unterminated
----@field escapes       integer[]?                     -- raw-relative 1-indexed positions of each escaping '\' (the '\' of a \: or \")
+---@field escapes       integer[]?                     -- raw-relative 1-indexed positions of each escaping '\' (the '\' of a \" inside a quoted value)
 
----@param str string
+---Only a key that really is a value flag can quote its value; after any other
+---key a '"' is an ordinary character, so query text keeps its quotes verbatim.
+---@param defs table<string, keystone.queryflags.FlagDef>
+---@param key  string
+---@return boolean
+local function _quotable(defs, key)
+    local def = defs[key]
+    return def ~= nil and def.type == "value"
+end
+
+---@param str  string
+---@param defs table<string, keystone.queryflags.FlagDef> -- decides which keys may quote a value
 ---@return keystone.queryflags.Token[]
-local function _tokenize(str)
+local function _tokenize(str, defs)
     local tokens = {}
     local i      = 1
     local len    = #str
@@ -105,17 +148,13 @@ local function _tokenize(str)
                     table.insert(chars, c)
                     i = i + 1
                 end
-            elseif c == "\\" and str:sub(i + 1, i + 1) == ":" then
-                -- \: is a literal colon: it never separates a key from a value,
-                -- which is what keeps a flag-looking token as query text.
-                table.insert(_escapes, i - tok_start + 1)
-                table.insert(chars, ":")
-                i = i + 2
             elseif c:match("%s") then
                 break
-            elseif c == '"' and colon_raw_pos and not _quote and (i - tok_start + 1) == colon_raw_pos + 1 then
-                -- a quote directly after the key's ':' opens the value span;
-                -- every other quote is an ordinary literal character.
+            elseif c == '"' and colon_pos and not _quote
+                and (i - tok_start + 1) == colon_raw_pos + 1
+                and _quotable(defs, table.concat(chars, "", 1, colon_pos - 1)) then
+                -- a quote directly after a known value flag's ':' opens the value
+                -- span; every other quote is an ordinary literal character.
                 _quote     = { open = i - tok_start + 1 }
                 _quote_idx = #chars + 1
                 _in_quote  = true
@@ -154,8 +193,7 @@ end
 
 -- Classify a single token against the flag schema. A value flag is "key:value" (key
 -- matching a value def; the value may be quoted); a boolean flag is "is:flagname"
--- matching a boolean def. Else query text -- an escaped colon (\:) leaves the token
--- without a separator, so a flag-looking token stays query text.
+-- matching a boolean def. Anything else is query text.
 ---@param defs  table<string, keystone.queryflags.FlagDef>
 ---@param token keystone.queryflags.Token
 ---@return "boolean"|"value"|nil kind, string? key, string? value
@@ -185,9 +223,9 @@ end
 ---@param raw    string
 ---@return keystone.queryflags.ParseResult
 function M.parse(schema, raw)
-    local defs   = _build_map(schema)
+    local defs   = _build_map(_augment(schema))
     local flags  = {}
-    local tokens = _tokenize(raw)
+    local tokens = _tokenize(raw, defs)
     local parts  = {}
 
     for _, token in ipairs(tokens) do
@@ -198,7 +236,11 @@ function M.parse(schema, raw)
 
     for _, token in ipairs(tokens) do
         local kind, key, value = _classify(defs, token)
-        if kind == "value" and key then
+        if kind == "value" and key == _QUERY then
+            -- the implicit "query" flag carries literal text: it joins the query
+            -- in the position it was written rather than becoming a flag.
+            if value and value ~= "" then parts[#parts + 1] = value end
+        elseif kind == "value" and key then
             local def = defs[key]
             if value and (value ~= "" or def.allow_empty) then
                 if def.multi then
@@ -222,9 +264,9 @@ end
 ---@param raw    string
 ---@return {start:integer, finish:integer, hl:string}[]
 function M.highlight(schema, raw)
-    local defs   = _build_map(schema)
+    local defs   = _build_map(_augment(schema))
     local hls    = {}
-    local tokens = _tokenize(raw)
+    local tokens = _tokenize(raw, defs)
 
     for _, token in ipairs(tokens) do
         local kind, _, value = _classify(defs, token)
@@ -251,8 +293,8 @@ function M.highlight(schema, raw)
             end
         end
 
-        -- The '\' of an escaped colon (\:) or quote (\") is syntax, not content:
-        -- dim it so the char it protects still reads as a literal character.
+        -- The '\' of an escaped quote (\") is syntax, not content: dim it so the
+        -- quote it protects still reads as a literal character.
         if token.escapes then
             for _, pos in ipairs(token.escapes) do
                 table.insert(hls, { start = s0 + pos - 1, finish = s0 + pos, hl = "NonText" })
@@ -272,8 +314,10 @@ function M.get_completions(schema, line, cursor_byte, auto)
     local char_after = line:sub(cursor_byte + 1, cursor_byte + 1)
     if char_after ~= "" and not char_after:match("%s") then return nil end
 
+    local list         = _augment(schema)
+    local defs         = _build_map(list)
     local before       = line:sub(1, cursor_byte)
-    local tokens       = _tokenize(before)
+    local tokens       = _tokenize(before, defs)
 
     local last         = tokens[#tokens]
     local word_start_1 = #before + 1
@@ -291,12 +335,10 @@ function M.get_completions(schema, line, cursor_byte, auto)
         -- \" is only an escape inside a quoted value; unquoted it is literal.
         local partial  = in_quote and raw_val:sub(2):gsub('\\"', '"') or raw_val
 
-        local defs    = _build_map(schema)
-
         -- Case 1: Inside an "is:<partial_boolean_flag>" block
         if prefix == "is" then
             local items = {}
-            for _, def in ipairs(schema) do
+            for _, def in ipairs(list) do
                 if def.type == "boolean" and vim.startswith(def.name, partial) then
                     table.insert(items, {
                         word = "is:" .. def.name,
@@ -359,7 +401,7 @@ function M.get_completions(schema, line, cursor_byte, auto)
         })
     end
 
-    for _, def in ipairs(schema) do
+    for _, def in ipairs(list) do
         if def.type == "value" and vim.startswith(def.name, current_word) then
             table.insert(items, {
                 word = def.name .. ":",

@@ -49,10 +49,10 @@ end
 
 ---@param text string What we match against
 ---@param query string User input
----@return {score:number,chunks:string[][]}?
+---@return {score:number?,chunks:string[][]}?
 function M.match_label(text, query)
     if query == "" then
-        return { score = 0, chunks = _build_highlight_chunks(text, {}) }
+        return { score = nil, chunks = _build_highlight_chunks(text, {}) }
     end
     -- matchfuzzypos is smart-case (a lowercase query char matches either case), so
     -- a lowercased query yields plain case-insensitive fuzzy matching.
