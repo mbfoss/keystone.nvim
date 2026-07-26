@@ -76,7 +76,6 @@ function M.references_spec()
     return {
         prompt          = "LSP References",
         flags           = REF_FLAGS,
-        enable_list_sep = true,
         enable_preview  = true,
         setup           = function(callback)
             local action = "textDocument/references"
@@ -120,7 +119,7 @@ function M.references_spec()
                     ---@type keystone.Picker.Item
                     table.insert(picker_items, {
                         label_chunks = match.chunks,
-                        virt_lines   = { { { loc, "KeystonePickPath" } } },
+                        virt_line    = { { loc, "KeystonePickPath" } },
                         score        = match.score,
                         data         = {
                             filepath = ref.filename,

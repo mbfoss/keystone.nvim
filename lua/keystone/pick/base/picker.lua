@@ -28,14 +28,14 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 
 ---@class keystone.Picker.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
----@field virt_lines? {[1]:string,[2]:string?}[][]
+---@field virt_line? {[1]:string,[2]:string?}[] Single virtual line rendered below the entry.
 ---@field score number?
 ---@field data keystone.picker.ItemData
 ---@field initial boolean?
 
 ---@class keystone.picker.ListItem
 ---@field label_chunks {[1]:string,[2]:string?}[]?
----@field virt_lines? {[1]:string,[2]:string?}[][]
+---@field virt_line? {[1]:string,[2]:string?}[]
 ---@field score number
 ---@field data keystone.picker.ItemData
 
@@ -73,8 +73,7 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
----@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 when enable_list_sep, else 4.
----@field enable_list_sep boolean?
+---@field list_wrap_indent number? Spaces to indent wrapped list lines. Defaults to 0 while separators are shown, else 2.
 ---@field initial_query  string?
 ---@field initial_index integer? 1-based list row to select on the first fetch (unless the finder marks an item `initial`).
 ---@field auto_complete_flags boolean? Auto-open flag completion while typing (default true).
@@ -323,6 +322,8 @@ end
 ---@field history string[]
 ---@field history_idx number
 ---@field _suppress_autocomplete boolean?
+---@field _list_sep_line string
+---@field _show_list_sep boolean
 local Picker = {}
 Picker.__index = Picker
 
@@ -346,6 +347,11 @@ function Picker:init(opts, callback)
 	self.preview_default       = "visible" ---@type "visible"|"hidden"
 
 	self.list_items            = {} ---@type keystone.picker.ListItem[]
+
+	-- Separators are not a user option: they switch on by themselves as soon as an
+	-- item carries a virtual line, so the extra line reads as part of its entry.
+	self._show_list_sep        = false
+	self._list_sep_line        = ""
 
 	self.closed                = false
 
@@ -469,6 +475,19 @@ function Picker:setup_ui()
 	end, { buffer = self.pbuf, desc = "Page original <cword>" })
 end
 
+---Indent wrapped list lines so continuations are visually distinct from new
+---entries. Separators already delimit items, so no indent is needed while they
+---are shown.
+---@return nil
+function Picker:_apply_wrap_indent()
+	if not self.lwin or not vim.api.nvim_win_is_valid(self.lwin) then return end
+	local indent = self.opts.list_wrap_indent or (self._show_list_sep and 0 or 2)
+	vim.wo[self.lwin].breakindent = indent > 0
+	if indent > 0 then
+		vim.wo[self.lwin].breakindentopt = "shift:" .. indent
+	end
+end
+
 function Picker:toggle_preview()
 	if not self.preview_enabled then return end
 	self:relayout(self.vwin ~= nil and "hide_preview" or "show_preview")
@@ -494,9 +513,7 @@ function Picker:relayout(action)
 		width_ratio = self.opts.width_ratio,
 	}
 
-	if self.opts.enable_list_sep then
-		self.list_sep_line = string.rep("─", self.layout.list_width)
-	end
+	self._list_sep_line = string.rep("─", self.layout.list_width)
 
 	local base_cfg = {
 		relative = "editor",
@@ -589,15 +606,7 @@ function Picker:relayout(action)
 			end)
 		vim.wo[self.lwin].winhighlight = winhl
 		vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
-		-- Indent wrapped lines a few spaces so continuations are visually
-		-- distinct from new entries. Defaults to 0 when a separator already
-		-- delimits items, else 4.
-		local wrap_indent = self.opts.list_wrap_indent
-			or (self.opts.enable_list_sep and 0 or 2)
-		if wrap_indent > 0 then
-			vim.wo[self.lwin].breakindent = true
-			vim.wo[self.lwin].breakindentopt = "shift:" .. wrap_indent
-		end
+		self:_apply_wrap_indent()
 	else
 		vim.api.nvim_win_set_config(self.lwin, vim.tbl_extend("force", base_cfg, {
 			row = self.layout.list_row,
@@ -711,15 +720,14 @@ end
 
 ---Neovim won't scroll to reveal virt_lines hanging below the cursor line, so an
 ---entry sitting on the bottom row of the viewport has its virtual lines clipped.
----When that's the case, scroll the view up by the entry's virt_line count.
+---When that's the case, scroll the view up by the entry's virtual line count.
 ---@param row integer
 function Picker:_reveal_virt_lines(row)
 	if not self.lwin or not vim.api.nvim_win_is_valid(self.lwin) then return end
 	local item = self.list_items[row]
 	if not item then return end
 
-	local vcount = (item.virt_lines and #item.virt_lines or 0)
-		+ (self.opts.enable_list_sep and 1 or 0)
+	local vcount = (item.virt_line and 1 or 0) + (self._show_list_sep and 1 or 0)
 	if vcount == 0 then return end
 
 	vim.api.nvim_win_call(self.lwin, function()
@@ -732,7 +740,7 @@ function Picker:_reveal_virt_lines(row)
 		local bottom_row = vim.fn.winline() + line_height - 1
 		if bottom_row < vim.api.nvim_win_get_height(self.lwin) then return end
 		local view = vim.fn.winsaveview()
-		view.topline = view.topline + (item.virt_lines and #item.virt_lines or 0)
+		view.topline = view.topline + (item.virt_line and 1 or 0)
 		vim.fn.winrestview(view)
 	end)
 end
@@ -927,6 +935,8 @@ end
 
 function Picker:clear_list()
 	self.list_items = {}
+	self._show_list_sep = false
+	self:_apply_wrap_indent()
 
 	vim.bo[self.lbuf].modifiable = true
 	vim.api.nvim_buf_set_lines(self.lbuf, 0, -1, false, {})
@@ -950,13 +960,24 @@ function Picker:set_items(items)
 	local lines = {}
 	local extmarks = {}
 
+	-- A separator is what keeps a virtual line attached to its own entry, so it
+	-- turns on for the whole list as soon as any item carries one.
+	self._show_list_sep = false
+	for _, item in ipairs(items) do
+		if item.virt_line and #item.virt_line > 0 then
+			self._show_list_sep = true
+			break
+		end
+	end
+	self:_apply_wrap_indent()
+
 	for row_idx, item in ipairs(items) do
 		---@type keystone.picker.ListItem
 		local list_item = {
 			score = item.score,
 			data = item.data,
 			label_chunks = item.label_chunks,
-			virt_lines = item.virt_lines,
+			virt_line = item.virt_line,
 		}
 
 		local label = _item_label(item)
@@ -992,16 +1013,14 @@ function Picker:set_items(items)
 
 		local vlines = {}
 
-		if item.virt_lines and #item.virt_lines > 0 then
-			for _, line in ipairs(item.virt_lines) do
-				local vl = { { prefix } }
-				vim.list_extend(vl, line)
-				table.insert(vlines, vl)
-			end
+		if item.virt_line and #item.virt_line > 0 then
+			local vl = { { prefix } }
+			vim.list_extend(vl, item.virt_line)
+			table.insert(vlines, vl)
 		end
 
-		if self.opts.enable_list_sep then
-			table.insert(vlines, { { self.list_sep_line, "NonText" } })
+		if self._show_list_sep then
+			table.insert(vlines, { { self._list_sep_line, "NonText" } })
 		end
 
 		if #vlines > 0 then

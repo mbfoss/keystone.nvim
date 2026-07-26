@@ -68,7 +68,6 @@ function M.spec()
         prompt          = "Autocommands",
         flags           = FLAGS,
         enable_preview  = true,
-        enable_list_sep = true,
         finder          = function(query, flags, _, callback)
             local items = {}
 
@@ -102,12 +101,12 @@ function M.spec()
 
                 local match      = query ~= "" and pickertools.match_label(label, query)
                     or { score = 0, chunks = { { label } } }
-                local virt_lines = (ac.desc and ac.desc ~= "") and { { { ac.desc, "Comment" } } } or {}
+                local virt_line  = (ac.desc and ac.desc ~= "") and { { ac.desc, "Comment" } } or nil
 
                 if match then
                     table.insert(items, {
                         label_chunks = match.chunks,
-                        virt_lines   = virt_lines,
+                        virt_line    = virt_line,
                         score        = match.score,
                         data         = { ac = ac },
                     })

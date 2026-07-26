@@ -298,7 +298,7 @@ local function make_item(m, abs_path, cwd, list_width, show_repl, rel_path, from
     virt_line[#virt_line + 1] = { location, "KeystonePickPath" }
     return {
         label_chunks = build_chunks(m.text, m.subs, show_repl),
-        virt_lines   = { virt_line },
+        virt_line    = virt_line,
         data         = { filepath = abs_path, lnum = m.lnum, col = m.col, subs = m.subs },
     }
 end
@@ -593,7 +593,6 @@ function M.spec(opts)
         flags           = FLAGS,
         enable_preview  = true,
         previewer       = buffer_preview,
-        enable_list_sep = true,
         finder           = function(query, flags, fetch_opts, callback)
             local parsed     = { query = query, flags = flags }
             local target_cwd = flags.dir and vim.fn.expand(flags.dir) or vim.fn.getcwd()

@@ -135,7 +135,6 @@ function M.spec(opts)
     return {
         prompt             = list_label .. " Items",
         flags              = FLAGS,
-        enable_list_sep    = true,
         enable_preview     = true,
         finder             = function(query, flags, _, callback)
             local items = {}
@@ -165,15 +164,15 @@ function M.spec(opts)
                 if match then
                     local chunks = { _type_prefix[data.type] or _type_prefix.N }
                     vim.list_extend(chunks, match.chunks)
-                    local virt_lines = nil
+                    local virt_line = nil
                     if data.relpath and #data.relpath > 0 then
-                        virt_lines = { { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "KeystonePickPath" } } }
+                        virt_line = { { string.format("%s:%d:%d", data.relpath, data.lnum, data.col), "KeystonePickPath" } }
                     end
                     ---@type keystone.Picker.Item
                     table.insert(items, {
                         label_chunks = chunks,
                         score        = match.score,
-                        virt_lines   = virt_lines,
+                        virt_line    = virt_line,
                         data         = data,
                         initial      = data.qfidx == current_idx,
                     })

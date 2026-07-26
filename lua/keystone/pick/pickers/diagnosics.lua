@@ -82,7 +82,6 @@ function M.spec(opts)
         prompt             = opts.bufnr and "Document Diagnostics" or "Workspace Diagnostics",
         flags              = FLAGS,
         enable_preview     = true,
-        enable_list_sep    = multi_buf,
         finder             = function(query, flags, _, callback)
             local sev_filter     = {}
             for _, v in ipairs(flags.sev or {}) do
@@ -109,10 +108,10 @@ function M.spec(opts)
                 if res then
                     local chunks     = vim.deepcopy(entry.prefix_chunks)
                     vim.list_extend(chunks, res.chunks)
-                    local virt_lines = multi_buf and { { { entry.relpath, "KeystonePickPath" } } } or nil
+                    local virt_line  = multi_buf and { { entry.relpath, "KeystonePickPath" } } or nil
                     table.insert(items, {
                         label_chunks = chunks,
-                        virt_lines   = virt_lines,
+                        virt_line    = virt_line,
                         score        = res.score,
                         data         = {
                             message  = entry.message,

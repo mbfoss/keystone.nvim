@@ -95,7 +95,6 @@ function M.pick()
     picker.open({
         prompt          = "Bookmarks",
         enable_preview  = true,
-        enable_list_sep = true,
         finder          = function(query, _, _fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(entries) do
@@ -109,7 +108,7 @@ function M.pick()
                 local match = pickertools.match_label(search_text, query)
                 if match then
                     local loc_match = pickertools.match_label(loc_text, query)
-                    local virt_lines
+                    local virt_line
                     if label then
                         local label_match = pickertools.match_label(label, query)
                         local chunks = (label_match and label_match.chunks) or { { label } }
@@ -119,12 +118,12 @@ function M.pick()
                         for _, chunk in ipairs(chunks) do
                             if not chunk[2] then chunk[2] = "@text.note" end
                         end
-                        virt_lines = { chunks }
+                        virt_line = chunks
                     end
                     ---@type keystone.Picker.Item
                     local item = {
                         label_chunks = (loc_match and loc_match.chunks) or { { loc_text } },
-                        virt_lines   = virt_lines,
+                        virt_line    = virt_line,
                         score        = match.score,
                         data         = {
                             filepath = entry.file,
