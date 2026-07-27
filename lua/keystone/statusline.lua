@@ -178,8 +178,21 @@ local function _section_mode(_)
   return prefix .. info.label .. "%*", prefix .. info.short .. "%*"
 end
 
+--- Icons for buffers that have no file — and therefore no filetype icon — of
+--- their own, keyed by `buftype`. Anything unlisted falls back to no icon.
+local _BUFTYPE_ICONS = {
+  terminal = "󰆍",
+  help     = "󰘥",
+  quickfix = "󰁨",
+  prompt   = "󰘎",
+  nofile   = "󰈔",
+  acwrite  = "󰈔",
+}
+
 --- Full filename is the path relative to cwd; the short form is the tail only.
---- Terminal buffers get a dedicated icon and show only the running command.
+--- Special buffers get a `buftype` icon instead of a filetype one, and — having
+--- no real path to shorten — the same text for both variants: the running
+--- command for a terminal, the buffer name's tail otherwise.
 ---@param bufnr integer
 ---@return string full, string short
 local function _section_filename(bufnr)
@@ -189,23 +202,24 @@ local function _section_filename(bufnr)
   end
 
   local buftype = vim.bo[bufnr].buftype
-  local filename, rel, tail, icon
+  local rel, tail, icon
   if buftype == "" then
-    filename = vim.fn.fnamemodify(name, ":t")
-    rel      = vim.fn.fnamemodify(name, ":~:.")
-    tail     = filename
-    icon = icons.get_icon(filename)
+    local filename = vim.fn.fnamemodify(name, ":t")
+    rel            = vim.fn.fnamemodify(name, ":~:.")
+    tail           = filename
+    icon           = icons.get_icon(filename)
   elseif buftype == "terminal" then
-    filename = ""
-    icon = "󰆍"
     -- `term://{cwd}//{pid}:{cmd}` — keep the command, drop the cwd and pid.
-    tail     = buftype == "terminal" and name:match("//%d+:(.+)$") or nil
-    tail     = tail or name:match("([^/\\]+)$") or name
-    rel      = tail
+    tail = name:match("//%d+:(.+)$") or name:match("([^/\\]+)$") or name
+    rel  = tail
+    icon = _BUFTYPE_ICONS.terminal
   else
-    --TODO
+    tail = name:match("([^/\\]+)$") or name
+    if buftype == "help" then tail = tail:gsub("%.txt$", "") end
+    rel  = tail
+    icon = _BUFTYPE_ICONS[buftype] or ""
   end
-  local icon_str = icon ~= "" and (icon .. " ") or ""
+  local icon_str = (icon and icon ~= "") and (icon .. " ") or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
   local suffix   = mod .. ro
