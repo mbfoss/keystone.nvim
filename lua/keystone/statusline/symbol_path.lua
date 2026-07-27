@@ -89,15 +89,6 @@ local function _build_chain(symbols, line)
   return chain
 end
 
----Crop `s` to at most `max` characters, appending an ellipsis when truncated.
----@param s   string
----@param max integer
----@return string
-local function _crop(s, max)
-  if vim.fn.strchars(s) <= max then return s end
-  return vim.fn.strcharpart(s, 0, max - 1) .. "…"
-end
-
 --- The enclosing-symbol chain for `bufnr` at the cursor of the window being
 --- rendered, or `nil` when the buffer is not the one shown there.
 ---@param bufnr integer
@@ -130,7 +121,7 @@ function M.render(bufnr)
 
   local last      = chain[#chain]
   local last_icon = _KIND_ICONS[last.kind] or "󰊕"
-  local short      = last_icon .. " " .. _crop(last.name, 20):gsub("%%", "%%%%")
+  local short      = last_icon .. " " .. last.name:gsub("%%", "%%%%")
 
   return "%#KeystoneSLSymbolPath#" .. table.concat(parts, " › ") .. "%*",
       "%#KeystoneSLSymbolPath#" .. short .. "%*"
