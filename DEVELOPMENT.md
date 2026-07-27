@@ -46,14 +46,13 @@ call. It is deliberately thin:
 Adding a new module means writing `lua/keystone/<name>.lua` with a `setup(opts)`
 function and adding its name to `_MODULES`.
 
-### Shared toolkit (`tk`)
+### Shared toolkit (`util`)
 
-[`lua/keystone/tk/`](lua/keystone/tk/) ("toolkit") holds the reusable
-primitives that modules build on — floating/fixed/input windows, extmark
-helpers, a tree buffer, an LRU cache, throttle/debounce, timers, a signal
-type, string/fs utilities, process spawning, spinners, and user-command
-registration. Prefer extending `tk` over duplicating low-level plumbing inside
-a feature module.
+[`lua/keystone/util/`](lua/keystone/util/) holds the reusable primitives that
+modules build on — floating/fixed/input windows, extmark helpers, a tree
+buffer, an LRU cache, throttle/debounce, timers, a signal type, string/fs
+utilities, process spawning, spinners, and user-command registration. Prefer
+extending `util` over duplicating low-level plumbing inside a feature module.
 
 ### Lazy loading
 
@@ -63,8 +62,14 @@ patterns:
 - Interactive command implementations live in a submodule that is only
   `require`d the first time the command runs (e.g. `keystone.bookmarks.actions`,
   `keystone.unsaved.session`).
-- User commands are registered through `keystone.tk.usercmd`, which supports
-  subcommand completion.
+- User commands are registered through `keystone.util.usercmd`, which supports
+  subcommand completion. Arguments reach the run function as Neovim's own
+  `opts.fargs`, so they split by Vim's `<f-args>` rules (`:h <f-args>`):
+  unescaped whitespace separates, `\<space>` is a literal space, `\\` is a
+  backslash, and quotes are not special. `usercmd.split_args` re-implements
+  exactly those rules for completion, which is handed a raw command line
+  instead of parsed arguments. (Picker queries are separate — the `"`-quoting
+  rules of `keystone.pick.base.queryflags` apply there, not here.)
 
 ### Notable module internals
 
@@ -113,6 +118,6 @@ plugin/keystone.lua       Neovim version guard (loaded on startup)
 lua/keystone/init.lua     optional single-entry aggregator
 lua/keystone/<module>.lua  one file per feature module
 lua/keystone/<module>/    a module's private submodules
-lua/keystone/tk/          shared low-level toolkit
+lua/keystone/util/        shared low-level toolkit
 tests/                    plenary busted specs
 ```

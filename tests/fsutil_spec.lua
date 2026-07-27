@@ -1,4 +1,4 @@
-local fsutil = require("keystone.tk.fsutil")
+local fsutil = require("keystone.util.fsutil")
 local filetreefs = require("keystone.filetree.fs")
 
 describe("copy_destination", function()

@@ -1,7 +1,9 @@
 local M = {}
 
--- Argument splitting follows Vim's native <f-args> rules (:h <f-args>), so a
--- command line splits exactly the way Neovim's own opts.fargs would:
+-- This module does no argument parsing of its own. Dispatch passes Neovim's
+-- opts.fargs straight through, and completion runs the raw command line back
+-- through nvim_parse_cmd, so both paths split by Vim's native rules
+-- (:h <f-args>):
 --
 --   Arguments are separated by unescaped whitespace. A backslash escapes the
 --   character after it: \<space> (or \<tab>) is that literal whitespace and
@@ -9,54 +11,11 @@ local M = {}
 --   before anything else -- including a trailing backslash at end of line --
 --   is kept verbatim along with what follows it. Quotes are not special.
 --
---     a\ b c   -> a b  and  c        a\\b   -> a\b
---     a\\\ b   -> a\ b               a\nb   -> a\nb
---     \ a      -> " a"               a\     -> a\
+--     a\ b c   -> a b  and  c        a\\b     -> a\b
+--     a\\\ b   -> a\ b               a\nb     -> a\nb
+--     \ a      -> " a"               a\       -> a\
 --     "a b"    -> "a  and  b"        --p=x\ y -> --p=x y
 --
--- Dispatch uses opts.fargs directly; this splitter exists for completion,
--- which is handed a raw command line rather than parsed arguments.
---
----@param str string
----@return string[]
-function M.split_args(str)
-    local args  = {}
-    local chars = nil -- non-nil once the current argument has begun
-    local i     = 1
-    local len   = #str
-
-    while i <= len do
-        local c = str:sub(i, i)
-        if c:match("%s") then
-            if chars then
-                table.insert(args, table.concat(chars))
-                chars = nil
-            end
-            i = i + 1
-        elseif c == "\\" then
-            local nxt = str:sub(i + 1, i + 1)
-            chars = chars or {}
-            if nxt == "" or nxt == "\\" then
-                table.insert(chars, "\\") -- trailing, or an escaped backslash
-                i = i + (nxt == "" and 1 or 2)
-            elseif nxt:match("%s") then
-                table.insert(chars, nxt) -- escaped whitespace: does not split
-                i = i + 2
-            else
-                table.insert(chars, "\\" .. nxt) -- not an escape: keep both
-                i = i + 2
-            end
-        else
-            chars = chars or {}
-            table.insert(chars, c)
-            i = i + 1
-        end
-    end
-
-    if chars then table.insert(args, table.concat(chars)) end
-    return args
-end
-
 ---@alias keystone.util.usercmd.subcommand fun(cmd:string,rest:string[],arg_lead:string):string[]
 
 ---@alias keystone.util.usercmd.run_fn
@@ -75,27 +34,28 @@ local function _complete(subcommand, arg_lead, cmd_line)
         return out
     end
 
-    local args = M.split_args(cmd_line)
-    if cmd_line:match("%s+$") then
-        table.insert(args, ' ')
+    -- nvim_parse_cmd splits exactly as <f-args> does, and strips any range or
+    -- command modifiers. It throws on a command line it cannot parse.
+    local ok, parsed = pcall(vim.api.nvim_parse_cmd, cmd_line, {})
+    if not ok then return {} end
+
+    -- Trailing whitespace means a new, still-empty argument has begun; without
+    -- it the last argument is the one being completed, not context for it.
+    local rest = parsed.args
+    if not cmd_line:match("%s$") then
+        rest[#rest] = nil
     end
 
-    local cmd = args[1]
-    if #args == 1 then
-        return filter(subcommand(cmd, {}, arg_lead))
-    elseif #args >= 2 then
-        local rest = { unpack(args, 2) }
-        rest[#rest] = nil
-        return filter(subcommand(cmd, rest, arg_lead))
-    end
-    return {}
+    return filter(subcommand(parsed.cmd, rest, arg_lead))
 end
 
 ---@param cmd string
 ---@param run_fn keystone.util.usercmd.run_fn
 ---@param opts vim.api.keyset.create_user_command.command_args
 local function _dispatch(cmd, run_fn, opts)
-    local ok, err = pcall(run_fn, cmd, opts.fargs, opts)
+    -- nargs="*" always yields fargs; the fallback is only to satisfy its
+    -- optional type.
+    local ok, err = pcall(run_fn, cmd, opts.fargs or {}, opts)
     if not ok then
         vim.notify(
             "[keystone.util.nvim] " .. cmd .. " command error\n" .. tostring(err),
