@@ -179,6 +179,7 @@ local function _section_mode(_)
 end
 
 --- Full filename is the path relative to cwd; the short form is the tail only.
+--- Terminal buffers get a dedicated icon and show only the running command.
 ---@param bufnr integer
 ---@return string full, string short
 local function _section_filename(bufnr)
@@ -187,17 +188,23 @@ local function _section_filename(bufnr)
     return "%*[No Name]", "%*[No Name]"
   end
 
-  local filename, rel, tail
-  if vim.bo[bufnr].buftype == "" then
+  local buftype = vim.bo[bufnr].buftype
+  local filename, rel, tail, icon
+  if buftype == "" then
     filename = vim.fn.fnamemodify(name, ":t")
     rel      = vim.fn.fnamemodify(name, ":~:.")
     tail     = filename
-  else
+    icon = icons.get_icon(filename)
+  elseif buftype == "terminal" then
     filename = ""
-    tail     = name:match("([^/\\]+)$") or name
+    icon = "󰆍"
+    -- `term://{cwd}//{pid}:{cmd}` — keep the command, drop the cwd and pid.
+    tail     = buftype == "terminal" and name:match("//%d+:(.+)$") or nil
+    tail     = tail or name:match("([^/\\]+)$") or name
     rel      = tail
+  else
+    --TODO
   end
-  local icon     = icons.get_icon(filename)
   local icon_str = icon ~= "" and (icon .. " ") or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
