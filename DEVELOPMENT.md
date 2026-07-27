@@ -63,13 +63,14 @@ patterns:
   `require`d the first time the command runs (e.g. `keystone.bookmarks.actions`,
   `keystone.unsaved.session`).
 - User commands are registered through `keystone.util.usercmd`, which supports
-  subcommand completion. Arguments reach the run function as Neovim's own
-  `opts.fargs`, so they split by Vim's `<f-args>` rules (`:h <f-args>`):
-  unescaped whitespace separates, `\<space>` is a literal space, `\\` is a
-  backslash, and quotes are not special. `usercmd.split_args` re-implements
-  exactly those rules for completion, which is handed a raw command line
-  instead of parsed arguments. (Picker queries are separate — the `"`-quoting
-  rules of `keystone.pick.base.queryflags` apply there, not here.)
+  subcommand completion. It parses no arguments itself: dispatch passes
+  Neovim's `opts.fargs` straight through, and completion — which is handed a
+  raw command line rather than parsed arguments — runs that line back through
+  `nvim_parse_cmd`. Both paths therefore split by Vim's `<f-args>` rules
+  (`:h <f-args>`): unescaped whitespace separates, `\<space>` is a literal
+  space, `\\` is a backslash, and quotes are not special. (Picker queries are
+  separate — the `"`-quoting rules of `keystone.pick.base.queryflags` apply
+  there, not here.)
 
 ### Notable module internals
 
