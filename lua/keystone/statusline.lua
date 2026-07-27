@@ -132,8 +132,8 @@ local function _get_default_config()
     enabled = true,
     separator = "│",
     sections = {
-      left  = { "mode", "git", "filename", "symbol_path" },
-      right = { "lsp_progress", "diagnostics", "filetype", "position" },
+      left  = { "mode", "git", "filename" },
+      right = { "symbol_path", "lsp_progress", "diagnostics", "filetype", "position" },
     },
     priority = {
       "filename",

@@ -179,7 +179,6 @@ function M.spec(opts)
                 end
                 ::continue::
             end
-            table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
         quickfix_formatter = function(data)

@@ -288,7 +288,6 @@ function M.spec()
                 end
                 ::continue::
             end
-            table.sort(items, function(a, b) return a.score > b.score end)
             callback(items)
         end,
         on_confirm     = function(data)

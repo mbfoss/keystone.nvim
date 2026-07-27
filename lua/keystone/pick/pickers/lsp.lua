@@ -242,7 +242,6 @@ function M.document_symbols_spec(opts)
                 end
                 ::continue::
             end
-            table.sort(filtered, function(a, b) return a.score > b.score end)
             callback(filtered)
         end,
         on_confirm     = function(data)
