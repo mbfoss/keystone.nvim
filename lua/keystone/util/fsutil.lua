@@ -307,9 +307,6 @@ end
 ---@field slice_ms number? work budget per slice in ms before yielding (default 10)
 ---@field yield_ms number? idle gap between slices in ms (default 1)
 
-local _DEFAULT_SLICE_MS = 10
-local _DEFAULT_YIELD_MS = 1
-
 --- Walk `dir` recursively without blocking the UI.
 ---
 --- Directories are scanned in slices of `slice_ms`; between slices the walk
@@ -323,8 +320,8 @@ local _DEFAULT_YIELD_MS = 1
 function M.async_walk_dir(dir, opts)
     local pending_dirs = { dir }
     local is_cancelled = false
-    local slice_ns     = (opts.slice_ms or _DEFAULT_SLICE_MS) * 1e6
-    local yield_ms     = opts.yield_ms or _DEFAULT_YIELD_MS
+    local slice_ns     = (opts.slice_ms or 10) * 1e6
+    local yield_ms     = opts.yield_ms or 1
     local stop_yield ---@type fun()?
 
     local on_done_called = false
