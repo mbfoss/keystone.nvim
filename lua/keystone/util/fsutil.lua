@@ -345,6 +345,9 @@ function M.async_walk_dir(dir, opts)
         local fd = _uv.fs_scandir(path)
         if not fd then return end
         while true do
+            -- `on_file` may cancel mid-directory; stop there rather than
+            -- matching every remaining entry of a huge directory.
+            if is_cancelled then return end
             local name, type_ = _uv.fs_scandir_next(fd)
             if not name then break end
 
@@ -389,7 +392,10 @@ function M.async_walk_dir(dir, opts)
         stop_yield = timer.defer(yield_ms, run_slice)
     end
 
-    run_slice()
+    -- The first slice is deferred too, so the caller always holds the cancel
+    -- handle before any `on_file` fires: a cancel from inside a callback can
+    -- never be dropped for want of a handle it hasn't been given yet.
+    stop_yield = timer.defer(yield_ms, run_slice)
 
     return function()
         is_cancelled = true

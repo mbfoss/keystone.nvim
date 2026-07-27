@@ -156,6 +156,15 @@ local function async_lua_search(query, opts, fetch_opts, callback)
 
     local aborted = false
     local walk_cancel ---@type fun()?
+    -- `on_file` cancels the walk once `max_results` is reached, which must hold
+    -- even if a slice ever runs before `walk_cancel` is assigned: latch the
+    -- request and apply it on return.
+    local cancel_requested = false
+    local function cancel_walk()
+        cancel_requested = true
+        if walk_cancel then walk_cancel() end
+    end
+
     walk_cancel = fsutil.async_walk_dir(
         opts.cwd,
         {
@@ -169,7 +178,7 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                 local res = do_match(filename, relative_path, query, mode, opts.case_sensitive, globs)
                 if not res then return end
                 if count >= max_results then
-                    if walk_cancel then walk_cancel() end
+                    cancel_walk()
                     return
                 end
                 items[#items + 1] = make_file_item(filepath, filename, relative_path, res.chunks, res.score)
@@ -182,9 +191,11 @@ local function async_lua_search(query, opts, fetch_opts, callback)
             end
         })
 
+    if cancel_requested then walk_cancel() end
+
     return function()
         aborted = true
-        if walk_cancel then walk_cancel() end
+        cancel_walk()
     end
 end
 
