@@ -161,9 +161,10 @@ local function async_lua_search(query, opts, fetch_opts, callback)
         {
             exclude_regex_list = exclude_regex_list,
             follow_symlinks    = opts.follow_symlinks,
-            on_dir_enter       = function(_)
-                vim.cmd("redraw")
-            end,
+            -- No per-directory redraw: results are only handed over in
+            -- `on_done`, so a redraw mid-walk showed nothing new. The walk's
+            -- inter-slice yield lets Neovim redraw (and animate the spinner)
+            -- on its own.
             on_file            = function(filepath, filename, relative_path)
                 local res = do_match(filename, relative_path, query, mode, opts.case_sensitive, globs)
                 if not res then return end
