@@ -329,14 +329,15 @@ local function _rank_lookup()
 end
 
 ---Priority rank of a section: its 1-based index in `config.priority` (lower is
----more important, dropped last). Named sections that are not listed rank after
----every listed one. Inline function sections cannot be named, so they return
----`nil` and are never dropped.
+---more important, dropped last). Named sections that are not listed share the
+---one rank past the end of the list, so they rank after every listed one.
+---Inline function sections cannot be named, so they return `nil` and are never
+---dropped.
 ---@param section keystone.statusline.Section
 ---@return integer?
 local function _rank(section)
   if type(section) ~= "string" then return nil end
-  return _rank_lookup()[section] or math.huge
+  return _rank_lookup()[section] or #M.config.priority + 1
 end
 
 ---Render each section once and measure its display width (statusline widths are
@@ -350,6 +351,7 @@ end
 local function _build_entries(section_list, bufnr, winid)
   local entries = {}
   for _, section in ipairs(section_list) do
+    ---@type string?, string?
     local text, short
     if type(section) == "function" then
       text, short = section(bufnr)
@@ -358,15 +360,19 @@ local function _build_entries(section_list, bufnr, winid)
       if provider then text, short = provider.render(bufnr) end
     end
     if text and text ~= "" then
+      local width = vim.api.nvim_eval_statusline(text, { winid = winid }).width
       -- A section with no shorter form reuses its full text/width — measured
       -- once, since the statusline eval is the costly part here.
-      local width = vim.api.nvim_eval_statusline(text, { winid = winid }).width
-      local has_short = short and short ~= "" and short ~= text
+      local short_text, short_width = text, width
+      if short and short ~= "" and short ~= text then
+        short_text  = short
+        short_width = vim.api.nvim_eval_statusline(short, { winid = winid }).width
+      end
       entries[#entries + 1] = {
         text        = text,
         width       = width,
-        short_text  = has_short and short or text,
-        short_width = has_short and vim.api.nvim_eval_statusline(short, { winid = winid }).width or width,
+        short_text  = short_text,
+        short_width = short_width,
         rank        = _rank(section),
         shown       = true,
       }
@@ -397,84 +403,122 @@ local function _concat_shown(entries, sep)
   return " " .. table.concat(parts, sep) .. " "
 end
 
----Shrink the statusline to the window width in two passes over the same drop
----order (least important first, and among ties the later one first): first
----switch sections to their short variant, then — if that is still not enough —
----hide sections outright. Operates purely on the pre-measured widths; the only
----string touched is swapping an entry to its already-rendered short text.
----The drop order is sorted once, so the whole pass is O(n log n).
+---One side's running totals: the summed width and count of its shown entries.
+---The fit passes keep these up to date as they shrink and hide sections, so the
+---combined statusline width stays O(1) to recompute.
+---@class keystone.statusline._Group
+---@field entries keystone.statusline._Entry[]
+---@field width   integer sum of the shown entries' widths
+---@field shown   integer number of shown entries
+
+---@param entries keystone.statusline._Entry[]
+---@return keystone.statusline._Group
+local function _group(entries)
+  local group = { entries = entries, width = 0, shown = 0 }
+  for _, entry in ipairs(entries) do
+    if entry.shown then
+      group.width = group.width + entry.width
+      group.shown = group.shown + 1
+    end
+  end
+  return group
+end
+
+---Combined rendered width of both groups: their shown sections, one separator
+---between each adjacent pair, plus a space of edge padding on each side of a
+---non-empty group. O(1) — it only reads the running totals.
+---@param groups keystone.statusline._Group[]
+---@param sep_w  integer display width of one separator
+---@return integer
+local function _width(groups, sep_w)
+  local total = 0
+  for _, group in ipairs(groups) do
+    if group.shown > 0 then
+      total = total + group.width + (group.shown - 1) * sep_w + 2
+    end
+  end
+  return total
+end
+
+---The order sections give way in: least important first, and among equal ranks
+---the later one first. Sections without a rank (inline functions) are never
+---dropped and so never appear here. Ranks are already small integers — indices
+---into `config.priority`, plus the one rank past its end shared by names it
+---does not list — so one bucket pass orders them in O(n) with no sort.
+---@param groups keystone.statusline._Group[]
+---@return keystone.statusline._Entry[]                                 order
+---@return table<keystone.statusline._Entry, keystone.statusline._Group> group_of
+local function _drop_order(groups)
+  local lowest = #M.config.priority + 1
+
+  ---@type table<integer, keystone.statusline._Entry[]>
+  local buckets = {}
+  ---@type table<keystone.statusline._Entry, keystone.statusline._Group>
+  local group_of = {}
+
+  for _, group in ipairs(groups) do
+    for _, entry in ipairs(group.entries) do
+      local rank = entry.rank
+      if rank then
+        group_of[entry]     = group
+        local bucket        = buckets[rank] or {}
+        buckets[rank]       = bucket
+        bucket[#bucket + 1] = entry
+      end
+    end
+  end
+
+  local order = {}
+  for rank = lowest, 1, -1 do
+    local bucket = buckets[rank]
+    if bucket then
+      for i = #bucket, 1, -1 do
+        order[#order + 1] = bucket[i]
+      end
+    end
+  end
+  return order, group_of
+end
+
+---Shrink the statusline into `budget` columns in two passes over the drop
+---order: first switch sections to their short variant, then — if that is still
+---not enough — hide sections outright, stopping as soon as it fits. Each step
+---adjusts its group's running totals, so both passes are O(n) overall.
+---Operates purely on the pre-measured widths; the only string touched is
+---swapping an entry to its already-rendered short text.
 ---@param left    keystone.statusline._Entry[]
 ---@param right   keystone.statusline._Entry[]
----@param winid   integer
+---@param budget  integer columns the two groups together may occupy
 ---@param sep_w   integer display width of one separator
-local function _fit(left, right, winid, sep_w)
-  -- Rendered width of a group and its shown-section count: the shown sections,
-  -- one separator between each adjacent pair, plus a space of edge padding on
-  -- each side when non-empty.
-  local function group_width(list)
-    local width, shown = 0, 0
-    for _, entry in ipairs(list) do
-      if entry.shown then
-        width = width + entry.width
-        shown = shown + 1
-      end
-    end
-    if shown > 0 then width = width + (shown - 1) * sep_w + 2 end
-    return width, shown
+---@return integer used  final combined width of both groups
+local function _fit(left, right, budget, sep_w)
+  local groups = { _group(left), _group(right) }
+  local used   = _width(groups, sep_w)
+  if used <= budget then return used end
+
+  local order, group_of = _drop_order(groups)
+
+  -- Pass 1: shrink to short variants — only the entry's own width changes.
+  for _, entry in ipairs(order) do
+    local group = group_of[entry]
+    group.width = group.width - (entry.width - entry.short_width)
+    entry.text, entry.width = entry.short_text, entry.short_width
+    used = _width(groups, sep_w)
+    if used <= budget then return used end
   end
 
-  -- Measure both groups once; from here `used` and the per-group shown counts
-  -- are maintained incrementally, so no pass ever re-scans the entries.
-  local lw, l_shown = group_width(left)
-  local rw, r_shown = group_width(right)
-  local used = lw + rw
-
-  local win_width = vim.api.nvim_win_get_width(winid)
-  if used <= win_width then return end
-
-  -- Over budget (the uncommon case): now collect the droppable sections,
-  -- tagging each with its position (ties break toward the later one) and the
-  -- side it lives on, so hides can adjust that side's separator count.
-  local droppable = {}
-  local ord = 0
-  for _, side in ipairs({ { list = left, key = "l" }, { list = right, key = "r" } }) do
-    for _, entry in ipairs(side.list) do
-      if entry.rank then
-        ord = ord + 1
-        droppable[#droppable + 1] = { entry = entry, ord = ord, side = side.key }
-      end
-    end
-  end
-
-  table.sort(droppable, function(a, b)
-    if a.entry.rank ~= b.entry.rank then return a.entry.rank > b.entry.rank end
-    return a.ord > b.ord
-  end)
-
-  -- Pass 1: switch to short variants, starting from the least important. A
-  -- short swap only shrinks a section — separator count is unchanged.
-  for _, item in ipairs(droppable) do
-    local entry = item.entry
-    if entry.short_width < entry.width then
-      used        = used - (entry.width - entry.short_width)
-      entry.text  = entry.short_text
-      entry.width = entry.short_width
-      if used <= win_width then return end
-    end
-  end
-
-  -- Pass 2: still too wide — hide sections, starting from the least important.
-  -- Hiding an entry also drops one separator, or the group's edge padding when
-  -- it was the last section shown on that side.
-  local shown = { l = l_shown, r = r_shown }
-  for _, item in ipairs(droppable) do
-    local entry = item.entry
+  -- Pass 2: hide outright — the group loses both the width and the shown slot,
+  -- and with it either a separator or, when it was the last one, its padding.
+  for _, entry in ipairs(order) do
+    local group = group_of[entry]
+    group.width = group.width - entry.width
+    group.shown = group.shown - 1
     entry.shown = false
-    local n = shown[item.side]
-    used = used - entry.width - (n >= 2 and sep_w or 2)
-    shown[item.side] = n - 1
-    if used <= win_width then return end
+    used = _width(groups, sep_w)
+    if used <= budget then return used end
   end
+
+  return used
 end
 
 function M.render()
@@ -494,9 +538,25 @@ function M.render()
 
     local sep   = _separator()
     local sep_w = vim.api.nvim_eval_statusline(sep, { winid = winid }).width
-    _fit(left, right, winid, sep_w)
 
-    return _concat_shown(left, sep) .. "%=" .. _concat_shown(right, sep)
+    -- The gap between the two groups must be able to hold the separator glyph
+    -- itself: the groups already contribute one space of edge padding each, so
+    -- only the glyph's own width has to be held back from the fit budget.
+    local glyph_w   = sep_w - 2
+    local win_width = vim.api.nvim_win_get_width(winid)
+    local used      = _fit(left, right, win_width - glyph_w, sep_w)
+
+    local ltext     = _concat_shown(left, sep)
+    local rtext     = _concat_shown(right, sep)
+
+    -- Groups that end up touching get a separator between them, exactly like
+    -- adjacent sections within a group; `%=` then expands to nothing.
+    local mid       = ""
+    if ltext ~= "" and rtext ~= "" and win_width - used <= glyph_w then
+      mid = "%#NonText#" .. M.config.separator .. "%*"
+    end
+
+    return ltext .. mid .. "%=" .. rtext
   end)
   return ok and result or ""
 end
