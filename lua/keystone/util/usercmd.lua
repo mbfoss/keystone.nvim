@@ -1,74 +1,59 @@
 local M = {}
 
--- Quoting rules (shared with keystone.nvim's queryflags):
+-- Argument splitting follows Vim's native <f-args> rules (:h <f-args>), so a
+-- command line splits exactly the way Neovim's own opts.fargs would:
 --
---   Arguments are whitespace-separated. Only " quotes: a quoted span may
---   contain whitespace, and the delimiting quotes are stripped from the
---   argument. A single quote is an ordinary literal character.
+--   Arguments are separated by unescaped whitespace. A backslash escapes the
+--   character after it: \<space> (or \<tab>) is that literal whitespace and
+--   does not split the argument, \\ is a single backslash, and a backslash
+--   before anything else -- including a trailing backslash at end of line --
+--   is kept verbatim along with what follows it. Quotes are not special.
 --
---   Anywhere in the input -- inside a quoted span or outside one -- a literal
---   double quote is written as \": inside a span it does not close it, outside
---   one it does not open one. A backslash before anything else is literal.
+--     a\ b c   -> a b  and  c        a\\b   -> a\b
+--     a\\\ b   -> a\ b               a\nb   -> a\nb
+--     \ a      -> " a"               a\     -> a\
+--     "a b"    -> "a  and  b"        --p=x\ y -> --p=x y
 --
---   An unterminated quote is not a real delimiter: its opening " is kept as a
---   literal character, and the span runs to the end of the input.
---
---   "" is an explicit empty argument and is kept as one.
+-- Dispatch uses opts.fargs directly; this splitter exists for completion,
+-- which is handed a raw command line rather than parsed arguments.
 --
 ---@param str string
 ---@return string[]
 function M.split_args(str)
-    local args = {}
-    local i    = 1
-    local len  = #str
+    local args  = {}
+    local chars = nil -- non-nil once the current argument has begun
+    local i     = 1
+    local len   = #str
 
     while i <= len do
-        while i <= len and str:sub(i, i):match("%s") do i = i + 1 end
-        if i > len then break end
-
-        local chars     = {}
-        local quote     = nil -- active quote char while inside a quoted span
-        local quote_idx = nil -- index in `chars` where the active quote opened
-
-        while i <= len do
-            local c = str:sub(i, i)
-            if quote then
-                if c == "\\" and str:sub(i + 1, i + 1) == quote then
-                    table.insert(chars, quote)
-                    i = i + 2
-                elseif c == quote then
-                    quote     = nil
-                    quote_idx = nil
-                    i         = i + 1
-                else
-                    table.insert(chars, c)
-                    i = i + 1
-                end
-            elseif c == "\\" and str:sub(i + 1, i + 1) == '"' then
-                table.insert(chars, '"')
-                i = i + 2
-            elseif c:match("%s") then
-                break
-            elseif c == '"' then
-                quote     = c
-                quote_idx = #chars + 1
-                i         = i + 1
-            else
-                table.insert(chars, c)
-                i = i + 1
+        local c = str:sub(i, i)
+        if c:match("%s") then
+            if chars then
+                table.insert(args, table.concat(chars))
+                chars = nil
             end
+            i = i + 1
+        elseif c == "\\" then
+            local nxt = str:sub(i + 1, i + 1)
+            chars = chars or {}
+            if nxt == "" or nxt == "\\" then
+                table.insert(chars, "\\") -- trailing, or an escaped backslash
+                i = i + (nxt == "" and 1 or 2)
+            elseif nxt:match("%s") then
+                table.insert(chars, nxt) -- escaped whitespace: does not split
+                i = i + 2
+            else
+                table.insert(chars, "\\" .. nxt) -- not an escape: keep both
+                i = i + 2
+            end
+        else
+            chars = chars or {}
+            table.insert(chars, c)
+            i = i + 1
         end
-
-        if quote and quote_idx then
-            table.insert(chars, quote_idx, quote)
-        end
-
-        -- The inner loop always consumes at least one non-whitespace char, so
-        -- an empty `chars` means an explicitly quoted empty argument ("") --
-        -- keep it rather than dropping the argument.
-        table.insert(args, table.concat(chars))
     end
 
+    if chars then table.insert(args, table.concat(chars)) end
     return args
 end
 
@@ -110,8 +95,7 @@ end
 ---@param run_fn keystone.util.usercmd.run_fn
 ---@param opts vim.api.keyset.create_user_command.command_args
 local function _dispatch(cmd, run_fn, opts)
-    local args = M.split_args(opts.args)
-    local ok, err = pcall(run_fn, cmd, args, opts)
+    local ok, err = pcall(run_fn, cmd, opts.fargs, opts)
     if not ok then
         vim.notify(
             "[keystone.util.nvim] " .. cmd .. " command error\n" .. tostring(err),
