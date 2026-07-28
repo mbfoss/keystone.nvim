@@ -157,6 +157,12 @@ local function to_vim(items)
     local snip_kind  = vim.lsp.protocol.CompletionItemKind.Snippet
     local snip_fmt   = vim.lsp.protocol.InsertTextFormat.Snippet
 
+    -- With `popup`/`preview` in 'completeopt' Neovim renders `info` in a window of
+    -- its own, which would sit alongside our documentation float. When the float is
+    -- enabled it is the only doc UI; the snippet body reaches it through
+    -- `needs_snippet_insert` in `user_data` instead.
+    local want_info  = not get_config().doc_float
+
     for i, item in ipairs(items) do
         local text       = word(item)
         local is_sk      = item.kind == snip_kind
@@ -177,7 +183,7 @@ local function to_vim(items)
             kind = item_kinds[item.kind] or "Unknown",
             kind_hlgroup = item.kind_hlgroup,
             menu = menu,
-            info = is_snippet and text or nil,
+            info = (want_info and is_snippet) and text or nil,
             icase = 1,
             dup = 1,
             empty = 1,
@@ -561,11 +567,17 @@ local function on_complete_changed()
         return
     end
 
+    -- Snippet bodies are no longer handed to the built-in `info` window, so the
+    -- float stands in for them until (and unless) a resolve brings real docs.
+    local fallback = lsp_data.needs_snippet_insert and word(item) or nil
+
     local client = vim.lsp.get_client_by_id(item.client_id)
     if not client or not vim.tbl_get(client, "server_capabilities", "completionProvider", "resolveProvider") then
-        show_doc_content(nil)
+        show_doc_content(fallback)
         return
     end
+
+    show_doc_content(fallback)
 
     local item_id = lsp_data.item_id
     client:request("completionItem/resolve", item, function(err, result)
@@ -575,7 +587,7 @@ local function on_complete_changed()
             if not pumvisible() then return end
             local cur_item = selected_completed_item()
             local cur = cur_item and vim.tbl_get(cur_item, "user_data", "lsp")
-            if cur and cur.item_id == item_id then show_doc_content(result.documentation) end
+            if cur and cur.item_id == item_id then show_doc_content(result.documentation or fallback) end
         end)
     end, vim.api.nvim_get_current_buf())
 end
