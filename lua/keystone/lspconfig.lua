@@ -211,6 +211,16 @@ end
 
 local _sig_help_ns = vim.api.nvim_create_namespace("keystone_signature_help")
 
+-- True while the given buffer is the current one and we are still inserting
+-- (`i`, `ic`/`ix` completion sub-modes, and replace mode).
+---@param bufnr integer
+---@return boolean
+local function _is_inserting_in(bufnr)
+  if vim.api.nvim_get_current_buf() ~= bufnr then return false end
+  local mode = vim.api.nvim_get_mode().mode:sub(1, 1)
+  return mode == "i" or mode == "R"
+end
+
 -- Show signature help in a float on cursor movement in insert mode. The
 -- signature's own documentation is stripped so the float stays compact.
 ---@param client vim.lsp.Client
@@ -229,15 +239,24 @@ local function _setup_signature_help(client, bufnr)
     _buf = nil
   end
 
-  local _request = _throttle.debounce_wrap(100, function()
+  -- Generation captured when the autocmd fired, not when the debounce timer
+  -- expires: leaving insert mode during the debounce window must invalidate
+  -- the pending request rather than let it inherit the post-leave generation.
+  local _pending_gen = 0
+
+  local _request, _cancel_request = _throttle.debounce_wrap(100, function()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
+    if _pending_gen ~= _insert_gen or not _is_inserting_in(bufnr) then
+      _close()
+      return
+    end
     _request_id = _request_id + 1
     local request_id = _request_id
     local insert_gen = _insert_gen
     local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
     client:request("textDocument/signatureHelp", params, function(err, result)
       if request_id ~= _request_id then return end
-      if insert_gen ~= _insert_gen then
+      if insert_gen ~= _insert_gen or not _is_inserting_in(bufnr) then
         _close()
         return
       end
@@ -291,15 +310,17 @@ local function _setup_signature_help(client, bufnr)
     callback = function()
       _insert_gen = _insert_gen + 1
       if vim.api.nvim_win_get_config(0).relative ~= "" then return end
+      _pending_gen = _insert_gen
       _request()
     end,
   })
 
-  vim.api.nvim_create_autocmd({ "InsertLeave", "BufWipeout" }, {
+  vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "WinLeave", "BufWipeout" }, {
     group    = vim.api.nvim_create_augroup(_group .. "_sighelp_cleanup_" .. bufnr, { clear = true }),
     buffer   = bufnr,
     callback = function()
       _insert_gen = _insert_gen + 1
+      _cancel_request()
       _close()
     end,
   })
