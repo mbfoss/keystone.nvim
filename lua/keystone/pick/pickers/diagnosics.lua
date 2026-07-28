@@ -112,7 +112,6 @@ function M.spec(opts)
                     table.insert(items, {
                         label_chunks = chunks,
                         virt_line    = virt_line,
-                        score        = res.score,
                         data         = {
                             message  = entry.message,
                             severity = entry.severity,

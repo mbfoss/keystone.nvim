@@ -124,7 +124,6 @@ function M.pick()
                     local item = {
                         label_chunks = (loc_match and loc_match.chunks) or { { loc_text } },
                         virt_line    = virt_line,
-                        score        = match.score,
                         data         = {
                             filepath = entry.file,
                             lnum     = entry.lnum,

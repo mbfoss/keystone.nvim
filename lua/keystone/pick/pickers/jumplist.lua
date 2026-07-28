@@ -53,7 +53,6 @@ function M.spec()
                     ---@type keystone.Picker.Item
                     table.insert(items, {
                         label_chunks = match.chunks,
-                        score        = nil, -- no scoring (reordering) for jumlist
                         initial      = data.initial,
                         data         = {
                             filepath = data.filepath,

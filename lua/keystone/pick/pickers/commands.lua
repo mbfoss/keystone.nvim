@@ -282,7 +282,6 @@ function M.spec()
                     end
                     table.insert(items, {
                         label_chunks = chunks,
-                        score        = match.score,
                         data         = { cmd = cmd },
                     })
                 end

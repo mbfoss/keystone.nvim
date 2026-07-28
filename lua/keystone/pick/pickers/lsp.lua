@@ -120,7 +120,6 @@ function M.references_spec()
                     table.insert(picker_items, {
                         label_chunks = match.chunks,
                         virt_line    = { { loc, "KeystonePickPath" } },
-                        score        = match.score,
                         data         = {
                             filepath = ref.filename,
                             lnum     = ref.lnum,
@@ -236,7 +235,6 @@ function M.document_symbols_spec(opts)
                     vim.list_extend(match.chunks, { { (" (%s)"):format(item.kind), "Comment" } })
                     table.insert(filtered, {
                         label_chunks = match.chunks,
-                        score        = match.score,
                         data         = item.data,
                     })
                 end

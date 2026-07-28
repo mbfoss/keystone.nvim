@@ -171,7 +171,6 @@ function M.spec(opts)
                     ---@type keystone.Picker.Item
                     table.insert(items, {
                         label_chunks = chunks,
-                        score        = match.score,
                         virt_line    = virt_line,
                         data         = data,
                         initial      = data.qfidx == current_idx,

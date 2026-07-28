@@ -100,14 +100,13 @@ function M.spec()
                 )
 
                 local match      = query ~= "" and pickertools.match_label(label, query)
-                    or { score = 0, chunks = { { label } } }
+                    or { chunks = { { label } } }
                 local virt_line  = (ac.desc and ac.desc ~= "") and { { ac.desc, "Comment" } } or nil
 
                 if match then
                     table.insert(items, {
                         label_chunks = match.chunks,
                         virt_line    = virt_line,
-                        score        = match.score,
                         data         = { ac = ac },
                     })
                 end

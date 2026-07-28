@@ -29,14 +29,12 @@ local _WINHL             = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Tit
 ---@class keystone.Picker.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_line? {[1]:string,[2]:string?}[] Single virtual line rendered below the entry.
----@field score number?
 ---@field data keystone.picker.ItemData
 ---@field initial boolean?
 
 ---@class keystone.picker.ListItem
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_line? {[1]:string,[2]:string?}[]
----@field score number
 ---@field data keystone.picker.ItemData
 
 ---@alias keystone.Picker.Callback fun(data:keystone.picker.ItemData?)
@@ -197,65 +195,6 @@ local function _center_for_previewer(msg, width, height)
 	return lines
 end
 
-
----@param a keystone.picker.ListItem
----@param b keystone.picker.ListItem
----@return boolean
-local function _score_desc(a, b)
-	return a.score > b.score
-end
-
---- Sorts scored items descending, keeping unscored items in their original
---- order at the end. Mutates and returns `items`.
----@param items keystone.picker.ListItem[]
----@return keystone.picker.ListItem[]
-local function _sort_by_score(items)
-	local count = #items
-
-	local scored = 0
-	for i = 1, count do
-		if items[i].score ~= nil then
-			scored = scored + 1
-		end
-	end
-
-	-- Nothing to order by: the original order is already the answer.
-	if scored == 0 then
-		return items
-	end
-
-	-- Everything is scored: sort in place, no partitioning needed.
-	if scored == count then
-		table.sort(items, _score_desc)
-		return items
-	end
-
-	-- Mixed: compact scored items to the front, buffering the rest for the tail.
-	local no_score, no_score_n = {}, 0
-	local write = 0
-	for i = 1, count do
-		local item = items[i]
-		if item.score ~= nil then
-			write = write + 1
-			items[write] = item
-		else
-			no_score_n = no_score_n + 1
-			no_score[no_score_n] = item
-		end
-	end
-
-	-- table.sort operates on the whole array, so trim the tail before sorting.
-	for i = scored + 1, count do
-		items[i] = nil
-	end
-	table.sort(items, _score_desc)
-
-	for i = 1, no_score_n do
-		items[scored + i] = no_score[i]
-	end
-
-	return items
-end
 
 local _active_picker = nil
 
@@ -951,7 +890,7 @@ end
 
 ---@param items keystone.Picker.Item[]?
 function Picker:set_items(items)
-	items = _sort_by_score(items or {})
+	items = items or {}
 
 	local prefix = "  "
 
@@ -974,7 +913,6 @@ function Picker:set_items(items)
 	for row_idx, item in ipairs(items) do
 		---@type keystone.picker.ListItem
 		local list_item = {
-			score = item.score,
 			data = item.data,
 			label_chunks = item.label_chunks,
 			virt_line = item.virt_line,

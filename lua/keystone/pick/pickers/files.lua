@@ -126,16 +126,14 @@ end
 ---@param filename string
 ---@param relative_path string
 ---@param name_chunks table[]
----@param score number
 ---@return keystone.Picker.Item
-local function make_file_item(filepath, filename, relative_path, name_chunks, score)
+local function make_file_item(filepath, filename, relative_path, name_chunks)
     local filedir       = relative_path:sub(1, #relative_path - #filename)
     local icon, icon_hl = icons.get_icon(filename)
     local chunks        = { { icon, icon_hl }, { " " }, { filedir } }
     vim.list_extend(chunks, name_chunks)
     return {
         label_chunks = chunks,
-        score        = score,
         data         = { filepath = filepath },
     }
 end
@@ -148,6 +146,9 @@ local function async_lua_search(query, opts, fetch_opts, callback)
     local count              = 0
     local max_results        = opts.max_results or 10000
     local items              = {}
+    -- The picker renders items in the order it receives them, so match quality
+    -- is ours to apply: keep each item's score aside and sort before handing over.
+    local scores             = {}
     local mode               = opts.mode or "fuzzy"
     local globs              = mode == "glob" and split_globs(query) or nil
 
@@ -181,11 +182,14 @@ local function async_lua_search(query, opts, fetch_opts, callback)
                     cancel_walk()
                     return
                 end
-                items[#items + 1] = make_file_item(filepath, filename, relative_path, res.chunks, res.score)
+                local item = make_file_item(filepath, filename, relative_path, res.chunks)
+                items[#items + 1] = item
+                scores[item] = res.score
                 count = count + 1
             end,
             on_done            = function()
                 if aborted then return end
+                table.sort(items, function(a, b) return scores[a] > scores[b] end)
                 callback(items)
                 callback(nil)
             end
