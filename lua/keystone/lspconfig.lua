@@ -144,9 +144,45 @@ M.config = _get_default_config()
 local _enabled = false
 local _group = "keystone_lspconfig"
 
+-- Per-buffer features already installed, so a second client attaching to the
+-- same buffer does not register duplicate autocmds.
+---@type table<integer, table<string, true>>
+local _buf_features = {}
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
+
+-- The single augroup every autocmd in this module lives in, buffer-local ones
+-- included. `M.disable()` deletes it, which tears all of them down at once.
+---@return integer
+local function _ensure_group()
+  return vim.api.nvim_create_augroup(_group, { clear = false })
+end
+
+-- Claim a per-buffer feature. Returns the augroup to attach to, or nil when the
+-- feature is already installed on this buffer.
+---@param bufnr integer
+---@param feature string
+---@return integer?
+local function _claim_feature(bufnr, feature)
+  local features = _buf_features[bufnr]
+  if not features then
+    features = {}
+    _buf_features[bufnr] = features
+    -- Buffer-local autocmds die with the buffer; drop the bookkeeping too so a
+    -- recycled buffer number can register again.
+    vim.api.nvim_create_autocmd("BufWipeout", {
+      group    = _ensure_group(),
+      buffer   = bufnr,
+      once     = true,
+      callback = function() _buf_features[bufnr] = nil end,
+    })
+  end
+  if features[feature] then return nil end
+  features[feature] = true
+  return _ensure_group()
+end
 
 -- Discover every server that has an `lsp/<name>.lua` config on the runtimepath.
 -- These come from nvim-lspconfig, the user's own config dir, or other plugins.
@@ -183,8 +219,10 @@ end
 ---@param bufnr integer
 local function _setup_format_on_save(client, bufnr)
   if not M.config.format.on_save or not _can_format(client) then return end
+  local group = _claim_feature(bufnr, "format")
+  if not group then return end
   vim.api.nvim_create_autocmd("BufWritePre", {
-    group    = vim.api.nvim_create_augroup(_group .. "_format_" .. bufnr, { clear = true }),
+    group    = group,
     buffer   = bufnr,
     callback = function()
       vim.lsp.buf.format({
@@ -199,8 +237,10 @@ end
 
 ---@param bufnr integer
 local function _setup_document_highlight(bufnr)
+  local group = _claim_feature(bufnr, "document_highlight")
+  if not group then return end
   vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-    group    = vim.api.nvim_create_augroup(_group .. "_highlight_" .. bufnr, { clear = true }),
+    group    = group,
     buffer   = bufnr,
     callback = function()
       vim.lsp.buf.clear_references()
@@ -226,6 +266,9 @@ end
 ---@param client vim.lsp.Client
 ---@param bufnr integer
 local function _setup_signature_help(client, bufnr)
+  local group = _claim_feature(bufnr, "signature_help")
+  if not group then return end
+
   local _request_id = 0
   local _insert_gen = 0
   local _win --- @type integer?
@@ -305,7 +348,7 @@ local function _setup_signature_help(client, bufnr)
   end)
 
   vim.api.nvim_create_autocmd({ "InsertEnter", "CursorMovedI" }, {
-    group    = vim.api.nvim_create_augroup(_group .. "_sighelp_" .. bufnr, { clear = true }),
+    group    = group,
     buffer   = bufnr,
     callback = function()
       _insert_gen = _insert_gen + 1
@@ -316,7 +359,7 @@ local function _setup_signature_help(client, bufnr)
   })
 
   vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "WinLeave", "BufWipeout" }, {
-    group    = vim.api.nvim_create_augroup(_group .. "_sighelp_cleanup_" .. bufnr, { clear = true }),
+    group    = group,
     buffer   = bufnr,
     callback = function()
       _insert_gen = _insert_gen + 1
@@ -404,7 +447,9 @@ function M.enable()
     vim.lsp.config(name, cfg)
   end
 
+  -- Recreating the group drops every autocmd in it, buffer-local ones included.
   local group = vim.api.nvim_create_augroup(_group, { clear = true })
+  _buf_features = {}
   vim.api.nvim_create_autocmd("LspAttach", {
     group = group,
     callback = function(args)
@@ -422,6 +467,7 @@ end
 function M.disable()
   if not _enabled then return end
   _enabled = false
+  _buf_features = {}
   pcall(vim.api.nvim_del_augroup_by_name, _group)
 end
 
