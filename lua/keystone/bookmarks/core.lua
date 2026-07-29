@@ -349,7 +349,10 @@ function M.init(config)
     M.mark_opts = { sign_text = config.sign_text, sign_hl_group = config.sign_hl }
 
     if not M.mark_group then
-        M.mark_group = extmarks.define_group("keystone_bookmarks_ext", { priority = 20 })
+        -- Claim the process-wide namespace/augroup prefix for this plugin before
+        -- defining any group; the group name only has to be unique within keystone.
+        extmarks.init("keystone")
+        M.mark_group = extmarks.define_group("bookmarks")
 
         for _, e in ipairs(M.store_load()) do
             M.mark_group.set_file_extmark(_new_id(), e.file, e.lnum, 0, M.mark_opts, { label = e.label })
