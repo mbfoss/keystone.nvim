@@ -1,7 +1,6 @@
 local M           = {}
 
-local fsutil      = require("keystone.util.fsutil")
-local pick_select = require("keystone.pick.select")
+local fsutil = require("keystone.util.fsutil")
 
 --- Picker-driven diff of a modified buffer's unsaved (in-memory) state against
 --- its saved (on-disk) state. Running the entry point lists every modified
@@ -163,19 +162,24 @@ function M.open()
         return
     end
 
-    pick_select.select(entries, {
-        prompt      = "Diff unsaved",
+    -- `preview_item` is `keystone.select`'s extension: it hands back the live
+    -- (unsaved) buffer, which that picker shows in its preview float, so the
+    -- real contents are visible before choosing. Any other `vim.ui.select`
+    -- implementation ignores the option and just lists the buffers.
+    ---@type keystone.select.Opts
+    local opts = {
+        prompt       = "Diff unsaved",
         ---@param entry keystone.unsaved.Entry
-        format_item = function(entry) return entry.status .. "  " .. entry.rel end,
-        -- Preview the live (unsaved) buffer so its current contents are visible
-        -- before choosing; the picker shows it read-only in its float.
+        format_item  = function(entry) return entry.status .. "  " .. entry.rel end,
         ---@param entry keystone.unsaved.Entry
         preview_item = function(entry)
             if vim.api.nvim_buf_is_valid(entry.bufnr) then
                 return { buf = entry.bufnr }
             end
         end,
-    }, function(choice)
+    }
+
+    vim.ui.select(entries, opts, function(choice)
         if choice then _open_diff(choice) end
     end)
 end

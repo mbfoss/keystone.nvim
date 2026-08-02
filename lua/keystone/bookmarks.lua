@@ -127,6 +127,18 @@ function M.setup(opts)
         desc          = "Persistent line bookmarks",
         subcommand = _get_subcommands,
     })
+
+    -- `:Bookmark pick` needs no plugin, but the bookmark list is also a natural
+    -- picker source; offer it to the optional ezpick.nvim when that is installed,
+    -- which is where the richer view (labels on a virtual line, file preview)
+    -- lives. The `pcall` is unavoidable: "is this plugin installed?" has no
+    -- non-throwing form.
+    local ok, ezpick = pcall(require, "ezpick")
+    if ok then
+        ezpick.register("bookmarks", function()
+            return require("keystone.bookmarks.picker").spec()
+        end)
+    end
 end
 
 return M

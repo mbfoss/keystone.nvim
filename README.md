@@ -2,13 +2,17 @@
 
 A batteries-included set of editor modules for Neovim.
 
-Keystone bundles the everyday essentials — a fuzzy picker, a file tree, a
-which-key style hint popup, completion, a statusline, sensible LSP and
-Treesitter setup, and a handful of quality-of-life tweaks — into one small,
-dependency-free plugin. Every module is self-contained and opt-in: you turn on
-only what you want, and anything you don't mention is left untouched.
+Keystone bundles the everyday essentials — a file tree, a which-key style hint
+popup, completion, a statusline, sensible LSP and Treesitter setup, and a
+handful of quality-of-life tweaks — into one small, dependency-free plugin.
+Every module is self-contained and opt-in: you turn on only what you want, and
+anything you don't mention is left untouched.
 
 > **Requires Neovim ≥ 0.11.** No external plugins required.
+
+> Looking for the fuzzy picker? It now lives in
+> [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim). See
+> [Optional integrations](#optional-integrations).
 
 ## Installation
 
@@ -22,8 +26,8 @@ support.
   "mbfoss/keystone.nvim",
   config = function()
     require("keystone").setup({
-      pick     = true,   -- see "Configuration" for what these values mean
-      filetree = true,
+      filetree = true,   -- see "Configuration" for what these values mean
+      clue     = true,
     })
   end,
 }
@@ -40,7 +44,7 @@ Then in your config:
 
 ```lua
 vim.cmd.packadd("keystone.nvim")
-require("keystone").setup({ pick = true, filetree = true })
+require("keystone").setup({ filetree = true, clue = true })
 ```
 
 ## Configuration
@@ -57,18 +61,18 @@ The **value** you give a module says *how* to turn it on:
 | `{ ... }` | Enable the module, overriding only the options you name. |
 | `false` | Leave the module off (same as omitting it). |
 
-So these two are equivalent — both enable `pick` with its defaults:
+So these two are equivalent — both enable `filetree` with its defaults:
 
 ```lua
-require("keystone").setup({ pick = true })
-require("keystone").setup({ pick = {} })
+require("keystone").setup({ filetree = true })
+require("keystone").setup({ filetree = {} })
 ```
 
 A fuller example:
 
 ```lua
 require("keystone").setup({
-  pick      = true,                          -- on, with defaults
+  clue      = true,                          -- on, with defaults
   filetree  = { width_ratio = 0.25 },        -- on, with one option changed
   tweaks    = { highlight_on_yank = false }, -- on, with one option changed
   notify    = false,                         -- off (could also just omit it)
@@ -84,7 +88,7 @@ so you can skip the wrapper and configure one directly — the table you pass is
 that module's options (the same table you'd put after its key above):
 
 ```lua
-require("keystone.pick").setup({ override_ui_select = true })
+require("keystone.filetree").setup({ width_ratio = 0.25 })
 ```
 
 ## Modules
@@ -93,7 +97,6 @@ At a glance:
 
 | Module | What it gives you |
 | --- | --- |
-| [pick](#pick) | Fuzzy picker for files, grep, buffers, symbols, and more |
 | [filetree](#filetree) | A file explorer in a side window |
 | [explore](#explore) | A file selector for jumping around the filesystem |
 | [calltree](#calltree) | The LSP call hierarchy of the symbol under the cursor |
@@ -105,38 +108,13 @@ At a glance:
 | [bookmarks](#bookmarks) | Persistent, labelled line bookmarks |
 | [largefile](#largefile) | Instant opening of very large files |
 | [notify](#notify) | A floating notification UI |
+| [select](#select) | A floating `vim.ui.select` prompt with fuzzy filtering |
 | [unsaved](#unsaved) | Diff modified buffers against disk |
 | [animate](#animate) | Smooth animated scrolling |
 | [tweaks](#tweaks) | Quality-of-life editor behaviours |
 
 Every option below can be passed in the module's setup table. Passing `true`
 uses the defaults shown; passing a table overrides individual fields.
-
-### pick
-
-A fast, dependency-free fuzzy picker. It ships a broad set of built-in sources
-and can optionally take over `vim.ui.select`.
-
-```lua
-pick = {
-  override_ui_select = true, -- route vim.ui.select through the picker
-}
-```
-
-Open a source with the `:Pick` command:
-
-```vim
-:Pick files
-:Pick live_grep
-:Pick buffers
-```
-
-Built-in sources include `files`, `live_grep`, `recent_files`, `config_files`,
-`buffers`, `windows`, `quickfix`, `loclist`, `jumplist`, `lsp_references`,
-`document_symbols`, `document_diagnostics`, `workspace_diagnostics`, `keymaps`,
-`commands`, `autocommands`, `highlights`, `notifications`, and `spell_suggest`.
-Inside a picker, `g?` shows the available keys. You can register your own
-sources with `require("keystone.pick").register(name, spec)`.
 
 ### filetree
 
@@ -333,6 +311,42 @@ notify = {
 }
 ```
 
+### select
+
+Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks you
+to choose from a list (LSP code actions, `:Bookmark pick`, `:DiffUnsaved`, other
+plugins) — with a floating one: a prompt line, a fuzzy-filtered list, and a
+preview window for callers that offer one.
+
+`<CR>` chooses, `<Esc>` cancels, `<C-n>`/`<C-p>` (or `<Down>`/`<Up>`) move,
+`<C-d>`/`<C-u>` jump half a page.
+
+```lua
+select = {
+  width_ratio  = 0.4,  -- fraction of the editor width, while previewing
+  height_ratio = 0.7,  -- fraction of the editor height, while previewing
+}
+```
+
+Without a preview the prompt shrinks to fit its items, so a two-item choice
+reads as a small menu rather than a picker.
+
+Callers opt into a preview with `preview_item`, this module's one extension over
+`vim.ui.select`'s options (other implementations ignore it):
+
+```lua
+vim.ui.select(items, {
+  prompt       = "Pick a buffer",
+  format_item  = function(item) return item.name end,
+  preview_item = function(item)
+    return { buf = item.bufnr, pos = { item.lnum, 0 } }  -- pos is optional
+  end,
+}, on_choice)
+```
+
+The preview shows the **buffer** you hand back, as it currently is — so unsaved
+changes, syntax and extmarks all appear.
+
 ### unsaved
 
 Diff every modified buffer against its saved state on disk. Enable it and run
@@ -379,13 +393,46 @@ Enabling the relevant module registers its command:
 
 | Command | Module | Purpose |
 | --- | --- | --- |
-| `:Pick` | pick | Open a picker (files, grep, buffers, …) |
 | `:FileTree` | filetree | Toggle the file-tree side window |
 | `:FileSelector` | explore | Open the file selector |
 | `:CallTree` | calltree | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | symboltree | Toggle the document-symbol side window |
 | `:Bookmark` | bookmarks | Manage line bookmarks |
 | `:DiffUnsaved` | unsaved | Diff unsaved buffers against disk |
+
+## Optional integrations
+
+### ezpick.nvim
+
+The fuzzy picker that used to be `keystone.pick` is now a separate plugin,
+[ezpick.nvim](https://github.com/mbfoss/ezpick.nvim). Keystone does not require
+it, but picks it up automatically when both are installed:
+
+- **notify** — keystone's notification history is registered as an ezpick
+  source, so `:Pick notifications` browses it.
+- **bookmarks** — the bookmark list is registered as an ezpick source, so
+  `:Pick bookmarks` matches on the location *and* the label, shows labels on a
+  virtual line, and previews the bookmarked file.
+
+Without ezpick these sources are simply not registered; nothing else changes,
+and nothing needs configuring either way. Keystone's own list prompts
+(`:Bookmark pick`, `:DiffUnsaved`) go through `vim.ui.select` — whichever
+implementation you have installed, keystone's [select](#select) module or
+anything else — and never depend on ezpick.
+
+If you are migrating from an older keystone:
+
+```lua
+-- before
+require("keystone").setup({ pick = true })
+-- after
+require("ezpick").setup()
+```
+
+The `:Pick` command, the built-in sources and `register(name, spec)` are
+unchanged. The highlight groups were renamed `KeystonePick*` → `EzPick*`, and
+saved picker query history moved from `stdpath("data")/keystone/` to
+`stdpath("data")/ezpick/`.
 
 ## Full option reference
 

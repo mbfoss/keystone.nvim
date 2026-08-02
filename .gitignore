@@ -47,3 +47,4 @@ luac.out
 .claude/settings.json
 tasks.toml
 .easydap.json
+.luarc.json

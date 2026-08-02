@@ -7,8 +7,15 @@
 
 local M = {}
 
+-- The `notifications` source for the optional ezpick.nvim. It reads keystone's
+-- own history, so it lives here rather than in ezpick; `keystone.notify`
+-- registers it on setup when ezpick is installed. Reached only through ezpick's
+-- registry -- so ezpick is loaded by the time this module is -- and only once
+-- the source is first opened. Source specs are the only modules in keystone that
+-- may require ezpick directly.
+
 local notifications = require("keystone.notify")
-local pickertools   = require("keystone.pick.base.pickertools")
+local pickertools   = require("ezpick.base.pickertools")
 local strutil       = require("keystone.util.strutil")
 local ui            = require("keystone.util.ui")
 
@@ -26,7 +33,7 @@ local _level_hl = {
     lsp   = "Normal",
 }
 
----@return keystone.PickerSpec
+---@return ezpick.PickerSpec
 function M.spec()
     ---@type keystone.notifications.history.Item[]
     local history  = notifications.history()

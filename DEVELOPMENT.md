@@ -28,7 +28,7 @@ Neovim headless with [`tests/init.lua`](tests/init.lua).
 
 Keystone is a collection of **self-contained feature modules** under
 [`lua/keystone/`](lua/keystone/). Each module (`keystone.tweaks`,
-`keystone.pick`, …) exposes a `setup(opts)` function and can be required and
+`keystone.filetree`, …) exposes a `setup(opts)` function and can be required and
 configured directly, with no dependency on the others.
 
 ### The aggregator
@@ -68,9 +68,56 @@ patterns:
   raw command line rather than parsed arguments — runs that line back through
   `nvim_parse_cmd`. Both paths therefore split by Vim's `<f-args>` rules
   (`:h <f-args>`): unescaped whitespace separates, `\<space>` is a literal
-  space, `\\` is a backslash, and quotes are not special. (Picker queries are
-  separate — the `"`-quoting rules of `keystone.pick.base.queryflags` apply
-  there, not here.)
+  space, `\\` is a backslash, and quotes are not special.
+
+### Choosing from a list
+
+Modules that prompt for a choice call **`vim.ui.select`** — never a keystone
+picker directly. Which implementation answers is the user's business.
+
+[`keystone.select`](lua/keystone/select.lua) is one such implementation, and a
+module like any other: its `setup` assigns `vim.ui.select`, and nothing in
+keystone requires it. It is deliberately the *minimal* subset needed for that
+interface — a prompt float, a fuzzy-filtered list float, an optional preview
+float; no sources, no async finders, no query flags, no history. Anything richer
+belongs in a picker plugin.
+
+`opts.preview_item` is its one extension over `vim.ui.select.Opts`:
+
+```lua
+preview_item = function(item) return { buf = <bufnr>, pos = { lnum, col } } end
+```
+
+The caller hands back a **buffer** and the picker displays it, so a live,
+modified buffer previews as it currently stands. Callers that want to preview a
+file rather than a buffer read it into a scratch buffer themselves (see
+`keystone.bookmarks.actions`) instead of loading it — loading fires the whole
+autocmd chain and prompts on a stale swap file. Implementations that do not know
+the option ignore it, so it is safe to pass unconditionally; annotate the opts
+table `---@type keystone.select.Opts` to keep the language server happy without
+requiring the module.
+
+Callers today: `keystone.bookmarks.actions.pick` and
+`keystone.unsaved.session.open`.
+
+### Optional dependencies
+
+[ezpick.nvim](https://github.com/mbfoss/ezpick.nvim) is **optional**, and the
+only thing keystone does with it is offer it sources over keystone's own data.
+A module's `setup` registers one behind a `pcall(require, "ezpick")` — the only
+"is this plugin installed?" test there is — and does nothing when the require
+fails:
+
+| Registered by | Source | Spec |
+| --- | --- | --- |
+| `keystone.notify.setup` | `notifications` | [`keystone.notify.picker`](lua/keystone/notify/picker.lua) |
+| `keystone.bookmarks.setup` | `bookmarks` | [`keystone.bookmarks.picker`](lua/keystone/bookmarks/picker.lua) |
+
+The specs read keystone's own state, so they live here rather than in ezpick,
+and — being reachable only through ezpick's registry, which loads them lazily on
+first open — they are the only modules allowed to `require` ezpick directly.
+Nothing keystone does itself depends on ezpick: the equivalent commands
+(`:Bookmark pick`, `:DiffUnsaved`) go through `vim.ui.select`.
 
 ### Notable module internals
 
@@ -115,10 +162,11 @@ These conventions are enforced across the codebase (see also
 ## Layout
 
 ```
-plugin/keystone.lua       Neovim version guard (loaded on startup)
-lua/keystone/init.lua     optional single-entry aggregator
+plugin/keystone.lua        Neovim version guard (loaded on startup)
+lua/keystone/init.lua      optional single-entry aggregator
+lua/keystone/select.lua    a `vim.ui.select` implementation (a module like any other)
 lua/keystone/<module>.lua  one file per feature module
-lua/keystone/<module>/    a module's private submodules
-lua/keystone/util/        shared low-level toolkit
-tests/                    plenary busted specs
+lua/keystone/<module>/     a module's private submodules
+lua/keystone/util/         shared low-level toolkit
+tests/                     plenary busted specs
 ```

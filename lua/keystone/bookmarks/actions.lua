@@ -2,16 +2,14 @@
 local M           = {}
 
 -- Interactive bookmark commands. This module pulls in the heavy UI modules
--- (inputwin, ui, picker, fixedwin) and is required only the first time a command
--- runs, keeping startup cheap. `keystone.bookmarks` forwards to these on demand.
+-- (inputwin, ui, fixedwin) and is required only the first time a command runs,
+-- keeping startup cheap. `keystone.bookmarks` forwards to these on demand.
 
-local core        = require("keystone.bookmarks.core")
-local throttle    = require("keystone.util.throttle")
-local inputwin    = require("keystone.util.inputwin")
-local ui          = require("keystone.util.ui")
-local picker      = require("keystone.pick.base.picker")
-local pickertools = require("keystone.pick.base.pickertools")
-local fixedwin    = require("keystone.util.fixedwin")
+local core     = require("keystone.bookmarks.core")
+local throttle = require("keystone.util.throttle")
+local inputwin = require("keystone.util.inputwin")
+local ui       = require("keystone.util.ui")
+local fixedwin = require("keystone.util.fixedwin")
 
 -- Height ratio of the bookmarks list split, tracked live by fixedwin and reused
 -- so reopening the list keeps the height the user last dragged it to.
@@ -82,6 +80,47 @@ function M.clear_all()
     end)
 end
 
+-- Scratch buffer holding the on-disk preview of the highlighted bookmark. Its
+-- default 'bufhidden' wipes it as soon as another buffer takes over the preview
+-- window, so it is recreated on demand and never outlives the picker.
+local _preview_bufnr = nil
+
+-- How much of a bookmarked file is read for the preview. The window shows a
+-- screenful; the rest only matters for a bookmark near the top of a big file.
+local _PREVIEW_LINES = 500
+
+--- Buffer to preview `entry` in, for `vim.ui.select` implementations that
+--- support `preview_item` (`keystone.select` does). A file already open in
+--- Neovim is previewed through its own buffer, so unsaved edits show; anything
+--- else is read from disk into a scratch buffer rather than loaded as a real
+--- buffer -- loading would fire the whole autocmd chain and prompt on a stale
+--- swap file.
+---@param entry keystone.bookmarks.Entry
+---@return keystone.select.Preview?
+local function _preview_bookmark(entry)
+    local open = vim.fn.bufnr("^" .. entry.file .. "$")
+    if open ~= -1 and vim.api.nvim_buf_is_loaded(open) then
+        return { buf = open, pos = { entry.lnum, 0 } }
+    end
+
+    local stat = vim.uv.fs_stat(entry.file)
+    if not stat or stat.type ~= "file" then return nil end
+
+    if not (_preview_bufnr and vim.api.nvim_buf_is_valid(_preview_bufnr)) then
+        _preview_bufnr = ui.create_scratch_buffer(false, {})
+    end
+    vim.api.nvim_buf_set_lines(_preview_bufnr, 0, -1, false,
+        vim.fn.readfile(entry.file, "", _PREVIEW_LINES))
+    -- 'syntax', not 'filetype': no FileType autocmd fires, so treesitter and the
+    -- LSP never attach to what is only a preview.
+    vim.bo[_preview_bufnr].syntax = vim.filetype.match({ filename = entry.file }) or ""
+
+    return { buf = _preview_bufnr, pos = { entry.lnum, 0 } }
+end
+
+--- The bookmark list as a picker: fuzzy over the location *and* the label, so a
+--- bookmark can be found by words in its note, with the bookmarked line shown in
+--- the preview.
 function M.pick()
     local entries = core.sorted_entries()
     if #entries == 0 then
@@ -89,59 +128,19 @@ function M.pick()
         return
     end
 
-    local cur_file, cur_lnum = core.get_cur_loc()
-    if cur_file then cur_file = core.norm(cur_file) end
-
-    picker.open({
-        prompt          = "Bookmarks",
-        enable_preview  = true,
-        finder          = function(query, _, _fetch_opts, callback)
-            local items = {}
-            for _, entry in ipairs(entries) do
-                local relpath = vim.fn.fnamemodify(entry.file, ":~:.")
-                local loc_text = relpath .. ":" .. entry.lnum
-                local label = entry.label
-                -- Match against the location *and* the label, so a bookmark can be
-                -- found by words in its note. The location's highlight chunks stay on
-                -- the main line; the label's go on the virt line below (note base).
-                local search_text = label and (loc_text .. " " .. label) or loc_text
-                local match = pickertools.match_label(search_text, query)
-                if match then
-                    local loc_match = pickertools.match_label(loc_text, query)
-                    local virt_line
-                    if label then
-                        local label_match = pickertools.match_label(label, query)
-                        local chunks = (label_match and label_match.chunks) or { { label } }
-                        -- match_label leaves unmatched chunks without a highlight; give
-                        -- them the note group so the label keeps its styling, while the
-                        -- matched chunks keep their match highlight.
-                        for _, chunk in ipairs(chunks) do
-                            if not chunk[2] then chunk[2] = "@text.note" end
-                        end
-                        virt_line = chunks
-                    end
-                    ---@type keystone.Picker.Item
-                    local item = {
-                        label_chunks = (loc_match and loc_match.chunks) or { { loc_text } },
-                        virt_line    = virt_line,
-                        data         = {
-                            filepath = entry.file,
-                            lnum     = entry.lnum,
-                            col      = 0,
-                        },
-                    }
-                    if cur_file and entry.file == cur_file and entry.lnum == cur_lnum then
-                        item.initial = true
-                    end
-                    table.insert(items, item)
-                end
-            end
-            callback(items)
+    ---@type keystone.select.Opts
+    local opts = {
+        prompt       = "Bookmarks",
+        ---@param entry keystone.bookmarks.Entry
+        format_item  = function(entry)
+            local loc = vim.fn.fnamemodify(entry.file, ":~:.") .. ":" .. entry.lnum
+            return entry.label and (loc .. "  " .. entry.label) or loc
         end,
-    }, function(data)
-        if data and data.filepath then
-            ui.smart_open_file(data.filepath, data.lnum, data.col)
-        end
+        preview_item = _preview_bookmark,
+    }
+
+    vim.ui.select(entries, opts, function(entry)
+        if entry then ui.smart_open_file(entry.file, entry.lnum, 0) end
     end)
 end
 
