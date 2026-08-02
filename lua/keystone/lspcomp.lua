@@ -592,10 +592,19 @@ local function on_complete_changed()
     end, vim.api.nvim_get_current_buf())
 end
 
+--- Commit the selected item -- snippet expansion, `additionalTextEdits`, command --
+--- but only when the user explicitly accepted it. `v:event.reason` is "accept" only
+--- for `complete_CTRL-Y` (and whatever is mapped to it, e.g. `<CR>` via
+--- `keystone.completion`); it is "discard" when a typed character merely ended the
+--- menu and "cancel" for `<C-e>`. In those two cases the popup's text insertion
+--- stands but no LSP extras fire, mirroring the built-in `vim.lsp.completion`.
+--- Note `v:event` is populated on CompleteDone only, never on CompleteDonePre.
 local function on_complete_done()
     if _state.status == "received" then return end
-    local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
-    if lsp_data ~= nil then apply_completion_extras(lsp_data) end
+    if vim.v.event.reason == "accept" then
+        local lsp_data = vim.tbl_get(vim.v.completed_item, "user_data", "lsp")
+        if lsp_data ~= nil then apply_completion_extras(lsp_data) end
+    end
     stop()
 end
 
@@ -621,9 +630,8 @@ local function setup_autocmds(config)
     au("ModeChanged", "i*:[^i]*", function()
         stop(); close_doc_win()
     end)
-    au("CompleteDonePre", "*", function()
-        close_doc_win(); on_complete_done()
-    end)
+    au("CompleteDonePre", "*", close_doc_win)
+    au("CompleteDone", "*", on_complete_done)
 
     if config.auto_setup then
         -- Claim `completefunc` when it is unset or already ours, so an ftplugin's or the
