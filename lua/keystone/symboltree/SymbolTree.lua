@@ -76,11 +76,28 @@ local function _is_regular_buffer(bufnr)
     return vim.bo[bufnr].buftype == ""
 end
 
+--- Resolve configured kind names to the numeric LSP codes used by the symbols.
+---@param names string[]?
+---@return table<integer, true>
+local function _kind_code_set(names)
+    local set = {}
+    for _, name in ipairs(names or {}) do
+        for code, kind in pairs(kinds.kinds) do
+            if kind.name:lower() == name:lower() then
+                set[code] = true
+            end
+        end
+    end
+    return set
+end
+
 ---@class keystone.SymbolTree.Opts
 ---@field track_cursor boolean? follow the cursor in the source buffer (default true)
 ---@field auto_expand boolean? expand every symbol on load (default true)
 ---@field show_detail boolean? show the server-provided detail text (default true)
 ---@field exclude_kinds string[]? `keystone.symboltree.kinds` names to hide
+---@field collapse_kinds string[]? `keystone.symboltree.kinds` names left collapsed
+---                                on load even when `auto_expand` is set
 ---@field debounce_ms integer? edit-to-refresh delay (default 500)
 
 ---@class keystone.SymbolTree
@@ -90,6 +107,7 @@ end
 ---@field private _symbols keystone.symboltree.Symbol[]
 ---@field private _provider keystone.symboltree.symbols.Provider
 ---@field private _excluded table<integer, true>
+---@field private _collapsed table<integer, true>
 local SymbolTree = {}
 SymbolTree.__index = SymbolTree
 
@@ -114,14 +132,8 @@ function SymbolTree:init(opts)
 
     -- Kind names are friendlier to configure than the numeric LSP codes, so
     -- resolve them to codes once here.
-    self._excluded = {}
-    for _, name in ipairs(self._opts.exclude_kinds or {}) do
-        for code, kind in pairs(kinds.kinds) do
-            if kind.name:lower() == name:lower() then
-                self._excluded[code] = true
-            end
-        end
-    end
+    self._excluded = _kind_code_set(self._opts.exclude_kinds)
+    self._collapsed = _kind_code_set(self._opts.collapse_kinds)
 
     self._refresh_fn = throttle.debounce_wrap(self._opts.debounce_ms or 500, function()
         self:_request_symbols()
@@ -356,7 +368,7 @@ function SymbolTree:_build_items(list, parent_id)
             items[#items + 1] = {
                 id = id,
                 expandable = #children > 0,
-                expanded = self._opts.auto_expand ~= false,
+                expanded = self._opts.auto_expand ~= false and not self._collapsed[symbol.kind],
                 data = {
                     name     = symbol.name,
                     detail   = self._opts.show_detail ~= false and symbol.detail or nil,

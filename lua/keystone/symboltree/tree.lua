@@ -35,6 +35,7 @@ local function _open()
             auto_expand   = config.auto_expand,
             show_detail   = config.show_detail,
             exclude_kinds = config.exclude_kinds,
+            collapse_kinds = config.collapse_kinds,
             debounce_ms   = config.debounce_ms,
         })
     end
