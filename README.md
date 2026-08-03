@@ -323,8 +323,8 @@ preview window for callers that offer one.
 
 ```lua
 select = {
-  width_ratio  = 0.4,  -- fraction of the editor width, while previewing
-  height_ratio = 0.7,  -- fraction of the editor height, while previewing
+  width_ratio  = 0.4,  -- fraction of the editor width the list occupies (a minimum, without a preview)
+  height_ratio = 0.7,  -- fraction of the editor height the picker occupies
   sort         = false, -- order filtered items by fuzzy score, not the caller's order
 }
 ```
