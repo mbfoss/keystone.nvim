@@ -135,8 +135,8 @@ function M.render(bufnr)
   if not chain or #chain == 0 then return "", "" end
 
   -- Nested namespaces are one path, so only the first of a run is marked; the
-  -- rest follow their icon like the segments of a module name. The separator
-  -- hugs those bare names and takes a space before a wide kind icon.
+  -- rest follow their icon like the segments of a module name, joined by `›`.
+  -- Everywhere else the kind icon is separator enough and a space does it.
   -- Separators are pieces like any other, so the whole trail -- highlight groups
   -- included -- is joined once at the end rather than grown per symbol.
   local parts = { "%#KeystoneSLSymbolPath#" }
@@ -144,7 +144,7 @@ function M.render(bufnr)
   for i, sym in ipairs(chain) do
     local with_icon = not (sym.kind == _KIND.Namespace and prev_kind == _KIND.Namespace)
     if i > 1 then
-      parts[#parts + 1] = with_icon and "› " or "›"
+      parts[#parts + 1] = with_icon and " " or "›"
     end
     parts[#parts + 1] = _segment(sym, with_icon)
     prev_kind = sym.kind
