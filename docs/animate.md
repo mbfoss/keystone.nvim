@@ -2,6 +2,8 @@
 
 Smooth animated scrolling.
 
+![Scrolling a file from top to bottom with animate enabled](assets/animate.gif)
+
 ## Configuration
 
 ```lua

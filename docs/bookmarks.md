@@ -2,6 +2,8 @@
 
 Persistent, optionally labelled line bookmarks that survive across sessions.
 
+![Setting bookmarks with labels, then finding one again with :Bookmark pick](assets/bookmarks.gif)
+
 ## Configuration
 
 ```lua
