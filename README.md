@@ -25,8 +25,40 @@ Then in your config:
 
 ```lua
 vim.cmd.packadd("keystone.nvim")
-require("keystone").setup({ filetree = true, clue = true })
+
+-- Every module, with a starting point for which to enable. Flip any of these.
+require("keystone").setup({
+  -- Language support
+  lspconfig  = true,  -- enables the LSP servers configured in lsp/
+  tsconfig   = true,  -- treesitter highlighting and folding
+  completion = true,  -- drives insert-mode completion
+
+  -- Editor behaviour
+  tweaks     = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
+  largefile  = true,  -- skips treesitter/LSP/ftplugins on large files
+  animate    = false, -- interpolated scrolling
+
+  -- Replaces something built in
+  statusline = true,  -- sets 'statusline'
+  select     = true,  -- replaces vim.ui.select
+  notify     = true,  -- replaces vim.notify
+  clue       = true,  -- popup of the keys that can follow a trigger
+
+  -- Adds a command, does nothing until you run it
+  filetree   = true,  -- :FileTree
+  explore    = true,  -- :FileSelector
+  symboltree = false, -- :SymbolTree
+  calltree   = false, -- :CallTree
+  bookmarks  = false, -- :Bookmark
+  unsaved    = false, -- :DiffUnsaved
+})
 ```
+
+`packadd` only puts keystone on the runtimepath; the `setup()` call is what
+decides which modules run. The four groups differ in how intrusive they are: the
+last group only registers a command, while the "replaces something built in"
+group takes over a global, so those are the ones to turn off if you already have
+a statusline, a `vim.notify` or a key-hint plugin of your own.
 
 ## Configuration
 
