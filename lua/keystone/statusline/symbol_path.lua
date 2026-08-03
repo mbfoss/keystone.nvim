@@ -39,8 +39,10 @@ local _KIND_ICONS = {
   [26] = "󰊄", -- TypeParameter
 }
 
--- Class=5, Method=6, Constructor=9, Function=12, Struct=23
-local _FUNCTION_KINDS = { [5] = true, [6] = true, [9] = true, [12] = true, [23] = true }
+-- Kinds worth a link in the trail: the containers you are "inside of" rather
+-- than every symbol the server reports.
+-- Namespace=3, Class=5, Method=6, Constructor=9, Function=12, Struct=23
+local _PATH_KINDS = { [3] = true, [5] = true, [6] = true, [9] = true, [12] = true, [23] = true }
 
 ---@type table<string, vim.api.keyset.highlight>
 M.highlights = {
@@ -54,7 +56,7 @@ end
 local function _collect_enclosing(symbols, line0, chain)
   for _, sym in ipairs(symbols) do
     if sym.range and _in_range(line0, sym.range) then
-      if _FUNCTION_KINDS[sym.kind] then
+      if _PATH_KINDS[sym.kind] then
         table.insert(chain, sym)
       end
       if sym.children and #sym.children > 0 then
@@ -81,7 +83,7 @@ local function _build_chain(symbols, line)
     -- SymbolInformation flat list
     for _, sym in ipairs(symbols) do
       local r = sym.location and sym.location.range
-      if r and _in_range(line0, r) and _FUNCTION_KINDS[sym.kind] then
+      if r and _in_range(line0, r) and _PATH_KINDS[sym.kind] then
         table.insert(chain, sym)
       end
     end
