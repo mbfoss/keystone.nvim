@@ -473,6 +473,13 @@ function TreeBuffer:get_children_ids(parent_id)
     return self._tree:get_children_ids(parent_id)
 end
 
+--- Whether the item currently occupies a line, i.e. no ancestor is collapsed.
+---@param id any
+---@return boolean
+function TreeBuffer:is_visible(id)
+    return self._id_to_idx[id] ~= nil
+end
+
 ---@param id any
 ---@return boolean
 function TreeBuffer:have_item(id)

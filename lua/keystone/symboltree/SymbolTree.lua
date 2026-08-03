@@ -142,6 +142,10 @@ function SymbolTree:_setup_tree()
         on_selection = function(id, data)
             self:_jump_to(data, true)
         end,
+        -- Folding changes which node stands in for the cursor, so re-resolve it.
+        on_toggle = function()
+            self:_sync_to_cursor()
+        end,
     })
 end
 
@@ -413,6 +417,18 @@ function SymbolTree:_find_item_at_line(line)
     return found
 end
 
+--- Nearest ancestor that is actually on screen. The deepest matching symbol may
+--- sit under a collapsed parent, in which case the fold's visible node stands in
+--- for it.
+---@param id any?
+---@return any? id
+function SymbolTree:_visible_ancestor(id)
+    while id ~= nil and not self._treebuf:is_visible(id) do
+        id = self._treebuf:get_parent_id(id)
+    end
+    return id
+end
+
 --- Show or hide the current-symbol highlight without forgetting which symbol is
 --- current, so it can be restored when focus returns to the source window.
 ---@param shown boolean
@@ -437,7 +453,7 @@ function SymbolTree:_sync_to_cursor()
     if winid <= 0 then return end
 
     local line = vim.api.nvim_win_get_cursor(winid)[1]
-    local id = self:_find_item_at_line(line)
+    local id = self:_visible_ancestor(self:_find_item_at_line(line))
     if id == self._current_id then return end
 
     if self._current_id then
