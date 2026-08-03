@@ -24,12 +24,12 @@ function M.run_command(cmd, args, opts)
     if cmd == "FileTree" then
         local command = args[1]
         local name = args[2]
-        if command == nil or command == "" or command == "toggle" then
-            _tree().toggle()
-        elseif command == "open" then
+        if command == nil or command == "" or command == "open" then
             _tree().open()
         elseif command == "close" then
             _tree().close()
+        elseif command == "toggle" then
+            _tree().toggle()
         else
             vim.notify("Invalid Filetree command: " .. tostring(command))
         end
