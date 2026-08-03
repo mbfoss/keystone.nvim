@@ -18,31 +18,39 @@ local _refresh_fns = {}
 -- called whenever the tracked state changes, so the statusline can redraw
 local _on_change = nil
 
+local _KIND = vim.lsp.protocol.SymbolKind
+
 local _KIND_ICONS = {
-  [1]  = "󰈙", -- File
-  [2]  = "󰆧", -- Module
-  [3]  = "󰌗", -- Namespace
-  [4]  = "󰏗", -- Package
-  [5]  = "󰌗", -- Class
-  [6]  = "󰆧", -- Method
-  [7]  = "󰜢", -- Property
-  [8]  = "󰇽", -- Field
-  [9]  = "", -- Constructor
-  [10] = "󰕘", -- Enum
-  [11] = "", -- Interface
-  [12] = "󰊕", -- Function
-  [13] = "󰀫", -- Variable
-  [14] = "󰏿", -- Constant
-  [22] = "󰕘", -- EnumMember
-  [23] = "󰙅", -- Struct
-  [25] = "󰆕", -- Operator
-  [26] = "󰊄", -- TypeParameter
+  [_KIND.File]          = "󰈙",
+  [_KIND.Module]        = "󰆧",
+  [_KIND.Namespace]     = "󰌗",
+  [_KIND.Package]       = "󰏗",
+  [_KIND.Class]         = "󰌗",
+  [_KIND.Method]        = "󰆧",
+  [_KIND.Property]      = "󰜢",
+  [_KIND.Field]         = "󰇽",
+  [_KIND.Constructor]   = "",
+  [_KIND.Enum]          = "󰕘",
+  [_KIND.Interface]     = "",
+  [_KIND.Function]      = "󰊕",
+  [_KIND.Variable]      = "󰀫",
+  [_KIND.Constant]      = "󰏿",
+  [_KIND.EnumMember]    = "󰕘",
+  [_KIND.Struct]        = "󰙅",
+  [_KIND.Operator]      = "󰆕",
+  [_KIND.TypeParameter] = "󰊄",
 }
 
 -- Kinds worth a link in the trail: the containers you are "inside of" rather
 -- than every symbol the server reports.
--- Namespace=3, Class=5, Method=6, Constructor=9, Function=12, Struct=23
-local _PATH_KINDS = { [3] = true, [5] = true, [6] = true, [9] = true, [12] = true, [23] = true }
+local _PATH_KINDS = {
+  [_KIND.Namespace]   = true,
+  [_KIND.Class]       = true,
+  [_KIND.Method]      = true,
+  [_KIND.Constructor] = true,
+  [_KIND.Function]    = true,
+  [_KIND.Struct]      = true,
+}
 
 ---@type table<string, vim.api.keyset.highlight>
 M.highlights = {
@@ -107,6 +115,17 @@ local function _chain_at_cursor(bufnr)
   return _build_chain(_symbol_cache[bufnr], cursor[1])
 end
 
+--- One trail segment: the symbol's name, kind-icon prefixed when `with_icon`.
+--- `%` is doubled so names never act as statusline items.
+---@param sym table
+---@param with_icon boolean
+---@return string
+local function _segment(sym, with_icon)
+  local name = sym.name:gsub("%%", "%%%%")
+  if not with_icon then return name end
+  return (_KIND_ICONS[sym.kind] or "󰊕") .. " " .. name
+end
+
 --- Full form is the whole symbol trail; the short form is the innermost symbol
 --- only, with its name cropped to 20 characters.
 ---@param bufnr integer
@@ -115,18 +134,27 @@ function M.render(bufnr)
   local chain = _chain_at_cursor(bufnr)
   if not chain or #chain == 0 then return "", "" end
 
-  local parts = {}
-  for _, sym in ipairs(chain) do
-    local kind_icon = _KIND_ICONS[sym.kind] or "󰊕"
-    table.insert(parts, kind_icon .. " " .. sym.name:gsub("%%", "%%%%"))
+  -- Nested namespaces are one path, so only the first of a run is marked; the
+  -- rest follow their icon like the segments of a module name. The separator
+  -- hugs those bare names and takes a space before a wide kind icon.
+  -- Separators are pieces like any other, so the whole trail -- highlight groups
+  -- included -- is joined once at the end rather than grown per symbol.
+  local parts = { "%#KeystoneSLSymbolPath#" }
+  local prev_kind = nil
+  for i, sym in ipairs(chain) do
+    local with_icon = not (sym.kind == _KIND.Namespace and prev_kind == _KIND.Namespace)
+    if i > 1 then
+      parts[#parts + 1] = with_icon and "› " or "›"
+    end
+    parts[#parts + 1] = _segment(sym, with_icon)
+    prev_kind = sym.kind
   end
+  parts[#parts + 1] = "%*"
 
-  local last      = chain[#chain]
-  local last_icon = _KIND_ICONS[last.kind] or "󰊕"
-  local short      = last_icon .. " " .. last.name:gsub("%%", "%%%%")
+  -- The short form stands alone, so its symbol always starts a run.
+  local short = _segment(chain[#chain], true)
 
-  return "%#KeystoneSLSymbolPath#" .. table.concat(parts, " › ") .. "%*",
-      "%#KeystoneSLSymbolPath#" .. short .. "%*"
+  return table.concat(parts), "%#KeystoneSLSymbolPath#" .. short .. "%*"
 end
 
 ---@param bufnr integer
