@@ -1,8 +1,10 @@
 # lspconfig
 
-Sensible LSP defaults on top of Neovim's built-in `vim.lsp` — most importantly,
-it actually *enables* your configured servers, which vanilla Neovim leaves to
-you.
+Defaults and per-server configuration on top of Neovim's built-in `vim.lsp`.
+Neovim requires an explicit `vim.lsp.enable()` call for each server; this module
+enables the configs it finds in `lsp/` directories on the runtimepath, and
+applies the formatting, inlay hint, document highlight and signature help
+settings below.
 
 ![Diagnostics, hover on an annotated function, and reference highlighting](assets/lspconfig.gif)
 

@@ -1,8 +1,10 @@
 # clue
 
-A which-key style popup that shows the available continuation keys a short
-moment after you press a trigger (`<leader>`, `g`, `z`, marks, registers,
-window commands, and more).
+A popup listing the keys that can follow a trigger, shown after the trigger has
+been held for `delay` milliseconds. The default triggers are `<leader>`, `g` and
+`z` in normal and visual mode; `'` and `` ` `` (marks) and `"` (registers) in
+both; `[`, `]` and `<C-w>` in normal mode; `<C-x>` in insert mode; and `<C-r>` in
+insert and command-line mode.
 
 ![The follow-up-key popup after pressing g](assets/clue.gif)
 

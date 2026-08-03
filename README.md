@@ -1,37 +1,18 @@
 # keystone.nvim
 
-A batteries-included set of editor modules for Neovim.
+Sixteen editor modules for Neovim: file, symbol and call trees, a key-hint
+popup, completion, a statusline, LSP and Treesitter setup, and a set of editor
+behaviour flags.
 
-Keystone bundles the everyday essentials — a file tree, a which-key style hint
-popup, completion, a statusline, sensible LSP and Treesitter setup, and a
-handful of quality-of-life tweaks — into one small, dependency-free plugin.
-Every module is self-contained and opt-in: you turn on only what you want, and
-anything you don't mention is left untouched.
+Each module is independent — it can be required and configured on its own — and
+none is active unless you name it in `setup()`.
 
-> **Requires Neovim ≥ 0.11.** No external plugins required.
-
-> Looking for the fuzzy picker? It now lives in
-> [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim). See
-> [Optional integrations](docs/integrations.md).
+> **Requires Neovim ≥ 0.11.** No other plugins required.
 
 ## Installation
 
 Keystone works with any plugin manager, or with Neovim's built-in package
 support.
-
-**lazy.nvim**
-
-```lua
-{
-  "mbfoss/keystone.nvim",
-  config = function()
-    require("keystone").setup({
-      filetree = true,   -- see "Configuration" for what these values mean
-      clue     = true,
-    })
-  end,
-}
-```
 
 **Built-in packages** (`:help packages`)
 
@@ -84,9 +65,9 @@ Each module's available options are documented on its own page under
 
 ### Setting up a single module
 
-The `setup()` above is just a convenience wrapper. Every module is standalone,
-so you can skip the wrapper and configure one directly — the table you pass is
-that module's options (the same table you'd put after its key above):
+The `setup()` above is a convenience wrapper. Every module is standalone, so it
+can be configured directly instead — the table you pass is that module's
+options, the same table that would follow its key above:
 
 ```lua
 require("keystone.filetree").setup({ width_ratio = 0.25 })
@@ -96,24 +77,24 @@ require("keystone.filetree").setup({ width_ratio = 0.25 })
 
 Each module has its own page in [docs/](docs/):
 
-| Module | What it gives you |
+| Module | What it does |
 | --- | --- |
 | [filetree](docs/filetree.md) | A file explorer in a side window |
-| [explore](docs/explore.md) | A file selector for jumping around the filesystem |
+| [explore](docs/explore.md) | A file selector for navigating the filesystem |
 | [calltree](docs/calltree.md) | The LSP call hierarchy of the symbol under the cursor |
 | [symboltree](docs/symboltree.md) | The LSP document symbols of the current buffer |
-| [clue](docs/clue.md) | A which-key style popup of follow-up keys |
+| [clue](docs/clue.md) | A popup listing the keys that can follow a trigger |
 | [completion](docs/completion.md) | LSP-driven autocompletion with `<Tab>`/`<CR>` |
-| [statusline](docs/statusline.md) | A configurable statusline |
-| [lspconfig](docs/lspconfig.md) | Sensible LSP defaults + log rotation |
-| [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding |
-| [bookmarks](docs/bookmarks.md) | Persistent, labelled line bookmarks |
-| [largefile](docs/largefile.md) | Instant opening of very large files |
+| [statusline](docs/statusline.md) | A statusline assembled from configurable sections |
+| [lspconfig](docs/lspconfig.md) | Enables configured LSP servers; per-server defaults and log rotation |
+| [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
+| [bookmarks](docs/bookmarks.md) | Persistent, optionally labelled line bookmarks |
+| [largefile](docs/largefile.md) | Opens files over a size threshold without Treesitter/LSP/ftplugins |
 | [notify](docs/notify.md) | A floating notification UI |
 | [select](docs/select.md) | A floating `vim.ui.select` prompt with fuzzy filtering |
 | [unsaved](docs/unsaved.md) | Diff modified buffers against disk |
-| [animate](docs/animate.md) | Smooth animated scrolling |
-| [tweaks](docs/tweaks.md) | Quality-of-life editor behaviours |
+| [animate](docs/animate.md) | Interpolated scrolling |
+| [tweaks](docs/tweaks.md) | Seven editor behaviour flags |
 
 ## Commands
 
@@ -130,10 +111,10 @@ Enabling the relevant module registers its command:
 
 ## Optional integrations
 
-Keystone picks up [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim)
-automatically when it is installed, and works fine without it. See
-[docs/integrations.md](docs/integrations.md) — including notes on migrating from
-the old `keystone.pick`.
+Keystone detects [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim) when it is
+installed and registers two picker sources with it; without it, those sources
+are absent and nothing else differs. See
+[docs/integrations.md](docs/integrations.md).
 
 ## Full option reference
 
@@ -147,5 +128,4 @@ its file (`lua/keystone/<module>.lua`).
 
 ---
 
-Looking to contribute or understand how Keystone is built? See
-[DEVELOPMENT.md](DEVELOPMENT.md).
+Contributing and internals: see [DEVELOPMENT.md](DEVELOPMENT.md).

@@ -1,6 +1,6 @@
 # explore
 
-A lightweight file selector for jumping around the filesystem.
+A file selector for navigating the filesystem.
 
 ![Descending through directories with the preview pane on](assets/explore.gif)
 

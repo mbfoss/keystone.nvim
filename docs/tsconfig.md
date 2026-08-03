@@ -60,10 +60,10 @@ Neovim than keystone does.)
 
 Exactly the step that fell out when that module system was removed. On
 `FileType` it resolves the buffer's language, checks that a parser **and** the
-relevant queries are actually present, and then starts highlighting and sets
+relevant queries are present, and then starts highlighting and sets
 `foldmethod`/`foldexpr` — per buffer, honouring `aliases` and `disable`.
 
-So the division is clean:
+The division:
 
 ```lua
 -- nvim-treesitter: get the parsers and queries onto the runtimepath

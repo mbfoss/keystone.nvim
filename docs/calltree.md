@@ -2,8 +2,8 @@
 
 A side window showing the LSP call hierarchy of the symbol under the cursor:
 who calls it (*incoming*, the default) or what it calls (*outgoing*). Each level
-is fetched only when you expand it, so a wide hierarchy costs nothing until you
-look at it. A function that reaches itself is marked `↺` and left as a leaf, so
+is fetched only when you expand it, so an unexpanded branch issues no
+requests. A function that reaches itself is marked `↺` and left as a leaf, so
 recursion cannot expand forever.
 
 ![Incoming calls to a function, expanded a level at a time, then flipped to outgoing](assets/calltree.gif)
@@ -26,7 +26,7 @@ require("keystone").setup({
 
 Open it with `:CallTree` on the symbol you care about. Running it again re-roots
 the tree on whatever the cursor is on now, so you can walk the code and keep the
-window pointed at where you are — use `toggle` when you actually want it gone.
+window pointed at the current position; use `toggle` to close it.
 
 | Argument | What it does |
 | --- | --- |
@@ -39,7 +39,7 @@ window pointed at where you are — use `toggle` when you actually want it gone.
 
 ## Keys
 
-Inside the window, `g?` lists the keys. The essentials:
+Inside the window, `g?` lists the keys. The main ones:
 
 | Key | What it does |
 | --- | --- |

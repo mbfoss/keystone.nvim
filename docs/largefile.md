@@ -1,8 +1,9 @@
 # largefile
 
-Opens very large files instantly. Instead of tearing down Treesitter/LSP/
-ftplugins after a big file loads, it detects the file during filetype detection
-and gives it a sentinel filetype so none of that machinery ever attaches.
+Opens files above a size threshold without attaching Treesitter, LSP or
+ftplugins. Rather than tearing that machinery down after the file has loaded, it
+checks the size during filetype detection and assigns a sentinel filetype, so
+the `FileType` handlers for the real filetype never fire.
 
 ![Opening and moving around a 23 MB, 240k-line log](assets/largefile.gif)
 

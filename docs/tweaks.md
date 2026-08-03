@@ -1,7 +1,7 @@
 # tweaks
 
-A collection of quality-of-life editor behaviours. Each is an independent flag,
-so you can enable exactly the ones you want.
+Seven editor behaviours, each behind its own flag. Four are on by default and
+three are off, as shown below.
 
 ![The yank flash, writing into a directory that does not exist yet, and q closing a help buffer](assets/tweaks.gif)
 

@@ -1,6 +1,6 @@
 # filetree
 
-A file explorer that lives in a side window.
+A file explorer in a side window.
 
 ![Opening the side window and walking into a nested directory](assets/filetree.gif)
 
