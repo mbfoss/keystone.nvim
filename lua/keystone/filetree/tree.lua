@@ -26,7 +26,12 @@ local function _setlocal(win, opt, val)
 end
 
 local function _open()
-    if _get_win() then return end
+    -- Already visible: re-reveal so the command still syncs the tree to the
+    -- current buffer (a no-op when the current buffer isn't a real file).
+    if _get_win() then
+        if _tree then _tree:reveal_current_file(true) end
+        return
+    end
 
     if not _tree then
         local FileTree = require("keystone.filetree.FileTree")
