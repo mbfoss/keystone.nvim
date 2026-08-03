@@ -4,6 +4,8 @@ Opens very large files instantly. Instead of tearing down Treesitter/LSP/
 ftplugins after a big file loads, it detects the file during filetype detection
 and gives it a sentinel filetype so none of that machinery ever attaches.
 
+![Opening and moving around a 23 MB, 240k-line log](assets/largefile.gif)
+
 ## Configuration
 
 ```lua

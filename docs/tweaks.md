@@ -3,6 +3,8 @@
 A collection of quality-of-life editor behaviours. Each is an independent flag,
 so you can enable exactly the ones you want.
 
+![The yank flash, writing into a directory that does not exist yet, and q closing a help buffer](assets/tweaks.gif)
+
 ## Configuration
 
 ```lua

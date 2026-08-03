@@ -2,6 +2,8 @@
 
 A configurable statusline assembled from pluggable sections.
 
+![The sections reacting: mode, git branch, symbol path, diagnostics, position](assets/statusline.gif)
+
 ## Configuration
 
 ```lua

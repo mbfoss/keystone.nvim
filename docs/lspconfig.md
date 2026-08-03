@@ -4,6 +4,8 @@ Sensible LSP defaults on top of Neovim's built-in `vim.lsp` — most importantly
 it actually *enables* your configured servers, which vanilla Neovim leaves to
 you.
 
+![Diagnostics, hover on an annotated function, and reference highlighting](assets/lspconfig.gif)
+
 ## Configuration
 
 ```lua
