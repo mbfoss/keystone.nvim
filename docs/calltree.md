@@ -6,6 +6,8 @@ is fetched only when you expand it, so a wide hierarchy costs nothing until you
 look at it. A function that reaches itself is marked `↺` and left as a leaf, so
 recursion cannot expand forever.
 
+![Incoming calls to a function, expanded a level at a time, then flipped to outgoing](assets/calltree.gif)
+
 ## Configuration
 
 ```lua
@@ -41,12 +43,17 @@ Inside the window, `g?` lists the keys. The essentials:
 
 | Key | What it does |
 | --- | --- |
-| `<CR>` | Expand or collapse |
+| `<CR>` / `za` | Expand or collapse |
 | `o` / `O` | Jump to the symbol (`O` also moves focus there) |
 | `c` | Jump to the call site |
-| `s` | Swap direction |
+| `K` | Hover info (kind, location, call sites) |
+| `<Tab>` | Swap direction |
 | `r` | Re-root on the symbol under the cursor |
-| `<BS>` | Go back |
+| `<BS>` | Back to the previous root |
+| `R` | Refresh |
+
+The root line is tagged with what the rows beneath it are: `CALLERS` for
+incoming, `CALLS` for outgoing.
 
 ---
 

@@ -2,6 +2,8 @@
 
 A floating notification UI, optionally including LSP progress messages.
 
+![Notifications of each level stacking and timing out](assets/notify.gif)
+
 ## Configuration
 
 ```lua

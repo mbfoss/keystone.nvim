@@ -4,6 +4,8 @@ A which-key style popup that shows the available continuation keys a short
 moment after you press a trigger (`<leader>`, `g`, `z`, marks, registers,
 window commands, and more).
 
+![The follow-up-key popup after pressing g](assets/clue.gif)
+
 ## Configuration
 
 ```lua

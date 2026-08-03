@@ -3,6 +3,8 @@
 A side window showing the LSP document symbols of the current buffer, refreshed
 as you edit and able to follow the cursor.
 
+![The document outline: expanding a symbol, jumping the source pane, hover info](assets/symboltree.gif)
+
 ## Configuration
 
 ```lua

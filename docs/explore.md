@@ -2,6 +2,8 @@
 
 A lightweight file selector for jumping around the filesystem.
 
+![Descending through directories with the preview pane on](assets/explore.gif)
+
 ## Configuration
 
 ```lua

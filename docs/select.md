@@ -5,6 +5,8 @@ to choose from a list (LSP code actions, `:Bookmark pick`, `:DiffUnsaved`, other
 plugins) — with a floating one: a prompt line, a fuzzy-filtered list, and a
 preview window for callers that offer one.
 
+![A vim.ui.select prompt with fuzzy filtering and a live preview](assets/select.gif)
+
 ## Configuration
 
 ```lua

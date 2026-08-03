@@ -2,6 +2,8 @@
 
 Diff every modified buffer against its saved state on disk.
 
+![Diffing an edited buffer against what is still on disk](assets/unsaved.gif)
+
 ## Configuration
 
 ```lua
