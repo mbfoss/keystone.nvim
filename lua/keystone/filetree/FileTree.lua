@@ -990,9 +990,11 @@ function FileTree:_show_hover(item)
             end
 
             vim.lsp.util.open_floating_preview(lines, "markdown", {
+                title = " " .. type_label .. " ",
+                title_pos = "center",
                 border = "rounded",
-                focusable = false,
-                close_events = { "CursorMoved", "BufHidden", "BufLeave" },
+                focusable = true,
+                focus_id = "keystone.filetree.hover",
                 max_width = 70,
             })
         end)

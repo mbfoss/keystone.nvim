@@ -495,9 +495,13 @@ function SymbolTree:_show_hover(item)
         table.insert(lines, "- **Detail**: " .. data.detail)
     end
 
-    floatwin.open(table.concat(lines, "\n"), {
-        title = "Symbol",
-        is_markdown = true,
+    vim.lsp.util.open_floating_preview(lines, "markdown", {
+        title = " Symbol ",
+        title_pos = "center",
+        border = "rounded",
+        wrap = true,
+        focusable = true,
+        focus_id = "keystone.symboltree.hover",
     })
 end
 

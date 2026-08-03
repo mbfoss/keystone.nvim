@@ -335,7 +335,6 @@ local function _setup_signature_help(client, bufnr)
           border       = "rounded",
           focusable    = false,
           focus        = false,
-          close_events = { "InsertLeave", "BufHidden" },
         })
         _win = fwin
         _buf = fbuf
