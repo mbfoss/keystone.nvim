@@ -39,6 +39,7 @@ local _PREFIX     = "  "
 ---@field enabled boolean Install the `vim.ui.select` override.
 ---@field width_ratio number Fraction of the editor width used while previewing.
 ---@field height_ratio number Fraction of the editor height used while previewing.
+---@field sort boolean Order filtered items by fuzzy score instead of the caller's order.
 
 ---@return keystone.select.Config
 local function _default_config()
@@ -46,6 +47,7 @@ local function _default_config()
         enabled      = true,
         width_ratio  = 0.4,
         height_ratio = 0.7,
+        sort         = false,
     }
 end
 
@@ -328,11 +330,26 @@ function Picker:_filter()
     -- Matched over a list of `{label, i}` dictionaries rather than the entries
     -- themselves: matchfuzzypos round-trips its input through Vimscript, which
     -- would copy (and so break the identity of) the caller's items.
-    local result    = vim.fn.matchfuzzypos(self._pool, self._query, { key = "label" })
+    local result = vim.fn.matchfuzzypos(self._pool, self._query, { key = "label" })
+    local hits   = result[1]
+
+    -- matchfuzzypos hands its hits back best-score-first. Unless sorting is
+    -- asked for, put them back in the caller's order: a `vim.ui.select` list is
+    -- usually already ordered meaningfully, and rows jumping around as the query
+    -- grows makes the list hard to follow.
+    local order = {}
+    for row = 1, #hits do
+        order[row] = row
+    end
+    if not M.config.sort then
+        table.sort(order, function(a, b) return hits[a].i < hits[b].i end)
+    end
+
     self._matches   = {}
-    self._positions = result[2]
-    for _, hit in ipairs(result[1]) do
-        table.insert(self._matches, self._entries[hit.i])
+    self._positions = {}
+    for row, hit_row in ipairs(order) do
+        self._matches[row]   = self._entries[hits[hit_row].i]
+        self._positions[row] = result[2][hit_row]
     end
 end
 

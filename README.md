@@ -325,8 +325,12 @@ preview window for callers that offer one.
 select = {
   width_ratio  = 0.4,  -- fraction of the editor width, while previewing
   height_ratio = 0.7,  -- fraction of the editor height, while previewing
+  sort         = false, -- order filtered items by fuzzy score, not the caller's order
 }
 ```
+
+Filtering keeps the caller's order by default, so items stay where you last saw
+them as you type; set `sort = true` to float the best fuzzy matches to the top.
 
 Without a preview the prompt shrinks to fit its items, so a two-item choice
 reads as a small menu rather than a picker.
