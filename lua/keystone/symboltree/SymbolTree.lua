@@ -1,4 +1,5 @@
 local TreeBuffer      = require("keystone.util.TreeBuffer")
+local LRU             = require("keystone.util.LRU")
 local ui              = require("keystone.util.ui")
 local floatwin        = require("keystone.util.floatwin")
 local throttle        = require("keystone.util.throttle")
@@ -99,6 +100,8 @@ end
 ---@field collapse_kinds string[]? `keystone.symboltree.kinds` names left collapsed
 ---                                on load even when `auto_expand` is set
 ---@field debounce_ms integer? edit-to-refresh delay (default 500)
+---@field max_cached_folds integer? folds remembered across all buffers
+---                                (default 2048, roughly 0.5 MB)
 
 ---@class keystone.SymbolTree
 ---@field new fun(self:keystone.SymbolTree, opts:keystone.SymbolTree.Opts?):keystone.SymbolTree
@@ -108,6 +111,8 @@ end
 ---@field private _provider keystone.symboltree.symbols.Provider
 ---@field private _excluded table<integer, true>
 ---@field private _collapsed table<integer, true>
+---@field private _expand_cache keystone.util.LRU fold state, keyed by buffer and item id
+---@field private _expand_prefix string? key prefix identifying the current source
 local SymbolTree = {}
 SymbolTree.__index = SymbolTree
 
@@ -135,6 +140,14 @@ function SymbolTree:init(opts)
     self._excluded = _kind_code_set(self._opts.exclude_kinds)
     self._collapsed = _kind_code_set(self._opts.collapse_kinds)
 
+    -- Folding a symbol should survive a refresh, a jump to another buffer and
+    -- back, and the tree buffer being closed and reopened, so the state is kept
+    -- outside the tree itself. One entry per fold rather than one per buffer:
+    -- the cost is then bounded by how much folding was done, whether that was
+    -- spread over two files or two hundred.
+    self._expand_cache = LRU:new(self._opts.max_cached_folds or 2048)
+    self._expand_prefix = nil
+
     self._refresh_fn = throttle.debounce_wrap(self._opts.debounce_ms or 500, function()
         self:_request_symbols()
     end)
@@ -155,7 +168,10 @@ function SymbolTree:_setup_tree()
             self:_jump_to(data, true)
         end,
         -- Folding changes which node stands in for the cursor, so re-resolve it.
-        on_toggle = function()
+        on_toggle = function(id, _, expanded)
+            if self._expand_prefix and id ~= _placeholder_id then
+                self._expand_cache:put(self._expand_prefix .. id, expanded)
+            end
             self:_sync_to_cursor()
         end,
     })
@@ -300,12 +316,26 @@ function SymbolTree:_on_buffer_deleted()
     self._symbols = {}
 end
 
+--- Fold-cache key prefix for a source buffer. The buffer number keeps the key
+--- short, which matters because there is one key per remembered fold; the cost
+--- is that folds do not follow a file across a buffer being wiped and reloaded.
+--- `\0` never occurs in an item id, so the prefix cannot bleed into the id it
+--- is joined with.
+---@param bufnr integer
+---@return string
+local function _expand_prefix(bufnr)
+    return bufnr .. "\0"
+end
+
 ---@param bufnr integer
 function SymbolTree:_set_source(bufnr)
     if bufnr == self._source_buf then return end
     self._source_buf = bufnr
     self._symbols = {}
     self._current_id = nil
+
+    self._expand_prefix = _expand_prefix(bufnr)
+
     self:_request_symbols()
 end
 
@@ -365,10 +395,17 @@ function SymbolTree:_build_items(list, parent_id)
             local kind = kinds.get(symbol.kind)
             local id = _make_id(parent_id, index, symbol)
             local children = self:_build_items(symbol.children, id)
+            -- A remembered fold wins over the configured default: the user
+            -- folded this exact symbol, so keep it that way.
+            local expanded = self._expand_prefix
+                and self._expand_cache:get(self._expand_prefix .. id)
+            if expanded == nil then
+                expanded = self._opts.auto_expand ~= false and not self._collapsed[symbol.kind]
+            end
             items[#items + 1] = {
                 id = id,
                 expandable = #children > 0,
-                expanded = self._opts.auto_expand ~= false and not self._collapsed[symbol.kind],
+                expanded = expanded,
                 data = {
                     name     = symbol.name,
                     detail   = self._opts.show_detail ~= false and symbol.detail or nil,

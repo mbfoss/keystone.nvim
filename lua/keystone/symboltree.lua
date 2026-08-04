@@ -10,6 +10,7 @@ local M = {}
 ---@field collapse_kinds string[]? LSP symbol kind names left collapsed on load
 ---                                even when `auto_expand` is set
 ---@field debounce_ms integer?   edit-to-refresh delay
+---@field max_cached_folds integer? folds remembered across all buffers
 
 ---@return keystone.symboltree.Config
 local function _get_default_config()
@@ -22,6 +23,7 @@ local function _get_default_config()
         exclude_kinds = nil,
         collapse_kinds = { "Function", "Method", "Object" },
         debounce_ms = 500,
+        max_cached_folds = 2048,
     }
 end
 

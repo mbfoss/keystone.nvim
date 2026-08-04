@@ -37,6 +37,7 @@ local function _open()
             exclude_kinds = config.exclude_kinds,
             collapse_kinds = config.collapse_kinds,
             debounce_ms   = config.debounce_ms,
+            max_cached_folds = config.max_cached_folds,
         })
     end
 
