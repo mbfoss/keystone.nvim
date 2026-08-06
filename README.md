@@ -11,20 +11,10 @@ none is active unless you name it in `setup()`.
 
 ## Installation
 
-Keystone works with any plugin manager, or with Neovim's built-in package
-support.
-
-**Built-in packages** (`:help packages`)
-
-```
-git clone https://github.com/mbfoss/keystone.nvim \
-  ~/.config/nvim/pack/plugins/opt/keystone.nvim
-```
-
-Then in your config:
+With Neovim ≥ 0.12
 
 ```lua
-vim.cmd.packadd("keystone.nvim")
+vim.pack.add({ "https://github.com/mbfoss/keystone.nvim" })
 
 -- Every module, with a starting point for which to enable. Flip any of these.
 require("keystone").setup({
@@ -54,7 +44,10 @@ require("keystone").setup({
 })
 ```
 
-`packadd` only puts keystone on the runtimepath; the `setup()` call is what
+Any other plugin manager works too — just point it at
+`mbfoss/keystone.nvim` and call `setup()` yourself.
+
+Installing only puts keystone on the runtimepath; the `setup()` call is what
 decides which modules run. The four groups differ in how intrusive they are: the
 last group only registers a command, while the "replaces something built in"
 group takes over a global, so those are the ones to turn off if you already have
