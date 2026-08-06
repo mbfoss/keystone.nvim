@@ -18,7 +18,7 @@ require("keystone").setup({
 Or standalone:
 
 ```lua
-require("keystone.filetree").setup({ width_ratio = 0.25 })
+require("keystone.filetree").setup({ width_ratio = 0.2 })
 ```
 
 ## Commands

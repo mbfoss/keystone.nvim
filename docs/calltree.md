@@ -13,7 +13,7 @@ recursion cannot expand forever.
 ```lua
 require("keystone").setup({
   calltree = {
-    width_ratio      = 0.25,       -- fraction of the editor width
+    width_ratio      = 0.2,        -- fraction of the editor width
     position         = "left",     -- side the window opens on ("left"|"right")
     direction        = "incoming", -- which way to walk ("incoming"|"outgoing")
     show_detail      = true,       -- show the server-provided detail text

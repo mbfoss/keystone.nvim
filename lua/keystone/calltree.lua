@@ -20,7 +20,7 @@ local M = {}
 local function _get_default_config()
     ---@type keystone.calltree.Config
     return {
-        width_ratio      = 0.25,
+        width_ratio      = 0.2,
         position         = "left",
         direction        = "incoming",
         show_detail      = true,

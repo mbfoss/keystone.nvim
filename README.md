@@ -79,7 +79,7 @@ A fuller example:
 ```lua
 require("keystone").setup({
   clue      = true,                          -- on, with defaults
-  filetree  = { width_ratio = 0.25 },        -- on, with one option changed
+  filetree  = { width_ratio = 0.2 },        -- on, with one option changed
   tweaks    = { highlight_on_yank = false }, -- on, with one option changed
   notify    = false,                         -- off (could also just omit it)
 })
@@ -95,7 +95,7 @@ can be configured directly instead — the table you pass is that module's
 options, the same table that would follow its key above:
 
 ```lua
-require("keystone.filetree").setup({ width_ratio = 0.25 })
+require("keystone.filetree").setup({ width_ratio = 0.2 })
 ```
 
 ## Modules

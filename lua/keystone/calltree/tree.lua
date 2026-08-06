@@ -53,7 +53,7 @@ local function _open_win()
     -- A width-pinned split. fixedwin tracks the ratio as the user resizes and
     -- re-pins it across layout/editor changes; persist the last-known ratio so
     -- reopening the tree keeps the user's chosen width.
-    local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.25, function(ratio)
+    local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
         config.width_ratio = ratio
     end, { pos = config.position == "right" and "botright" or "topleft" })
 
