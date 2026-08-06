@@ -1,6 +1,4 @@
-local M       = {}
-
-local usercmd = require("keystone.util.usercmd")
+local M = {}
 
 -- The diff session machinery (and its `fsutil` dependency) lives in
 -- `keystone.unsaved.session`, which is only required the first time the user
@@ -12,9 +10,10 @@ function M.open()
 end
 
 function M.setup()
-    usercmd.register_user_cmd("DiffUnsaved", function()
-        M.open()
+    vim.api.nvim_create_user_command("DiffUnsaved", function(cmd_opts)
+        require("keystone.util.usercmd").handle(cmd_opts, function() M.open() end)
     end, {
+        nargs = "*",
         desc = "Diff unsaved vs saved state of all modified buffers",
     })
 end

@@ -123,9 +123,14 @@ function M.setup(opts)
         callback = function() core.save_to_disk() end,
     })
 
-    require("keystone.util.usercmd").register_user_cmd("Bookmark", _run_command, {
-        desc          = "Persistent line bookmarks",
-        subcommand = _get_subcommands,
+    vim.api.nvim_create_user_command("Bookmark", function(cmd_opts)
+        require("keystone.util.usercmd").handle(cmd_opts, _run_command)
+    end, {
+        nargs = "*",
+        desc = "Persistent line bookmarks",
+        complete = function(arg_lead, cmd_line, _)
+            return require("keystone.util.usercmd").complete(arg_lead, cmd_line, _get_subcommands)
+        end,
     })
 
     -- `:Bookmark pick` needs no plugin, but the bookmark list is also a natural

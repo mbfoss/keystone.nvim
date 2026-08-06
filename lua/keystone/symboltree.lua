@@ -45,15 +45,19 @@ function M.setup(opts)
         end
     end
 
-    require("keystone.util.usercmd").register_user_cmd("SymbolTree", function(cmd, args, opts)
-            require("keystone.symboltree.command").run_command(cmd, args, opts)
-        end,
-        {
-            desc = "LSP symbol tree window",
-            subcommand = function(cmd, rest)
+    vim.api.nvim_create_user_command("SymbolTree", function(cmd_opts)
+        require("keystone.util.usercmd").handle(cmd_opts, function(cmd, args, run_opts)
+            require("keystone.symboltree.command").run_command(cmd, args, run_opts)
+        end)
+    end, {
+        nargs = "*",
+        desc = "LSP symbol tree window",
+        complete = function(arg_lead, cmd_line, _)
+            return require("keystone.util.usercmd").complete(arg_lead, cmd_line, function(cmd, rest)
                 return require("keystone.symboltree.command").get_subcommands(cmd, rest)
-            end
-        })
+            end)
+        end,
+    })
 end
 
 return M

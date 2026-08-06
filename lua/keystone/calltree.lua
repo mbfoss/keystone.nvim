@@ -35,15 +35,19 @@ M.config = _get_default_config()
 function M.setup(opts)
     M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
 
-    require("keystone.util.usercmd").register_user_cmd("CallTree", function(cmd, args, opts)
-            require("keystone.calltree.command").run_command(cmd, args, opts)
-        end,
-        {
-            desc = "LSP call hierarchy window",
-            subcommand = function(cmd, rest)
+    vim.api.nvim_create_user_command("CallTree", function(cmd_opts)
+        require("keystone.util.usercmd").handle(cmd_opts, function(cmd, args, run_opts)
+            require("keystone.calltree.command").run_command(cmd, args, run_opts)
+        end)
+    end, {
+        nargs = "*",
+        desc = "LSP call hierarchy window",
+        complete = function(arg_lead, cmd_line, _)
+            return require("keystone.util.usercmd").complete(arg_lead, cmd_line, function(cmd, rest)
                 return require("keystone.calltree.command").get_subcommands(cmd, rest)
-            end
-        })
+            end)
+        end,
+    })
 end
 
 return M

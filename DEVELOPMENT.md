@@ -62,8 +62,12 @@ patterns:
 - Interactive command implementations live in a submodule that is only
   `require`d the first time the command runs (e.g. `keystone.bookmarks.actions`,
   `keystone.unsaved.session`).
-- User commands are registered through `keystone.util.usercmd`, which supports
-  subcommand completion. It parses no arguments itself: dispatch passes
+- User commands are created with `nvim_create_user_command` directly, with the
+  callbacks delegating to `keystone.util.usercmd`: `handle(opts, run_fn)` in the
+  command body and `complete(arg_lead, cmd_line, subcommand)` in the `complete`
+  callback. Requiring the module *inside* those callbacks keeps it — and
+  whatever the subcommand closure pulls in — out of `setup`. It parses no
+  arguments itself: dispatch passes
   Neovim's `opts.fargs` straight through, and completion — which is handed a
   raw command line rather than parsed arguments — runs that line back through
   `nvim_parse_cmd`. Both paths therefore split by Vim's `<f-args>` rules
