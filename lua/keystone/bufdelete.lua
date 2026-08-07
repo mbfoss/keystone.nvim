@@ -446,12 +446,15 @@ end
 -- unsaved-changes guard lives below that split, in `M.delete`/`M.delete_many`,
 -- so neither command can discard an edit the other would have refused.
 --
--- `:Bonly` follows `:only`/`:tabonly`: it keeps something and deletes the rest.
+-- `:Bdeletehidden` and `:Bwipeouthidden` are the same pair over a fixed
+-- selection: the buffers no window is showing. "No window" spans every tabpage,
+-- not just the current one, so neither can pull a buffer out from under a window
+-- you cannot see.
 --
--- No argument slot means two things. What follows `:Bdelete` is always a buffer
--- name or a glob over buffer names, never a keyword; what follows `:Bonly` is
--- always a keep-selector, never a name. So a buffer called `all`, `visible` or
--- `-x` is nothing special anywhere.
+-- No command has an argument slot for keywords. What follows `:Bdelete` is
+-- always a buffer name or a glob over buffer names; the `*hidden` pair takes
+-- nothing at all. So a buffer called `all`, `hidden` or `-x` is nothing special
+-- anywhere.
 -- ---------------------------------------------------------------------------
 
 --- Match `glob` against a buffer the way a user reading the command line would
@@ -552,11 +555,14 @@ local function _make_delete_command(wipe)
   end
 end
 
----@param _ string
----@param _args string[]
----@param opts vim.api.keyset.create_user_command.command_args
-local function _run_only(_, _args, opts)
-  M.delete_others({ force = opts.bang })
+--- Body shared by `:Bdeletehidden` and `:Bwipeouthidden`: `wipe` is the only
+--- difference, exactly as it is between `:Bdelete` and `:Bwipeout`.
+---@param wipe boolean
+---@return keystone.util.usercmd.run_fn
+local function _make_hidden_command(wipe)
+  return function(_, _args, opts)
+    M.delete_hidden({ force = opts.bang, wipe = wipe })
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -583,6 +589,22 @@ local function _register_delete(name, wipe, desc)
   })
 end
 
+--- Register `:Bdeletehidden`/`:Bwipeouthidden`: no argument, no count — the
+--- selection is fixed — and `!` to force.
+---@param name string
+---@param wipe boolean
+---@param desc string
+local function _register_hidden(name, wipe, desc)
+  local run = _make_hidden_command(wipe)
+  vim.api.nvim_create_user_command(name, function(cmd_opts)
+    require("keystone.util.usercmd").handle(cmd_opts, run)
+  end, {
+    nargs = 0,
+    bang = true,
+    desc = desc,
+  })
+end
+
 ---@param opts keystone.bufdelete.Config?
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
@@ -591,14 +613,8 @@ function M.setup(opts)
   _register_delete("Bdelete", false, "Delete buffers, keeping the window layout")
   _register_delete("Bwipeout", true, "Wipe out buffers, keeping the window layout")
 
-  -- `:Bonly` takes nothing: like `:only`, what it keeps is where you are.
-  vim.api.nvim_create_user_command("Bonly", function(cmd_opts)
-    require("keystone.util.usercmd").handle(cmd_opts, _run_only)
-  end, {
-    nargs = 0,
-    bang = true,
-    desc = "Delete every buffer except the current one",
-  })
+  _register_hidden("Bdeletehidden", false, "Delete every buffer no window is showing")
+  _register_hidden("Bwipeouthidden", true, "Wipe out every buffer no window is showing")
 end
 
 return M

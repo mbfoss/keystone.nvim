@@ -11,6 +11,7 @@ end
 
 --- Reset to a single window on a single scratch-ish buffer.
 local function reset()
+  vim.cmd("silent! tabonly!")
   vim.cmd("silent! only!")
   vim.cmd("enew")
   local keep = vim.api.nvim_get_current_buf()
@@ -273,10 +274,11 @@ describe("keystone.bufdelete", function()
     end)
   end)
 
-  it("registers the three commands", function()
+  it("registers the four commands", function()
     assert.is_true(vim.fn.exists(":Bdelete") == 2)
     assert.is_true(vim.fn.exists(":Bwipeout") == 2)
-    assert.is_true(vim.fn.exists(":Bonly") == 2)
+    assert.is_true(vim.fn.exists(":Bdeletehidden") == 2)
+    assert.is_true(vim.fn.exists(":Bwipeouthidden") == 2)
   end)
 
   describe("globs", function()
@@ -351,14 +353,46 @@ describe("keystone.bufdelete", function()
     assert.is_true(vim.fn.buflisted(other) == 1)
   end)
 
-  describe(":Bonly", function()
-    it("deletes every buffer except the current one", function()
+  describe(":Bdeletehidden / :Bwipeouthidden", function()
+    it("deletes every buffer no window is showing", function()
       local keep = make_buf("/tmp/keystone-keep.txt")
       local gone = make_buf("/tmp/keystone-gone.txt")
       vim.api.nvim_set_current_buf(keep)
 
-      vim.cmd("Bonly")
+      vim.cmd("Bdeletehidden")
 
+      assert.is_true(vim.fn.buflisted(keep) == 1)
+      assert.is_false(vim.fn.buflisted(gone) == 1)
+    end)
+
+    it("keeps a buffer visible in a split of the current tabpage", function()
+      local keep = make_buf("/tmp/keystone-keep.txt")
+      local split = make_buf("/tmp/keystone-split.txt")
+      local gone = make_buf("/tmp/keystone-gone.txt")
+      vim.api.nvim_set_current_buf(keep)
+      vim.cmd("vsplit")
+      vim.api.nvim_set_current_buf(split)
+
+      vim.cmd("Bdeletehidden")
+
+      assert.is_true(vim.fn.buflisted(keep) == 1)
+      assert.is_true(vim.fn.buflisted(split) == 1)
+      assert.is_false(vim.fn.buflisted(gone) == 1)
+    end)
+
+    it("keeps a buffer visible in another tabpage", function()
+      local other_tab = make_buf("/tmp/keystone-other-tab.txt")
+      local gone = make_buf("/tmp/keystone-gone.txt")
+
+      vim.cmd("tabnew")
+      vim.api.nvim_set_current_buf(other_tab)
+      vim.cmd("tabprevious")
+      local keep = make_buf("/tmp/keystone-keep.txt")
+      vim.api.nvim_set_current_buf(keep)
+
+      vim.cmd("Bdeletehidden")
+
+      assert.is_true(vim.fn.buflisted(other_tab) == 1)
       assert.is_true(vim.fn.buflisted(keep) == 1)
       assert.is_false(vim.fn.buflisted(gone) == 1)
     end)
@@ -369,15 +403,30 @@ describe("keystone.bufdelete", function()
       vim.api.nvim_buf_set_lines(dirty, 0, -1, false, { "dirty" })
       vim.api.nvim_set_current_buf(keep)
 
-      vim.cmd("Bonly")
+      vim.cmd("Bdeletehidden")
       assert.is_true(vim.fn.buflisted(dirty) == 1)
 
-      vim.cmd("Bonly!")
+      vim.cmd("Bdeletehidden!")
       assert.is_false(vim.fn.buflisted(dirty) == 1)
     end)
 
+    it(":Bwipeouthidden wipes where :Bdeletehidden only unlists", function()
+      local a = make_buf("/tmp/keystone-a.txt")
+      local b = make_buf("/tmp/keystone-b.txt")
+      vim.api.nvim_set_current_buf(make_buf("/tmp/keystone-current.txt"))
+
+      vim.cmd("Bdeletehidden")
+      assert.is_true(vim.api.nvim_buf_is_valid(a))
+      assert.is_true(vim.api.nvim_buf_is_valid(b))
+
+      local c = make_buf("/tmp/keystone-c.txt")
+      vim.cmd("Bwipeouthidden")
+      assert.is_false(vim.api.nvim_buf_is_valid(c))
+    end)
+
     it("takes no argument", function()
-      assert.is_false(pcall(vim.cmd, "Bonly current"))
+      assert.is_false(pcall(vim.cmd, "Bdeletehidden current"))
+      assert.is_false(pcall(vim.cmd, "Bwipeouthidden current"))
     end)
   end)
 

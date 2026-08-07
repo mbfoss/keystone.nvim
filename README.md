@@ -41,7 +41,7 @@ require("keystone").setup({
   calltree   = false, -- :CallTree
   bookmarks  = false, -- :Bookmark
   unsaved    = false, -- :DiffUnsaved
-  bufdelete  = false, -- :Bdelete, :Bwipeout, :Bonly
+  bufdelete  = false, -- :Bdelete, :Bwipeout, :Bdeletehidden, :Bwipeouthidden
 })
 ```
 
@@ -135,7 +135,7 @@ Enabling the relevant module registers its command:
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Bookmark` | [bookmarks](docs/bookmarks.md) | Manage line bookmarks |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
-| `:Bdelete` `:Bwipeout` `:Bonly` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
+| `:Bdelete` `:Bwipeout` `:Bdeletehidden` `:Bwipeouthidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 
 ## Optional integrations
 

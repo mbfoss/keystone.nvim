@@ -45,7 +45,8 @@ require("keystone").setup({
 })
 ```
 
-They apply whenever a **set** is selected — a glob, `:Bonly`, or `delete_many`.
+They apply whenever a **set** is selected — a glob, `:Bdeletehidden`, or
+`delete_many`.
 They do **not** block a buffer you name: `:Bdelete` on the buffer in front of
 you, `:Bdelete foo.lua`, or `:3Bdelete` deletes what you pointed at — you
 already said which one you meant. Pass `{ ignore = true }` to `delete()` to opt
@@ -59,7 +60,7 @@ because of unsaved changes — the second is a warning, the first is not.
 
 ## Commands
 
-Three commands, named after the built-ins whose semantics they keep.
+Four commands, named after the built-ins whose semantics they keep.
 
 ```vim
 :Bdelete            " current buffer
@@ -68,15 +69,19 @@ Three commands, named after the built-ins whose semantics they keep.
 :Bdelete foo.lua    " one named buffer
 :3Bdelete           " buffer 3
 :Bwipeout *         " the same sets, with :bwipeout semantics
-:Bonly              " every buffer except this one
+:Bdeletehidden      " every buffer no window is showing
+:Bwipeouthidden     " the same set, with :bwipeout semantics
 ```
 
 Add `!` to any of them to force past unsaved changes.
 
 The argument to `:Bdelete`/`:Bwipeout` is *always* a buffer name or a glob over
 buffer names — there are no keywords, so a buffer called `all` is nothing
-special and `:Bdelete all` deletes it. `:Bonly` takes no argument at all: like
-`:only`, what it keeps is where you are.
+special and `:Bdelete all` deletes it. `:Bdeletehidden`/`:Bwipeouthidden` take no
+argument at all: their selection is fixed.
+
+Hidden means *no* window in *any* tabpage is showing the buffer. A buffer sitting
+in a split two tabs over is not hidden and survives.
 
 Globs are matched against the full path, the path relative to the cwd, and the
 final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
@@ -88,7 +93,7 @@ No command discards an edit. A buffer that is modified — or is a terminal — 
 left alone and reported: `:Bwipeout *` with one dirty buffer among ten wipes the
 nine and keeps the tenth, still listed and still on screen.
 
-`!` (`:Bdelete! *`, `:Bwipeout! *`, `:Bonly!`) is the explicit override that
+`!` (`:Bdelete! *`, `:Bwipeout! *`, `:Bdeletehidden!`) is the explicit override that
 throws the changes away, exactly as `:bdelete!` does.
 
 The guard sits below the delete/wipe split rather than in either command, so the
@@ -132,7 +137,8 @@ bufdelete.delete_many({ 3, 7 })             -- one operation, so neither replace
 bufdelete.delete_matching("*.log")          -- the glob behind `:Bdelete *.log`
 bufdelete.delete_all({ ignore = false })    -- sweep past the ignore rules
 bufdelete.delete_others()                   -- returns how many were deleted
-bufdelete.delete_hidden()
+bufdelete.delete_hidden()                   -- the sweep behind `:Bdeletehidden`
+bufdelete.delete_hidden({ wipe = true })    -- ...and behind `:Bwipeouthidden`
 bufdelete.delete_all()
 
 bufdelete.listed()                          -- listed buffers, most recently used first
@@ -146,8 +152,8 @@ Mappings, if you want them:
 
 ```lua
 vim.keymap.set("n", "<leader>bd", "<Cmd>Bdelete<CR>")
-vim.keymap.set("n", "<leader>bo", "<Cmd>Bonly<CR>")
-vim.keymap.set("n", "<leader>bh", function() require("keystone.bufdelete").delete_hidden() end)
+vim.keymap.set("n", "<leader>bh", "<Cmd>Bdeletehidden<CR>")
+vim.keymap.set("n", "<leader>bo", function() require("keystone.bufdelete").delete_others() end)
 ```
 
 ---
