@@ -1,6 +1,6 @@
 # keystone.nvim
 
-Sixteen editor modules for Neovim: file, symbol and call trees, a key-hint
+Seventeen editor modules for Neovim: file, symbol and call trees, a key-hint
 popup, completion, a statusline, LSP and Treesitter setup, and a set of editor
 behaviour flags.
 
@@ -41,6 +41,7 @@ require("keystone").setup({
   calltree   = false, -- :CallTree
   bookmarks  = false, -- :Bookmark
   unsaved    = false, -- :DiffUnsaved
+  bufdelete  = false, -- :Bdelete, :Bwipeout, :Bonly
 })
 ```
 
@@ -118,6 +119,7 @@ Each module has its own page in [docs/](docs/):
 | [notify](docs/notify.md) | A floating notification UI |
 | [select](docs/select.md) | A floating `vim.ui.select` prompt with fuzzy filtering |
 | [unsaved](docs/unsaved.md) | Diff modified buffers against disk |
+| [bufdelete](docs/bufdelete.md) | Delete or wipe buffers without disturbing the window layout |
 | [animate](docs/animate.md) | Interpolated scrolling |
 | [tweaks](docs/tweaks.md) | Seven editor behaviour flags |
 
@@ -133,6 +135,7 @@ Enabling the relevant module registers its command:
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Bookmark` | [bookmarks](docs/bookmarks.md) | Manage line bookmarks |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
+| `:Bdelete` `:Bwipeout` `:Bonly` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 
 ## Optional integrations
 
