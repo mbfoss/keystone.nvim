@@ -39,14 +39,16 @@ local _PREFIX     = "  "
 local _GAP        = 2
 
 --- Sizing for a picker that shows a preview. Fixed fractions of the editor: the
---- preview needs its room whatever the items look like.
+--- preview needs its room whatever the items look like. Height is measured
+--- against the rows the picker may use, the command line and statusline aside.
 ---@class keystone.select.WithPreviewConfig
 ---@field width_ratio number Fraction of the editor width the picker occupies; the list takes half of it, the preview the other half.
 ---@field height_ratio number Fraction of the editor height the picker occupies.
 
 --- Sizing for a picker without a preview, where the items decide within bounds.
---- Every ratio is a fraction of the editor; the `max_` pair also has to cover the
---- prompt above the list, the `min_` pair applies to the list alone.
+--- Every ratio is a fraction of the editor -- of the rows it may use, for the
+--- heights; the `max_` pair also has to cover the prompt above the list, the
+--- `min_` pair applies to the list alone.
 ---@class keystone.select.WithoutPreviewConfig
 ---@field min_width_ratio number Width the list keeps however narrow its labels.
 ---@field max_width_ratio number Width the widest label may grow the list to.
@@ -118,19 +120,70 @@ local function _cells(total, ratio, min, max)
     return math.ceil(total * _clamp(ratio, min, max))
 end
 
+--- Whether a statusline is drawn at the bottom of the editor. With
+--- `laststatus == 1`, assume no status line
+---@return boolean
+local function _has_statusline()
+    local laststatus = vim.o.laststatus
+    return laststatus ~= 0 and laststatus ~=1
+end
+
+--- Editor rows the picker may occupy: everything `vim.o.lines` counts, less the
+--- command line and the statusline. The floats are placed relative to the
+--- editor, whose row 0 is the top of the screen, so those rows come off the
+--- bottom and centring within what is left keeps the picker off the command line.
+---@return integer
+local function _usable_lines()
+    local reserved = vim.o.cmdheight + (_has_statusline() and 1 or 0)
+    return math.max(1, vim.o.lines - reserved)
+end
+
+--- The one cell to hand the picker when centring `span` within `available`
+--- would leave an odd remainder. Nothing splits an odd number in two, and the
+--- `math.floor` below would drop the spare cell past the bottom right corner;
+--- spending it on the picker keeps the gaps either side identical.
+---@param span integer
+---@param available integer
+---@return integer 0 or 1
+local function _spare(span, available)
+    if span >= available or (available - span) % 2 == 0 then
+        return 0
+    end
+    return 1
+end
+
 --- Centre the floats as one block and fill in the rest of the layout.
 ---@param list_width integer
 ---@param list_height integer
 ---@param preview_width integer 0 without a preview.
 ---@return keystone.select.Layout
 local function _centre(list_width, list_height, preview_width)
-    local cols, lines = vim.o.columns, vim.o.lines
+    local cols, lines = vim.o.columns, _usable_lines()
     local gap = preview_width > 0 and _GAP or 0
+
     -- Rows consumed: prompt (border + text + border) then the list's own border.
     local total_height = 3 + list_height + 2
+    -- Columns consumed: the floats side by side, plus the border either side of
+    -- the block -- `nvim_open_win` draws a border on the column it is handed, so
+    -- each float reaches one past its width. `_GAP` pays for the two that meet
+    -- in the middle, leaving the outer pair to count here.
+    local total_width  = list_width + gap + preview_width + 2
+
+    -- Whatever an odd remainder leaves over goes to the picker; see `_spare`.
+    local grow_height  = _spare(total_height, lines)
+    local grow_width   = _spare(total_width, cols)
+    list_height        = list_height + grow_height
+    total_height       = total_height + grow_height
+    total_width        = total_width + grow_width
+    if preview_width > 0 then
+        preview_width = preview_width + grow_width
+    else
+        list_width = list_width + grow_width
+    end
+
     return {
         row           = math.max(0, math.floor((lines - total_height) / 2)),
-        col           = math.max(0, math.floor((cols - (list_width + gap + preview_width)) / 2)),
+        col           = math.max(0, math.floor((cols - total_width) / 2)),
         width         = list_width + gap + preview_width,
         list_width    = list_width,
         list_height   = list_height,
@@ -153,7 +206,7 @@ end
 ---@param want_height integer Number of items.
 ---@return keystone.select.Layout
 local function _compute_layout(has_preview, want_width, want_height)
-    local cols, lines = vim.o.columns, vim.o.lines
+    local cols, lines = vim.o.columns, _usable_lines()
 
     if has_preview then
         local cfg = M.config.with_preview
