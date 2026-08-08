@@ -1,6 +1,6 @@
 # keystone.nvim
 
-Seventeen editor modules for Neovim: file, symbol and call trees, a key-hint
+Eighteen editor modules for Neovim: file, symbol and call trees, a key-hint
 popup, completion, a statusline, LSP and Treesitter setup, and a set of editor
 behaviour flags.
 
@@ -26,6 +26,7 @@ require("keystone").setup({
   -- Editor behaviour
   tweaks     = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
   largefile  = true,  -- skips treesitter/LSP/ftplugins on large files
+  marksigns  = true,  -- shows the marks that are set in the sign column (0.12+)
   animate    = false, -- interpolated scrolling
 
   -- Replaces something built in
@@ -115,6 +116,7 @@ Each module has its own page in [docs/](docs/):
 | [lspconfig](docs/lspconfig.md) | Enables configured LSP servers; per-server defaults and log rotation |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
 | [bookmarks](docs/bookmarks.md) | Persistent, optionally labelled line bookmarks |
+| [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
 | [largefile](docs/largefile.md) | Opens files over a size threshold without Treesitter/LSP/ftplugins |
 | [notify](docs/notify.md) | A floating notification UI |
 | [select](docs/select.md) | A floating `vim.ui.select` prompt with fuzzy filtering |
