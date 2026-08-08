@@ -531,19 +531,23 @@ function Picker:_finish(entry)
 
     self:_release_preview()
 
-    for _, win in ipairs({ self._pwin, self._lwin, self._vwin }) do
-        if vim.api.nvim_win_is_valid(win) then
-            vim.api.nvim_win_close(win, true)
-        end
-    end
-    for _, buf in ipairs({ self._pbuf, self._lbuf, self._vbuf }) do
-        if vim.api.nvim_buf_is_valid(buf) then
-            vim.api.nvim_buf_delete(buf, { force = true })
-        end
-    end
-
+    -- Leaving insert mode steps the cursor one column left, and `:stopinsert`
+    -- only takes effect once this callback returns -- so the floats have to
+    -- outlive it, or that step lands in the window the focus falls back to.
     vim.cmd("stopinsert")
+
     vim.schedule(function()
+        for _, win in ipairs({ self._pwin, self._lwin, self._vwin }) do
+            if vim.api.nvim_win_is_valid(win) then
+                vim.api.nvim_win_close(win, true)
+            end
+        end
+        for _, buf in ipairs({ self._pbuf, self._lbuf, self._vbuf }) do
+            if vim.api.nvim_buf_is_valid(buf) then
+                vim.api.nvim_buf_delete(buf, { force = true })
+            end
+        end
+
         if entry then
             self._on_choice(entry.item, entry.idx)
         else
