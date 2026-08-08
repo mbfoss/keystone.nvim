@@ -35,19 +35,45 @@ local _WINHL      = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title"
 -- Leading room in the list for the selection marker.
 local _PREFIX     = "  "
 
+-- Columns left between the list and the preview beside it.
+local _GAP        = 2
+
+--- Sizing for a picker that shows a preview. Fixed fractions of the editor: the
+--- preview needs its room whatever the items look like.
+---@class keystone.select.WithPreviewConfig
+---@field width_ratio number Fraction of the editor width the picker occupies; the list takes half of it, the preview the other half.
+---@field height_ratio number Fraction of the editor height the picker occupies.
+
+--- Sizing for a picker without a preview, where the items decide within bounds.
+--- Every ratio is a fraction of the editor; the `max_` pair also has to cover the
+--- prompt above the list, the `min_` pair applies to the list alone.
+---@class keystone.select.WithoutPreviewConfig
+---@field min_width_ratio number Width the list keeps however narrow its labels.
+---@field max_width_ratio number Width the widest label may grow the list to.
+---@field min_height_ratio number Height the list keeps however few the items.
+---@field max_height_ratio number Height the picker may grow to.
+
 ---@class keystone.select.Config
 ---@field enabled boolean Install the `vim.ui.select` override.
----@field width_ratio number Fraction of the editor width the list occupies; a minimum without a preview.
----@field height_ratio number Fraction of the editor height the picker occupies.
 ---@field sort boolean Order filtered items by fuzzy score instead of the caller's order.
+---@field with_preview keystone.select.WithPreviewConfig
+---@field without_preview keystone.select.WithoutPreviewConfig
 
 ---@return keystone.select.Config
 local function _default_config()
     return {
-        enabled      = true,
-        width_ratio  = 0.4,
-        height_ratio = 0.7,
-        sort         = false,
+        enabled         = true,
+        sort            = false,
+        with_preview    = {
+            width_ratio  = 0.8,
+            height_ratio = 0.7,
+        },
+        without_preview = {
+            min_width_ratio  = 0.4,
+            max_width_ratio  = 0.8,
+            min_height_ratio = 0.2,
+            max_height_ratio = 0.7,
+        },
     }
 end
 
@@ -83,33 +109,23 @@ local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
 end
 
---- Geometry for the three floats, centred as one block. The size is a fraction of
---- the editor whatever the items look like: a short or narrow list leaves empty
---- space rather than shrinking the picker, so the floats keep the same size and
---- position as a query filters the list down.
----
---- The one thing the items still decide is how far past `width_ratio` a
---- preview-less list may grow: there the ratio is a floor rather than the width,
---- since nothing shares the row and truncating labels would cost more than the
---- extra columns.
----@param has_preview boolean
----@param want_width integer Widest label, in display cells.
+---@param total integer Editor width or height, in cells.
+---@param ratio number
+---@param min number Smallest ratio worth honouring.
+---@param max number Largest ratio worth honouring.
+---@return integer
+local function _cells(total, ratio, min, max)
+    return math.ceil(total * _clamp(ratio, min, max))
+end
+
+--- Centre the floats as one block and fill in the rest of the layout.
+---@param list_width integer
+---@param list_height integer
+---@param preview_width integer 0 without a preview.
 ---@return keystone.select.Layout
-local function _compute_layout(has_preview, want_width)
+local function _centre(list_width, list_height, preview_width)
     local cols, lines = vim.o.columns, vim.o.lines
-    local gap = has_preview and 2 or 0
-
-    local list_height = _clamp(
-        math.ceil(lines * _clamp(M.config.height_ratio, 0.3, 0.9)) - 3, 1, math.max(1, lines - 6))
-    local list_width = math.ceil(cols * _clamp(M.config.width_ratio, 0.1, 0.8))
-
-    local preview_width = 0
-    if has_preview then
-        preview_width = _clamp(math.min(list_width * 2, cols) - list_width - 1, 1, cols)
-    else
-        list_width = _clamp(want_width + #_PREFIX + 1, list_width, math.ceil(cols * 0.8))
-    end
-
+    local gap = preview_width > 0 and _GAP or 0
     -- Rows consumed: prompt (border + text + border) then the list's own border.
     local total_height = 3 + list_height + 2
     return {
@@ -122,6 +138,52 @@ local function _compute_layout(has_preview, want_width)
     }
 end
 
+--- Geometry for the three floats. With a preview the block is a fixed fraction of
+--- the editor whatever the items look like: the preview needs the room even when
+--- the list is short, and a fixed block keeps the floats where they are as a query
+--- filters the list down.
+---
+--- Without a preview nothing else shares the row, so there the items decide the
+--- size within the configured bounds: the list is as wide as its widest label and
+--- as tall as it has items, so a two-item choice reads as a small menu rather than
+--- a mostly empty picker. Both are measured once, over the caller's full item list,
+--- so filtering still does not resize anything.
+---@param has_preview boolean
+---@param want_width integer Widest label, in display cells.
+---@param want_height integer Number of items.
+---@return keystone.select.Layout
+local function _compute_layout(has_preview, want_width, want_height)
+    local cols, lines = vim.o.columns, vim.o.lines
+
+    if has_preview then
+        local cfg = M.config.with_preview
+        -- `width_ratio` buys the whole row: the two floats split what the gap
+        -- between them leaves, the list taking the smaller half of an odd rest.
+        local rest = math.max(2, _cells(cols, cfg.width_ratio, 0.2, 1.0) - _GAP)
+        local list_width = math.floor(rest / 2)
+        return _centre(
+            list_width,
+            _clamp(_cells(lines, cfg.height_ratio, 0.3, 0.9) - 3, 1, math.max(1, lines - 6)),
+            rest - list_width)
+    end
+
+    local cfg = M.config.without_preview
+
+    -- `math.max` / `math.min` against the opposite bound, so the ceiling wins where
+    -- the two ratios cross: a floor may not push the picker past its maximum.
+    local max_width = _cells(cols, cfg.max_width_ratio, 0.1, 1.0)
+    local min_width = math.min(_cells(cols, cfg.min_width_ratio, 0, 1.0), max_width)
+
+    local max_height = _clamp(
+        _cells(lines, cfg.max_height_ratio, 0.3, 0.9) - 3, 1, math.max(1, lines - 6))
+    local min_height = math.min(_cells(lines, cfg.min_height_ratio, 0, 0.9), max_height)
+
+    return _centre(
+        _clamp(want_width + #_PREFIX + 1, math.max(1, min_width), max_width),
+        _clamp(want_height, math.max(1, min_height), max_height),
+        0)
+end
+
 ---@class keystone.select.Picker
 ---@field private _entries keystone.select.Entry[]
 ---@field private _pool {label:string,i:integer}[] Match input; `i` indexes `_entries`.
@@ -131,6 +193,7 @@ end
 ---@field private _on_choice fun(item:any?, idx:integer?)
 ---@field private _layout keystone.select.Layout
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
+---@field private _want_height integer Number of items; fixed for the picker's life.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -164,12 +227,13 @@ function Picker.new(entries, opts, on_choice)
 
     self._pool         = {}
     self._want_width   = 0
+    self._want_height  = #entries
     for i, entry in ipairs(entries) do
         self._pool[i] = { label = entry.label, i = i }
         self._want_width = math.max(self._want_width, vim.fn.strdisplaywidth(entry.label))
     end
 
-    self._layout = _compute_layout(self._preview_item ~= nil, self._want_width)
+    self._layout = _compute_layout(self._preview_item ~= nil, self._want_width, self._want_height)
     self:_open(opts.prompt and opts.prompt:gsub("%s*:%s*$", "") or "Select")
     self:_render()
 
@@ -282,7 +346,7 @@ end
 function Picker:_relayout()
     if self._closed then return end
 
-    local L = _compute_layout(self._preview_item ~= nil, self._want_width)
+    local L = _compute_layout(self._preview_item ~= nil, self._want_width, self._want_height)
     self._layout = L
 
     vim.api.nvim_win_set_config(self._pwin, {

@@ -12,9 +12,17 @@ preview window for callers that offer one.
 ```lua
 require("keystone").setup({
   select = {
-    width_ratio  = 0.4,   -- fraction of the editor width the list occupies (a minimum, without a preview)
-    height_ratio = 0.7,   -- fraction of the editor height the picker occupies
-    sort         = false, -- order filtered items by fuzzy score, not the caller's order
+    sort            = false, -- order filtered items by fuzzy score, not the caller's order
+    with_preview    = {      -- sizing when the caller offers a preview
+      width_ratio  = 0.8,     -- fraction of the editor width the picker occupies
+      height_ratio = 0.7,     -- fraction of the editor height the picker occupies
+    },
+    without_preview = {      -- sizing when it does not; the items decide, within these
+      min_width_ratio  = 0.4, -- width the list keeps however narrow its labels
+      max_width_ratio  = 0.8, -- width the widest label may grow the list to
+      min_height_ratio = 0.2, -- height the list keeps however few the items
+      max_height_ratio = 0.7, -- height the picker may grow to
+    },
   },
 })
 ```
@@ -22,8 +30,19 @@ require("keystone").setup({
 Filtering keeps the caller's order by default, so items stay where you last saw
 them as you type; set `sort = true` to float the best fuzzy matches to the top.
 
-Without a preview the prompt shrinks to fit its items, so a two-item choice
-reads as a small menu rather than a picker.
+With a preview the picker is a fixed fraction of the editor — the preview needs
+the room whatever the items look like — and `width_ratio` buys the whole row, the
+list and the preview taking half each. Without one the items decide: the list is
+as wide as its widest label and as tall as it has items, clamped into the
+`without_preview` bounds, so a two-item choice reads as a small menu rather than a
+mostly empty picker. Both are measured once, over the full item list, so filtering
+never resizes anything.
+
+Every ratio is a fraction of the editor, and every one of them covers the whole
+picker — `height_ratio` and `max_height_ratio` include the prompt above the list,
+`width_ratio` includes the gap between the list and the preview. The exception is
+`min_height_ratio`, which applies to the list alone. Where a minimum and a maximum
+cross, the maximum wins.
 
 ## Keys
 
