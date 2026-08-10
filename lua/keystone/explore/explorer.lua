@@ -4,6 +4,7 @@ local fsutil      = require("keystone.util.fsutil")
 local ui          = require("keystone.util.ui")
 local layouts     = require("keystone.explore.layouts")
 local floatwin    = require("keystone.util.floatwin")
+local strutil     = require("util.strutil")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
@@ -754,7 +755,7 @@ function Explorer:run_fetch(direction, on_complete)
             if display_path == "" then display_path = "/" end
             if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
                 vim.api.nvim_win_set_config(self.lwin, {
-                    title = fsutil.smart_crop_path(display_path, fetch_opts.list_width),
+                    title = strutil.crop_for_ui(display_path, fetch_opts.list_width, true),
                     title_pos = "left",
                 })
             end
