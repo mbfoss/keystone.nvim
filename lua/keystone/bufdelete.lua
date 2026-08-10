@@ -77,6 +77,16 @@ local function _is_listed(bufnr)
   return vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buflisted
 end
 
+--- A buffer a window can be left sitting on: an ordinary file buffer. Terminals,
+--- help, quickfix and the rest are listed often enough to be picked as a
+--- replacement, and landing a window on one after a delete is never what was
+--- meant -- the window should show a file, or nothing.
+---@param bufnr integer
+---@return boolean
+local function _is_normal(bufnr)
+  return vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == ""
+end
+
 --- Every window showing `bufnr`, across all tabpages (`nvim_list_wins` only
 --- covers the current one).
 ---@param bufnr integer
@@ -200,7 +210,9 @@ end
 
 --- What `win` should show once the buffer it displays is gone: its own
 --- alternate file if that survives, else the most recently used listed buffer
---- that is not itself doomed, else a shared empty buffer.
+--- that is not itself doomed, else a shared empty buffer. Every candidate is a
+--- normal file buffer -- a window is never handed a terminal, help or quickfix
+--- buffer it did not ask for.
 ---@param win integer
 ---@param doomed table<integer, true> buffers about to be deleted
 ---@param cache { bufnr: integer? }
@@ -209,7 +221,8 @@ local function _replacement_for(win, doomed, cache)
   ---@param bufnr integer?
   ---@return boolean
   local function usable(bufnr)
-    return bufnr ~= nil and bufnr > 0 and not doomed[bufnr] and _is_listed(bufnr)
+    return bufnr ~= nil and bufnr > 0 and not doomed[bufnr]
+        and _is_listed(bufnr) and _is_normal(bufnr)
   end
 
   -- `#` is per-window, so this is the buffer *this* window would jump back to.
