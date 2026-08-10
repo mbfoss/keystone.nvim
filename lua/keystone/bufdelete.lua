@@ -390,7 +390,9 @@ function M.delete_many(bufnrs, opts)
   for _, bufnr in ipairs(bufnrs) do
     if vim.api.nvim_buf_is_valid(bufnr) then
       if apply_ignore and M.is_ignored(bufnr) then
-        ignored = ignored + 1
+        if not (M.config.ignore_special_buffers and not _is_normal(bufnr)) then
+          ignored = ignored + 1
+        end
       elseif not force and _blocker(bufnr) then
         unsafe = unsafe + 1
       else
