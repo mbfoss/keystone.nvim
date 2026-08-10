@@ -5,7 +5,8 @@ local ui = require("keystone.util.ui")
 
 -- ---------------------------------------------------------------------------
 -- A deliberately small picker: the minimal subset of a fuzzy picker needed to
--- implement `vim.ui.select`. A prompt float, a filtered list float and -- when
+-- implement `vim.ui.select`. A prompt float sitting directly on a list float --
+-- one shared frame, helix style -- and -- when
 -- the caller passes `preview_item` -- a preview float that simply displays a
 -- *buffer* the caller hands back. Nothing else: no sources, no async finders, no
 -- flags, no history. Anything richer belongs in a real picker plugin.
@@ -37,6 +38,20 @@ local _PREFIX     = "  "
 
 -- Columns left between the list and the preview beside it.
 local _GAP        = 2
+
+-- Helix-style framing: the prompt and the list are one box. The prompt draws the
+-- top, the sides and the tee-ended rule dividing the query from the items; the
+-- list draws its sides and the bottom, and nothing of its own where the rule
+-- already is -- so the two floats read as a single frame. Border order is
+-- {tl, t, tr, r, br, b, bl, l}; an empty string means no border there, and no
+-- row or column reserved for it.
+local _BORDER_TOP    = { "╭", "─", "╮", "│", "┤", "─", "├", "│" }
+local _BORDER_BOTTOM = { "", "", "", "│", "╯", "─", "╰", "│" }
+local _BORDER_FULL   = "rounded"
+
+-- Rows the prompt costs: its top border, its single line of text, and the rule
+-- below it.
+local _PROMPT_ROWS   = 3
 
 --- Sizing for a picker that shows a preview. Fixed fractions of the editor: the
 --- preview needs its room whatever the items look like. Height is measured
@@ -98,8 +113,7 @@ M.config = _default_config()
 ---@class keystone.select.Layout
 ---@field row integer
 ---@field col integer
----@field width integer Prompt width -- spans the list, the gap and the preview.
----@field list_width integer
+---@field list_width integer Width of the prompt and the list alike -- they share one frame.
 ---@field list_height integer
 ---@field preview_width integer
 
@@ -161,8 +175,10 @@ local function _centre(list_width, list_height, preview_width)
     local cols, lines = vim.o.columns, _usable_lines()
     local gap = preview_width > 0 and _GAP or 0
 
-    -- Rows consumed: prompt (border + text + border) then the list's own border.
-    local total_height = 3 + list_height + 2
+    -- Rows consumed: the prompt's top border and text, the list, and the single
+    -- bottom border closing the shared frame -- the edge between them is drawn
+    -- by neither float.
+    local total_height = _PROMPT_ROWS + list_height + 1
     -- Columns consumed: the floats side by side, plus the border either side of
     -- the block -- `nvim_open_win` draws a border on the column it is handed, so
     -- each float reaches one past its width. `_GAP` pays for the two that meet
@@ -184,7 +200,6 @@ local function _centre(list_width, list_height, preview_width)
     return {
         row           = math.max(0, math.floor((lines - total_height) / 2)),
         col           = math.max(0, math.floor((cols - total_width) / 2)),
-        width         = list_width + gap + preview_width,
         list_width    = list_width,
         list_height   = list_height,
         preview_width = preview_width,
@@ -216,7 +231,7 @@ local function _compute_layout(has_preview, want_width, want_height)
         local list_width = math.floor(rest / 2)
         return _centre(
             list_width,
-            _clamp(_cells(lines, cfg.height_ratio, 0.3, 0.9) - 3, 1, math.max(1, lines - 6)),
+            _clamp(_cells(lines, cfg.height_ratio, 0.3, 0.9) - 4, 1, math.max(1, lines - 4)),
             rest - list_width)
     end
 
@@ -228,7 +243,7 @@ local function _compute_layout(has_preview, want_width, want_height)
     local min_width = math.min(_cells(cols, cfg.min_width_ratio, 0, 1.0), max_width)
 
     local max_height = _clamp(
-        _cells(lines, cfg.max_height_ratio, 0.3, 0.9) - 3, 1, math.max(1, lines - 6))
+        _cells(lines, cfg.max_height_ratio, 0.3, 0.9) - 4, 1, math.max(1, lines - 4))
     local min_height = math.min(_cells(lines, cfg.min_height_ratio, 0, 0.9), max_height)
 
     return _centre(
@@ -247,6 +262,7 @@ end
 ---@field private _layout keystone.select.Layout
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
 ---@field private _want_height integer Number of items; fixed for the picker's life.
+---@field private _title string Prompt border title, re-applied on every relayout.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -296,8 +312,9 @@ end
 ---@param title string
 ---@return nil
 function Picker:_open(title)
-    local base = { relative = "editor", style = "minimal", border = "rounded" }
-    local L    = self._layout
+    local base  = { relative = "editor", style = "minimal" }
+    local L     = self._layout
+    self._title = " " .. title .. " "
 
     self._pbuf = ui.create_scratch_buffer(false, { modifiable = true })
     self._lbuf = ui.create_scratch_buffer(false, { modifiable = false })
@@ -306,19 +323,21 @@ function Picker:_open(title)
     self._pwin, augroup = ui.create_window(self._pbuf, true, vim.tbl_extend("force", base, {
         row       = L.row,
         col       = L.col,
-        width     = L.width,
+        width     = L.list_width,
         height    = 1,
-        title     = " " .. title .. " ",
+        border    = _BORDER_TOP,
+        title     = self._title,
         title_pos = "center",
     }), function() self:_finish(nil) end)
     vim.wo[self._pwin].winhighlight = _WINHL
     vim.wo[self._pwin].wrap = false
 
     self._lwin = ui.create_window(self._lbuf, false, vim.tbl_extend("force", base, {
-        row    = L.row + 3,
+        row    = L.row + _PROMPT_ROWS,
         col    = L.col,
         width  = L.list_width,
         height = L.list_height,
+        border = _BORDER_BOTTOM,
     }), function() self:_finish(nil) end)
     vim.wo[self._lwin].winhighlight = _WINHL
     vim.wo[self._lwin].wrap = false
@@ -328,11 +347,15 @@ function Picker:_open(title)
         -- every time a real preview buffer takes over the window, and wiping it
         -- there would leave nothing to fall back to.
         self._vbuf = ui.create_scratch_buffer(false, { modifiable = false, bufhidden = "hide" })
+        -- Its top border lands on `row`, the same one the prompt's does, and its
+        -- height is the rows between the two -- so the preview closes level with
+        -- the bottom of the frame beside it.
         self._vwin = ui.create_window(self._vbuf, false, vim.tbl_extend("force", base, {
-            row    = L.row + 3,
+            row    = L.row,
             col    = L.col + L.list_width + 2,
             width  = L.preview_width,
-            height = L.list_height,
+            height = L.list_height + _PROMPT_ROWS - 1,
+            border = _BORDER_FULL,
         }), function() self:_finish(nil) end)
         vim.wo[self._vwin].winhighlight = _WINHL
         vim.wo[self._vwin].wrap = false
@@ -402,17 +425,21 @@ function Picker:_relayout()
     local L = _compute_layout(self._preview_item ~= nil, self._want_width, self._want_height)
     self._layout = L
 
+    -- `nvim_win_set_config` resets what it is not handed, so the border and the
+    -- title come along on every move.
     vim.api.nvim_win_set_config(self._pwin, {
-        relative = "editor", row = L.row, col = L.col, width = L.width, height = 1,
+        relative = "editor", row = L.row, col = L.col, width = L.list_width, height = 1,
+        border = _BORDER_TOP, title = self._title, title_pos = "center",
     })
     vim.api.nvim_win_set_config(self._lwin, {
-        relative = "editor", row = L.row + 3, col = L.col,
-        width = L.list_width, height = L.list_height,
+        relative = "editor", row = L.row + _PROMPT_ROWS, col = L.col,
+        width = L.list_width, height = L.list_height, border = _BORDER_BOTTOM,
     })
     if self._vwin then
         vim.api.nvim_win_set_config(self._vwin, {
-            relative = "editor", row = L.row + 3, col = L.col + L.list_width + 2,
-            width = L.preview_width, height = L.list_height,
+            relative = "editor", row = L.row, col = L.col + L.list_width + 2,
+            width = L.preview_width, height = L.list_height + _PROMPT_ROWS - 1,
+            border = _BORDER_FULL,
         })
     end
 end
