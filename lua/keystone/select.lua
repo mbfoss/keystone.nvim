@@ -16,10 +16,7 @@ local ui = require("keystone.util.ui")
 -- keystone module requires this one -- the ones that prompt for a choice call
 -- `vim.ui.select`, so they get whichever implementation the user installed.
 --
--- `preview_item` is this module's one extension over `vim.ui.select.Opts`; other
--- implementations ignore an unknown option, so callers can pass it freely.
--- Because the preview is a real buffer rather than a copy of its lines, live
--- (unsaved) contents, syntax and extmarks show up as they are.
+-- Implements the `preview_item` field in `vim.ui.select.Opts` added in neovim 12
 -- ---------------------------------------------------------------------------
 
 local _NS_MATCH   = vim.api.nvim_create_namespace("keystone_select_match")
