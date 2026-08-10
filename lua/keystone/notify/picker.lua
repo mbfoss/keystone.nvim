@@ -73,7 +73,7 @@ function M.spec()
             if not data then return end
             local bufnr = ui.create_scratch_buffer(true, {})
             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, data.message)
-            vim.api.nvim_set_current_buf(bufnr)
+            ui.smart_open_buffer(bufnr)
         end,
     }
 end
