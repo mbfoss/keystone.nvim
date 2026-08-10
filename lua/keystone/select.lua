@@ -45,7 +45,11 @@ local _GAP        = 2
 -- already is -- so the two floats read as a single frame. Border order is
 -- {tl, t, tr, r, br, b, bl, l}; an empty string means no border there, and no
 -- row or column reserved for it.
-local _BORDER_TOP    = { "╭", "─", "╮", "│", "┤", "─", "├", "│" }
+-- The rule takes its own highlight, a `{char, hl}` pair where the rest of the
+-- border is a plain string on `FloatBorder`: it divides the frame rather than
+-- bounding it, so it reads better dimmed. Its ends are the plain side character,
+-- not a tee, so the frame's sides run straight past it.
+local _BORDER_TOP    = { "╭", "─", "╮", "│", "│", { "─", "NonText" }, "│", "│" }
 local _BORDER_BOTTOM = { "", "", "", "│", "╯", "─", "╰", "│" }
 local _BORDER_FULL   = "rounded"
 
