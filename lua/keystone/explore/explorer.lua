@@ -4,7 +4,7 @@ local fsutil      = require("keystone.util.fsutil")
 local ui          = require("keystone.util.ui")
 local layouts     = require("keystone.explore.layouts")
 local floatwin    = require("keystone.util.floatwin")
-local strutil     = require("util.strutil")
+local strutil     = require("keystone.util.strutil")
 
 ---@mod keystone.picker
 ---@brief Floating async picker with fuzzy filtering and optional preview.
