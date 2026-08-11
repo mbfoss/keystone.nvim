@@ -41,13 +41,14 @@ function M.spec()
     for i = #history, 1, -1 do reversed[#reversed + 1] = history[i] end
     history = reversed
 
+    ---@type ezpick.PickerSpec
     return {
         prompt          = "Notification History",
         enable_preview  = true,
         finder          = function(query, _, fetch_opts, callback)
             local items = {}
             for _, entry in ipairs(history) do
-                local text = strutil.crop_for_ui(table.concat(entry.message, " "), fetch_opts.list_width)
+                local text = strutil.crop_for_ui(table.concat(entry.message, " "), fetch_opts.line_width)
                 local res  = pickertools.match_label(text, query)
                 if res then
                     local timestamp = os.date("%H:%M:%S", math.floor(entry.timestamp / 1000))

@@ -36,7 +36,7 @@ local _antiflicker_delay = 200
 ---@alias keystone.Explorer.Callback fun(path:string[]?)
 
 ---@class keystone.Explorer.FetcherOpts
----@field list_width number
+---@field line_width number
 ---@field list_height number
 ---@field show_hidden boolean Whether hidden items should be included (interpretation is finder-defined)
 
@@ -706,7 +706,7 @@ function Explorer:run_fetch(direction, on_complete)
     self:request_clear_preview()
 
     local fetch_opts = {
-        list_width = math.max(1, self.layout.list_width - 2), -- -2 for borders
+        line_width = math.max(1, self.layout.list_width - 2), -- -2 for borders
         list_height = math.max(1, self.layout.list_height - 2),
         show_hidden = self.show_hidden,
     }
@@ -755,7 +755,7 @@ function Explorer:run_fetch(direction, on_complete)
             if display_path == "" then display_path = "/" end
             if self.lwin and vim.api.nvim_win_is_valid(self.lwin) then
                 vim.api.nvim_win_set_config(self.lwin, {
-                    title = strutil.crop_for_ui(display_path, fetch_opts.list_width, true),
+                    title = strutil.crop_for_ui(display_path, fetch_opts.line_width, true),
                     title_pos = "left",
                 })
             end
