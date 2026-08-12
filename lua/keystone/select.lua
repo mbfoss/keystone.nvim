@@ -36,13 +36,16 @@ local _PREFIX     = "  "
 -- Columns left between the list and the preview beside it.
 local _GAP        = 2
 
--- Helix-style framing
-local _BORDER_TOP    = { "╭", "─", "╮", "│", "│", { "─", "NonText" }, "│", "│" }
-local _BORDER_BOTTOM = { "", "", "", "│", "╯", "─", "╰", "│" }
+-- Helix-style framing. The rule between the prompt and the list is the list's
+-- top border, not the prompt's bottom one: the count rides on it as a title, and
+-- a title belongs to the window whose contents it counts -- so keeping it there
+-- leaves the focused prompt window untouched as the count changes.
+local _BORDER_TOP    = { "╭", "─", "╮", "│", "", "", "", "│" }
+local _BORDER_BOTTOM = { "│", { "─", "NonText" }, "│", "│", "╯", "─", "╰", "│" }
 local _BORDER_FULL   = "rounded"
 
--- Rows the prompt costs: its top border, its single line of text, and the rule
--- below it.
+-- Rows above the list's first item: the prompt's top border, its single line of
+-- text, and the rule below it.
 local _PROMPT_ROWS   = 3
 
 --- Sizing for a picker that shows a preview. Fixed fractions of the editor: the
@@ -255,7 +258,7 @@ end
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
 ---@field private _want_height integer Number of items; fixed for the picker's life.
 ---@field private _title string Prompt border title, re-applied on every relayout.
----@field private _count string? Prompt border footer: the cursor position, right aligned.
+---@field private _count string? List border title: the cursor position, right aligned.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -319,13 +322,9 @@ function Picker:_open(title)
     vim.wo[self._pwin].winhighlight = _WINHL
     vim.wo[self._pwin].wrap = false
 
-    self._lwin = ui.create_window(self._lbuf, false, vim.tbl_extend("force", base, {
-        row    = L.row + _PROMPT_ROWS,
-        col    = L.col,
-        width  = L.list_width,
-        height = L.list_height,
-        border = _BORDER_BOTTOM,
-    }), function() self:_finish(nil) end)
+    self._lwin = ui.create_window(self._lbuf, false,
+        vim.tbl_extend("force", base, self:_list_config()),
+        function() self:_finish(nil) end)
     vim.wo[self._lwin].winhighlight = _WINHL
     vim.wo[self._lwin].wrap = false
 
@@ -398,7 +397,7 @@ function Picker:_open(title)
 end
 
 --- Window config for the prompt float. `nvim_win_set_config` resets what it is
---- not handed, so the border, title and footer all come along on every call.
+--- not handed, so the border and title come along on every call.
 ---@return vim.api.keyset.win_config
 function Picker:_prompt_config()
     local L = self._layout
@@ -411,16 +410,32 @@ function Picker:_prompt_config()
         border    = _BORDER_TOP,
         title     = self._title,
         title_pos = "center",
-        footer     = self:_footer(),
-        footer_pos = "right",
     }
 end
 
---- The footer chunks for the current count; `""` when there is nothing to show,
+--- Window config for the list float. Its top border is the rule under the
+--- prompt -- hence the row one above the list's own first line -- and carries
+--- the count as its title.
+---@return vim.api.keyset.win_config
+function Picker:_list_config()
+    local L = self._layout
+    return {
+        relative  = "editor",
+        row       = L.row + _PROMPT_ROWS - 1,
+        col       = L.col,
+        width     = L.list_width,
+        height    = L.list_height,
+        border    = _BORDER_BOTTOM,
+        title     = self:_title_count(),
+        title_pos = "right",
+    }
+end
+
+--- The title chunks for the current count; `""` when there is nothing to show,
 --- since `nvim_win_set_config` ignores a key it is handed as nil and would leave
 --- a stale count on the border.
 ---@return [string, string][]|string
-function Picker:_footer()
+function Picker:_title_count()
     return self._count and { { " " .. self._count, "NonText" } } or ""
 end
 
@@ -440,10 +455,7 @@ function Picker:_relayout()
     self._layout = L
 
     vim.api.nvim_win_set_config(self._pwin, self:_prompt_config())
-    vim.api.nvim_win_set_config(self._lwin, {
-        relative = "editor", row = L.row + _PROMPT_ROWS, col = L.col,
-        width = L.list_width, height = L.list_height, border = _BORDER_BOTTOM,
-    })
+    vim.api.nvim_win_set_config(self._lwin, self:_list_config())
     if self._vwin then
         vim.api.nvim_win_set_config(self._vwin, {
             relative = "editor", row = L.row, col = L.col + L.list_width + 2,
@@ -559,17 +571,16 @@ function Picker:_render_cursor()
     self:_set_count(string.format("%d/%d", row, #self._matches))
 end
 
---- Show `count` on the prompt's bottom border, right aligned.
+--- Show `count` on the rule above the list, right aligned. The list window is
+--- never the focused one, so re-configuring it costs no cursor flicker.
 ---@param count string? Text, or nil to clear.
 ---@return nil
 function Picker:_set_count(count)
     if count == self._count then return end
     self._count = count
-    -- schedule footer config to avoid cursor flicker
-    vim.schedule(function ()
-        if not (self._pwin and vim.api.nvim_win_is_valid(self._pwin)) then return end
-        vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })
-    end)
+    if self._lwin and vim.api.nvim_win_is_valid(self._lwin) then
+        vim.api.nvim_win_set_config(self._lwin, self:_list_config())
+    end
 end
 
 ---@return integer row 1-based row of the highlighted item.
