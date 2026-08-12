@@ -31,9 +31,11 @@ function M.set_at_cursor()
         vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
         return
     end
+    local bufnr = vim.api.nvim_get_current_buf()
     file = core.norm(file)
     if core.mark_group.get_extmark_by_location(file, lnum, true) then return end
-    core.upsert(file, lnum, nil)
+    -- No label was asked for here, so fall back to the bookmarked line's text.
+    core.upsert(file, lnum, core.line_text(bufnr, lnum))
 end
 
 function M.set_label_at_cursor()

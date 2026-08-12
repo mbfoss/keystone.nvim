@@ -317,6 +317,20 @@ function M.get_cur_loc()
     return file, lnum
 end
 
+-- Text of a bookmarked line, used as the fallback label so an unlabelled bookmark
+-- still reads as something in the list/picker. Only loaded buffers are consulted --
+-- the caller bookmarks a line it is sitting on.
+---@param bufnr integer
+---@param lnum integer  1-based
+---@return string?  trimmed line text, nil when blank or out of range
+function M.line_text(bufnr, lnum)
+    if not vim.api.nvim_buf_is_loaded(bufnr) then return nil end
+    local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+    if not line then return nil end
+    line = line:match("^%s*(.-)%s*$")
+    return line ~= "" and line or nil
+end
+
 ---@param file string
 ---@param lnum integer
 ---@param label string?
