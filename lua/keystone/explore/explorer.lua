@@ -59,7 +59,6 @@ local _antiflicker_delay = 200
 ---@field previewer keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
----@field min_list_width number|false? Cells the list keeps however narrow width_ratio works out. False or nil leaves it to the ratio.
 ---@field list_wrap boolean?
 
 ---@class keystone.Explorer.Layout
@@ -292,7 +291,6 @@ function Explorer:relayout(action)
         has_preview = has_preview,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
-        min_list_width = self.opts.min_list_width,
     }
 
     self._list_sep_line = string.rep("─", self.layout.list_width)
@@ -676,10 +674,6 @@ function Explorer:add_new_lines(items)
         -- insert in list buf
         local line_text = prefix .. label
         local has_detail = detail_w > 0 and item.detail_chunks and #item.detail_chunks > 0
-        if has_detail then
-            line_text = line_text ..
-                string.rep(" ", math.max(0, label_w - vim.fn.strdisplaywidth(line_text)))
-        end
         local row = idx - 1
         if is_fresh and idx == 1 then
             vim.api.nvim_buf_set_lines(self.lbuf, 0, 1, false, { line_text })
@@ -706,13 +700,12 @@ function Explorer:add_new_lines(items)
             end
         end
         if has_detail then
-            local pad = detail_w - vim.fn.strdisplaywidth(_chunks_text(item.detail_chunks))
-            local chunks = pad > 0 and { { string.rep(" ", pad) } } or {}
+            local chunks = {{" "}}
             vim.list_extend(chunks, item.detail_chunks)
             vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
                 virt_text = chunks,
-                virt_text_pos = "eol",
-                hl_mode = "blend",
+                virt_text_pos = "eol_right_align",
+                hl_mode = "combine",
             })
         end
         local vlines = {}

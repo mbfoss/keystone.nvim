@@ -12,17 +12,10 @@ local icons    = require("keystone.icons")
 ---@type keystone.explore.DetailField[]
 local _detail_fields = { "size", "mtime" }
 
--- Cells the list keeps whatever the width ratio works out to. Nil leaves it to the ratio.
----@type number?
-local _min_list_width = nil
-
----@param opts {detail_fields:keystone.explore.DetailField[]?,min_list_width:number?}?
+---@param opts {detail_fields:keystone.explore.DetailField[]?}?
 function M.configure(opts)
     if opts and opts.detail_fields then
         _detail_fields = opts.detail_fields
-    end
-    if opts then
-        _min_list_width = opts.min_list_width
     end
 end
 
@@ -124,7 +117,7 @@ local function _detail_chunks(stat)
         end
     end
     if #parts == 0 then return {} end
-    return { { "  " .. table.concat(parts, " ") } }
+    return { { "  " .. table.concat(parts, " ") , "Comment"} }
 end
 
 ---@param name string The filename or directory name
@@ -166,7 +159,6 @@ local function _explore_files(target_path)
         initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
         initial_cursor = initial,
         enable_preview = true,
-        min_list_width = _min_list_width,
         finder = function(path_parts, fetch_opts, callback)
             if not path_parts then
                 callback({})
