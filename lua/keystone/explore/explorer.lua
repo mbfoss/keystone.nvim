@@ -59,6 +59,7 @@ local _antiflicker_delay = 200
 ---@field previewer keystone.Explorer.AsyncPreviewLoader?
 ---@field height_ratio number?
 ---@field width_ratio number?
+---@field min_list_width number|false? Cells the list keeps however narrow width_ratio works out. False or nil leaves it to the ratio.
 ---@field list_wrap boolean?
 
 ---@class keystone.Explorer.Layout
@@ -291,6 +292,7 @@ function Explorer:relayout(action)
         has_preview = has_preview,
         height_ratio = self.opts.height_ratio,
         width_ratio = self.opts.width_ratio,
+        min_list_width = self.opts.min_list_width,
     }
 
     self._list_sep_line = string.rep("─", self.layout.list_width)

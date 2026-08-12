@@ -6,7 +6,7 @@ local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
 end
 
----@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?}
+---@param opts {has_preview:boolean,height_ratio:number?,width_ratio:number?,list_width:number?,min_list_width:number?}
 ---@return keystone.Explorer.Layout
 function M.get_horizontal_layout(opts)
     local cols = vim.o.columns
@@ -19,6 +19,9 @@ function M.get_horizontal_layout(opts)
     local list_width = math.ceil(
         cols * _clamp(opts.width_ratio or 0.4, 0.1, 0.8)
     )
+    if type(opts.min_list_width) == "number" then
+        list_width = math.min(math.max(list_width, opts.min_list_width), cols)
+    end
 
     local preview_width
     if has_preview then

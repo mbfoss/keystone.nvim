@@ -8,14 +8,21 @@ local icons    = require("keystone.icons")
 
 ---@alias keystone.explore.DetailField "size"|"mtime"
 
--- Fields shown in the leading detail columns, in order. Configurable via M.configure.
+-- Fields shown in the right-aligned detail column, in order. Configurable via M.configure.
 ---@type keystone.explore.DetailField[]
 local _detail_fields = { "size", "mtime" }
 
----@param opts {detail_fields:keystone.explore.DetailField[]?}?
+-- Cells the list keeps whatever the width ratio works out to. Nil leaves it to the ratio.
+---@type number?
+local _min_list_width = nil
+
+---@param opts {detail_fields:keystone.explore.DetailField[]?,min_list_width:number?}?
 function M.configure(opts)
     if opts and opts.detail_fields then
         _detail_fields = opts.detail_fields
+    end
+    if opts then
+        _min_list_width = opts.min_list_width
     end
 end
 
@@ -117,7 +124,7 @@ local function _detail_chunks(stat)
         end
     end
     if #parts == 0 then return {} end
-    return { { table.concat(parts, " ") .. "  " } }
+    return { { "  " .. table.concat(parts, " ") } }
 end
 
 ---@param name string The filename or directory name
@@ -159,6 +166,7 @@ local function _explore_files(target_path)
         initial_path = vim.split(vim.fs.normalize(base_dir), '/'),
         initial_cursor = initial,
         enable_preview = true,
+        min_list_width = _min_list_width,
         finder = function(path_parts, fetch_opts, callback)
             if not path_parts then
                 callback({})
@@ -178,12 +186,11 @@ local function _explore_files(target_path)
 
                     local function make_entry(name, is_dir, is_link, link_target, stat)
                         local icon, icon_hl = _get_icon(name, is_dir)
-                        local chunks = _detail_chunks(stat)
-                        vim.list_extend(chunks, {
+                        local chunks = {
                             { icon, icon_hl },
                             { (" "):rep(math.max(1, _icon_w - vim.fn.strdisplaywidth(icon))) },
                             { name },
-                        })
+                        }
                         if is_link then
                             table.insert(chunks, { " " })
                             if link_target then
@@ -194,6 +201,7 @@ local function _explore_files(target_path)
                         end
                         return {
                             label_chunks = chunks,
+                            detail_chunks = _detail_chunks(stat),
                             name = name,
                             supports_preview = not is_dir,
                             selectable = not is_dir,
