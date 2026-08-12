@@ -60,7 +60,7 @@ local function _open()
 
     vim.w[win][_KEY_MARKER] = true
 
-    local bufname = "keystone://" .. bufnr .. "/File Tree"
+    local bufname = "keystone://" .. bufnr .. "/file-tree"
     vim.api.nvim_buf_set_name(bufnr, bufname)
     vim.api.nvim_win_set_buf(win, bufnr)
 
