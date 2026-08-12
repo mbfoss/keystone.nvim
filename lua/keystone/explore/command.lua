@@ -8,7 +8,7 @@ local icons    = require("keystone.icons")
 
 ---@alias keystone.explore.DetailField "size"|"mtime"
 
--- Fields shown in the right-aligned detail column, in order. Configurable via M.configure.
+-- Fields shown in the leading detail columns, in order. Configurable via M.configure.
 ---@type keystone.explore.DetailField[]
 local _detail_fields = { "size", "mtime" }
 
@@ -20,6 +20,18 @@ function M.configure(opts)
 end
 
 local _size_units = { "B", "KB", "MB", "GB", "TB", "PB" }
+
+--- Pads to a display width. `string.format`'s `%Ns` counts bytes, which shifts any
+--- column holding a multibyte month name such as "août".
+---@param text string
+---@param width integer
+---@param left_align boolean?
+---@return string
+local function _pad(text, width, left_align)
+    local fill = (" "):rep(math.max(0, width - vim.fn.strdisplaywidth(text)))
+    if left_align then return text .. fill end
+    return fill .. text
+end
 
 --- Number and unit get their own sub-columns -- right- and left-aligned respectively --
 --- so the digits line up the way `ls -lh` stacks them. Returns a fixed 9 cells: the
@@ -41,14 +53,32 @@ local function _fmt_size(bytes)
     return ("%6s %-2s"):format(num, _size_units[idx])
 end
 
---- `ls -l` style: recent timestamps show a clock, older ones a year, and the day is
---- space-padded so both forms occupy the same 12 cells. Built by hand rather than with
---- strftime's `%e`, which MSVC does not support.
+--- Abbreviated month names come from the C library, so their width follows the locale
+--- ("mai" against "juil."). The column is sized to the widest one rather than assumed
+--- to be three cells. Cached on first use, once a locale is settled.
+---@type integer?
+local _month_w = nil
+
+---@return integer
+local function _month_width()
+    if not _month_w then
+        _month_w = 0
+        for month = 1, 12 do
+            local name = os.date("%b", os.time({ year = 2001, month = month, day = 1 })) --[[@as string]]
+            _month_w = math.max(_month_w, vim.fn.strdisplaywidth(name))
+        end
+    end
+    return _month_w
+end
+
+--- `ls -l` style: recent timestamps show a clock, older ones a year, and both the month
+--- and the day are space-padded so the two forms occupy the same cells. Built by hand
+--- rather than with strftime's `%e`, which MSVC does not support.
 ---@param mtime_sec number
 ---@return string
 local function _fmt_mtime(mtime_sec)
     local t = os.date("*t", mtime_sec) --[[@as osdate]]
-    local month = os.date("%b", mtime_sec) --[[@as string]]
+    local month = _pad(os.date("%b", mtime_sec) --[[@as string]], _month_width(), true)
     if (os.time() - mtime_sec) < 15552000 then
         return ("%s %2d %02d:%02d"):format(month, t.day, t.hour, t.min)
     end
@@ -57,7 +87,16 @@ end
 
 -- Each field keeps a fixed slot even when it has no value, so a directory's blank
 -- size does not slide its mtime into the size column.
-local _field_widths = { size = 9, mtime = 12 }
+---@type table<keystone.explore.DetailField, fun():integer>
+local _field_widths = {
+    size = function() return 9 end,
+    -- month, space, 2-cell day, space, then "15:58" or " 2024".
+    mtime = function() return _month_width() + 9 end,
+}
+
+-- Display cells the icon slot occupies, separator included. Unknown file types come
+-- back without an icon, so the slot is padded to keep every name in one column.
+local _icon_w = 2
 
 ---@param stat uv.fs_stat.result|nil
 ---@return {[1]:string,[2]:string?}[]
@@ -74,11 +113,11 @@ local function _detail_chunks(stat)
                     text = _fmt_mtime(stat.mtime.sec)
                 end
             end
-            table.insert(parts, ("%" .. width .. "s"):format(text or ""))
+            table.insert(parts, _pad(text or "", width()))
         end
     end
     if #parts == 0 then return {} end
-    return { { "  " .. table.concat(parts, " "), "Comment" } }
+    return { { table.concat(parts, " ") .. "  " } }
 end
 
 ---@param name string The filename or directory name
@@ -138,11 +177,13 @@ local function _explore_files(target_path)
                     local pending = 0
 
                     local function make_entry(name, is_dir, is_link, link_target, stat)
-                        local chunks = {
-                            { _get_icon(name, is_dir) },
-                            { " " },
+                        local icon, icon_hl = _get_icon(name, is_dir)
+                        local chunks = _detail_chunks(stat)
+                        vim.list_extend(chunks, {
+                            { icon, icon_hl },
+                            { (" "):rep(math.max(1, _icon_w - vim.fn.strdisplaywidth(icon))) },
                             { name },
-                        }
+                        })
                         if is_link then
                             table.insert(chunks, { " " })
                             if link_target then
@@ -153,7 +194,6 @@ local function _explore_files(target_path)
                         end
                         return {
                             label_chunks = chunks,
-                            detail_chunks = _detail_chunks(stat),
                             name = name,
                             supports_preview = not is_dir,
                             selectable = not is_dir,
