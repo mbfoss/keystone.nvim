@@ -568,7 +568,7 @@ function Picker:_set_count(count)
     -- schedule footer config to avoid cursor flicker
     vim.schedule(function ()
         if not (self._pwin and vim.api.nvim_win_is_valid(self._pwin)) then return end
-        vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })     
+        vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })
     end)
 end
 
