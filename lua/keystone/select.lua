@@ -565,13 +565,11 @@ end
 function Picker:_set_count(count)
     if count == self._count then return end
     self._count = count
-    if not (self._pwin and vim.api.nvim_win_is_valid(self._pwin)) then return end
-
-    vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })
-    -- Reconfiguring the focused window leaves the terminal cursor wherever the
-    -- border redraw left it until the next flush, which reads as the cursor
-    -- jumping about while moving through the list. Put it back now.
-    vim.api.nvim__redraw({ win = self._pwin, cursor = true, flush = true })
+    -- schedule footer config to avoid cursor flicker
+    vim.schedule(function ()
+        if not (self._pwin and vim.api.nvim_win_is_valid(self._pwin)) then return end
+        vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })     
+    end)
 end
 
 ---@return integer row 1-based row of the highlighted item.
