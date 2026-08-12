@@ -21,6 +21,7 @@ local _antiflicker_delay = 200
 ---@class keystone.Explorer.Item
 ---@field label_chunks {[1]:string,[2]:string?}[]?
 ---@field virt_line? {[1]:string,[2]:string?}[] Single virtual line rendered below the entry.
+---@field detail_chunks? {[1]:string,[2]:string?}[] Right-aligned detail text (e.g. size, mtime) rendered on the entry's own line.
 ---@field name string
 ---@field supports_preview boolean?
 ---@field selectable boolean?
@@ -103,6 +104,31 @@ end
 ---@return number
 local function _clamp(v, min, max)
     return math.max(min, math.min(max, v))
+end
+
+---@param chunks {[1]:string,[2]:string?}[]?
+---@return string
+local function _chunks_text(chunks)
+    if not chunks then return "" end
+    local parts = {}
+    for _, chunk in ipairs(chunks) do
+        table.insert(parts, chunk[1] or "")
+    end
+    return table.concat(parts)
+end
+
+--- Crops to a display width (not a byte count) so multi-cell icons stay aligned.
+---@param str string
+---@param max_w number
+---@return string
+local function _crop_display(str, max_w)
+    if max_w <= 0 then return "" end
+    if vim.fn.strdisplaywidth(str) <= max_w then return str end
+    local out = str
+    while #out > 0 and vim.fn.strdisplaywidth(out) > max_w - 1 do
+        out = vim.fn.strcharpart(out, 0, vim.fn.strchars(out) - 1)
+    end
+    return out .. "…"
 end
 
 ---@param msg string
@@ -610,27 +636,30 @@ function Explorer:add_new_lines(items)
 
     -- A separator is what keeps a virtual line attached to its own entry, so it
     -- turns on for the whole list as soon as any item carries one.
+    local detail_w = 0
     for _, item in ipairs(items) do
         if item.virt_line and #item.virt_line > 0 then
             self._show_list_sep = true
-            break
+        end
+        if item.detail_chunks and #item.detail_chunks > 0 then
+            detail_w = math.max(detail_w, vim.fn.strdisplaywidth(_chunks_text(item.detail_chunks)))
         end
     end
+
+    -- Details sit at one fixed column for the whole list; labels are cropped to fit
+    -- before it so a long name can never push a detail out of alignment. In a window
+    -- too narrow to afford both, names win and details are dropped entirely.
+    local content_w = math.max(1, self.layout.list_width - 2)
+    if detail_w > math.floor(content_w / 2) then
+        detail_w = 0
+    end
+    local label_w = math.max(1, content_w - detail_w)
 
     vim.bo[self.lbuf].modifiable = true
     for _, item in ipairs(items) do
         -- build label
-        local label
-        if item.label_chunks then
-            local parts = {}
-            for _, chunk in ipairs(item.label_chunks) do
-                table.insert(parts, chunk[1] or "")
-            end
-            label = table.concat(parts)
-        else
-            label = ""
-        end
-        label = label:gsub("\n", " ")
+        local label = _chunks_text(item.label_chunks):gsub("\n", " ")
+        label = _crop_display(label, label_w - #prefix)
         -- insert in list data
         ---@type keystone.explorer.ListItem
         local list_item = {
@@ -644,6 +673,11 @@ function Explorer:add_new_lines(items)
         table.insert(self.list_items, idx, list_item)
         -- insert in list buf
         local line_text = prefix .. label
+        local has_detail = detail_w > 0 and item.detail_chunks and #item.detail_chunks > 0
+        if has_detail then
+            line_text = line_text ..
+                string.rep(" ", math.max(0, label_w - vim.fn.strdisplaywidth(line_text)))
+        end
         local row = idx - 1
         if is_fresh and idx == 1 then
             vim.api.nvim_buf_set_lines(self.lbuf, 0, 1, false, { line_text })
@@ -653,19 +687,31 @@ function Explorer:add_new_lines(items)
             vim.api.nvim_buf_set_lines(self.lbuf, row, row, false, { line_text })
         end
         if item.label_chunks then
+            local label_end = #prefix + #label
             local col = #prefix
             for _, chunk in ipairs(item.label_chunks) do
                 local text, hl = chunk[1], chunk[2]
                 if text and #text > 0 then
+                    if col >= label_end then break end
                     if hl then
                         vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, col, {
-                            end_col = col + #text,
+                            end_col = math.min(col + #text, label_end),
                             hl_group = hl,
                         })
                     end
                     col = col + #text
                 end
             end
+        end
+        if has_detail then
+            local pad = detail_w - vim.fn.strdisplaywidth(_chunks_text(item.detail_chunks))
+            local chunks = pad > 0 and { { string.rep(" ", pad) } } or {}
+            vim.list_extend(chunks, item.detail_chunks)
+            vim.api.nvim_buf_set_extmark(self.lbuf, _NS_CONTENT, row, 0, {
+                virt_text = chunks,
+                virt_text_pos = "eol",
+                hl_mode = "blend",
+            })
         end
         local vlines = {}
         if item.virt_line and #item.virt_line > 0 then
