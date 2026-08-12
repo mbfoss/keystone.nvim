@@ -538,9 +538,14 @@ function CallTree:_show_hover(call)
         table.insert(lines, "- **Call sites**: " .. call.call_count)
     end
 
-    floatwin.open(table.concat(lines, "\n"), {
-        title = "Call",
-        is_markdown = true,
+    vim.lsp.util.open_floating_preview(lines, "markdown", {
+        title = " Call ",
+        title_pos = "center",
+        border = "rounded",
+        max_width = math.floor(vim.o.columns * 0.8),
+        max_height = math.floor(vim.o.lines * 0.8),
+        wrap = false,
+        focus_id = "keystone_calltree_hover",
     })
 end
 
