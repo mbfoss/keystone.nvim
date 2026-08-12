@@ -28,7 +28,8 @@ vim.api.nvim_set_hl(0, _HL_MATCH, { default = true, link = "Special" })
 
 -- nvim_win_set_buf drops parts of 'winhighlight', so it is re-applied on every
 -- preview swap; keep it in one place.
-local _WINHL      = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title"
+local _WINHL      = "NormalFloat:Normal,FloatBorder:Normal,FloatTitle:Title," ..
+    "WinBar:Normal,WinBarNC:Normal"
 
 -- Leading room in the list for the selection marker.
 local _PREFIX     = "  "
@@ -36,13 +37,16 @@ local _PREFIX     = "  "
 -- Columns left between the list and the preview beside it.
 local _GAP        = 2
 
--- Helix-style framing. The rule between the prompt and the list is the list's
--- top border, not the prompt's bottom one: the count rides on it as a title, and
--- a title belongs to the window whose contents it counts -- so keeping it there
--- leaves the focused prompt window untouched as the count changes.
+-- Helix-style framing. The rule between the prompt and the list is drawn by
+-- neither border: it is the list's winbar, filled with `_RULE` and carrying the
+-- count at its right end. A winbar is a window-local option, so a changing count
+-- neither re-configures a window nor touches the focused prompt.
 local _BORDER_TOP    = { "╭", "─", "╮", "│", "", "", "", "│" }
-local _BORDER_BOTTOM = { "│", { "─", "NonText" }, "│", "│", "╯", "─", "╰", "│" }
+local _BORDER_BOTTOM = { "", "", "", "│", "╯", "─", "╰", "│" }
 local _BORDER_FULL   = "rounded"
+
+-- Fills the list's winbar, so it reads as the rule the top border used to draw.
+local _RULE          = "─"
 
 -- Rows above the list's first item: the prompt's top border, its single line of
 -- text, and the rule below it.
@@ -170,9 +174,8 @@ local function _centre(list_width, list_height, preview_width)
     local cols, lines = vim.o.columns, _usable_lines()
     local gap = preview_width > 0 and _GAP or 0
 
-    -- Rows consumed: the prompt's top border and text, the list, and the single
-    -- bottom border closing the shared frame -- the edge between them is drawn
-    -- by neither float.
+    -- Rows consumed: the prompt's top border and text, the list's winbar rule,
+    -- the list, and the single bottom border closing the shared frame.
     local total_height = _PROMPT_ROWS + list_height + 1
     -- Columns consumed: the floats side by side, plus the border either side of
     -- the block -- `nvim_open_win` draws a border on the column it is handed, so
@@ -258,7 +261,7 @@ end
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
 ---@field private _want_height integer Number of items; fixed for the picker's life.
 ---@field private _title string Prompt border title, re-applied on every relayout.
----@field private _count string? List border title: the cursor position, right aligned.
+---@field private _count string? List winbar: the cursor position, right aligned.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -327,6 +330,10 @@ function Picker:_open(title)
         function() self:_finish(nil) end)
     vim.wo[self._lwin].winhighlight = _WINHL
     vim.wo[self._lwin].wrap = false
+    -- `wbr` is what `%=` stretches across the winbar; `eob` comes with the
+    -- window's `style = "minimal"`, and setting 'fillchars' here would drop it.
+    vim.wo[self._lwin].fillchars = "eob: ,wbr:" .. _RULE
+    vim.wo[self._lwin].winbar = self:_winbar()
 
     if self._preview_item then
         -- 'hide', not the scratch default 'wipe': the placeholder goes hidden
@@ -413,30 +420,28 @@ function Picker:_prompt_config()
     }
 end
 
---- Window config for the list float. Its top border is the rule under the
---- prompt -- hence the row one above the list's own first line -- and carries
---- the count as its title.
+--- Window config for the list float. It has no top border: its first row is the
+--- winbar drawing the rule under the prompt, which is why the row is one above
+--- the list's own first line and the height carries one row extra.
 ---@return vim.api.keyset.win_config
 function Picker:_list_config()
     local L = self._layout
     return {
-        relative  = "editor",
-        row       = L.row + _PROMPT_ROWS - 1,
-        col       = L.col,
-        width     = L.list_width,
-        height    = L.list_height,
-        border    = _BORDER_BOTTOM,
-        title     = self:_title_count(),
-        title_pos = "right",
+        relative = "editor",
+        row      = L.row + _PROMPT_ROWS - 1,
+        col      = L.col,
+        width    = L.list_width,
+        height   = L.list_height + 1,
+        border   = _BORDER_BOTTOM,
     }
 end
 
---- The title chunks for the current count; `""` when there is nothing to show,
---- since `nvim_win_set_config` ignores a key it is handed as nil and would leave
---- a stale count on the border.
----@return [string, string][]|string
-function Picker:_title_count()
-    return self._count and { { " " .. self._count, "NonText" } } or ""
+--- The winbar: the rule, with the count flush against its right end. The rule
+--- itself is the `wbr` fill char stretched by `%=`, so it is never empty -- an
+--- empty 'winbar' would take the row back and pull the list up into it.
+---@return string
+function Picker:_winbar()
+    return "%#NonText#%=" .. (self._count or "")
 end
 
 ---@param mode string|string[]
@@ -571,15 +576,14 @@ function Picker:_render_cursor()
     self:_set_count(string.format("%d/%d", row, #self._matches))
 end
 
---- Show `count` on the rule above the list, right aligned. The list window is
---- never the focused one, so re-configuring it costs no cursor flicker.
+--- Show `count` in the list's winbar, right aligned.
 ---@param count string? Text, or nil to clear.
 ---@return nil
 function Picker:_set_count(count)
     if count == self._count then return end
     self._count = count
     if self._lwin and vim.api.nvim_win_is_valid(self._lwin) then
-        vim.api.nvim_win_set_config(self._lwin, self:_list_config())
+        vim.wo[self._lwin].winbar = self:_winbar()
     end
 end
 
