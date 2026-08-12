@@ -255,7 +255,7 @@ end
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
 ---@field private _want_height integer Number of items; fixed for the picker's life.
 ---@field private _title string Prompt border title, re-applied on every relayout.
----@field private _footer [string, string][]? Prompt border footer: the cursor position, right aligned.
+---@field private _count string? Prompt border footer: the cursor position, right aligned.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -411,9 +411,17 @@ function Picker:_prompt_config()
         border    = _BORDER_TOP,
         title     = self._title,
         title_pos = "center",
-        footer    = self._footer,
-        footer_pos = self._footer and "right" or nil,
+        footer     = self:_footer(),
+        footer_pos = "right",
     }
+end
+
+--- The footer chunks for the current count; `""` when there is nothing to show,
+--- since `nvim_win_set_config` ignores a key it is handed as nil and would leave
+--- a stale count on the border.
+---@return [string, string][]|string
+function Picker:_footer()
+    return self._count and { { " " .. self._count, "NonText" } } or ""
 end
 
 ---@param mode string|string[]
@@ -538,7 +546,7 @@ end
 function Picker:_render_cursor()
     vim.api.nvim_buf_clear_namespace(self._lbuf, _NS_CURSOR, 0, -1)
     if #self._matches == 0 then
-        self:_set_footer(nil)
+        self:_set_count(nil)
         return
     end
 
@@ -548,20 +556,22 @@ function Picker:_render_cursor()
         virt_text_pos = "overlay",
         priority      = 100,
     })
-    self:_set_footer({ { string.format(" %d/%d", row, #self._matches), "NonText" } })
+    self:_set_count(string.format("%d/%d", row, #self._matches))
 end
 
---- Show `footer` on the prompt's bottom border, right aligned.
----@param footer [string, string][]? Chunks, or nil to clear.
+--- Show `count` on the prompt's bottom border, right aligned.
+---@param count string? Text, or nil to clear.
 ---@return nil
-function Picker:_set_footer(footer)
-    self._footer = footer
-    if self._pwin and vim.api.nvim_win_is_valid(self._pwin) then
-        vim.api.nvim_win_set_config(self._pwin, {
-            footer = footer,
-            footer_pos = footer and "right" or nil,
-        })
-    end
+function Picker:_set_count(count)
+    if count == self._count then return end
+    self._count = count
+    if not (self._pwin and vim.api.nvim_win_is_valid(self._pwin)) then return end
+
+    vim.api.nvim_win_set_config(self._pwin, { footer = self:_footer(), footer_pos = "right" })
+    -- Reconfiguring the focused window leaves the terminal cursor wherever the
+    -- border redraw left it until the next flush, which reads as the cursor
+    -- jumping about while moving through the list. Put it back now.
+    vim.api.nvim__redraw({ win = self._pwin, cursor = true, flush = true })
 end
 
 ---@return integer row 1-based row of the highlighted item.
