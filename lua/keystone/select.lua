@@ -436,12 +436,12 @@ function Picker:_list_config()
     }
 end
 
---- The winbar: the rule, with the count flush against its right end. The rule
---- itself is the `wbr` fill char stretched by `%=`, so it is never empty -- an
---- empty 'winbar' would take the row back and pull the list up into it.
+--- The winbar: the rule, with the count at its right end. The rule itself is the
+--- `wbr` fill char stretched by `%=`, so it is never empty -- an empty 'winbar'
+--- would take the row back and pull the list up into it.
 ---@return string
 function Picker:_winbar()
-    return "%#NonText#%=" .. (self._count or "")
+    return "%#NonText#%=" .. (self._count and (" " .. self._count) or "")
 end
 
 ---@param mode string|string[]
