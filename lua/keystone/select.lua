@@ -255,6 +255,7 @@ end
 ---@field private _want_width integer Widest label, in display cells; fixed for the picker's life.
 ---@field private _want_height integer Number of items; fixed for the picker's life.
 ---@field private _title string Prompt border title, re-applied on every relayout.
+---@field private _footer [string, string][]? Prompt border footer: the cursor position, right aligned.
 ---@field private _query string
 ---@field private _closed boolean
 ---@field private _pbuf integer?
@@ -312,15 +313,9 @@ function Picker:_open(title)
     self._lbuf = ui.create_scratch_buffer(false, { modifiable = false })
 
     local augroup
-    self._pwin, augroup = ui.create_window(self._pbuf, true, vim.tbl_extend("force", base, {
-        row       = L.row,
-        col       = L.col,
-        width     = L.list_width,
-        height    = 1,
-        border    = _BORDER_TOP,
-        title     = self._title,
-        title_pos = "center",
-    }), function() self:_finish(nil) end)
+    self._pwin, augroup = ui.create_window(self._pbuf, true,
+        vim.tbl_extend("force", base, self:_prompt_config()),
+        function() self:_finish(nil) end)
     vim.wo[self._pwin].winhighlight = _WINHL
     vim.wo[self._pwin].wrap = false
 
@@ -402,6 +397,25 @@ function Picker:_open(title)
     end)
 end
 
+--- Window config for the prompt float. `nvim_win_set_config` resets what it is
+--- not handed, so the border, title and footer all come along on every call.
+---@return vim.api.keyset.win_config
+function Picker:_prompt_config()
+    local L = self._layout
+    return {
+        relative  = "editor",
+        row       = L.row,
+        col       = L.col,
+        width     = L.list_width,
+        height    = 1,
+        border    = _BORDER_TOP,
+        title     = self._title,
+        title_pos = "center",
+        footer    = self._footer,
+        footer_pos = self._footer and "right" or nil,
+    }
+end
+
 ---@param mode string|string[]
 ---@param lhs string
 ---@param rhs fun()
@@ -417,12 +431,7 @@ function Picker:_relayout()
     local L = _compute_layout(self._preview_item ~= nil, self._want_width, self._want_height)
     self._layout = L
 
-    -- `nvim_win_set_config` resets what it is not handed, so the border and the
-    -- title come along on every move.
-    vim.api.nvim_win_set_config(self._pwin, {
-        relative = "editor", row = L.row, col = L.col, width = L.list_width, height = 1,
-        border = _BORDER_TOP, title = self._title, title_pos = "center",
-    })
+    vim.api.nvim_win_set_config(self._pwin, self:_prompt_config())
     vim.api.nvim_win_set_config(self._lwin, {
         relative = "editor", row = L.row + _PROMPT_ROWS, col = L.col,
         width = L.list_width, height = L.list_height, border = _BORDER_BOTTOM,
@@ -528,8 +537,10 @@ end
 ---@return nil
 function Picker:_render_cursor()
     vim.api.nvim_buf_clear_namespace(self._lbuf, _NS_CURSOR, 0, -1)
-    vim.api.nvim_buf_clear_namespace(self._pbuf, _NS_CURSOR, 0, -1)
-    if #self._matches == 0 then return end
+    if #self._matches == 0 then
+        self:_set_footer(nil)
+        return
+    end
 
     local row = self:_row()
     vim.api.nvim_buf_set_extmark(self._lbuf, _NS_CURSOR, row - 1, 0, {
@@ -537,12 +548,20 @@ function Picker:_render_cursor()
         virt_text_pos = "overlay",
         priority      = 100,
     })
-    vim.api.nvim_buf_set_extmark(self._pbuf, _NS_CURSOR, 0, 0, {
-        virt_text     = { { string.format("%d/%d", row, #self._matches), "NonText" } },
-        virt_text_pos = "eol_right_align",
-        hl_mode       = "blend",
-        priority      = 50,
-    })
+    self:_set_footer({ { string.format(" %d/%d", row, #self._matches), "NonText" } })
+end
+
+--- Show `footer` on the prompt's bottom border, right aligned.
+---@param footer [string, string][]? Chunks, or nil to clear.
+---@return nil
+function Picker:_set_footer(footer)
+    self._footer = footer
+    if self._pwin and vim.api.nvim_win_is_valid(self._pwin) then
+        vim.api.nvim_win_set_config(self._pwin, {
+            footer = footer,
+            footer_pos = footer and "right" or nil,
+        })
+    end
 end
 
 ---@return integer row 1-based row of the highlighted item.
