@@ -165,12 +165,12 @@ describe("notes.sync_from_buffer", function()
 
     it("adds notes from non-blank lines", function()
         core.sync_from_buffer(make_list({ "plain note", "anchored @b.lua:2" }))
-        assert.equals(2, #core.read_notes(false))
+        assert.equals(2, #core.read_notes())
     end)
 
     it("ignores blank lines", function()
         core.sync_from_buffer(make_list({ "a note", "", "   " }))
-        assert.equals(1, #core.read_notes(false))
+        assert.equals(1, #core.read_notes())
     end)
 
     it("anchors only the notes naming a line", function()
@@ -179,39 +179,40 @@ describe("notes.sync_from_buffer", function()
             "file only @b.lua",
             "anchored @b.lua:2",
         }))
-        assert.equals(3, #core.read_notes(false))
-        assert.equals(1, #core.mark_group.get_extmarks(false))
+        local anchored = vim.tbl_filter(function(n) return n.lnum ~= nil end, core.read_notes())
+        assert.equals(3, #core.read_notes())
+        assert.equals(1, #anchored)
     end)
 
     it("keeps the file of a reference with no line", function()
         core.sync_from_buffer(make_list({ "file only @b.lua" }))
-        local n = core.read_notes(false)[1]
+        local n = core.read_notes()[1]
         assert.is_truthy(n.file:match("b%.lua$"))
         assert.is_nil(n.lnum)
     end)
 
     it("removes notes whose lines were deleted", function()
         core.sync_from_buffer(make_list({ "one", "two @b.lua:2" }))
-        assert.equals(2, #core.read_notes(false))
+        assert.equals(2, #core.read_notes())
 
         core.sync_from_buffer(make_list({ "one" }))
-        local notes = core.read_notes(false)
+        local notes = core.read_notes()
         assert.equals(1, #notes)
         assert.equals("one", notes[1].label)
     end)
 
     it("keeps duplicate lines as separate notes", function()
         core.sync_from_buffer(make_list({ "same", "same" }))
-        assert.equals(2, #core.read_notes(false))
+        assert.equals(2, #core.read_notes())
     end)
 
     it("keeps the id of an unchanged note across a sync", function()
         core.sync_from_buffer(make_list({ "keep me @a.lua:1" }))
-        local id = core.read_notes(false)[1].id
+        local id = core.read_notes()[1].id
 
         core.sync_from_buffer(make_list({ "keep me @a.lua:1", "and a new one" }))
         local kept = vim.tbl_filter(function(n) return n.label:match("^keep me") end,
-            core.read_notes(false))
+            core.read_notes())
         assert.equals(1, #kept)
         assert.equals(id, kept[1].id)
     end)
@@ -231,7 +232,7 @@ describe("notes.add_at", function()
 
     it("appends a reference to the text", function()
         core.add_at("check this", vim.fn.tempname() .. "/a.lua", 12)
-        local n = core.read_notes(false)[1]
+        local n = core.read_notes()[1]
         assert.equals("check this ", n.prefix)
         assert.equals(12, n.lnum)
         assert.is_truthy(n.label:match("^check this @"))
@@ -240,7 +241,7 @@ describe("notes.add_at", function()
 
     it("adds no reference without a file", function()
         core.add_at("just a thought")
-        local n = core.read_notes(false)[1]
+        local n = core.read_notes()[1]
         assert.equals("just a thought", n.label)
         assert.is_nil(n.file)
     end)
@@ -264,7 +265,7 @@ describe("notes.sorted_notes", function()
         core.add_at("mango", vim.fn.tempname() .. "/z.lua", 9)
 
         local first = vim.tbl_map(function(n) return n.label:match("^%S+") end,
-            core.sorted_notes(false))
+            core.sorted_notes())
         assert.same({ "apple", "mango", "zebra" }, first)
     end)
 end)

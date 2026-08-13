@@ -165,8 +165,8 @@ function M.open_list()
         vim.keymap.set("i", "@", _at_key,
             { buffer = bufnr, expr = true, desc = "Start a path reference" })
 
-        -- Pick the `@` references out of the note text. A syntax rule, not extmarks:
-        -- it re-matches as the user types, so highlighting never lags the throttled
+        -- Pick the `@` references out of the note text with a syntax rule: it
+        -- re-matches as the user types, so highlighting never lags the throttled
         -- sync or has to be recomputed by hand. `\%(^\|\s\)\@<=` keeps it to a token
         -- start, matching the parse, so bob@example.com stays plain text.
         vim.api.nvim_buf_call(bufnr, function()

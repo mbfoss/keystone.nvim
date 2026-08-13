@@ -19,7 +19,7 @@ local M    = {}
 ---@field file string     -- that path resolved to an absolute one
 ---@field lnum integer?   -- 1-based line number, when the reference names one
 
--- Startup-time state (notes, extmark group, autocmds) lives in `keystone.notes.core`.
+-- Startup-time state (the notes and the store they load from) lives in `keystone.notes.core`.
 -- Interactive commands live in `keystone.notes.actions`, which pulls in the heavy UI
 -- modules and is required only the first time a command runs -- keeping `setup` cheap.
 local core = require("keystone.notes.core")
@@ -112,9 +112,6 @@ function M.setup(opts)
 
     core.init(config)
 
-    -- Distinct from the "keystone_notes" augroup the extmark group registers its
-    -- Buf* handlers under (see extmarks.define_group): reusing that name with clear=true
-    -- would wipe the BufReadPost handler that tracks later-loaded buffers.
     local augroup = vim.api.nvim_create_augroup("keystone_notes_setup", { clear = true })
     -- During a session the in-memory notes are the single source of truth and disk is
     -- left untouched; the one write to the notes file happens here, on exit.

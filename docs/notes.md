@@ -1,8 +1,7 @@
 # notes
 
 Persistent notes that survive across sessions. A note is a piece of text; it may
-also name a location, by writing `@<path>` anywhere in it. A reference that names
-a line as well follows that line as you edit around it.
+also name a location, by writing `@<path>` anywhere in it.
 
 ![Writing notes on a line and free-standing, then editing them in :Note list](assets/notes.gif)
 
@@ -46,14 +45,14 @@ off-by-one in @~/src/parser.lua:142 — check the bounds
 compare @~/src/old.lua:20 against @~/src/new.lua:31
 ```
 
-A reference is `@<path>`, optionally followed by `:<line>`. With a line it is
-anchored: it follows the line as the file is edited. Without one it just names a
-file. Text naming no location at all is a perfectly good note — nothing is ever
-rejected as malformed.
+A reference is `@<path>`, optionally followed by `:<line>`. The line is part of
+the note's text and nothing rewrites it, so it goes stale as the file is edited,
+exactly as a line number written in any other document would. Text naming no
+location at all is a perfectly good note — nothing is ever rejected as malformed.
 
-A note may carry as many references as it likes. The **first** one anchors it —
-that is the one tracked as the file changes — but every reference is real, and
-`<CR>` follows whichever one the cursor is on.
+A note may carry as many references as it likes. The **first** one is the note's
+own location, the one `:Note delete` and `:Note clear_file` match against, but
+every reference is real and `<CR>` follows whichever one the cursor is on.
 
 The reference has to start a token, so an address like `bob@example.com` stays
 plain text. References stay part of the note rather than being split off, and are
@@ -61,18 +60,15 @@ highlighted (`KeystoneNoteRef`, linked to `Directory` by default) so they read
 apart from the prose.
 
 `:Note list` is a scratch buffer, not the file on disk. Edit it freely: changes
-flow into the notes (and their anchors) as you type, and the file is written on
-exit — `:w` is unnecessary. `<CR>` opens the reference under the cursor — at its
-line, or at the top of the file when the reference names no line. With the cursor
-on prose rather than a reference, `<CR>` does nothing.
+flow into the notes as you type, and the file is written on exit — `:w` is
+unnecessary. `<CR>` opens the reference under the cursor — at its line, or at the
+top of the file when the reference names no line. With the cursor on prose rather
+than a reference, `<CR>` does nothing.
 
 Typing `@` where a reference can start — at the beginning of a line or after
 whitespace — opens path completion straight away. Elsewhere `@` is just a
 character, so `bob@example.com` types normally. `<C-x><C-u>` triggers the same
 completion by hand.
-
-Because the line number lives in the note's own text, an anchored note rewrites
-its own `:<line>` as the file it points at is edited.
 
 ---
 
