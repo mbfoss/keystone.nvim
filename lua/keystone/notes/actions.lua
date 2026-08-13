@@ -125,6 +125,19 @@ function M.clear_all()
     end)
 end
 
+--- Pick the `@` references out of the note text with a syntax rule: it re-matches
+--- as the user types, so highlighting never lags the throttled sync or has to be
+--- recomputed by hand. `\%(^\|\s\)\@<=` keeps it to a token start, matching the
+--- parse, so bob@example.com stays plain text. Re-applied on reload, which drops
+--- the buffer's syntax state along with its lines.
+---@param bufnr integer
+local function _apply_syntax(bufnr)
+    vim.api.nvim_buf_call(bufnr, function()
+        vim.cmd([[syntax clear]])
+        vim.cmd([[syntax match KeystoneNoteRef /\%(^\|\s\)\@<=@\S\+/]])
+    end)
+end
+
 --- Opens the notes list for editing in a split. The list is a scratch buffer
 --- rendered from the in-memory notes -- not the file on disk. Edit lines freely;
 --- edits synchronise automatically (throttled), updating the notes and their anchors
@@ -165,14 +178,7 @@ function M.open_list()
         vim.keymap.set("i", "@", _at_key,
             { buffer = bufnr, expr = true, desc = "Start a path reference" })
 
-        -- Pick the `@` references out of the note text with a syntax rule: it
-        -- re-matches as the user types, so highlighting never lags the throttled
-        -- sync or has to be recomputed by hand. `\%(^\|\s\)\@<=` keeps it to a token
-        -- start, matching the parse, so bob@example.com stays plain text.
-        vim.api.nvim_buf_call(bufnr, function()
-            vim.cmd([[syntax clear]])
-            vim.cmd([[syntax match KeystoneNoteRef /\%(^\|\s\)\@<=@\S\+/]])
-        end)
+        _apply_syntax(bufnr)
         vim.api.nvim_set_hl(0, "KeystoneNoteRef", { link = "Directory", default = true })
 
         -- Push edited lines back into the notes as the user edits, throttled so a
@@ -194,6 +200,17 @@ function M.open_list()
             buffer   = bufnr,
             callback = function()
                 vim.bo[bufnr].modified = false
+            end,
+        })
+
+        -- `:e` on an acwrite buffer has no file to re-read, so without this it would
+        -- empty the buffer -- and the sync would read that as "every note deleted".
+        -- Re-render from the notes instead, which is what a reload means here.
+        vim.api.nvim_create_autocmd("BufReadCmd", {
+            buffer   = bufnr,
+            callback = function()
+                core.refresh_list()
+                _apply_syntax(bufnr)
             end,
         })
 
