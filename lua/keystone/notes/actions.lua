@@ -42,13 +42,16 @@ function M.complete_path(findstart, base)
 end
 
 --- Prompt for the note text and store it. `file`/`lnum` anchor the note when given;
---- `replace` is the note being rewritten, whose text seeds the prompt.
+--- `replace` is the note being rewritten, whose text seeds the prompt. The prompt
+--- names which kind is being written: the window opens at the cursor either way, so
+--- the title is the only thing distinguishing an unanchored note from an anchored one.
 ---@param file string?
 ---@param lnum integer?
 ---@param default string?
 ---@param replace keystone.notes.Note?
 local function _prompt_note(file, lnum, default, replace)
-    inputwin.open({ prompt = "Note", default = default or "" }, function(label)
+    local prompt = file and "Note" or "Note (no location)"
+    inputwin.open({ prompt = prompt, default = default or "" }, function(label)
         if not label then return end
         label = label:match("^%s*(.-)%s*$")
         if label == "" then return end
@@ -64,15 +67,12 @@ function M.add_at_cursor()
         vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
         return
     end
-    local bufnr = vim.api.nvim_get_current_buf()
-    file = core.norm(file)
+    local path = core.norm(file) --[[@as string]]
 
     -- A line already carrying a note re-opens that note for editing rather than
-    -- stacking a second one on the same spot; otherwise the line's own text is a
-    -- more useful starting point than an empty prompt.
-    local existing = core.note_at(file, lnum)
-    local default = existing and existing.label or core.line_text(bufnr, lnum)
-    _prompt_note(file, lnum, default, existing)
+    -- stacking a second one on the same spot; a new note starts from an empty prompt.
+    local existing = core.note_at(path, lnum)
+    _prompt_note(path, lnum, existing and existing.label or nil, existing)
 end
 
 function M.add_free()

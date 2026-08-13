@@ -26,8 +26,8 @@ M.config = core.default_config()
 
 ----------- PUBLIC API -----------
 
---- Write a note anchored to the current line. Prompts for the text, starting from
---- the note already on that line if there is one (which it then replaces).
+--- Write a note anchored to the current line. Prompts for the text -- empty, unless
+--- the line already carries a note, which is then reopened for editing.
 function M.add_at_cursor()
     _actions().add_at_cursor()
 end

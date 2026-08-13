@@ -32,9 +32,9 @@ require("keystone").setup({
 | `clear_file` | Remove every note anchored in the current file |
 | `clear_all` | Remove every note |
 
-`add` on a line that already carries a note re-opens that note for editing
-rather than adding a second one. On an empty prompt it starts from the text of
-the line being anchored to.
+`add` opens an empty prompt. On a line that already carries a note it re-opens
+that note for editing, seeded with its current text, rather than adding a second
+one on the same line.
 
 ## Format
 
