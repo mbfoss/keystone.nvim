@@ -9,8 +9,17 @@ local M    = {}
 ---@class keystone.notes.Note
 ---@field id integer?     -- identity within the session; absent on a freshly parsed line
 ---@field label string    -- the note text; the note's reason for existing
+---@field prefix string?  -- text before the anchoring `@` reference
+---@field suffix string?  -- text after it, later references included
 ---@field file string?    -- absolute path, when the note is anchored to a location
 ---@field lnum integer?   -- 1-based line number, set together with `file`
+
+---@class keystone.notes.Ref
+---@field start integer   -- 1-based byte index of the `@`
+---@field stop integer    -- 1-based byte index of the reference's last byte
+---@field path string     -- the path exactly as written
+---@field file string     -- that path resolved to an absolute one
+---@field lnum integer?   -- 1-based line number, when the reference names one
 
 -- Startup-time state (notes, extmark group, autocmds) lives in `keystone.notes.core`.
 -- Interactive commands live in `keystone.notes.actions`, which pulls in the heavy UI

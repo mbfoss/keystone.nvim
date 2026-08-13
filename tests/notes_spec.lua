@@ -93,6 +93,56 @@ describe("notes.find_ref", function()
     end)
 end)
 
+describe("notes.refs", function()
+    it("collects every reference on the line", function()
+        local refs = core.refs("compare @first.lua:1 with @second.lua:2 and @third.lua")
+        assert.equals(3, #refs)
+        assert.is_truthy(refs[1].file:match("first%.lua$"))
+        assert.equals(1, refs[1].lnum)
+        assert.is_truthy(refs[2].file:match("second%.lua$"))
+        assert.equals(2, refs[2].lnum)
+        assert.is_truthy(refs[3].file:match("third%.lua$"))
+        assert.is_nil(refs[3].lnum)
+    end)
+
+    it("skips an @ that does not start a token", function()
+        local refs = core.refs("mail bob@example.com about @real.lua:3")
+        assert.equals(1, #refs)
+        assert.is_truthy(refs[1].file:match("real%.lua$"))
+    end)
+end)
+
+describe("notes.ref_at", function()
+    -- Columns are 1-based:  "see @a.lua:1 and @b.lua:2"
+    --                        123456789...
+    local line = "see @a.lua:1 and @b.lua:2"
+
+    it("picks the reference the column falls inside", function()
+        for _, col in ipairs({ 5, 8, 12 }) do
+            local ref = core.ref_at(line, col)
+            assert.not_nil(ref, "col " .. col)
+            assert.is_truthy(ref.file:match("a%.lua$"), "col " .. col)
+        end
+
+        for _, col in ipairs({ 18, 21, 25 }) do
+            local ref = core.ref_at(line, col)
+            assert.not_nil(ref, "col " .. col)
+            assert.is_truthy(ref.file:match("b%.lua$"), "col " .. col)
+        end
+    end)
+
+    it("returns nil between and outside the references", function()
+        assert.is_nil(core.ref_at(line, 1))  -- 's' of "see"
+        assert.is_nil(core.ref_at(line, 4))  -- the space before the first
+        assert.is_nil(core.ref_at(line, 14)) -- 'a' of "and"
+        assert.is_nil(core.ref_at(line, 99)) -- past the end
+    end)
+
+    it("returns nil on a line with no reference", function()
+        assert.is_nil(core.ref_at("just some prose", 3))
+    end)
+end)
+
 describe("notes.sync_from_buffer", function()
     before_each(function()
         core.init(vim.tbl_extend("force", core.default_config(), {

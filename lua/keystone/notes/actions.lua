@@ -209,14 +209,17 @@ function M.open_list()
             end,
         })
 
-        -- <CR> jumps to the note's location, when it has one, via the shared opener.
+        -- <CR> follows the reference *under the cursor*, so a note mentioning several
+        -- files opens the one being pointed at rather than whichever comes first.
+        -- Off any reference there is nothing to open, and nothing happens.
         vim.keymap.set("n", "<CR>", function()
             local line = vim.api.nvim_get_current_line()
-            local note = core.decode_line(line)
-            if not (note and note.file) then return end
+            local col = vim.api.nvim_win_get_cursor(0)[2] + 1 -- 1-based byte column
+            local ref = core.ref_at(line, col)
+            if not ref then return end
             -- A reference naming only a file opens it at the top.
-            ui.smart_open_file(note.file, note.lnum or 1, 0)
-        end, { buffer = bufnr, desc = "Open the location of the note under cursor" })
+            ui.smart_open_file(ref.file, ref.lnum or 1, 0)
+        end, { buffer = bufnr, desc = "Open the reference under the cursor" })
     end
 
     -- Render current notes into the buffer before showing it.

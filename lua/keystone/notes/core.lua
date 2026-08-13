@@ -107,11 +107,15 @@ end
 
 M.render = _render
 
---- Locate the first `@` reference in `text`. Only a reference starting a token
---- counts, so `bob@example.com` is text and `@bob/notes.md` is a path.
+--- Every `@` reference in `text`, in order. Only a reference starting a token
+--- counts, so `bob@example.com` is text and `@bob/notes.md` is a path. A note may
+--- mention several files even though only the first one anchors it -- the others
+--- are still real references, and `<CR>` in the list follows whichever the cursor
+--- is on (see `ref_at`).
 ---@param text string
----@return integer? start, integer? stop, string? path, integer? lnum
-local function _find_ref(text)
+---@return keystone.notes.Ref[]
+local function _refs(text)
+    local refs = {}
     for pos, token in text:gmatch("()(@%S+)") do
         local start = pos --[[@as integer]]
         if start == 1 or text:sub(start - 1, start - 1):match("%s") then
@@ -122,14 +126,43 @@ local function _find_ref(text)
                 path, lnum = token:sub(2), nil
             end
             if path ~= "" and path ~= "@" then
-                return start, start + #token - 1, path, lnum and tonumber(lnum) or nil
+                refs[#refs + 1] = {
+                    start = start,
+                    stop  = start + #token - 1,
+                    path  = path,
+                    file  = _decode_path(path),
+                    lnum  = lnum and tonumber(lnum) or nil,
+                }
             end
         end
     end
-    return nil
+    return refs
+end
+
+M.refs = _refs
+
+--- The first reference in `text`, which is the one that anchors the note.
+---@param text string
+---@return integer? start, integer? stop, string? path, integer? lnum
+local function _find_ref(text)
+    local ref = _refs(text)[1]
+    if not ref then return nil end
+    return ref.start, ref.stop, ref.path, ref.lnum
 end
 
 M.find_ref = _find_ref
+
+--- The reference sitting under `col`, if the cursor is on one at all. Byte column,
+--- 1-based, as `nvim_win_get_cursor` reports it plus one.
+---@param text string
+---@param col integer
+---@return keystone.notes.Ref?
+function M.ref_at(text, col)
+    for _, ref in ipairs(_refs(text)) do
+        if col >= ref.start and col <= ref.stop then return ref end
+    end
+    return nil
+end
 
 --- Parse one stored/list line into a note. Every non-blank line is a valid note:
 --- an `@` reference anchors it, and its absence simply means the note has no
@@ -140,19 +173,19 @@ function M.decode_line(line)
     local text = line:match("^%s*(.-)%s*$")
     if text == "" then return nil end
 
-    local start, stop, path, lnum = _find_ref(text)
-    if not start then
+    -- The first reference anchors the note; any others are simply part of its text.
+    local ref = _refs(text)[1]
+    if not ref then
         return { label = text, prefix = text, suffix = "" }
     end
 
-    local file = _decode_path(path --[[@as string]])
-    local prefix, suffix = text:sub(1, start - 1), text:sub(stop + 1)
+    local prefix, suffix = text:sub(1, ref.start - 1), text:sub(ref.stop + 1)
     return {
-        label  = _render(prefix, file, lnum, suffix),
+        label  = _render(prefix, ref.file, ref.lnum, suffix),
         prefix = prefix,
         suffix = suffix,
-        file   = file,
-        lnum   = lnum,
+        file   = ref.file,
+        lnum   = ref.lnum,
     }
 end
 

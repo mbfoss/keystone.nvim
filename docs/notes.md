@@ -46,23 +46,28 @@ a location is an `@` reference sitting anywhere inside it:
 remember to revisit the cache invalidation
 off-by-one in @~/src/parser.lua:142 — check the bounds
 @~/src/lexer.lua needs a rewrite before any of this
+compare @~/src/old.lua:20 against @~/src/new.lua:31
 ```
 
 A reference is `@<path>`, optionally followed by `:<line>`. With a line it is
-anchored: it gets a sign, follows the line as the file is edited, and `<CR>`
-jumps straight to it. Without one it just names a file, which `<CR>` opens at the
-top. Text naming no location at all is a perfectly good note — nothing is ever
-rejected as malformed.
+anchored: it gets a sign and follows the line as the file is edited. Without one
+it just names a file. Text naming no location at all is a perfectly good note —
+nothing is ever rejected as malformed.
+
+A note may carry as many references as it likes. The **first** one anchors it —
+that is the one that gets the sign and is tracked as the file changes — but every
+reference is real, and `<CR>` follows whichever one the cursor is on.
 
 The reference has to start a token, so an address like `bob@example.com` stays
-plain text. Only the first reference in a line counts; any others are text. The
-reference stays part of the note rather than being split off, and is highlighted
-(`KeystoneNoteRef`, linked to `Directory` by default) so it reads apart from the
-prose.
+plain text. References stay part of the note rather than being split off, and are
+highlighted (`KeystoneNoteRef`, linked to `Directory` by default) so they read
+apart from the prose.
 
 `:Note list` is a scratch buffer, not the file on disk. Edit it freely: changes
 flow into the notes (and their signs) as you type, and the file is written on
-exit — `:w` is unnecessary. `<CR>` jumps to the note under the cursor.
+exit — `:w` is unnecessary. `<CR>` opens the reference under the cursor — at its
+line, or at the top of the file when the reference names no line. With the cursor
+on prose rather than a reference, `<CR>` does nothing.
 
 Typing `@` where a reference can start — at the beginning of a line or after
 whitespace — opens path completion straight away. Elsewhere `@` is just a
