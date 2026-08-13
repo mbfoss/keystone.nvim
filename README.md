@@ -142,8 +142,8 @@ Enabling the relevant module registers its command:
 ## Optional integrations
 
 Keystone detects [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim) when it is
-installed and registers two picker sources with it; without it, those sources
-are absent and nothing else differs. See
+installed and registers a picker source with it; without it, that source is
+absent and nothing else differs. See
 [docs/integrations.md](docs/integrations.md).
 
 ## Full option reference

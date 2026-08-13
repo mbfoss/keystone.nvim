@@ -101,8 +101,7 @@ the option ignore it, so it is safe to pass unconditionally; annotate the opts
 table `---@type keystone.select.Opts` to keep the language server happy without
 requiring the module.
 
-Callers today: `keystone.notes.actions.pick` and
-`keystone.unsaved.session.open`.
+Caller today: `keystone.unsaved.session.open`.
 
 ### Optional dependencies
 
@@ -115,13 +114,12 @@ fails:
 | Registered by | Source | Spec |
 | --- | --- | --- |
 | `keystone.notify.setup` | `notifications` | [`keystone.notify.picker`](lua/keystone/notify/picker.lua) |
-| `keystone.notes.setup` | `notes` | [`keystone.notes.picker`](lua/keystone/notes/picker.lua) |
 
-The specs read keystone's own state, so they live here rather than in ezpick,
-and — being reachable only through ezpick's registry, which loads them lazily on
-first open — they are the only modules allowed to `require` ezpick directly.
-Nothing keystone does itself depends on ezpick: the equivalent commands
-(`:Note pick`, `:DiffUnsaved`) go through `vim.ui.select`.
+The spec reads keystone's own state, so it lives here rather than in ezpick,
+and — being reachable only through ezpick's registry, which loads it lazily on
+first open — it is the only module allowed to `require` ezpick directly.
+Nothing keystone does itself depends on ezpick: the equivalent command
+(`:DiffUnsaved`) goes through `vim.ui.select`.
 
 ### Notable module internals
 

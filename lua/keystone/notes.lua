@@ -58,17 +58,13 @@ function M.get_notes()
     return core.read_notes()
 end
 
-function M.pick()
-    _actions().pick()
-end
-
 function M.open_list()
     _actions().open_list()
 end
 
 ----------- COMMAND -----------
 
-local _subcommand_list = { "add", "add_free", "delete", "pick", "list", "clear_file", "clear_all" }
+local _subcommand_list = { "add", "add_free", "delete", "list", "clear_file", "clear_all" }
 
 ---@param _ string
 ---@param rest string[]
@@ -89,8 +85,6 @@ local function _run_command(_, args, _opts)
         M.add_free()
     elseif cmd == "delete" then
         M.delete_at_cursor()
-    elseif cmd == "pick" then
-        M.pick()
     elseif cmd == "list" then
         M.open_list()
     elseif cmd == "clear_file" then
@@ -131,17 +125,6 @@ function M.setup(opts)
             return require("keystone.util.usercmd").complete(arg_lead, cmd_line, _get_subcommands)
         end,
     })
-
-    -- `:Note pick` needs no plugin, but the note list is also a natural picker
-    -- source; offer it to the optional ezpick.nvim when that is installed, which is
-    -- where the richer view (location on a virtual line, file preview) lives. The
-    -- `pcall` is unavoidable: "is this plugin installed?" has no non-throwing form.
-    local ok, ezpick = pcall(require, "ezpick")
-    if ok then
-        ezpick.register("notes", function()
-            return require("keystone.notes.picker").spec()
-        end)
-    end
 end
 
 return M

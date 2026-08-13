@@ -15,12 +15,11 @@ local fixedwin = require("keystone.util.fixedwin")
 -- so reopening the list keeps the height the user last dragged it to.
 local _list_ratio = 0.25
 
---- `completefunc` for the notes list buffer (triggered with <C-x><C-u>): completes
---- the file path in the optional location field. Scoped to the path token -- bytes
---- up to the cursor that are neither whitespace nor the `:` that introduces the line
---- number -- and only when the ` -- ` separator immediately precedes it, so the note
---- text before it and the `:lnum` after it are never treated as a path.
---- `getcompletion(_, "file")` keeps the stored path form (cwd- or `~`-relative) and
+--- `completefunc` for the notes list buffer (triggered by typing `@`, or by hand
+--- with <C-x><C-u>): completes the path inside the `@` reference under the cursor.
+--- Scoped to the whole whitespace-delimited token, and only when that token opens
+--- with `@`, so ordinary note text is never treated as a path.
+--- `getcompletion(_, "file")` keeps the typed path form (cwd- or `~`-relative) and
 --- marks directories with a trailing `/`.
 ---@param findstart 0|1
 ---@param base string
@@ -29,16 +28,46 @@ function M.complete_path(findstart, base)
     local line   = vim.api.nvim_get_current_line()
     local col    = vim.api.nvim_win_get_cursor(0)[2] -- 0-based cursor byte offset
     local before = line:sub(1, col)
-    local token  = before:match("[^%s:]*$")
-    local start  = col - #token
+    local token  = before:match("%S*$")
 
     if findstart == 1 then
-        -- Not in the location field (or nothing to complete): cancel, stay in insert.
-        if token == "" or not before:sub(1, start):match("%s%-%-%s*$") then return -2 end
-        return start -- 0-based byte column where the path token begins
+        -- Not inside an `@` reference: cancel the completion, stay in insert.
+        if not token:match("^@") then return -2 end
+        return col - #token + 1 -- 0-based byte column just past the `@`
     end
 
     return vim.fn.getcompletion(base, "file")
+end
+
+--- Text before the cursor on the current line, in insert mode.
+---@return string
+local function _before_cursor()
+    return vim.api.nvim_get_current_line():sub(1, vim.api.nvim_win_get_cursor(0)[2])
+end
+
+--- `@` in the list buffer: insert it and open path completion straight away, but
+--- only where a reference can actually start (line start or after whitespace) --
+--- the same rule the parser applies, so typing an address like bob@example.com
+--- neither completes nor is mistaken for a path.
+---@return string
+local function _at_key()
+    local before = _before_cursor()
+    if before == "" or before:match("%s$") then
+        return "@<C-x><C-u>"
+    end
+    return "@"
+end
+
+--- `/` inside a reference: re-open completion so it descends into the directory
+--- just chosen. Once the popup is up Vim filters the list it already has rather
+--- than calling the completefunc again, so without this a path stops at its first
+--- component.
+---@return string
+local function _slash_key()
+    if _before_cursor():match("%S*$"):match("^@") then
+        return "/<C-x><C-u>"
+    end
+    return "/"
 end
 
 --- Prompt for the note text and store it. `file`/`lnum` anchor the note when given;
@@ -56,7 +85,7 @@ local function _prompt_note(file, lnum, default, replace)
         label = label:match("^%s*(.-)%s*$")
         if label == "" then return end
         if replace then core.remove(replace.id) end
-        core.add(label, file, lnum)
+        core.add_at(label, file, lnum)
         core.refresh_list()
     end)
 end
@@ -71,8 +100,14 @@ function M.add_at_cursor()
 
     -- A line already carrying a note re-opens that note for editing rather than
     -- stacking a second one on the same spot; a new note starts from an empty prompt.
+    -- The prompt shows the note *without* its `@` reference, since confirming appends
+    -- a fresh one for the cursor -- seeding it with the rendered text would double it.
     local existing = core.note_at(path, lnum)
-    _prompt_note(path, lnum, existing and existing.label or nil, existing)
+    local default
+    if existing then
+        default = (existing.prefix .. existing.suffix):match("^%s*(.-)%s*$")
+    end
+    _prompt_note(path, lnum, default, existing)
 end
 
 function M.add_free()
@@ -102,79 +137,13 @@ function M.clear_all()
     end)
 end
 
--- Scratch buffer holding the on-disk preview of the highlighted note's file. Its
--- default 'bufhidden' wipes it as soon as another buffer takes over the preview
--- window, so it is recreated on demand and never outlives the picker.
-local _preview_bufnr = nil
-
--- How much of an anchored file is read for the preview. The window shows a
--- screenful; the rest only matters for a note near the top of a big file.
-local _PREVIEW_LINES = 500
-
---- Buffer to preview `note` in, for `vim.ui.select` implementations that support
---- `preview_item` (`keystone.select` does). Unanchored notes have nothing to show.
---- A file already open in Neovim is previewed through its own buffer, so unsaved
---- edits show; anything else is read from disk into a scratch buffer rather than
---- loaded as a real buffer -- loading would fire the whole autocmd chain and prompt
---- on a stale swap file.
----@param note keystone.notes.Note
----@return keystone.select.Preview?
-local function _preview_note(note)
-    if not (note.file and note.lnum) then return nil end
-
-    local open = vim.fn.bufnr("^" .. note.file .. "$")
-    if open ~= -1 and vim.api.nvim_buf_is_loaded(open) then
-        return { buf = open, pos = { note.lnum, 0 } }
-    end
-
-    local stat = vim.uv.fs_stat(note.file)
-    if not stat or stat.type ~= "file" then return nil end
-
-    if not (_preview_bufnr and vim.api.nvim_buf_is_valid(_preview_bufnr)) then
-        _preview_bufnr = ui.create_scratch_buffer(false, {})
-    end
-    vim.api.nvim_buf_set_lines(_preview_bufnr, 0, -1, false,
-        vim.fn.readfile(note.file, "", _PREVIEW_LINES))
-    -- 'syntax', not 'filetype': no FileType autocmd fires, so treesitter and the
-    -- LSP never attach to what is only a preview.
-    vim.bo[_preview_bufnr].syntax = vim.filetype.match({ filename = note.file }) or ""
-
-    return { buf = _preview_bufnr, pos = { note.lnum, 0 } }
-end
-
---- The notes as a picker: fuzzy over the note text *and* its location, with the
---- anchored line shown in the preview.
-function M.pick()
-    local notes = core.sorted_notes()
-    if #notes == 0 then
-        vim.notify("[keystone] No notes set", vim.log.levels.WARN)
-        return
-    end
-
-    ---@type keystone.select.Opts
-    local opts = {
-        prompt       = "Notes",
-        ---@param note keystone.notes.Note
-        format_item  = function(note)
-            if not (note.file and note.lnum) then return note.label end
-            return note.label .. "  " .. vim.fn.fnamemodify(note.file, ":~:.") .. ":" .. note.lnum
-        end,
-        preview_item = _preview_note,
-    }
-
-    vim.ui.select(notes, opts, function(note)
-        if note and note.file and note.lnum then
-            ui.smart_open_file(note.file, note.lnum, 0)
-        end
-    end)
-end
-
 --- Opens the notes list for editing in a split. The list is a scratch buffer
 --- rendered from the in-memory notes -- not the file on disk. Edit lines freely;
 --- edits synchronise automatically (throttled), updating the notes and their signs
 --- in memory (see core.sync_from_buffer) without touching disk -- the file is saved
---- on exit. `:w` is unnecessary (and a no-op). Each line is `<note>[ -- <path>:<lnum>]`;
---- <C-x><C-u> completes the file path in the location field.
+--- on exit. `:w` is unnecessary (and a no-op). Each line is free text, optionally
+--- carrying an `@<path>[:<lnum>]` reference anywhere in it; <C-x><C-u> completes the
+--- path inside such a reference.
 function M.open_list()
     -- Reuse the scratch buffer across opens so its content (kept in step with the
     -- notes by core.refresh_list) survives being hidden.
@@ -201,6 +170,24 @@ function M.open_list()
 
         -- custom completion function
         vim.bo[bufnr].completefunc = "v:lua.require'keystone.notes.actions'.complete_path"
+
+        -- Typing `@` is the trigger: a reference is the one thing in a note with a
+        -- fixed vocabulary, so there is no reason to make the user ask for the list.
+        -- <C-x><C-u> still works by hand.
+        vim.keymap.set("i", "@", _at_key,
+            { buffer = bufnr, expr = true, desc = "Start a path reference" })
+        vim.keymap.set("i", "/", _slash_key,
+            { buffer = bufnr, expr = true, desc = "Descend into the completed directory" })
+
+        -- Pick the `@` references out of the note text. A syntax rule, not extmarks:
+        -- it re-matches as the user types, so highlighting never lags the throttled
+        -- sync or has to be recomputed by hand. `\%(^\|\s\)\@<=` keeps it to a token
+        -- start, matching the parse, so bob@example.com stays plain text.
+        vim.api.nvim_buf_call(bufnr, function()
+            vim.cmd([[syntax clear]])
+            vim.cmd([[syntax match KeystoneNoteRef /\%(^\|\s\)\@<=@\S\+/]])
+        end)
+        vim.api.nvim_set_hl(0, "KeystoneNoteRef", { link = "Directory", default = true })
 
         -- Push edited lines back into the notes as the user edits, throttled so a
         -- burst rebuilds the set at most once per window. Only syncs (no refresh_list):
@@ -240,8 +227,9 @@ function M.open_list()
         vim.keymap.set("n", "<CR>", function()
             local line = vim.api.nvim_get_current_line()
             local note = core.decode_line(line)
-            if not (note and note.file and note.lnum) then return end
-            ui.smart_open_file(note.file, note.lnum, 0)
+            if not (note and note.file) then return end
+            -- A reference naming only a file opens it at the top.
+            ui.smart_open_file(note.file, note.lnum or 1, 0)
         end, { buffer = bufnr, desc = "Open the location of the note under cursor" })
     end
 

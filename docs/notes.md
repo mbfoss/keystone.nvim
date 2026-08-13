@@ -1,10 +1,11 @@
 # notes
 
 Persistent notes that survive across sessions. A note is a piece of text; it may
-also be anchored to a line, in which case it gets a sign in that file's sign
-column and follows the line as you edit around it.
+also name a location, by writing `@<path>` anywhere in it. A reference that names
+a line as well gets a sign in that file's sign column and follows the line as you
+edit around it.
 
-![Writing a note, then finding it again with :Note pick](assets/notes.gif)
+![Writing notes on a line and free-standing, then editing them in :Note list](assets/notes.gif)
 
 ## Configuration
 
@@ -27,39 +28,45 @@ require("keystone").setup({
 | `add` | Write a note anchored to the current line (prompts for the text) |
 | `add_free` | Write a note with no location |
 | `delete` | Remove the note anchored to the current line |
-| `pick` | Choose a note to jump to |
 | `list` | Edit all notes in a split |
 | `clear_file` | Remove every note anchored in the current file |
 | `clear_all` | Remove every note |
 
-`add` opens an empty prompt. On a line that already carries a note it re-opens
-that note for editing, seeded with its current text, rather than adding a second
-one on the same line.
+`add` opens an empty prompt and appends a reference to the cursor's line to
+whatever you type. On a line that already carries a note it re-opens that note for
+editing — seeded with its text minus the reference, since a fresh one is appended
+on confirm.
 
 ## Format
 
-Notes are stored, and shown in `:Note list`, one per line:
+Notes are stored, and shown in `:Note list`, one per line. A note is free text;
+a location is an `@` reference sitting anywhere inside it:
 
 ```
 remember to revisit the cache invalidation
-off-by-one in the bounds check -- src/parser.lua:142
+off-by-one in @~/src/parser.lua:142 — check the bounds
+@~/src/lexer.lua needs a rewrite before any of this
 ```
 
-The note text comes first and is the only required part. The optional location
-is whatever follows the **last** whitespace-surrounded ` -- `, and only when it
-parses as `<path>:<line>` — so a note that happens to contain ` -- ` keeps it,
-and a line that does not name a real location is simply an unanchored note
-rather than an error.
+A reference is `@<path>`, optionally followed by `:<line>`. With a line it is
+anchored: it gets a sign, follows the line as the file is edited, and `<CR>`
+jumps straight to it. Without one it just names a file, which `<CR>` opens at the
+top. Text naming no location at all is a perfectly good note — nothing is ever
+rejected as malformed.
+
+The reference has to start a token, so an address like `bob@example.com` stays
+plain text. Only the first reference in a line counts; any others are text. The
+reference stays part of the note rather than being split off, and is highlighted
+(`KeystoneNoteRef`, linked to `Directory` by default) so it reads apart from the
+prose.
 
 `:Note list` is a scratch buffer, not the file on disk. Edit it freely: changes
 flow into the notes (and their signs) as you type, and the file is written on
-exit — `:w` is unnecessary. `<CR>` jumps to the location of the note under the
-cursor, and `<C-x><C-u>` completes a file path in the location field.
+exit — `:w` is unnecessary. `<CR>` jumps to the note under the cursor, and
+`<C-x><C-u>` completes the path inside an `@` reference.
 
-## Integrations
-
-With [ezpick.nvim](integrations.md#ezpicknvim) installed, the note list is
-registered as a picker source — see [integrations](integrations.md).
+Because the line number lives in the note's own text, an anchored note rewrites
+its own `:<line>` as the file it points at is edited.
 
 ---
 

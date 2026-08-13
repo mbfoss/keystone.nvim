@@ -45,15 +45,22 @@ function M.default_config()
 end
 
 ----------- STORE -----------
--- On-disk format, one note per non-empty line (blank lines ignored):
+-- On-disk format, one note per non-empty line (blank lines ignored). A note is
+-- free text; a location is an `@` reference sitting anywhere inside it:
 --
---     <note>[ -- <path>:<lnum>]
+--     off-by-one in @~/src/parser.lua:19 -- check the bounds
+--     the whole tokenizer needs a rewrite: @~/src/lexer.lua
+--     ask the team about cache invalidation
 --
--- The note text comes first and is the only required part; the optional location
--- is everything after the *last* whitespace-surrounded ` -- `, and only when it
--- parses as `<path>:<lnum>`. Anything else is note text, so a line that fails to
--- name a location is still a perfectly good (unanchored) note rather than an error.
--- <path> is home-relative (`~/...`) under $HOME else absolute.
+-- The reference is `@<path>` with an optional `:<lnum>`, and must start a token
+-- (preceded by whitespace or the line start) so an address like bob@example.com
+-- is left alone. The first reference in the line wins; everything else, `@` or
+-- not, is just text. <path> is home-relative (`~/...`) under $HOME else absolute.
+--
+-- The reference stays part of the note text rather than being split off, so a note
+-- is stored exactly as it reads. Internally the surrounding text is kept as
+-- `prefix`/`suffix` and the reference is re-rendered from the *current* file and
+-- line, which is what lets an extmark's drift rewrite the `:<lnum>` in the text.
 --
 -- Disk is read once at startup and written only on exit (setup's VimLeavePre); the
 -- interactive list is a scratch buffer rendered from the notes, and `:w` syncs edits
@@ -83,36 +90,70 @@ local function _decode_path(path)
     return vim.fn.fnamemodify(vim.fs.normalize(path), ":p")
 end
 
----@param note keystone.notes.Note
+--- Render a note's text: the surrounding text with its `@` reference rebuilt from
+--- the current file and line. Anchored notes are re-rendered rather than stored as
+--- one string so that a line number tracked by an extmark stays true in the text.
+---@param prefix string
+---@param file string?
+---@param lnum integer?
+---@param suffix string
 ---@return string
-local function _encode_note(note)
-    if note.file and note.lnum then
-        return string.format("%s -- %s:%d", note.label, _encode_path(note.file), note.lnum)
-    end
-    return note.label
+local function _render(prefix, file, lnum, suffix)
+    if not file then return prefix end
+    local ref = "@" .. _encode_path(file)
+    if lnum then ref = ref .. ":" .. lnum end
+    return prefix .. ref .. suffix
 end
 
---- Parse one stored/list line. The greedy `(.*)` anchors on the *last*
---- whitespace-surrounded `--`, so a note reading `a -- b -- foo.lua:1` keeps
---- `a -- b` as its text. When the tail does not parse as `<path>:<lnum>` the
---- whole line is the note text -- only a blank line is rejected.
----@param line string
----@return keystone.notes.Note?
-function M.decode_line(line)
-    local label, loc = line:match("^(.*)%s+%-%-%s*(.-)%s*$")
-    if label then
-        local path, lnum = loc:match("^(.-):(%d+)$")
-        if path and path ~= "" then
-            label = label:match("^%s*(.-)%s*$")
-            if label ~= "" then
-                return { label = label, file = _decode_path(path), lnum = tonumber(lnum) }
+M.render = _render
+
+--- Locate the first `@` reference in `text`. Only a reference starting a token
+--- counts, so `bob@example.com` is text and `@bob/notes.md` is a path.
+---@param text string
+---@return integer? start, integer? stop, string? path, integer? lnum
+local function _find_ref(text)
+    for pos, token in text:gmatch("()(@%S+)") do
+        local start = pos --[[@as integer]]
+        if start == 1 or text:sub(start - 1, start - 1):match("%s") then
+            -- Split a trailing `:<digits>` off the path. Greedy, so the colons in a
+            -- path like `@a:b:10` stay with the path and only `10` is the line.
+            local path, lnum = token:match("^@(.*):(%d+)$")
+            if not path or path == "" then
+                path, lnum = token:sub(2), nil
+            end
+            if path ~= "" and path ~= "@" then
+                return start, start + #token - 1, path, lnum and tonumber(lnum) or nil
             end
         end
     end
+    return nil
+end
 
-    label = line:match("^%s*(.-)%s*$")
-    if label == "" then return nil end
-    return { label = label }
+M.find_ref = _find_ref
+
+--- Parse one stored/list line into a note. Every non-blank line is a valid note:
+--- an `@` reference anchors it, and its absence simply means the note has no
+--- location. Only a blank line is rejected.
+---@param line string
+---@return keystone.notes.Note?
+function M.decode_line(line)
+    local text = line:match("^%s*(.-)%s*$")
+    if text == "" then return nil end
+
+    local start, stop, path, lnum = _find_ref(text)
+    if not start then
+        return { label = text, prefix = text, suffix = "" }
+    end
+
+    local file = _decode_path(path --[[@as string]])
+    local prefix, suffix = text:sub(1, start - 1), text:sub(stop + 1)
+    return {
+        label  = _render(prefix, file, lnum, suffix),
+        prefix = prefix,
+        suffix = suffix,
+        file   = file,
+        lnum   = lnum,
+    }
 end
 
 ---@return keystone.notes.Note[]
@@ -128,12 +169,14 @@ function M.store_load()
     return notes
 end
 
+-- A note's rendered text is exactly its stored/list line, so there is nothing to
+-- encode beyond collecting the labels.
 ---@param notes keystone.notes.Note[]
 ---@return string[]
 local function _encode_notes(notes)
     local lines = {}
     for _, n in ipairs(notes) do
-        lines[#lines + 1] = _encode_note(n)
+        lines[#lines + 1] = n.label
     end
     return lines
 end
@@ -157,20 +200,40 @@ end
 
 ----------- NOTES -----------
 
----@param label string
----@param file string?  absolute path; nil for an unanchored note
+--- Add a note from a decoded line (see `decode_line`). Only a note naming both a
+--- file *and* a line gets an extmark: a file-only reference has no line to sign or
+--- to track, so it is held in the table alone, as an unanchored note is.
+---@param note keystone.notes.Note
+---@return integer id
+function M.add(note)
+    local id = _new_id()
+    local file = note.file and M.norm(note.file) or nil
+    local lnum = file and note.lnum or nil
+
+    if file and lnum then
+        M.mark_group.set_file_extmark(id, file, lnum, 0, M.mark_opts, nil)
+    end
+
+    _notes[id] = {
+        id     = id,
+        prefix = note.prefix or note.label or "",
+        suffix = note.suffix or "",
+        file   = file,
+        lnum   = lnum,
+    }
+    return id
+end
+
+--- Add a note reading `text` with a reference to `file`(`:lnum`) appended -- the
+--- shape `:Note add` produces, where the location comes from the cursor rather
+--- than from anything the user typed.
+---@param text string
+---@param file string?
 ---@param lnum integer?
 ---@return integer id
-function M.add(label, file, lnum)
-    local id = _new_id()
-    if file and lnum then
-        file = M.norm(file)
-        M.mark_group.set_file_extmark(id, file, lnum, 0, M.mark_opts, nil)
-    else
-        file, lnum = nil, nil
-    end
-    _notes[id] = { id = id, label = label, file = file, lnum = lnum }
-    return id
+function M.add_at(text, file, lnum)
+    local prefix = (file and text ~= "") and (text .. " ") or text
+    return M.add({ prefix = prefix, suffix = "", file = file, lnum = lnum })
 end
 
 ---@param id integer
@@ -217,11 +280,14 @@ function M.read_notes(live)
 
     local notes = {}
     for id, note in pairs(_notes) do
+        local lnum = note.file and (lnums[id] or note.lnum) or nil
         notes[#notes + 1] = {
-            id    = id,
-            label = note.label,
-            file  = note.file,
-            lnum  = note.file and (lnums[id] or note.lnum) or nil,
+            id     = id,
+            label  = _render(note.prefix, note.file, lnum, note.suffix),
+            prefix = note.prefix,
+            suffix = note.suffix,
+            file   = note.file,
+            lnum   = lnum,
         }
     end
     return notes
@@ -294,27 +360,19 @@ function M.sync_from_buffer(bufnr)
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     vim.bo[bufnr].modified = false
 
-    ---@param label string
-    ---@param file string?
-    ---@param lnum integer?
-    ---@return string
-    local function _key(label, file, lnum)
-        return string.format("%s\0%s\0%d", label, file or "", lnum or 0)
-    end
-
-    -- The notes the buffer wants, as a multiset keyed by text+location so duplicate
-    -- lines match one-for-one against existing notes. Every non-blank line parses
-    -- (an unrecognised location is just part of the text), so nothing is dropped.
+    -- The notes the buffer wants, as a multiset so duplicate lines match one-for-one
+    -- against existing notes. A note's rendered label *is* its line, reference and
+    -- all, so the label alone identifies it. Every non-blank line parses -- text that
+    -- names no location is simply an unanchored note -- so nothing is dropped.
     local wanted = {}
     for _, line in ipairs(lines) do
         local n = M.decode_line(line)
         if n then
-            local key = _key(n.label, n.file, n.lnum)
-            local bucket = wanted[key]
+            local bucket = wanted[n.label]
             if bucket then
                 bucket.count = bucket.count + 1
             else
-                wanted[key] = { note = n, count = 1 }
+                wanted[n.label] = { note = n, count = 1 }
             end
         end
     end
@@ -322,7 +380,7 @@ function M.sync_from_buffer(bufnr)
     -- Keep notes the buffer still wants (decrementing their bucket); drop the rest.
     -- Compare against stored positions -- the same snapshot the list is rendered from.
     for _, note in ipairs(M.read_notes(false)) do
-        local bucket = wanted[_key(note.label, note.file, note.lnum)]
+        local bucket = wanted[note.label]
         if bucket and bucket.count > 0 then
             bucket.count = bucket.count - 1
         else
@@ -333,9 +391,7 @@ function M.sync_from_buffer(bufnr)
     -- Whatever the buffer still wants had no matching note: add it.
     for _, bucket in pairs(wanted) do
         for _ = 1, bucket.count do
-            local n = bucket.note
-            local anchored = n.lnum ~= nil and n.lnum > 0
-            M.add(n.label, anchored and n.file or nil, anchored and n.lnum or nil)
+            M.add(bucket.note)
         end
     end
 end
@@ -384,7 +440,7 @@ function M.init(config)
         M.mark_group = extmarks.define_group("notes")
 
         for _, n in ipairs(M.store_load()) do
-            M.add(n.label, n.file, n.lnum)
+            M.add(n)
         end
     end
 end
