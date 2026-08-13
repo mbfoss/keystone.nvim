@@ -58,18 +58,6 @@ local function _at_key()
     return "@"
 end
 
---- `/` inside a reference: re-open completion so it descends into the directory
---- just chosen. Once the popup is up Vim filters the list it already has rather
---- than calling the completefunc again, so without this a path stops at its first
---- component.
----@return string
-local function _slash_key()
-    if _before_cursor():match("%S*$"):match("^@") then
-        return "/<C-x><C-u>"
-    end
-    return "/"
-end
-
 --- Prompt for the note text and store it. `file`/`lnum` anchor the note when given;
 --- `replace` is the note being rewritten, whose text seeds the prompt. The prompt
 --- names which kind is being written: the window opens at the cursor either way, so
@@ -176,8 +164,6 @@ function M.open_list()
         -- <C-x><C-u> still works by hand.
         vim.keymap.set("i", "@", _at_key,
             { buffer = bufnr, expr = true, desc = "Start a path reference" })
-        vim.keymap.set("i", "/", _slash_key,
-            { buffer = bufnr, expr = true, desc = "Descend into the completed directory" })
 
         -- Pick the `@` references out of the note text. A syntax rule, not extmarks:
         -- it re-matches as the user types, so highlighting never lags the throttled

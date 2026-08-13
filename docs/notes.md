@@ -62,8 +62,12 @@ prose.
 
 `:Note list` is a scratch buffer, not the file on disk. Edit it freely: changes
 flow into the notes (and their signs) as you type, and the file is written on
-exit — `:w` is unnecessary. `<CR>` jumps to the note under the cursor, and
-`<C-x><C-u>` completes the path inside an `@` reference.
+exit — `:w` is unnecessary. `<CR>` jumps to the note under the cursor.
+
+Typing `@` where a reference can start — at the beginning of a line or after
+whitespace — opens path completion straight away. Elsewhere `@` is just a
+character, so `bob@example.com` types normally. `<C-x><C-u>` triggers the same
+completion by hand.
 
 Because the line number lives in the note's own text, an anchored note rewrites
 its own `:<line>` as the file it points at is edited.
