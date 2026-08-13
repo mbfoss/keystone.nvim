@@ -3,8 +3,6 @@ local M    = {}
 ---@class keystone.notes.Config
 ---@field enabled boolean
 ---@field persist_path (string | fun():string)?  -- notes file path; nil = ~/.nvimnotes
----@field sign_text string
----@field sign_hl string
 
 ---@class keystone.notes.Note
 ---@field id integer?     -- identity within the session; absent on a freshly parsed line
@@ -116,7 +114,7 @@ function M.setup(opts)
 
     -- Distinct from the "keystone_notes" augroup the extmark group registers its
     -- Buf* handlers under (see extmarks.define_group): reusing that name with clear=true
-    -- would wipe the BufReadPost handler that applies signs to later-loaded buffers.
+    -- would wipe the BufReadPost handler that tracks later-loaded buffers.
     local augroup = vim.api.nvim_create_augroup("keystone_notes_setup", { clear = true })
     -- During a session the in-memory notes are the single source of truth and disk is
     -- left untouched; the one write to the notes file happens here, on exit.

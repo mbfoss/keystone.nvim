@@ -127,7 +127,7 @@ end
 
 --- Opens the notes list for editing in a split. The list is a scratch buffer
 --- rendered from the in-memory notes -- not the file on disk. Edit lines freely;
---- edits synchronise automatically (throttled), updating the notes and their signs
+--- edits synchronise automatically (throttled), updating the notes and their anchors
 --- in memory (see core.sync_from_buffer) without touching disk -- the file is saved
 --- on exit. `:w` is unnecessary (and a no-op). Each line is free text, optionally
 --- carrying an `@<path>[:<lnum>]` reference anywhere in it; <C-x><C-u> completes the

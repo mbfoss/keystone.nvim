@@ -173,7 +173,7 @@ describe("notes.sync_from_buffer", function()
         assert.equals(1, #core.read_notes(false))
     end)
 
-    it("signs only the notes naming a line", function()
+    it("anchors only the notes naming a line", function()
         core.sync_from_buffer(make_list({
             "plain note",
             "file only @b.lua",

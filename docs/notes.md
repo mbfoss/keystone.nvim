@@ -2,8 +2,7 @@
 
 Persistent notes that survive across sessions. A note is a piece of text; it may
 also name a location, by writing `@<path>` anywhere in it. A reference that names
-a line as well gets a sign in that file's sign column and follows the line as you
-edit around it.
+a line as well follows that line as you edit around it.
 
 ![Writing notes on a line and free-standing, then editing them in :Note list](assets/notes.gif)
 
@@ -12,9 +11,7 @@ edit around it.
 ```lua
 require("keystone").setup({
   notes = {
-    persist_path = nil,               -- notes file; nil = ~/.nvimnotes
-    sign_text    = "*",
-    sign_hl      = "DiagnosticInfo",
+    persist_path = nil,   -- notes file; nil = ~/.nvimnotes
   },
 })
 ```
@@ -50,13 +47,13 @@ compare @~/src/old.lua:20 against @~/src/new.lua:31
 ```
 
 A reference is `@<path>`, optionally followed by `:<line>`. With a line it is
-anchored: it gets a sign and follows the line as the file is edited. Without one
-it just names a file. Text naming no location at all is a perfectly good note —
-nothing is ever rejected as malformed.
+anchored: it follows the line as the file is edited. Without one it just names a
+file. Text naming no location at all is a perfectly good note — nothing is ever
+rejected as malformed.
 
 A note may carry as many references as it likes. The **first** one anchors it —
-that is the one that gets the sign and is tracked as the file changes — but every
-reference is real, and `<CR>` follows whichever one the cursor is on.
+that is the one tracked as the file changes — but every reference is real, and
+`<CR>` follows whichever one the cursor is on.
 
 The reference has to start a token, so an address like `bob@example.com` stays
 plain text. References stay part of the note rather than being split off, and are
@@ -64,7 +61,7 @@ highlighted (`KeystoneNoteRef`, linked to `Directory` by default) so they read
 apart from the prose.
 
 `:Note list` is a scratch buffer, not the file on disk. Edit it freely: changes
-flow into the notes (and their signs) as you type, and the file is written on
+flow into the notes (and their anchors) as you type, and the file is written on
 exit — `:w` is unnecessary. `<CR>` opens the reference under the cursor — at its
 line, or at the top of the file when the reference names no line. With the cursor
 on prose rather than a reference, `<CR>` does nothing.

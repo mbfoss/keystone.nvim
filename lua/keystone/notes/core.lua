@@ -5,13 +5,6 @@ local M        = {}
 -- Only startup modules are required here; the heavy UI modules live in `actions`.
 
 local fsutil   = require("keystone.util.fsutil")
-local extmarks = require("keystone.util.fileextmarks")
-
----@type keystone.util.fileextmarks.GroupFunctions
-M.mark_group   = nil
-
----@type vim.api.keyset.set_extmark
-M.mark_opts    = nil
 
 ---@type integer?  the scratch list buffer, when one has been opened
 M.list_bufnr   = nil
@@ -19,12 +12,13 @@ M.list_bufnr   = nil
 ---@type keystone.notes.Config
 local _config
 
--- The note table is the source of truth for *which* notes exist and what they say.
--- An anchored note additionally mirrors into the extmark group under the same id,
--- which owns its line number from then on: extmarks follow in-buffer edits, the
--- table cannot. Unanchored notes have no extmark and live here alone.
+-- The note table is the source of truth: every note lives here and nowhere else,
+-- line number included. A note's `:<lnum>` is whatever its text says -- it is not
+-- tracked as the file is edited, so it goes stale like any written-down reference.
 ---@type table<integer, keystone.notes.Note>
 local _notes   = {}
+
+local _initialised = false
 
 local _next_id = 0
 
@@ -39,8 +33,6 @@ function M.default_config()
     return {
         enabled      = true,
         persist_path = nil,
-        sign_text    = "*",
-        sign_hl      = "DiagnosticInfo",
     }
 end
 
@@ -59,8 +51,8 @@ end
 --
 -- The reference stays part of the note text rather than being split off, so a note
 -- is stored exactly as it reads. Internally the surrounding text is kept as
--- `prefix`/`suffix` and the reference is re-rendered from the *current* file and
--- line, which is what lets an extmark's drift rewrite the `:<lnum>` in the text.
+-- `prefix`/`suffix` and the reference is re-rendered from the note's file and line,
+-- so an edit to either shows up in the text.
 --
 -- Disk is read once at startup and written only on exit (setup's VimLeavePre); the
 -- interactive list is a scratch buffer rendered from the notes, and `:w` syncs edits
@@ -91,8 +83,7 @@ local function _decode_path(path)
 end
 
 --- Render a note's text: the surrounding text with its `@` reference rebuilt from
---- the current file and line. Anchored notes are re-rendered rather than stored as
---- one string so that a line number tracked by an extmark stays true in the text.
+--- the note's file and line.
 ---@param prefix string
 ---@param file string?
 ---@param lnum integer?
@@ -233,19 +224,15 @@ end
 
 ----------- NOTES -----------
 
---- Add a note from a decoded line (see `decode_line`). Only a note naming both a
---- file *and* a line gets an extmark: a file-only reference has no line to sign or
---- to track, so it is held in the table alone, as an unanchored note is.
+--- Add a note from a decoded line (see `decode_line`). A line number only counts
+--- alongside a file: a reference naming neither, or a file alone, simply leaves the
+--- note that much less anchored.
 ---@param note keystone.notes.Note
 ---@return integer id
 function M.add(note)
     local id = _new_id()
     local file = note.file and M.norm(note.file) or nil
     local lnum = file and note.lnum or nil
-
-    if file and lnum then
-        M.mark_group.set_file_extmark(id, file, lnum, 0, M.mark_opts, nil)
-    end
 
     _notes[id] = {
         id     = id,
@@ -274,13 +261,11 @@ end
 function M.remove(id)
     if not _notes[id] then return false end
     _notes[id] = nil
-    M.mark_group.remove_extmark(id)
     return true
 end
 
 function M.remove_all()
     _notes = {}
-    M.mark_group.remove_extmarks()
 end
 
 ---@param file string  absolute path
@@ -289,7 +274,6 @@ function M.remove_file(file)
     for id, note in pairs(_notes) do
         if note.file == file then _notes[id] = nil end
     end
-    M.mark_group.remove_file_extmarks(file)
 end
 
 ---@return integer
@@ -297,30 +281,19 @@ function M.count()
     return vim.tbl_count(_notes)
 end
 
--- Snapshot the notes. `live` (default true) reports current buffer positions for
--- anchored notes -- right for display, where marks follow in-buffer edits. Pass
--- false for the disk-consistent positions (synced on write/unload) used when
--- persisting. Unanchored notes are unaffected either way.
----@param live boolean?
+-- Snapshot the notes. The table holds everything, so this is the one and only view
+-- of them: what is rendered into the list is what is written to disk.
 ---@return keystone.notes.Note[]
-function M.read_notes(live)
-    if live == nil then live = true end
-
-    local lnums = {}
-    for _, m in ipairs(M.mark_group.get_extmarks(live)) do
-        lnums[m.id] = m.lnum
-    end
-
+function M.read_notes()
     local notes = {}
     for id, note in pairs(_notes) do
-        local lnum = note.file and (lnums[id] or note.lnum) or nil
         notes[#notes + 1] = {
             id     = id,
-            label  = _render(note.prefix, note.file, lnum, note.suffix),
+            label  = _render(note.prefix, note.file, note.lnum, note.suffix),
             prefix = note.prefix,
             suffix = note.suffix,
             file   = note.file,
-            lnum   = lnum,
+            lnum   = note.lnum,
         }
     end
     return notes
@@ -328,10 +301,9 @@ end
 
 -- Notes are ordered by their text: the note is the thing being looked for, and
 -- the location -- when there is one -- only breaks ties between identical texts.
----@param live boolean?
 ---@return keystone.notes.Note[]
-function M.sorted_notes(live)
-    local notes = M.read_notes(live)
+function M.sorted_notes()
+    local notes = M.read_notes()
     table.sort(notes, function(a, b)
         if a.label ~= b.label then return a.label < b.label end
         if (a.file or "") ~= (b.file or "") then return (a.file or "") < (b.file or "") end
@@ -346,8 +318,11 @@ end
 ---@param lnum integer
 ---@return keystone.notes.Note?
 function M.note_at(file, lnum)
-    local mark = M.mark_group.get_extmark_by_location(M.norm(file), lnum, true)
-    return mark and _notes[mark.id] or nil
+    file = M.norm(file)
+    for _, note in pairs(_notes) do
+        if note.file == file and note.lnum == lnum then return note end
+    end
+    return nil
 end
 
 ----------- LIST BUFFER -----------
@@ -368,7 +343,7 @@ function M.refresh_list()
     local bufnr = _live_list_bufnr()
     if not bufnr then return end
 
-    local lines = _encode_notes(M.sorted_notes(false))
+    local lines = _encode_notes(M.sorted_notes())
 
     local win = vim.fn.bufwinid(bufnr)
     local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
@@ -385,9 +360,9 @@ function M.refresh_list()
     end
 end
 
--- Reconcile the notes (and their signs) with the list buffer's lines: the buffer
--- wins. Only the delta is applied -- unchanged notes keep their ids and live
--- tracking, so the throttled per-edit sync doesn't churn every mark. Disk untouched.
+-- Reconcile the notes with the list buffer's lines: the buffer wins. Only the delta
+-- is applied, so unchanged notes keep their ids across the throttled per-edit sync.
+-- Disk untouched.
 ---@param bufnr integer
 function M.sync_from_buffer(bufnr)
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -411,8 +386,7 @@ function M.sync_from_buffer(bufnr)
     end
 
     -- Keep notes the buffer still wants (decrementing their bucket); drop the rest.
-    -- Compare against stored positions -- the same snapshot the list is rendered from.
-    for _, note in ipairs(M.read_notes(false)) do
+    for _, note in ipairs(M.read_notes()) do
         local bucket = wanted[note.label]
         if bucket and bucket.count > 0 then
             bucket.count = bucket.count - 1
@@ -436,7 +410,7 @@ function M.save_to_disk()
     if M.list_bufnr then
         M.sync_from_buffer(M.list_bufnr)
     end
-    _store_save(M.sorted_notes(false))
+    _store_save(M.sorted_notes())
 end
 
 ---@return string|nil,number|nil
@@ -448,9 +422,9 @@ function M.get_cur_loc()
     if vim.bo[bufnr].buftype ~= '' then
         return
     end
-    -- Use the buffer name (not expand("%:p")): the extmarks group keys marks by
-    -- nvim_buf_get_name, and on symlinked paths the two disagree, which would
-    -- desync mark tracking. Matches clear_file, which already uses the buf name.
+    -- Use the buffer name (not expand("%:p")): on symlinked paths the two disagree,
+    -- and a note's file has to be keyed the one way throughout for note_at to find
+    -- it again. Matches clear_file, which already uses the buf name.
     local file = vim.api.nvim_buf_get_name(bufnr)
     if file == "" then
         return
@@ -459,19 +433,14 @@ function M.get_cur_loc()
     return file, lnum
 end
 
--- Initialise state from the effective config: define the extmark group and seed
--- the notes from the on-disk file. Idempotent -- the group is defined once.
+-- Initialise state from the effective config, seeding the notes from the on-disk
+-- file. Idempotent -- the store is read once.
 ---@param config keystone.notes.Config
 function M.init(config)
     _config = config
-    M.mark_opts = { sign_text = config.sign_text, sign_hl_group = config.sign_hl }
 
-    if not M.mark_group then
-        -- Claim the process-wide namespace/augroup prefix for this plugin before
-        -- defining any group; the group name only has to be unique within keystone.
-        extmarks.init("keystone")
-        M.mark_group = extmarks.define_group("notes")
-
+    if not _initialised then
+        _initialised = true
         for _, n in ipairs(M.store_load()) do
             M.add(n)
         end
