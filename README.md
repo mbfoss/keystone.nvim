@@ -40,7 +40,7 @@ require("keystone").setup({
   explore    = true,  -- :FileSelector
   symboltree = false, -- :SymbolTree
   calltree   = false, -- :CallTree
-  bookmarks  = false, -- :Bookmark
+  notes      = false, -- :Note
   unsaved    = false, -- :DiffUnsaved
   bufdelete  = false, -- :Bdelete, :Bwipeout, :Bdeletehidden, :Bwipeouthidden
 })
@@ -115,7 +115,7 @@ Each module has its own page in [docs/](docs/):
 | [statusline](docs/statusline.md) | A statusline assembled from configurable sections |
 | [lspconfig](docs/lspconfig.md) | Enables configured LSP servers; per-server defaults and log rotation |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
-| [bookmarks](docs/bookmarks.md) | Persistent, optionally labelled line bookmarks |
+| [notes](docs/notes.md) | Persistent notes, optionally anchored to a line |
 | [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
 | [largefile](docs/largefile.md) | Opens files over a size threshold without Treesitter/LSP/ftplugins |
 | [notify](docs/notify.md) | A floating notification UI |
@@ -135,7 +135,7 @@ Enabling the relevant module registers its command:
 | `:FileSelector` | [explore](docs/explore.md) | Open the file selector |
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
-| `:Bookmark` | [bookmarks](docs/bookmarks.md) | Manage line bookmarks |
+| `:Note` | [notes](docs/notes.md) | Manage notes |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
 | `:Bdelete` `:Bwipeout` `:Bdeletehidden` `:Bwipeouthidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 

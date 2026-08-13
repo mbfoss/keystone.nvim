@@ -1,7 +1,7 @@
 # select
 
 Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks you
-to choose from a list (LSP code actions, `:Bookmark pick`, `:DiffUnsaved`, other
+to choose from a list (LSP code actions, `:Note pick`, `:DiffUnsaved`, other
 plugins) — with a floating one: a prompt line, a fuzzy-filtered list, and a
 preview window for callers that offer one.
 
