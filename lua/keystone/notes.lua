@@ -5,12 +5,9 @@ local M    = {}
 ---@field persist_path (string | fun():string)?  -- notes file path; nil = ~/.nvimnotes
 
 ---@class keystone.notes.Note
----@field id integer?     -- identity within the session; absent on a freshly parsed line
----@field label string    -- the note text; the note's reason for existing
----@field prefix string?  -- text before the anchoring `@` reference
----@field suffix string?  -- text after it, later references included
+---@field label string    -- the note text, exactly as the line reads
 ---@field file string?    -- absolute path, when the note is anchored to a location
----@field lnum integer?   -- 1-based line number, set together with `file`
+---@field lnum integer?   -- 1-based line number, when the reference names one
 
 ---@class keystone.notes.Ref
 ---@field start integer   -- 1-based byte index of the `@`
@@ -19,7 +16,7 @@ local M    = {}
 ---@field file string     -- that path resolved to an absolute one
 ---@field lnum integer?   -- 1-based line number, when the reference names one
 
--- Startup-time state (the notes and the store they load from) lives in `keystone.notes.core`.
+-- Parsing and the notes file itself live in `keystone.notes.core`.
 -- Interactive commands live in `keystone.notes.actions`, which pulls in the heavy UI
 -- modules and is required only the first time a command runs -- keeping `setup` cheap.
 local core = require("keystone.notes.core")
@@ -33,8 +30,8 @@ M.config = core.default_config()
 
 ----------- PUBLIC API -----------
 
---- Write a note anchored to the current line. Prompts for the text -- empty, unless
---- the line already carries a note, which is then reopened for editing.
+--- Write a note anchored to the current line. Prompts for the text, then appends
+--- the note to the notes file.
 function M.add_at_cursor()
     _actions().add_at_cursor()
 end
@@ -44,22 +41,7 @@ function M.add_free()
     _actions().add_free()
 end
 
-function M.delete_at_cursor()
-    local file, lnum = core.get_cur_loc()
-    if not file or not lnum then return end
-    local note = core.note_at(file, lnum)
-    if note then core.remove(note.id) end
-    core.refresh_list()
-end
-
-function M.clear_file()
-    _actions().clear_file()
-end
-
-function M.clear_all()
-    _actions().clear_all()
-end
-
+--- The notes currently in the file, in the order they are written there.
 ---@return keystone.notes.Note[]
 function M.get_notes()
     return core.read_notes()
@@ -71,7 +53,7 @@ end
 
 ----------- COMMAND -----------
 
-local _subcommand_list = { "add", "add_free", "delete", "list", "clear_file", "clear_all" }
+local _subcommand_list = { "list", "add", "add_free" }
 
 ---@param _ string
 ---@param rest string[]
@@ -85,21 +67,15 @@ end
 ---@param args string[]
 ---@param _opts vim.api.keyset.create_user_command.command_args
 local function _run_command(_, args, _opts)
-    local cmd = args[1] or "add"
+    local cmd = args[1] or "list"
     if cmd == "add" then
         M.add_at_cursor()
     elseif cmd == "add_free" then
         M.add_free()
-    elseif cmd == "delete" then
-        M.delete_at_cursor()
     elseif cmd == "list" then
         M.open_list()
-    elseif cmd == "clear_file" then
-        M.clear_file()
-    elseif cmd == "clear_all" then
-        M.clear_all()
     else
-        vim.notify("[keystone] Unknown Note subcommand: " .. tostring(cmd), vim.log.levels.WARN)
+        vim.notify("[keystone] Unknown Notes subcommand: " .. tostring(cmd), vim.log.levels.WARN)
     end
 end
 
@@ -112,15 +88,7 @@ function M.setup(opts)
 
     core.init(config)
 
-    local augroup = vim.api.nvim_create_augroup("keystone_notes_setup", { clear = true })
-    -- During a session the in-memory notes are the single source of truth and disk is
-    -- left untouched; the one write to the notes file happens here, on exit.
-    vim.api.nvim_create_autocmd("VimLeavePre", {
-        group    = augroup,
-        callback = function() core.save_to_disk() end,
-    })
-
-    vim.api.nvim_create_user_command("Note", function(cmd_opts)
+    vim.api.nvim_create_user_command("Notes", function(cmd_opts)
         require("keystone.util.usercmd").handle(cmd_opts, _run_command)
     end, {
         nargs = "*",

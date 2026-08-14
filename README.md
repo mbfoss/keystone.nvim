@@ -40,7 +40,7 @@ require("keystone").setup({
   explore    = true,  -- :FileSelector
   symboltree = false, -- :SymbolTree
   calltree   = false, -- :CallTree
-  notes      = false, -- :Note
+  notes      = false, -- :Notes
   unsaved    = false, -- :DiffUnsaved
   bufdelete  = false, -- :Bdelete, :Bwipeout, :Bdeletehidden, :Bwipeouthidden
 })
@@ -135,7 +135,7 @@ Enabling the relevant module registers its command:
 | `:FileSelector` | [explore](docs/explore.md) | Open the file selector |
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
-| `:Note` | [notes](docs/notes.md) | Manage notes |
+| `:Notes` | [notes](docs/notes.md) | Manage notes |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
 | `:Bdelete` `:Bwipeout` `:Bdeletehidden` `:Bwipeouthidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 

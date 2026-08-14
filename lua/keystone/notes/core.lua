@@ -1,31 +1,13 @@
-local M        = {}
+local M      = {}
 
--- Internal state and storage shared between the thin entry point
--- (`keystone.notes`) and the lazily-loaded commands (`keystone.notes.actions`).
--- Only startup modules are required here; the heavy UI modules live in `actions`.
+-- Internal state shared between the thin entry point (`keystone.notes`) and the
+-- lazily-loaded commands (`keystone.notes.actions`). Only startup modules are
+-- required here; the heavy UI modules live in `actions`.
 
-local fsutil   = require("keystone.util.fsutil")
-
----@type integer?  the scratch list buffer, when one has been opened
-M.list_bufnr   = nil
+local fsutil = require("keystone.util.fsutil")
 
 ---@type keystone.notes.Config
 local _config
-
--- The note table is the source of truth: every note lives here and nowhere else,
--- line number included. A note's `:<lnum>` is whatever its text says -- it is not
--- tracked as the file is edited, so it goes stale like any written-down reference.
----@type table<integer, keystone.notes.Note>
-local _notes   = {}
-
-local _initialised = false
-
-local _next_id = 0
-
-local function _new_id()
-    _next_id = _next_id + 1
-    return _next_id
-end
 
 ---@return keystone.notes.Config
 function M.default_config()
@@ -37,7 +19,7 @@ function M.default_config()
 end
 
 ----------- STORE -----------
--- On-disk format, one note per non-empty line (blank lines ignored). A note is
+-- The notes file is an ordinary text file, one note per non-empty line. A note is
 -- free text; a location is an `@` reference sitting anywhere inside it:
 --
 --     off-by-one in @~/src/parser.lua:19 -- check the bounds
@@ -47,20 +29,14 @@ end
 -- The reference is `@<path>` with an optional `:<lnum>`, and must start a token
 -- (preceded by whitespace or the line start) so an address like bob@example.com
 -- is left alone. The first reference in the line wins; everything else, `@` or
--- not, is just text. <path> is home-relative (`~/...`) under $HOME else absolute.
+-- not, is just text.
 --
--- The reference stays part of the note text rather than being split off, so a note
--- is stored exactly as it reads. Internally the surrounding text is kept as
--- `prefix`/`suffix` and the reference is re-rendered from the note's file and line,
--- so an edit to either shows up in the text.
---
--- Disk is read once at startup and written only on exit (setup's VimLeavePre); the
--- interactive list is a scratch buffer rendered from the notes, and `:w` syncs edits
--- back without touching disk.
+-- Nothing is kept in memory and nothing is rewritten: `:Notes add` appends a line,
+-- `:Notes list` edits the file. Deleting a note is deleting its line.
 
 ---@return string
 function M.store_filepath()
-    local pp = _config.persist_path
+    local pp = _config and _config.persist_path
     if type(pp) == "function" then
         pp = pp()
     end
@@ -81,22 +57,6 @@ end
 local function _decode_path(path)
     return vim.fn.fnamemodify(vim.fs.normalize(path), ":p")
 end
-
---- Render a note's text: the surrounding text with its `@` reference rebuilt from
---- the note's file and line.
----@param prefix string
----@param file string?
----@param lnum integer?
----@param suffix string
----@return string
-local function _render(prefix, file, lnum, suffix)
-    if not file then return prefix end
-    local ref = "@" .. _encode_path(file)
-    if lnum then ref = ref .. ":" .. lnum end
-    return prefix .. ref .. suffix
-end
-
-M.render = _render
 
 --- Every `@` reference in `text`, in order. Only a reference starting a token
 --- counts, so `bob@example.com` is text and `@bob/notes.md` is a path. A note may
@@ -155,9 +115,9 @@ function M.ref_at(text, col)
     return nil
 end
 
---- Parse one stored/list line into a note. Every non-blank line is a valid note:
---- an `@` reference anchors it, and its absence simply means the note has no
---- location. Only a blank line is rejected.
+--- Parse one stored line into a note. Every non-blank line is a valid note: an `@`
+--- reference anchors it, and its absence simply means the note has no location.
+--- Only a blank line is rejected.
 ---@param line string
 ---@return keystone.notes.Note?
 function M.decode_line(line)
@@ -167,21 +127,13 @@ function M.decode_line(line)
     -- The first reference anchors the note; any others are simply part of its text.
     local ref = _refs(text)[1]
     if not ref then
-        return { label = text, prefix = text, suffix = "" }
+        return { label = text }
     end
-
-    local prefix, suffix = text:sub(1, ref.start - 1), text:sub(ref.stop + 1)
-    return {
-        label  = _render(prefix, ref.file, ref.lnum, suffix),
-        prefix = prefix,
-        suffix = suffix,
-        file   = ref.file,
-        lnum   = ref.lnum,
-    }
+    return { label = text, file = ref.file, lnum = ref.lnum }
 end
 
 ---@return keystone.notes.Note[]
-function M.store_load()
+function M.read_notes()
     local ok, raw = fsutil.read_content(M.store_filepath())
     if not ok or raw == "" then return {} end
 
@@ -193,27 +145,54 @@ function M.store_load()
     return notes
 end
 
--- A note's rendered text is exactly its stored/list line, so there is nothing to
--- encode beyond collecting the labels.
----@param notes keystone.notes.Note[]
----@return string[]
-local function _encode_notes(notes)
-    local lines = {}
-    for _, n in ipairs(notes) do
-        lines[#lines + 1] = n.label
-    end
-    return lines
+---@param path string
+---@return integer?  a loaded buffer editing `path`, if there is one
+local function _live_bufnr(path)
+    local bufnr = vim.fn.bufnr(path)
+    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then return bufnr end
+    return nil
 end
 
----@param notes keystone.notes.Note[]
-local function _store_save(notes)
+--- Append `text` as a new line. A buffer already editing the notes file takes the
+--- line instead of the file, so the two never diverge; writing it stays the user's
+--- call, exactly as with any other edit to that buffer.
+---@param text string
+local function _append_line(text)
     local path = M.store_filepath()
+
+    local bufnr = _live_bufnr(path)
+    if bufnr then
+        local last = vim.api.nvim_buf_get_lines(bufnr, -2, -1, false)[1]
+        -- An empty buffer is one empty line; overwrite it rather than leaving a gap.
+        local from = (last == nil or last == "") and -2 or -1
+        vim.api.nvim_buf_set_lines(bufnr, from, -1, false, { text })
+        return
+    end
+
     vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
 
-    local lines = _encode_notes(notes)
-    local content = #lines > 0 and (table.concat(lines, "\n") .. "\n") or ""
-    fsutil.write_content(path, content)
+    -- A file not ending in a newline would otherwise swallow the new note into its
+    -- last line, so check the final byte before appending.
+    local needs_nl = false
+    local r = io.open(path, "r")
+    if r then
+        if r:seek("end") > 0 then
+            r:seek("end", -1)
+            needs_nl = r:read(1) ~= "\n"
+        end
+        r:close()
+    end
+
+    local f = io.open(path, "a")
+    if not f then
+        vim.notify("[keystone] Cannot write notes file: " .. path, vim.log.levels.ERROR)
+        return
+    end
+    f:write((needs_nl and "\n" or "") .. text .. "\n")
+    f:close()
 end
+
+M.append_line = _append_line
 
 ---@param file string?
 ---@return string?
@@ -222,195 +201,20 @@ function M.norm(file)
     return vim.fn.fnamemodify(file, ":p")
 end
 
------------ NOTES -----------
-
---- Add a note from a decoded line (see `decode_line`). A line number only counts
---- alongside a file: a reference naming neither, or a file alone, simply leaves the
---- note that much less anchored.
----@param note keystone.notes.Note
----@return integer id
-function M.add(note)
-    local id = _new_id()
-    local file = note.file and M.norm(note.file) or nil
-    local lnum = file and note.lnum or nil
-
-    _notes[id] = {
-        id     = id,
-        prefix = note.prefix or note.label or "",
-        suffix = note.suffix or "",
-        file   = file,
-        lnum   = lnum,
-    }
-    return id
-end
-
---- Add a note reading `text` with a reference to `file`(`:lnum`) appended -- the
---- shape `:Note add` produces, where the location comes from the cursor rather
---- than from anything the user typed.
+--- Append a note reading `text` with a reference to `file`(`:lnum`) after it -- the
+--- shape `:Notes add` produces, where the location comes from the cursor rather than
+--- from anything the user typed.
 ---@param text string
 ---@param file string?
 ---@param lnum integer?
----@return integer id
 function M.add_at(text, file, lnum)
-    local prefix = (file and text ~= "") and (text .. " ") or text
-    return M.add({ prefix = prefix, suffix = "", file = file, lnum = lnum })
-end
-
----@param id integer
----@return boolean removed
-function M.remove(id)
-    if not _notes[id] then return false end
-    _notes[id] = nil
-    return true
-end
-
-function M.remove_all()
-    _notes = {}
-end
-
----@param file string  absolute path
-function M.remove_file(file)
-    file = M.norm(file)
-    for id, note in pairs(_notes) do
-        if note.file == file then _notes[id] = nil end
+    if not file then
+        _append_line(text)
+        return
     end
-end
-
----@return integer
-function M.count()
-    return vim.tbl_count(_notes)
-end
-
--- Snapshot the notes. The table holds everything, so this is the one and only view
--- of them: what is rendered into the list is what is written to disk.
----@return keystone.notes.Note[]
-function M.read_notes()
-    local notes = {}
-    for id, note in pairs(_notes) do
-        notes[#notes + 1] = {
-            id     = id,
-            label  = _render(note.prefix, note.file, note.lnum, note.suffix),
-            prefix = note.prefix,
-            suffix = note.suffix,
-            file   = note.file,
-            lnum   = note.lnum,
-        }
-    end
-    return notes
-end
-
--- Notes are ordered by their text: the note is the thing being looked for, and
--- the location -- when there is one -- only breaks ties between identical texts.
----@return keystone.notes.Note[]
-function M.sorted_notes()
-    local notes = M.read_notes()
-    table.sort(notes, function(a, b)
-        if a.label ~= b.label then return a.label < b.label end
-        if (a.file or "") ~= (b.file or "") then return (a.file or "") < (b.file or "") end
-        if (a.lnum or 0) ~= (b.lnum or 0) then return (a.lnum or 0) < (b.lnum or 0) end
-        return a.id < b.id
-    end)
-    return notes
-end
-
---- The note anchored to `file`:`lnum`, if any.
----@param file string  absolute path
----@param lnum integer
----@return keystone.notes.Note?
-function M.note_at(file, lnum)
-    file = M.norm(file)
-    for _, note in pairs(_notes) do
-        if note.file == file and note.lnum == lnum then return note end
-    end
-    return nil
-end
-
------------ LIST BUFFER -----------
-
----@return integer?  the scratch list buffer, if it is currently loaded
-local function _live_list_bufnr()
-    local bufnr = M.list_bufnr
-    if bufnr and vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_is_loaded(bufnr) then
-        return bufnr
-    end
-    return nil
-end
-
--- Render the authoritative note snapshot into the scratch list buffer in place
--- (preserving cursor/view), leaving it unmodified. The notes always win, even over
--- unsaved edits; sync_from_buffer is the reverse path. No-op if the buffer isn't loaded.
-function M.refresh_list()
-    local bufnr = _live_list_bufnr()
-    if not bufnr then return end
-
-    local lines = _encode_notes(M.sorted_notes())
-
-    local win = vim.fn.bufwinid(bufnr)
-    local view = win >= 0 and vim.api.nvim_win_call(win, vim.fn.winsaveview) or nil
-
-    vim.bo[bufnr].modifiable = true
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-    vim.bo[bufnr].modified = false
-
-    if win >= 0 and view then
-        vim.api.nvim_win_call(win, function()
-            view.lnum = math.min(view.lnum, vim.api.nvim_buf_line_count(bufnr))
-            vim.fn.winrestview(view)
-        end)
-    end
-end
-
--- Reconcile the notes with the list buffer's lines: the buffer wins. Only the delta
--- is applied, so unchanged notes keep their ids across the throttled per-edit sync.
--- Disk untouched.
----@param bufnr integer
-function M.sync_from_buffer(bufnr)
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    vim.bo[bufnr].modified = false
-
-    -- The notes the buffer wants, as a multiset so duplicate lines match one-for-one
-    -- against existing notes. A note's rendered label *is* its line, reference and
-    -- all, so the label alone identifies it. Every non-blank line parses -- text that
-    -- names no location is simply an unanchored note -- so nothing is dropped.
-    local wanted = {}
-    for _, line in ipairs(lines) do
-        local n = M.decode_line(line)
-        if n then
-            local bucket = wanted[n.label]
-            if bucket then
-                bucket.count = bucket.count + 1
-            else
-                wanted[n.label] = { note = n, count = 1 }
-            end
-        end
-    end
-
-    -- Keep notes the buffer still wants (decrementing their bucket); drop the rest.
-    for _, note in ipairs(M.read_notes()) do
-        local bucket = wanted[note.label]
-        if bucket and bucket.count > 0 then
-            bucket.count = bucket.count - 1
-        else
-            M.remove(note.id)
-        end
-    end
-
-    -- Whatever the buffer still wants had no matching note: add it.
-    for _, bucket in pairs(wanted) do
-        for _ = 1, bucket.count do
-            M.add(bucket.note)
-        end
-    end
-end
-
--- Serialize the authoritative note snapshot straight to the notes file. Called on
--- exit (VimLeavePre): during a session the notes are the single source of truth and
--- disk is left untouched.
-function M.save_to_disk()
-    if M.list_bufnr then
-        M.sync_from_buffer(M.list_bufnr)
-    end
-    _store_save(M.sorted_notes())
+    local ref = "@" .. _encode_path(M.norm(file) --[[@as string]])
+    if lnum then ref = ref .. ":" .. lnum end
+    _append_line(text ~= "" and (text .. " " .. ref) or ref)
 end
 
 ---@return string|nil,number|nil
@@ -423,8 +227,7 @@ function M.get_cur_loc()
         return
     end
     -- Use the buffer name (not expand("%:p")): on symlinked paths the two disagree,
-    -- and a note's file has to be keyed the one way throughout for note_at to find
-    -- it again. Matches clear_file, which already uses the buf name.
+    -- and a note's file has to be keyed the one way throughout.
     local file = vim.api.nvim_buf_get_name(bufnr)
     if file == "" then
         return
@@ -433,18 +236,9 @@ function M.get_cur_loc()
     return file, lnum
 end
 
--- Initialise state from the effective config, seeding the notes from the on-disk
--- file. Idempotent -- the store is read once.
 ---@param config keystone.notes.Config
 function M.init(config)
     _config = config
-
-    if not _initialised then
-        _initialised = true
-        for _, n in ipairs(M.store_load()) do
-            M.add(n)
-        end
-    end
 end
 
 return M

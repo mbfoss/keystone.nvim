@@ -37,10 +37,7 @@ describe("notes.decode_line", function()
 
     it("keeps the reference inside the note text", function()
         local n = decode("look at @foo.lua:42 tomorrow")
-        assert.is_truthy(n.label:match("^look at @"))
-        assert.is_truthy(n.label:match(":42 tomorrow$"))
-        assert.equals("look at ", n.prefix)
-        assert.equals(" tomorrow", n.suffix)
+        assert.equals("look at @foo.lua:42 tomorrow", n.label)
     end)
 
     it("ignores an @ that does not start a token", function()
@@ -53,7 +50,7 @@ describe("notes.decode_line", function()
         local n = decode("compare @first.lua:1 against @second.lua:2")
         assert.equals(1, n.lnum)
         assert.is_truthy(n.file:match("first%.lua$"))
-        assert.is_truthy(n.suffix:match("@second%.lua:2$"))
+        assert.is_truthy(n.label:match("@second%.lua:2$"))
     end)
 
     it("keeps colons that precede the line number in the path", function()
@@ -62,9 +59,9 @@ describe("notes.decode_line", function()
         assert.is_truthy(n.file:match("a:b$"))
     end)
 
-    it("re-renders the reference in canonical form", function()
-        local n = decode("note @foo.lua:7")
-        assert.equals(core.render(n.prefix, n.file, n.lnum, n.suffix), n.label)
+    it("stores the line verbatim, reference and all", function()
+        local n = decode("see @param and @foo.lua:7")
+        assert.equals("see @param and @foo.lua:7", n.label)
     end)
 
     it("trims surrounding whitespace", function()
@@ -143,97 +140,36 @@ describe("notes.ref_at", function()
     end)
 end)
 
-describe("notes.sync_from_buffer", function()
+describe("notes store", function()
+    local path
+
     before_each(function()
-        core.init(vim.tbl_extend("force", core.default_config(), {
-            persist_path = vim.fn.tempname(),
-        }))
-        core.remove_all()
+        path = vim.fn.tempname()
+        core.init(vim.tbl_extend("force", core.default_config(), { persist_path = path }))
     end)
 
     after_each(function()
-        core.remove_all()
+        vim.fn.delete(path)
     end)
 
-    ---@param lines string[]
-    ---@return integer bufnr
-    local function make_list(lines)
-        local bufnr = vim.api.nvim_create_buf(false, true)
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-        return bufnr
+    ---@return string[]
+    local function lines()
+        return vim.fn.readfile(path)
     end
 
-    it("adds notes from non-blank lines", function()
-        core.sync_from_buffer(make_list({ "plain note", "anchored @b.lua:2" }))
-        assert.equals(2, #core.read_notes())
+    it("returns no notes when the file does not exist", function()
+        assert.same({}, core.read_notes())
     end)
 
-    it("ignores blank lines", function()
-        core.sync_from_buffer(make_list({ "a note", "", "   " }))
-        assert.equals(1, #core.read_notes())
-    end)
-
-    it("anchors only the notes naming a line", function()
-        core.sync_from_buffer(make_list({
-            "plain note",
-            "file only @b.lua",
-            "anchored @b.lua:2",
-        }))
-        local anchored = vim.tbl_filter(function(n) return n.lnum ~= nil end, core.read_notes())
-        assert.equals(3, #core.read_notes())
-        assert.equals(1, #anchored)
-    end)
-
-    it("keeps the file of a reference with no line", function()
-        core.sync_from_buffer(make_list({ "file only @b.lua" }))
-        local n = core.read_notes()[1]
-        assert.is_truthy(n.file:match("b%.lua$"))
-        assert.is_nil(n.lnum)
-    end)
-
-    it("removes notes whose lines were deleted", function()
-        core.sync_from_buffer(make_list({ "one", "two @b.lua:2" }))
-        assert.equals(2, #core.read_notes())
-
-        core.sync_from_buffer(make_list({ "one" }))
-        local notes = core.read_notes()
-        assert.equals(1, #notes)
-        assert.equals("one", notes[1].label)
-    end)
-
-    it("keeps duplicate lines as separate notes", function()
-        core.sync_from_buffer(make_list({ "same", "same" }))
-        assert.equals(2, #core.read_notes())
-    end)
-
-    it("keeps the id of an unchanged note across a sync", function()
-        core.sync_from_buffer(make_list({ "keep me @a.lua:1" }))
-        local id = core.read_notes()[1].id
-
-        core.sync_from_buffer(make_list({ "keep me @a.lua:1", "and a new one" }))
-        local kept = vim.tbl_filter(function(n) return n.label:match("^keep me") end,
-            core.read_notes())
-        assert.equals(1, #kept)
-        assert.equals(id, kept[1].id)
-    end)
-end)
-
-describe("notes.add_at", function()
-    before_each(function()
-        core.init(vim.tbl_extend("force", core.default_config(), {
-            persist_path = vim.fn.tempname(),
-        }))
-        core.remove_all()
-    end)
-
-    after_each(function()
-        core.remove_all()
+    it("appends a note per call, in order", function()
+        core.append_line("first")
+        core.append_line("second")
+        assert.same({ "first", "second" }, lines())
     end)
 
     it("appends a reference to the text", function()
         core.add_at("check this", vim.fn.tempname() .. "/a.lua", 12)
         local n = core.read_notes()[1]
-        assert.equals("check this ", n.prefix)
         assert.equals(12, n.lnum)
         assert.is_truthy(n.label:match("^check this @"))
         assert.is_truthy(n.label:match(":12$"))
@@ -245,27 +181,37 @@ describe("notes.add_at", function()
         assert.equals("just a thought", n.label)
         assert.is_nil(n.file)
     end)
+
+    it("does not join onto a file with no trailing newline", function()
+        vim.fn.writefile({ "existing" }, path, "b") -- no trailing newline
+        core.append_line("appended")
+        assert.same({ "existing", "appended" }, lines())
+    end)
+
+    it("reads the notes back, skipping blank lines", function()
+        vim.fn.writefile({ "one", "", "   ", "two @b.lua:2" }, path)
+        local notes = core.read_notes()
+        assert.equals(2, #notes)
+        assert.equals("one", notes[1].label)
+        assert.equals(2, notes[2].lnum)
+    end)
+
+    it("stores pasted text verbatim, @tokens included", function()
+        core.append_line("see @param foo -- not a path rewrite")
+        assert.same({ "see @param foo -- not a path rewrite" }, lines())
+    end)
+
+    it("appends into a loaded buffer editing the file instead of the file", function()
+        vim.fn.writefile({ "existing" }, path)
+        local bufnr = vim.fn.bufadd(path)
+        vim.fn.bufload(bufnr)
+
+        core.append_line("in buffer")
+        assert.same({ "existing", "in buffer" },
+            vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+        assert.same({ "existing" }, lines()) -- untouched until the user writes
+
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
 end)
 
-describe("notes.sorted_notes", function()
-    before_each(function()
-        core.init(vim.tbl_extend("force", core.default_config(), {
-            persist_path = vim.fn.tempname(),
-        }))
-        core.remove_all()
-    end)
-
-    after_each(function()
-        core.remove_all()
-    end)
-
-    it("orders by the note text, not the location", function()
-        core.add_at("zebra", vim.fn.tempname() .. "/a.lua", 1)
-        core.add_at("apple")
-        core.add_at("mango", vim.fn.tempname() .. "/z.lua", 9)
-
-        local first = vim.tbl_map(function(n) return n.label:match("^%S+") end,
-            core.sorted_notes())
-        assert.same({ "apple", "mango", "zebra" }, first)
-    end)
-end)
