@@ -113,6 +113,10 @@ function M.open_list()
     end
 
     local bufnr = vim.fn.bufadd(path)
+    -- No swap file for the notes buffer: it is the session's working copy, written
+    -- out on every BufLeave, so there is never anything to recover -- and a stale
+    -- swap left by a crash would otherwise abort the load with E325.
+    vim.bo[bufnr].swapfile = false
     vim.fn.bufload(bufnr)
 
     -- A height-pinned split whose ratio fixedwin tracks across resizes/layout
