@@ -147,8 +147,10 @@ function M.open_list()
         ui.smart_open_file(ref.file, ref.lnum or 1, 0)
     end, { buffer = bufnr, desc = "Open the reference under the cursor" })
 
-    -- The buffer is the working copy for the whole session; it goes to disk on exit.
-    vim.api.nvim_create_autocmd("VimLeavePre", {
+    -- The buffer is the working copy for the whole session, written out whenever it
+    -- stops being current. QuitPre covers quitting straight from the notes window:
+    -- it runs before the unsaved-changes check, so the quit is never refused.
+    vim.api.nvim_create_autocmd({ "BufLeave", "QuitPre" }, {
         buffer   = bufnr,
         callback = function() core.save_buffer(bufnr) end,
     })
