@@ -45,10 +45,10 @@ compare @~/src/old.lua:20 against @~/src/new.lua:31
 A reference is `@<path>`, optionally followed by `:<line>`. The line is part of
 the note's text and nothing rewrites it, so it goes stale as the file is edited,
 exactly as a line number written in any other document would. Text naming no
-location at all is a perfectly good note — nothing is ever rejected as malformed.
+location at all is still a note — nothing is rejected as malformed.
 
-A note may carry as many references as it likes. The **first** one is the note's
-own location, but every reference is real and `<CR>` follows whichever one the
+A note may carry any number of references. The **first** one is the note's own
+location; the rest are ordinary references, and `<CR>` follows whichever one the
 cursor is on.
 
 The reference has to start a token, so an address like `bob@example.com` stays
@@ -57,14 +57,18 @@ on the way to disk — and references are highlighted (`KeystoneNoteRef`, linked
 `Directory` by default) so they read apart from the prose.
 
 `:Notes list` opens the notes file itself in a split: an ordinary buffer, edited
-and saved with `:w` like any other. Delete a note by deleting its line. `<CR>`
-opens the reference under the cursor — at its line, or at the
+like any other. Delete a note by deleting its line. Edits are written on exit, so
+`:w` is optional — though a buffer left modified makes `:qa` fail with E37
+(`:wqa` writes everything, `:qa!` still triggers the exit write). The write skips
+`BufWritePre`, so a formatter registered on that event does not run over the
+notes file.
+
+`<CR>` opens the reference under the cursor — at its line, or at the
 top of the file when the reference names no line. With the cursor on prose rather
 than a reference, `<CR>` does nothing.
 
 Adding a note while that buffer is open appends the line to the buffer rather
-than to the file behind its back, so the two never diverge; saving stays your
-call, as with any other edit.
+than to the file, so the two do not diverge, and writes the buffer out.
 
 Typing `@` where a reference can start — at the beginning of a line or after
 whitespace — opens path completion straight away. Elsewhere `@` is just a

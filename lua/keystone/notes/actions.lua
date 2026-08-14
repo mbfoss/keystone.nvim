@@ -99,7 +99,7 @@ local function _apply_syntax(bufnr)
 end
 
 --- Opens the notes file for editing in a split. It is an ordinary file buffer:
---- edit it freely and `:w` to save, delete a note by deleting its line. Each line
+--- edit it freely and it is written on exit, delete a note by deleting its line. Each line
 --- is free text, optionally carrying an `@<path>[:<lnum>]` reference anywhere in
 --- it; <C-x><C-u> completes the path inside such a reference.
 function M.open_list()
@@ -146,6 +146,12 @@ function M.open_list()
         -- A reference naming only a file opens it at the top.
         ui.smart_open_file(ref.file, ref.lnum or 1, 0)
     end, { buffer = bufnr, desc = "Open the reference under the cursor" })
+
+    -- The buffer is the working copy for the whole session; it goes to disk on exit.
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+        buffer   = bufnr,
+        callback = function() core.save_buffer(bufnr) end,
+    })
 
     vim.api.nvim_set_hl(0, "KeystoneNoteRef", { link = "Directory", default = true })
     _apply_syntax(bufnr)

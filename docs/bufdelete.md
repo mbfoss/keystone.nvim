@@ -47,9 +47,9 @@ require("keystone").setup({
 
 They apply whenever a **set** is selected — a glob, `:Bdeletehidden`, or
 `delete_many`.
-They do **not** block a buffer you name: `:Bdelete` on the buffer in front of
-you, `:Bdelete foo.lua`, or `:3Bdelete` deletes what you pointed at — you
-already said which one you meant. Pass `{ ignore = true }` to `delete()` to opt
+They do **not** block a buffer you name: `:Bdelete` on the current buffer,
+`:Bdelete foo.lua`, or `:3Bdelete` deletes the named target, since the selection
+is already explicit. Pass `{ ignore = true }` to `delete()` to opt
 a single delete into the rules, or `{ ignore = false }` to a bulk call to sweep
 past them.
 
@@ -121,7 +121,7 @@ window in its tabpage, which would take the tabpage with it.
 `:bdelete` unlists the buffer and unloads its contents, but keeps the buffer
 object, its number, and its marks — reopening the file lands you back where you
 were. `:bwipeout` destroys it outright: the number is freed and the marks are
-gone. Reach for `:Bwipeout` when you want the buffer genuinely gone (a stale
+gone. Use `:Bwipeout` when the buffer should be discarded outright (a stale
 terminal, a renamed file, a session reset), and `:Bdelete` otherwise.
 
 ## Lua API

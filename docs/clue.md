@@ -18,7 +18,7 @@ require("keystone").setup({
     max_desc_width = 40,  -- crop long descriptions with …
     preset = true,        -- register built-in g/z/window descriptions
     builtin = { marks = true, registers = true },
-    -- triggers = { ... } -- override the default trigger list if you like
+    -- triggers = { ... } -- override the default trigger list
   },
 })
 ```

@@ -43,7 +43,7 @@ Neovim ships parsers and queries for a small set of languages — `c`, `lua`,
 call `vim.treesitter.start()` for a subset of those: `lua`, `markdown`, `help`
 and `query`. Everything else is left to you, *including languages whose parser
 Neovim bundles*: open a `.c` file in a stock Neovim and you get regex syntax,
-not treesitter, even though `c.so` is right there.
+not treesitter, despite `c.so` being present.
 
 ### What nvim-treesitter does now
 

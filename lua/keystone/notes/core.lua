@@ -153,9 +153,19 @@ local function _live_bufnr(path)
     return nil
 end
 
+--- Write the notes buffer out if it has unsaved changes. `noautocmd` keeps the
+--- notes file clear of whatever a BufWritePre hook does to ordinary files.
+---@param bufnr integer
+function M.save_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.bo[bufnr].modified then return end
+    vim.api.nvim_buf_call(bufnr, function()
+        vim.cmd("silent noautocmd write")
+    end)
+end
+
 --- Append `text` as a new line. A buffer already editing the notes file takes the
---- line instead of the file, so the two never diverge; writing it stays the user's
---- call, exactly as with any other edit to that buffer.
+--- line instead of the file, so the two never diverge, and is written out straight
+--- away.
 ---@param text string
 local function _append_line(text)
     local path = M.store_filepath()
@@ -166,6 +176,7 @@ local function _append_line(text)
         -- An empty buffer is one empty line; overwrite it rather than leaving a gap.
         local from = (last == nil or last == "") and -2 or -1
         vim.api.nvim_buf_set_lines(bufnr, from, -1, false, { text })
+        M.save_buffer(bufnr)
         return
     end
 

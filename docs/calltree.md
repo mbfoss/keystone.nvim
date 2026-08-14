@@ -24,7 +24,7 @@ require("keystone").setup({
 
 ## Commands
 
-Open it with `:CallTree` on the symbol you care about. Running it again re-roots
+Open it with `:CallTree` on the symbol to inspect. Running it again re-roots
 the tree on whatever the cursor is on now, so you can walk the code and keep the
 window pointed at the current position; use `toggle` to close it.
 

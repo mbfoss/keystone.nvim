@@ -77,7 +77,7 @@ patterns:
 ### Choosing from a list
 
 Modules that prompt for a choice call **`vim.ui.select`** — never a keystone
-picker directly. Which implementation answers is the user's business.
+picker directly. Which implementation answers is up to the user.
 
 [`keystone.select`](lua/keystone/select.lua) is one such implementation, and a
 module like any other: its `setup` assigns `vim.ui.select`, and nothing in
@@ -98,7 +98,7 @@ file rather than a buffer read it into a scratch buffer themselves (see
 `keystone.notes.actions`) instead of loading it — loading fires the whole
 autocmd chain and prompts on a stale swap file. Implementations that do not know
 the option ignore it, so it is safe to pass unconditionally; annotate the opts
-table `---@type keystone.select.Opts` to keep the language server happy without
+table `---@type keystone.select.Opts` so the language server resolves it without
 requiring the module.
 
 Caller today: `keystone.unsaved.session.open`.

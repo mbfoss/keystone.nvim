@@ -201,7 +201,7 @@ describe("notes store", function()
         assert.same({ "see @param foo -- not a path rewrite" }, lines())
     end)
 
-    it("appends into a loaded buffer editing the file instead of the file", function()
+    it("appends through a loaded buffer editing the file, saving it", function()
         vim.fn.writefile({ "existing" }, path)
         local bufnr = vim.fn.bufadd(path)
         vim.fn.bufload(bufnr)
@@ -209,7 +209,23 @@ describe("notes store", function()
         core.append_line("in buffer")
         assert.same({ "existing", "in buffer" },
             vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
-        assert.same({ "existing" }, lines()) -- untouched until the user writes
+        assert.same({ "existing", "in buffer" }, lines())
+        assert.is_false(vim.bo[bufnr].modified)
+
+        vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("saves the buffer only when it has changes", function()
+        vim.fn.writefile({ "existing" }, path)
+        local bufnr = vim.fn.bufadd(path)
+        vim.fn.bufload(bufnr)
+
+        core.save_buffer(bufnr) -- unmodified: nothing to write
+        assert.same({ "existing" }, lines())
+
+        vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { "edited" })
+        core.save_buffer(bufnr)
+        assert.same({ "existing", "edited" }, lines())
 
         vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
