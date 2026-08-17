@@ -1,8 +1,7 @@
 # select
 
 Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks you
-to choose from a list (LSP code actions, `:DiffUnsaved`, other
-plugins) — with a floating one: a prompt line, a fuzzy-filtered list, and a
+to choose from a list (LSP code actions, etc...) — with a floating one: a prompt line, a fuzzy-filtered list, and a
 preview window for callers that offer one.
 
 ![A vim.ui.select prompt with fuzzy filtering and a live preview](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/select.gif)
@@ -70,6 +69,10 @@ vim.ui.select(items, {
 
 The preview shows the **buffer** you hand back, as it currently is — so unsaved
 changes, syntax and extmarks all appear.
+
+keystone's own modules never require this one: they call `vim.ui.select` and
+pass `preview_item` unconditionally, so they use whichever picker you have
+installed — this one when it is enabled, a plain list otherwise.
 
 ---
 
