@@ -136,7 +136,7 @@ Enabling the relevant module registers its command:
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Notes` | [notes](docs/notes.md) | Manage notes |
-| `:Notifications` | [notify](docs/notify.md) | List the notification history |
+| `:Notifications` | [notify](docs/notify.md) | List or clear the notification history |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
 | `:Bdelete` `:Bwipeout` `:Bdeletehidden` `:Bwipeouthidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 

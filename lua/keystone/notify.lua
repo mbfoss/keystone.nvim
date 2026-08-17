@@ -446,6 +446,32 @@ function M.toggle_lsp_progress()
   end
 end
 
+----------- COMMAND -----------
+
+local _subcommand_list = { "list", "clear" }
+
+---@param _ string
+---@param rest string[]
+---@return string[]
+local function _get_subcommands(_, rest)
+  if #rest == 0 then return _subcommand_list end
+  return {}
+end
+
+---@param _ string
+---@param args string[]
+---@param _opts vim.api.keyset.create_user_command.command_args
+local function _run_command(_, args, _opts)
+  local cmd = args[1] or "list"
+  if cmd == "list" then
+    require("keystone.notify.picker").open()
+  elseif cmd == "clear" then
+    M.clear_history()
+  else
+    vim.notify("[keystone] Unknown Notifications subcommand: " .. tostring(cmd), vim.log.levels.WARN)
+  end
+end
+
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})
 
@@ -460,12 +486,13 @@ function M.setup(opts)
   end
 
   vim.api.nvim_create_user_command("Notifications", function(cmd_opts)
-    require("keystone.util.usercmd").handle(cmd_opts, function()
-      require("keystone.notify.picker").open()
-    end)
+    require("keystone.util.usercmd").handle(cmd_opts, _run_command)
   end, {
     nargs = "*",
-    desc = "List the notification history",
+    desc = "List or clear the notification history",
+    complete = function(arg_lead, cmd_line, _)
+      return require("keystone.util.usercmd").complete(arg_lead, cmd_line, _get_subcommands)
+    end,
   })
 end
 

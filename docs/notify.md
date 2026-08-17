@@ -23,7 +23,9 @@ require("keystone").setup({
 
 | Command | Purpose |
 | --- | --- |
-| `:Notifications` | List the notification history, newest first |
+| `:Notifications` | List the notification history, newest first (same as `list`) |
+| `:Notifications list` | List the notification history, newest first |
+| `:Notifications clear` | Discard the notification history |
 
 The list goes through `vim.ui.select` — keystone's own [select](select.md)
 module when it is enabled, whichever implementation is installed otherwise.
