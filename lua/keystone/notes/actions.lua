@@ -152,6 +152,13 @@ function M.open_list()
         callback = function() core.save_buffer(bufnr) end,
     })
 
+    -- Another Neovim instance may have written the file in the meantime; its notes are
+    -- merged in on the way back to the list rather than waiting for the next write.
+    vim.api.nvim_create_autocmd("BufEnter", {
+        buffer   = bufnr,
+        callback = function() core.sync_buffer(bufnr) end,
+    })
+
     -- Neither event is buffer-local, hence the group: a notes buffer replacing a wiped
     -- one re-registers rather than stacking up.
     local group = vim.api.nvim_create_augroup("KeystoneNotes", { clear = true })
@@ -161,6 +168,13 @@ function M.open_list()
     vim.api.nvim_create_autocmd("VimLeavePre", {
         group    = group,
         callback = function() core.save_buffer(bufnr) end,
+    })
+
+    -- Coming back to this instance is the moment another one's notes are worth
+    -- picking up, even with the list sitting there untouched.
+    vim.api.nvim_create_autocmd("FocusGained", {
+        group    = group,
+        callback = function() core.sync_buffer(bufnr) end,
     })
 
     -- Paths are shown relative to the cwd, so a `:cd` changes which of them shorten

@@ -315,6 +315,88 @@ describe("notes store", function()
         assert.same({ "see @param foo -- not a path", "and @nosuchfile.lua:3" }, lines())
     end)
 
+    -- What another Neovim instance sharing the notes file does behind this one's back.
+    ---@param new_lines string[]
+    local function other_instance_writes(new_lines)
+        vim.fn.writefile(new_lines, path)
+    end
+
+    it("keeps both instances' notes when the file changed underneath", function()
+        vim.fn.writefile({ "shared one", "shared two" }, path)
+        local bufnr = core.get_buffer()
+
+        vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { "mine" })
+        other_instance_writes({ "shared one", "shared two", "theirs" })
+        core.save_buffer(bufnr)
+
+        assert.same({ "shared one", "shared two", "theirs", "mine" }, lines())
+        -- The merged result is what the buffer shows, too.
+        assert.same({ "shared one", "shared two", "theirs", "mine" },
+            vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+    end)
+
+    it("applies a deletion to the other instance's version", function()
+        vim.fn.writefile({ "keep", "drop me" }, path)
+        local bufnr = core.get_buffer()
+
+        vim.api.nvim_buf_set_lines(bufnr, 1, 2, false, {}) -- delete "drop me"
+        other_instance_writes({ "keep", "drop me", "theirs" })
+        core.save_buffer(bufnr)
+
+        assert.same({ "keep", "theirs" }, lines())
+    end)
+
+    it("takes in the other instance's notes with nothing of its own to write", function()
+        vim.fn.writefile({ "shared" }, path)
+        local bufnr = core.get_buffer()
+
+        other_instance_writes({ "shared", "theirs" })
+        core.save_buffer(bufnr) -- not dirty: syncs instead of writing
+
+        assert.same({ "shared", "theirs" },
+            vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+        assert.same({ "shared", "theirs" }, lines())
+    end)
+
+    it("syncs without dropping unsaved edits, and writes both on the next save", function()
+        vim.fn.writefile({ "shared" }, path)
+        local bufnr = core.get_buffer()
+
+        vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { "mine, unsaved" })
+        other_instance_writes({ "shared", "theirs" })
+        core.sync_buffer(bufnr)
+
+        assert.same({ "shared", "theirs", "mine, unsaved" },
+            vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+        assert.same({ "shared", "theirs" }, lines()) -- sync writes nothing
+
+        core.save_buffer(bufnr)
+        assert.same({ "shared", "theirs", "mine, unsaved" }, lines())
+    end)
+
+    it("keeps its notes when the file goes missing rather than treating it as emptied", function()
+        vim.fn.writefile({ "one", "two" }, path)
+        local bufnr = core.get_buffer()
+
+        vim.fn.delete(path)
+        core.sync_buffer(bufnr)
+        assert.same({ "one", "two" }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+
+        -- An empty file, on the other hand, is another instance deleting every note.
+        other_instance_writes({})
+        core.sync_buffer(bufnr)
+        assert.same({ "" }, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+    end)
+
+    it("does not leave its temporary file behind", function()
+        local bufnr = core.get_buffer()
+        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "a note" })
+        core.save_buffer(bufnr)
+
+        assert.same({ "a note" }, lines())
+        assert.same({}, vim.fn.glob(path .. ".tmp*", false, true))
+    end)
+
     it("appends through a live notes buffer, saving it", function()
         vim.fn.writefile({ "existing" }, path)
         local bufnr = core.get_buffer()

@@ -219,11 +219,95 @@ function M.read_lines()
     return vim.split((raw:gsub("\r?\n$", "")), "\r?\n")
 end
 
+--- The file's lines, or nil when there is no file at all. Only the second case is
+--- worth distinguishing from an empty one: another instance emptying the notes is a
+--- change to merge, while the file having gone missing is not -- treating that as
+--- "every note was deleted" would wipe a buffer full of notes.
+---@return string[]?
+local function _read_theirs()
+    if not vim.uv.fs_stat(M.store_filepath()) then return nil end
+    return M.read_lines()
+end
+
+--- Write `lines` to the notes file. Written beside it and renamed into place, so an
+--- instance reading while another writes sees the old file or the new one, never half
+--- of either.
+---@param lines string[]
+---@return boolean ok
+local function _write_file(lines)
+    local path = M.store_filepath()
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+
+    local tmp = path .. ".tmp." .. vim.fn.getpid()
+    if vim.fn.writefile(lines, tmp) ~= 0 then
+        vim.notify("[keystone] Cannot write notes file: " .. path, vim.log.levels.ERROR)
+        return false
+    end
+    local ok, err = vim.uv.fs_rename(tmp, path)
+    if not ok then
+        vim.fn.delete(tmp)
+        vim.notify("[keystone] Cannot replace notes file: " .. tostring(err), vim.log.levels.ERROR)
+        return false
+    end
+    return true
+end
+
+---@param lines string[]
+---@return table<string, integer>
+local function _counts(lines)
+    local counts = {}
+    for _, line in ipairs(lines) do counts[line] = (counts[line] or 0) + 1 end
+    return counts
+end
+
+--- Three-way merge of note lines, so two Neovim instances editing the same notes file
+--- keep each other's work. Lines are matched by their exact text and counted, not
+--- positioned: notes are an unordered list, and an edited note reads as one line
+--- deleted and another added, which is the right answer for free text.
+---@param base string[]    the file as it stood when this buffer was filled
+---@param mine string[]    the buffer now
+---@param theirs string[]  the file now, another instance having written it
+---@return string[]
+local function _merge_lines(base, mine, theirs)
+    -- Base lines this buffer still accounts for. What is left over once `mine` has
+    -- been walked is what this buffer deleted, which doubles as the budget for
+    -- dropping lines from `theirs`.
+    local credit = _counts(base)
+
+    local added = {}
+    for _, line in ipairs(mine) do
+        local left = credit[line] or 0
+        if left > 0 then
+            credit[line] = left - 1
+        else
+            added[#added + 1] = line
+        end
+    end
+
+    local merged = {}
+    for _, line in ipairs(theirs) do
+        local deleted = credit[line] or 0
+        if deleted > 0 then
+            credit[line] = deleted - 1
+        else
+            merged[#merged + 1] = line
+        end
+    end
+    return vim.list_extend(merged, added)
+end
+
+M.merge_lines = _merge_lines
+
 -- The buffer the notes are edited in. Deliberately not a buffer editing the notes
 -- file: as a scratch buffer nothing about the file is Vim's business -- no swap file
 -- to go stale, no write hooks meant for real files, no unsaved-changes prompt on
 -- quit. Its lines are the working copy, written back by `save_buffer`.
 local _bufnr = nil
+
+-- The file as it stood when the buffer was last filled or written -- the common
+-- ancestor the merge works from, in stored form.
+---@type string[]
+local _base = {}
 
 -- 'modified' is meaningless on a `nofile` buffer -- Vim keeps it off and refuses to
 -- have it set -- so unsaved edits are spotted by comparing the buffer's changedtick
@@ -246,7 +330,8 @@ function M.get_buffer()
 
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_name(bufnr, "keystone://notes")
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.tbl_map(M.to_display, M.read_lines()))
+    _base = M.read_lines()
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.tbl_map(M.to_display, _base))
     _mark_saved(bufnr)
     _bufnr = bufnr
     return bufnr
@@ -261,23 +346,68 @@ end
 
 M.live_bufnr = _live_bufnr
 
+--- The buffer's lines in the form the file stores them.
+---@param bufnr integer
+---@return string[]
+local function _stored_lines(bufnr)
+    return vim.tbl_map(M.to_stored, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+end
+
+--- Replace the buffer's contents with `lines`, given in stored form.
+---@param bufnr integer
+---@param lines string[]
+local function _show(bufnr, lines)
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.tbl_map(M.to_display, lines))
+end
+
+--- Take in whatever another instance has written to the notes file since this buffer
+--- was filled, keeping this buffer's own unsaved edits. Writes nothing.
+---@param bufnr integer?
+function M.sync_buffer(bufnr)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+
+    local theirs = _read_theirs()
+    if not theirs or vim.deep_equal(theirs, _base) then return end
+
+    local dirty = _is_dirty(bufnr)
+    local mine = _stored_lines(bufnr)
+    local merged = _merge_lines(_base, mine, theirs)
+    -- The file is what it is, whatever this buffer still holds unsaved on top.
+    _base = theirs
+    if vim.deep_equal(merged, mine) then return end
+
+    _show(bufnr, merged)
+    if not dirty then _mark_saved(bufnr) end
+end
+
 --- Write the buffer's lines to the notes file, if it has unsaved changes, with their
 --- paths back in stored form. Defaults to the notes buffer, which is what the
 --- autocmds pass.
+---
+--- Another instance may have written the file since this buffer was filled; its notes
+--- are merged in rather than overwritten, and the result shown here as well as
+--- written. With nothing of our own to write there is still the other instance's work
+--- to pick up, which is `sync_buffer`'s job.
 ---@param bufnr integer?
 function M.save_buffer(bufnr)
     bufnr = bufnr or _live_bufnr()
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
-    if not _is_dirty(bufnr) then return end
-
-    local lines = vim.tbl_map(M.to_stored, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
-
-    local path = M.store_filepath()
-    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
-    if vim.fn.writefile(lines, path) ~= 0 then
-        vim.notify("[keystone] Cannot write notes file: " .. path, vim.log.levels.ERROR)
+    if not _is_dirty(bufnr) then
+        M.sync_buffer(bufnr)
         return
     end
+
+    local mine = _stored_lines(bufnr)
+    local theirs = _read_theirs()
+    local lines = mine
+    if theirs and not vim.deep_equal(theirs, _base) then
+        lines = _merge_lines(_base, mine, theirs)
+    end
+
+    if not _write_file(lines) then return end
+    _base = lines
+    if not vim.deep_equal(lines, mine) then _show(bufnr, lines) end
     _mark_saved(bufnr)
 end
 
