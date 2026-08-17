@@ -104,6 +104,20 @@ local function _file_formatter(id, data, selected)
 end
 
 
+--- Invalid globs are skipped.
+---@param globs string[]
+---@return vim.regex[]
+local function _compile_globs(globs)
+    local regexes = {}
+    for _, glob in ipairs(globs) do
+        local regex = strutil.compile_glob(glob)
+        if regex then
+            table.insert(regexes, regex)
+        end
+    end
+    return regexes
+end
+
 local function _is_regular_buffer(bufnr)
     if not vim.api.nvim_buf_is_valid(bufnr) then return false end
     if vim.bo[bufnr].buftype ~= '' then return false end
@@ -475,8 +489,8 @@ function FileTree:_set_root(root, include_globs, exclude_globs, follow_symlinks)
         self:_clear()
     end
     self._root = newroot
-    self._include_patterns = include_globs and strutil.compile_globs(include_globs) or nil
-    self._exclude_patterns = exclude_globs and strutil.compile_globs(exclude_globs) or nil
+    self._include_patterns = include_globs and _compile_globs(include_globs) or nil
+    self._exclude_patterns = exclude_globs and _compile_globs(exclude_globs) or nil
     self._follow_symlinks = follow_symlinks or true
     self:_reload()
 end
