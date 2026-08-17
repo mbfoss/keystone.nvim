@@ -22,8 +22,8 @@ end
 -- The notes file is an ordinary text file, one note per non-empty line. A note is
 -- free text; a location is an `@` reference sitting anywhere inside it:
 --
---     off-by-one in @~/src/parser.lua:19 -- check the bounds
---     the whole tokenizer needs a rewrite: @~/src/lexer.lua
+--     @/home/me/src/parser.lua:19 off-by-one -- check the bounds
+--     the whole tokenizer needs a rewrite: @/home/me/src/lexer.lua
 --     ask the team about cache invalidation
 --
 -- The reference is `@<path>` with an optional `:<lnum>`, and must start a token
@@ -31,8 +31,15 @@ end
 -- is left alone. The first reference in the line wins; everything else, `@` or
 -- not, is just text.
 --
--- Nothing is kept in memory and nothing is rewritten: `:Notes add` appends a line,
--- `:Notes list` edits the file. Deleting a note is deleting its line.
+-- Paths are absolute *in the file*: one notes file serves every directory it is
+-- opened from, so a note has to mean the same file wherever it is read. In the buffer
+-- they are shown relative to the cwd where that shortens them (`to_display` /
+-- `to_stored` convert between the two, and `refresh_display` re-renders on a cwd
+-- change).
+--
+-- `:Notes add` appends a line. `:Notes list` shows the notes in a scratch buffer --
+-- not a buffer editing the file -- whose lines are the session's working copy;
+-- `save_buffer` writes them back. Deleting a note is deleting its line.
 
 ---@return string
 function M.store_filepath()
@@ -46,16 +53,26 @@ function M.store_filepath()
     return vim.fs.normalize("~/.nvimnotes")
 end
 
----@param file string  absolute path
----@return string      home-relative when under $HOME, else absolute
-local function _encode_path(file)
-    return vim.fn.fnamemodify(file, ":~")
-end
-
----@param path string  as written in the file (may be `~`-relative or relative)
+---@param path string  as written (may be `~`-relative or cwd-relative)
 ---@return string      absolute path
 local function _decode_path(path)
     return vim.fn.fnamemodify(vim.fs.normalize(path), ":p")
+end
+
+--- `file` relative to the cwd, or nil when it is not below it.
+---@param file string  absolute path
+---@return string?
+local function _cwd_relative(file)
+    local cwd = vim.fs.normalize(vim.fn.getcwd())
+    file = vim.fs.normalize(file)
+    -- Relative to the root every path is "relative", and dropping the leading slash
+    -- buys nothing but confusion.
+    if cwd == "/" then return nil end
+    -- Resolved as a second try: a symlinked cwd (as /tmp is on macOS) spells out
+    -- differently than the same directory reached through the link, and the two
+    -- would otherwise never look related.
+    return vim.fs.relpath(cwd, file)
+        or vim.fs.relpath(vim.fs.normalize(vim.fn.resolve(cwd)), vim.fs.normalize(vim.fn.resolve(file)))
 end
 
 --- Every `@` reference in `text`, in order. Only a reference starting a token
@@ -115,6 +132,53 @@ function M.ref_at(text, col)
     return nil
 end
 
+--- Rewrite the path of every `@` reference in `line` through `fn`, which returns the
+--- new path or nil to leave a reference as it is. Right to left, so the earlier
+--- references' offsets still hold after a replacement.
+---@param line string
+---@param fn fun(ref: keystone.notes.Ref): string?
+---@return string
+local function _map_refs(line, fn)
+    local refs = _refs(line)
+    for i = #refs, 1, -1 do
+        local ref = refs[i]
+        local path = fn(ref)
+        if path and path ~= ref.path then
+            local lnum = ref.lnum and (":" .. ref.lnum) or ""
+            -- `ref.start` is the `@` itself, which stays put.
+            line = line:sub(1, ref.start) .. path .. lnum .. line:sub(ref.stop + 1)
+        end
+    end
+    return line
+end
+
+--- A buffer line in the form the file stores: absolute paths, so the note points at
+--- the same file from any cwd. A relative path naming nothing on disk is left as
+--- typed -- `@param` in a note about a Lua annotation is text, not a path waiting to
+--- be expanded.
+---@param line string
+---@return string
+function M.to_stored(line)
+    return _map_refs(line, function(ref)
+        local anchored = vim.startswith(ref.path, "/") or vim.startswith(ref.path, "~")
+        if not anchored and vim.fn.filereadable(ref.file) == 0
+            and vim.fn.isdirectory(ref.file) == 0 then
+            return nil
+        end
+        return ref.file
+    end)
+end
+
+--- A stored line in the form the buffer shows: paths in or below the cwd shortened
+--- to cwd-relative, the rest left as they are.
+---@param line string
+---@return string
+function M.to_display(line)
+    return _map_refs(line, function(ref)
+        return _cwd_relative(ref.file)
+    end)
+end
+
 --- Parse one stored line into a note. Every non-blank line is a valid note: an `@`
 --- reference anchors it, and its absence simply means the note has no location.
 --- Only a blank line is rejected.
@@ -132,50 +196,141 @@ function M.decode_line(line)
     return { label = text, file = ref.file, lnum = ref.lnum }
 end
 
+--- The notes as they stand. A live notes buffer is the working copy and may hold
+--- edits not yet written out, so it is read in preference to the file.
 ---@return keystone.notes.Note[]
 function M.read_notes()
-    local ok, raw = fsutil.read_content(M.store_filepath())
-    if not ok or raw == "" then return {} end
+    local bufnr = M.live_bufnr()
+    local lines = bufnr and vim.api.nvim_buf_get_lines(bufnr, 0, -1, false) or M.read_lines()
 
     local notes = {}
-    for line in raw:gmatch("[^\r\n]+") do
+    for _, line in ipairs(lines) do
         local note = M.decode_line(line)
         if note then notes[#notes + 1] = note end
     end
     return notes
 end
 
----@param path string
----@return integer?  a loaded buffer editing `path`, if there is one
-local function _live_bufnr(path)
-    local bufnr = vim.fn.bufnr(path)
-    if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then return bufnr end
+--- The notes file's lines, or none when it does not exist yet.
+---@return string[]
+function M.read_lines()
+    local ok, raw = fsutil.read_content(M.store_filepath())
+    if not ok or raw == "" then return {} end
+    return vim.split((raw:gsub("\r?\n$", "")), "\r?\n")
+end
+
+-- The buffer the notes are edited in. Deliberately not a buffer editing the notes
+-- file: as a scratch buffer nothing about the file is Vim's business -- no swap file
+-- to go stale, no write hooks meant for real files, no unsaved-changes prompt on
+-- quit. Its lines are the working copy, written back by `save_buffer`.
+local _bufnr = nil
+
+-- 'modified' is meaningless on a `nofile` buffer -- Vim keeps it off and refuses to
+-- have it set -- so unsaved edits are spotted by comparing the buffer's changedtick
+-- against the tick it last held when written out.
+---@param bufnr integer
+local function _mark_saved(bufnr)
+    vim.b[bufnr].keystone_notes_tick = vim.api.nvim_buf_get_changedtick(bufnr)
+end
+
+---@param bufnr integer
+---@return boolean
+local function _is_dirty(bufnr)
+    return vim.b[bufnr].keystone_notes_tick ~= vim.api.nvim_buf_get_changedtick(bufnr)
+end
+
+--- The notes buffer, created and filled from the file the first time it is asked for.
+---@return integer
+function M.get_buffer()
+    if _bufnr and vim.api.nvim_buf_is_valid(_bufnr) then return _bufnr end
+
+    local bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(bufnr, "keystone://notes")
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.tbl_map(M.to_display, M.read_lines()))
+    _mark_saved(bufnr)
+    _bufnr = bufnr
+    return bufnr
+end
+
+--- The notes buffer, only if one is live -- callers that must not create it.
+---@return integer?
+local function _live_bufnr()
+    if _bufnr and vim.api.nvim_buf_is_valid(_bufnr) then return _bufnr end
     return nil
 end
 
---- Write the notes buffer out if it has unsaved changes. `noautocmd` keeps the
---- notes file clear of whatever a BufWritePre hook does to ordinary files.
----@param bufnr integer
+M.live_bufnr = _live_bufnr
+
+--- Write the buffer's lines to the notes file, if it has unsaved changes, with their
+--- paths back in stored form. Defaults to the notes buffer, which is what the
+--- autocmds pass.
+---@param bufnr integer?
 function M.save_buffer(bufnr)
-    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.bo[bufnr].modified then return end
-    vim.api.nvim_buf_call(bufnr, function()
-        vim.cmd("silent noautocmd write")
-    end)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+    if not _is_dirty(bufnr) then return end
+
+    local lines = vim.tbl_map(M.to_stored, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+
+    local path = M.store_filepath()
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+    if vim.fn.writefile(lines, path) ~= 0 then
+        vim.notify("[keystone] Cannot write notes file: " .. path, vim.log.levels.ERROR)
+        return
+    end
+    _mark_saved(bufnr)
 end
 
---- Append `text` as a new line. A buffer already editing the notes file takes the
---- line instead of the file, so the two never diverge, and is written out straight
---- away.
+-- The buffer's lines in stored form, taken while the cwd they are shown against is
+-- still current: a relative path means nothing once the cwd has moved, so
+-- `refresh_display` cannot work them out for itself after the fact.
+---@type string[]?
+local _pending_stored = nil
+
+--- Canonicalize the shown lines ahead of a cwd change, for `refresh_display` to
+--- re-render afterwards.
+---@param bufnr integer?
+function M.snapshot_lines(bufnr)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+    _pending_stored = vim.tbl_map(M.to_stored, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+end
+
+--- Re-render the buffer's paths for the current cwd -- what a `:cd` calls for, since
+--- which paths shorten depends on where the cwd now is. Unsaved edits are kept (and
+--- stay unsaved): the lines make the round trip through stored form, which is what
+--- they would have been written as anyway.
+---@param bufnr integer?
+function M.refresh_display(bufnr)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+
+    local dirty = _is_dirty(bufnr)
+    local shown = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local stored = _pending_stored or vim.tbl_map(M.to_stored, shown)
+    _pending_stored = nil
+
+    local redrawn = vim.tbl_map(M.to_display, stored)
+    if vim.deep_equal(shown, redrawn) then return end
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, redrawn)
+    -- Re-rendering is not an edit: only the user's own changes make it dirty.
+    if not dirty then _mark_saved(bufnr) end
+end
+
+--- Append `text`, a line in stored form, as a new line. A live notes buffer takes the
+--- line -- shown its own way -- instead of the file, so the two never diverge, and is
+--- written out straight away.
 ---@param text string
 local function _append_line(text)
     local path = M.store_filepath()
 
-    local bufnr = _live_bufnr(path)
+    local bufnr = _live_bufnr()
     if bufnr then
         local last = vim.api.nvim_buf_get_lines(bufnr, -2, -1, false)[1]
         -- An empty buffer is one empty line; overwrite it rather than leaving a gap.
         local from = (last == nil or last == "") and -2 or -1
-        vim.api.nvim_buf_set_lines(bufnr, from, -1, false, { text })
+        vim.api.nvim_buf_set_lines(bufnr, from, -1, false, { M.to_display(text) })
         M.save_buffer(bufnr)
         return
     end
@@ -212,9 +367,10 @@ function M.norm(file)
     return vim.fn.fnamemodify(file, ":p")
 end
 
---- Append a note reading `text` with a reference to `file`(`:lnum`) after it -- the
---- shape `:Notes add` produces, where the location comes from the cursor rather than
---- from anything the user typed.
+--- Append a note reading `text` behind a reference to `file`(`:lnum`) -- the shape
+--- `:Notes add` produces, where the location comes from the cursor rather than from
+--- anything the user typed. The reference leads, so the list reads as locations first
+--- with the note text following.
 ---@param text string
 ---@param file string?
 ---@param lnum integer?
@@ -223,9 +379,10 @@ function M.add_at(text, file, lnum)
         _append_line(text)
         return
     end
-    local ref = "@" .. _encode_path(M.norm(file) --[[@as string]])
+    -- Stored form: the absolute path. `_append_line` shortens it for the buffer.
+    local ref = "@" .. vim.fs.normalize(M.norm(file) --[[@as string]])
     if lnum then ref = ref .. ":" .. lnum end
-    _append_line(text ~= "" and (text .. " " .. ref) or ref)
+    _append_line(text ~= "" and (ref .. " " .. text) or ref)
 end
 
 ---@return string|nil,number|nil

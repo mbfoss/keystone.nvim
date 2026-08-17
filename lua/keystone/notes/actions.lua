@@ -98,26 +98,20 @@ local function _apply_syntax(bufnr)
     end)
 end
 
---- Opens the notes file for editing in a split. It is an ordinary file buffer:
---- edit it freely and it is written on exit, delete a note by deleting its line. Each line
---- is free text, optionally carrying an `@<path>[:<lnum>]` reference anywhere in
---- it; <C-x><C-u> completes the path inside such a reference.
+--- Opens the notes in a split. The buffer is a scratch buffer, not a buffer editing
+--- the notes file: edit it freely and its lines are written to the file whenever it
+--- stops being current and on exit; delete a note by deleting its line. Each line is
+--- free text, optionally carrying an `@<path>[:<lnum>]` reference anywhere in it;
+--- <C-x><C-u> completes the path inside such a reference.
 function M.open_list()
-    local path = core.store_filepath()
+    local bufnr = core.get_buffer()
 
     -- Already visible: just focus it.
-    local existing_win = vim.fn.bufwinid(vim.fn.bufnr(path))
+    local existing_win = vim.fn.bufwinid(bufnr)
     if existing_win >= 0 then
         vim.api.nvim_set_current_win(existing_win)
         return
     end
-
-    local bufnr = vim.fn.bufadd(path)
-    -- No swap file for the notes buffer: it is the session's working copy, written
-    -- out on every BufLeave, so there is never anything to recover -- and a stale
-    -- swap left by a crash would otherwise abort the load with E325.
-    vim.bo[bufnr].swapfile = false
-    vim.fn.bufload(bufnr)
 
     -- A height-pinned split whose ratio fixedwin tracks across resizes/layout
     -- changes; persist the last-known ratio so reopening keeps the chosen height.
@@ -152,20 +146,37 @@ function M.open_list()
     end, { buffer = bufnr, desc = "Open the reference under the cursor" })
 
     -- The buffer is the working copy for the whole session, written out whenever it
-    -- stops being current. QuitPre covers quitting straight from the notes window:
-    -- it runs before the unsaved-changes check, so the quit is never refused.
-    vim.api.nvim_create_autocmd({ "BufLeave", "QuitPre" }, {
+    -- stops being current.
+    vim.api.nvim_create_autocmd("BufLeave", {
         buffer   = bufnr,
         callback = function() core.save_buffer(bufnr) end,
     })
 
+    -- Neither event is buffer-local, hence the group: a notes buffer replacing a wiped
+    -- one re-registers rather than stacking up.
+    local group = vim.api.nvim_create_augroup("KeystoneNotes", { clear = true })
+
+    -- Quitting with the notes window current never leaves the buffer, so BufLeave
+    -- alone would lose the last edits.
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+        group    = group,
+        callback = function() core.save_buffer(bufnr) end,
+    })
+
+    -- Paths are shown relative to the cwd, so a `:cd` changes which of them shorten
+    -- and how far. The shown lines have to be canonicalized before the move, while the
+    -- cwd they were rendered against still says what they point at.
+    vim.api.nvim_create_autocmd("DirChangedPre", {
+        group    = group,
+        callback = function() core.snapshot_lines(bufnr) end,
+    })
+    vim.api.nvim_create_autocmd("DirChanged", {
+        group    = group,
+        callback = function() core.refresh_display(bufnr) end,
+    })
+
     vim.api.nvim_set_hl(0, "KeystoneNoteRef", { link = "Directory", default = true })
     _apply_syntax(bufnr)
-    -- A reload drops the buffer's syntax state along with its lines.
-    vim.api.nvim_create_autocmd("BufReadPost", {
-        buffer   = bufnr,
-        callback = function() _apply_syntax(bufnr) end,
-    })
 end
 
 return M
