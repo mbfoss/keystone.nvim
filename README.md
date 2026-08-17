@@ -32,7 +32,7 @@ require("keystone").setup({
   -- Replaces something built in
   statusline = true,  -- sets 'statusline'
   select     = true,  -- replaces vim.ui.select
-  notify     = true,  -- replaces vim.notify
+  notify     = true,  -- replaces vim.notify, adds :Notifications
   clue       = true,  -- popup of the keys that can follow a trigger
 
   -- Adds a command, does nothing until you run it
