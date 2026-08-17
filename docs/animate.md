@@ -3,7 +3,7 @@
 Animates scroll commands across the intermediate positions instead of
 jumping straight to the destination.
 
-![Scrolling a file from top to bottom with animate enabled](assets/animate.gif)
+![Scrolling a file from top to bottom with animate enabled](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/animate.gif)
 
 ## Configuration
 

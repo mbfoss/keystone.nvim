@@ -6,7 +6,7 @@ been held for `delay` milliseconds. The default triggers are `<leader>`, `g` and
 both; `[`, `]` and `<C-w>` in normal mode; `<C-x>` in insert mode; and `<C-r>` in
 insert and command-line mode.
 
-![The follow-up-key popup after pressing g](assets/clue.gif)
+![The follow-up-key popup after pressing g](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/clue.gif)
 
 ## Configuration
 

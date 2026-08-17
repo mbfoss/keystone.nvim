@@ -2,7 +2,7 @@
 
 A file selector for navigating the filesystem.
 
-![Descending through directories with the preview pane on](assets/explore.gif)
+![Descending through directories with the preview pane on](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/explore.gif)
 
 Each entry carries its size and modification time in a right-hand column, laid
 out like `ls -lh` — digits right-aligned, unit in its own slot, the day

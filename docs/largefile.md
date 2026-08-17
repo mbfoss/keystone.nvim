@@ -5,7 +5,7 @@ ftplugins. Rather than tearing that machinery down after the file has loaded, it
 checks the size during filetype detection and assigns a sentinel filetype, so
 the `FileType` handlers for the real filetype never fire.
 
-![Opening and moving around a 23 MB, 240k-line log](assets/largefile.gif)
+![Opening and moving around a 23 MB, 240k-line log](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/largefile.gif)
 
 ## Configuration
 

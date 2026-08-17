@@ -3,7 +3,7 @@
 Persistent notes that survive across sessions. A note is a piece of text; it may
 also name a location, by writing `@<path>` anywhere in it.
 
-![Writing notes on a line and free-standing, then editing them in :Notes list](assets/notes.gif)
+![Writing notes on a line and free-standing, then editing them in :Notes list](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/notes.gif)
 
 ## Configuration
 

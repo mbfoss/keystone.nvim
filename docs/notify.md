@@ -2,7 +2,7 @@
 
 A floating notification UI, optionally including LSP progress messages.
 
-![Notifications of each level stacking and timing out](assets/notify.gif)
+![Notifications of each level stacking and timing out](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/notify.gif)
 
 ## Configuration
 

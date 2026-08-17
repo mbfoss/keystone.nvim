@@ -3,7 +3,7 @@
 Treesitter highlighting and folding, switched on per-buffer whenever a parser
 is available for the buffer's language.
 
-![Treesitter folds following the syntax tree](assets/tsconfig.gif)
+![Treesitter folds following the syntax tree](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/tsconfig.gif)
 
 ## Configuration
 

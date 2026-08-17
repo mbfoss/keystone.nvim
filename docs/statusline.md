@@ -3,7 +3,7 @@
 A statusline assembled from named sections, each of which is a built-in, a
 registered provider, or an inline function.
 
-![The sections reacting: mode, git branch, symbol path, diagnostics, position](assets/statusline.gif)
+![The sections reacting: mode, git branch, symbol path, diagnostics, position](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/statusline.gif)
 
 ## Configuration
 
