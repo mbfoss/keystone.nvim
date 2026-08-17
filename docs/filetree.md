@@ -2,7 +2,7 @@
 
 A file explorer in a side window.
 
-![Opening the side window and walking into a nested directory](https://github.com/mbfoss/keystone.nvim/releases/download/assets/filetree.gif)
+![Opening the side window and walking into a nested directory](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/filetree.gif)
 
 ## Configuration
 

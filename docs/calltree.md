@@ -6,7 +6,7 @@ is fetched only when you expand it, so an unexpanded branch issues no
 requests. A function that reaches itself is marked `↺` and left as a leaf, so
 recursion cannot expand forever.
 
-![Incoming calls to a function, expanded a level at a time, then flipped to outgoing](https://github.com/mbfoss/keystone.nvim/releases/download/assets/calltree.gif)
+![Incoming calls to a function, expanded a level at a time, then flipped to outgoing](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/calltree.gif)
 
 ## Configuration
 

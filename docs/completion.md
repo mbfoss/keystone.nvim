@@ -4,7 +4,7 @@ A source-agnostic autocompletion engine. It decides *when* to complete
 (autotrigger or the manual key) and fires the sources in `source_order`; on
 Neovim ≥ 0.11 the `omnifunc` source is the built-in `vim.lsp.completion`.
 
-![Autotriggered LSP candidates, narrowed by typing and confirmed with <CR>](https://github.com/mbfoss/keystone.nvim/releases/download/assets/completion.gif)
+![Autotriggered LSP candidates, narrowed by typing and confirmed with <CR>](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/completion.gif)
 
 ## Configuration
 

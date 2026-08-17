@@ -2,7 +2,7 @@
 
 Diff every modified buffer against its saved state on disk.
 
-![Diffing an edited buffer against what is still on disk](https://github.com/mbfoss/keystone.nvim/releases/download/assets/unsaved.gif)
+![Diffing an edited buffer against what is still on disk](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/unsaved.gif)
 
 ## Configuration
 

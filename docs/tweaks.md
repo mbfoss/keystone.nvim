@@ -3,7 +3,7 @@
 Seven editor behaviours, each behind its own flag. Four are on by default and
 three are off, as shown below.
 
-![The yank flash, writing into a directory that does not exist yet, and q closing a help buffer](https://github.com/mbfoss/keystone.nvim/releases/download/assets/tweaks.gif)
+![The yank flash, writing into a directory that does not exist yet, and q closing a help buffer](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/tweaks.gif)
 
 ## Configuration
 
