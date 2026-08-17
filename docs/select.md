@@ -5,7 +5,7 @@ to choose from a list (LSP code actions, `:DiffUnsaved`, other
 plugins) — with a floating one: a prompt line, a fuzzy-filtered list, and a
 preview window for callers that offer one.
 
-![A vim.ui.select prompt with fuzzy filtering and a live preview](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/select.gif)
+![A vim.ui.select prompt with fuzzy filtering and a live preview](https://github.com/mbfoss/keystone.nvim/releases/download/assets/select.gif)
 
 ## Configuration
 

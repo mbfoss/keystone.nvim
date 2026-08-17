@@ -3,7 +3,7 @@
 A side window showing the LSP document symbols of the current buffer, refreshed
 as you edit and able to follow the cursor.
 
-![The document outline: expanding a symbol, jumping the source pane, hover info](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/symboltree.gif)
+![The document outline: expanding a symbol, jumping the source pane, hover info](https://github.com/mbfoss/keystone.nvim/releases/download/assets/symboltree.gif)
 
 ## Configuration
 

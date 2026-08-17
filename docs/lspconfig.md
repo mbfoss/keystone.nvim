@@ -6,7 +6,7 @@ enables the configs it finds in `lsp/` directories on the runtimepath, and
 applies the formatting, inlay hint, document highlight and signature help
 settings below.
 
-![Diagnostics, hover on an annotated function, and reference highlighting](https://raw.githubusercontent.com/mbfoss/keystone.nvim/assets/lspconfig.gif)
+![Diagnostics, hover on an annotated function, and reference highlighting](https://github.com/mbfoss/keystone.nvim/releases/download/assets/lspconfig.gif)
 
 ## Scope
 
