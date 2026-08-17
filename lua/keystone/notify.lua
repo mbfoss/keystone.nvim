@@ -459,16 +459,14 @@ function M.setup(opts)
     M.enable_lsp_progress()
   end
 
-  -- Notification history is keystone's, but browsing it is a picker job. Offer
-  -- it as a source of the optional ezpick.nvim, which is the only thing here
-  -- that depends on it -- nothing happens when ezpick is not installed. The
-  -- `pcall` is unavoidable: "is this plugin installed?" has no non-throwing form.
-  local ok, ezpick = pcall(require, "ezpick")
-  if ok then
-    ezpick.register("notifications", function()
-      return require("keystone.notify.picker").spec()
+  vim.api.nvim_create_user_command("Notifications", function(cmd_opts)
+    require("keystone.util.usercmd").handle(cmd_opts, function()
+      require("keystone.notify.picker").open()
     end)
-  end
+  end, {
+    nargs = "*",
+    desc = "List the notification history",
+  })
 end
 
 return M

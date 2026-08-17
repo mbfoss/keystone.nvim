@@ -19,10 +19,16 @@ require("keystone").setup({
 })
 ```
 
-## Integrations
+## Commands
 
-With [ezpick.nvim](integrations.md#ezpicknvim) installed, the notification
-history is registered as a picker source — see [integrations](integrations.md).
+| Command | Purpose |
+| --- | --- |
+| `:Notifications` | List the notification history, newest first |
+
+The list goes through `vim.ui.select` — keystone's own [select](select.md)
+module when it is enabled, whichever implementation is installed otherwise.
+Pickers that support previews show the full message beside the list; confirming
+an entry opens it in a scratch buffer.
 
 ---
 

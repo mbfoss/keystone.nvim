@@ -136,15 +136,9 @@ Enabling the relevant module registers its command:
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Notes` | [notes](docs/notes.md) | Manage notes |
+| `:Notifications` | [notify](docs/notify.md) | List the notification history |
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
 | `:Bdelete` `:Bwipeout` `:Bdeletehidden` `:Bwipeouthidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
-
-## Optional integrations
-
-Keystone detects [ezpick.nvim](https://github.com/mbfoss/ezpick.nvim) when it is
-installed and registers a picker source with it; without it, that source is
-absent and nothing else differs. See
-[docs/integrations.md](docs/integrations.md).
 
 ## Full option reference
 

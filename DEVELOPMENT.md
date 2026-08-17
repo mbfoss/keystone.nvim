@@ -101,25 +101,8 @@ the option ignore it, so it is safe to pass unconditionally; annotate the opts
 table `---@type keystone.select.Opts` so the language server resolves it without
 requiring the module.
 
-Caller today: `keystone.unsaved.session.open`.
-
-### Optional dependencies
-
-[ezpick.nvim](https://github.com/mbfoss/ezpick.nvim) is **optional**, and the
-only thing keystone does with it is offer it sources over keystone's own data.
-A module's `setup` registers one behind a `pcall(require, "ezpick")` — the only
-"is this plugin installed?" test there is — and does nothing when the require
-fails:
-
-| Registered by | Source | Spec |
-| --- | --- | --- |
-| `keystone.notify.setup` | `notifications` | [`keystone.notify.picker`](lua/keystone/notify/picker.lua) |
-
-The spec reads keystone's own state, so it lives here rather than in ezpick,
-and — being reachable only through ezpick's registry, which loads it lazily on
-first open — it is the only module allowed to `require` ezpick directly.
-Nothing keystone does itself depends on ezpick: the equivalent command
-(`:DiffUnsaved`) goes through `vim.ui.select`.
+Callers today: `keystone.unsaved.session.open`,
+[`keystone.notify.picker`](lua/keystone/notify/picker.lua) (`:Notifications`).
 
 ### Notable module internals
 
