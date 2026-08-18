@@ -178,6 +178,22 @@ function M.open_list()
         ui.smart_open_file(ref.file, ref.lnum or 1, 0)
     end, { buffer = bufnr, desc = "Open the reference under the cursor" })
 
+    -- A reload (`:e`, or anything reaching it) would otherwise leave the scratch
+    -- buffer empty: its lines are kept over the unload and put straight back.
+    vim.api.nvim_create_autocmd("BufUnload", {
+        buffer   = bufnr,
+        callback = function() core.stash_buffer(bufnr) end,
+    })
+    vim.api.nvim_create_autocmd("BufReadCmd", {
+        buffer   = bufnr,
+        callback = function()
+            core.restore_buffer(bufnr)
+            core.sync_buffer(bufnr)
+            -- A reload clears the buffer's syntax along with its lines.
+            _apply_syntax(bufnr)
+        end,
+    })
+
     -- The buffer is the working copy for the whole session, written out whenever it
     -- stops being current.
     vim.api.nvim_create_autocmd("BufLeave", {

@@ -411,6 +411,36 @@ function M.save_buffer(bufnr)
     _mark_saved(bufnr)
 end
 
+-- `:e` on the notes buffer would empty it: Vim frees the lines and, a scratch buffer
+-- having no file behind it, finds nothing to read back. The working copy is set aside
+-- as the buffer unloads and put back when it is read, so a reload -- however it was
+-- asked for -- leaves the notes, unsaved edits included, as they were.
+---@type string[]?
+local _unloaded = nil
+local _unloaded_dirty = false
+
+--- Keep the buffer's lines over an unload.
+---@param bufnr integer?
+function M.stash_buffer(bufnr)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+    _unloaded = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    _unloaded_dirty = _is_dirty(bufnr)
+end
+
+--- Put the stashed lines back, if the buffer was unloaded rather than filled fresh.
+--- Restoring is not an edit: the buffer is as dirty afterwards as it was before.
+---@param bufnr integer?
+function M.restore_buffer(bufnr)
+    bufnr = bufnr or _live_bufnr()
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+    if not _unloaded then return end
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, _unloaded)
+    _unloaded = nil
+    if not _unloaded_dirty then _mark_saved(bufnr) end
+end
+
 -- The buffer's lines in stored form, taken while the cwd they are shown against is
 -- still current: a relative path means nothing once the cwd has moved, so
 -- `refresh_display` cannot work them out for itself after the fact.
