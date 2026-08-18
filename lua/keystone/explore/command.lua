@@ -253,6 +253,9 @@ local function _explore_files(target_path)
 
             return cancel
         end,
+        on_open = function(path)
+            ui.smart_open_file(table.concat(path, '/'), nil, nil, false)
+        end,
     }, function(path)
         if path then
             local filepath = table.concat(path, '/')

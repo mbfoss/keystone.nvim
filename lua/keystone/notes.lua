@@ -30,13 +30,14 @@ M.config = core.default_config()
 
 ----------- PUBLIC API -----------
 
---- Write a note anchored to the current line. Prompts for the text, then appends
---- the note to the notes file.
+--- Write a note anchored to the current line. Opens the notes list with a new line
+--- started, its `@` reference already filled in, and the cursor in it.
 function M.add_at_cursor()
     _actions().add_at_cursor()
 end
 
---- Write a note with no location at all.
+--- Write a note with no location at all: the notes list opens with an empty line
+--- started and the cursor in it.
 function M.add_free()
     _actions().add_free()
 end

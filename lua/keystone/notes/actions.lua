@@ -2,11 +2,10 @@
 local M        = {}
 
 -- Interactive note commands. This module pulls in the heavy UI modules
--- (inputwin, ui, fixedwin) and is required only the first time a command runs,
--- keeping startup cheap. `keystone.notes` forwards to these on demand.
+-- (ui, fixedwin) and is required only the first time a command runs, keeping
+-- startup cheap. `keystone.notes` forwards to these on demand.
 
 local core     = require("keystone.notes.core")
-local inputwin = require("keystone.util.inputwin")
 local ui       = require("keystone.util.ui")
 local fixedwin = require("keystone.util.fixedwin")
 
@@ -57,20 +56,54 @@ local function _at_key()
     return "@"
 end
 
---- Prompt for the note text and append it. `file`/`lnum` anchor the note when
---- given. The prompt names which kind is being written: the window opens at the
---- cursor either way, so the title is the only thing distinguishing an unanchored
---- note from an anchored one.
+--- A note left unwritten leaves nothing behind: the line holding only the
+--- auto-inserted reference (or nothing at all) is dropped once insert mode ends.
+--- Whatever was typed is written out there and then rather than waiting for the
+--- window to lose focus.
+---@param bufnr integer
+---@param lnum integer  1-based line the note was started on
+---@param prefix string
+local function _drop_if_unwritten(bufnr, lnum, prefix)
+    vim.api.nvim_create_autocmd("InsertLeave", {
+        buffer   = bufnr,
+        once     = true,
+        callback = function()
+            local line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1]
+            if line and vim.trim(line) == vim.trim(prefix) then
+                vim.api.nvim_buf_set_lines(bufnr, lnum - 1, lnum, false, {})
+            end
+            core.save_buffer(bufnr)
+        end,
+    })
+end
+
+--- Start a new note in the list itself: the window opens, a fresh line is appended
+--- and insert mode starts on it, so the note is typed where it will live rather than
+--- through a separate prompt. `file`/`lnum` anchor the note, and are pre-inserted as
+--- the `@` reference the user would otherwise have had to type.
 ---@param file string?
 ---@param lnum integer?
-local function _prompt_note(file, lnum)
-    local prompt = file and "Note" or "Note (no location)"
-    inputwin.open({ prompt = prompt, default = "" }, function(label)
-        if not label then return end
-        label = label:match("^%s*(.-)%s*$")
-        if label == "" then return end
-        core.add_at(label, file, lnum)
-    end)
+local function _new_note(file, lnum)
+    M.open_list()
+    local bufnr = core.get_buffer()
+
+    local prefix = ""
+    if file then
+        local ref = "@" .. vim.fs.normalize(file)
+        if lnum then ref = ref .. ":" .. lnum end
+        prefix = core.to_display(ref) .. " "
+    end
+
+    -- An empty buffer is one empty line; write over it rather than leaving a gap.
+    local last = vim.api.nvim_buf_get_lines(bufnr, -2, -1, false)[1]
+    local from = (last == nil or last == "") and -2 or -1
+    vim.api.nvim_buf_set_lines(bufnr, from, -1, false, { prefix })
+
+    local at = vim.api.nvim_buf_line_count(bufnr)
+    vim.api.nvim_win_set_cursor(0, { at, #prefix })
+    vim.cmd("startinsert!")
+
+    _drop_if_unwritten(bufnr, at, prefix)
 end
 
 function M.add_at_cursor()
@@ -79,11 +112,11 @@ function M.add_at_cursor()
         vim.notify("[keystone] No valid file at cursor", vim.log.levels.WARN)
         return
     end
-    _prompt_note(core.norm(file), lnum)
+    _new_note(core.norm(file), lnum)
 end
 
 function M.add_free()
-    _prompt_note(nil, nil)
+    _new_note(nil, nil)
 end
 
 --- Pick the `@` references out of the note text with a syntax rule: it re-matches

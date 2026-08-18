@@ -57,6 +57,7 @@ local _antiflicker_delay = 200
 ---@field enable_preview boolean?
 ---@field show_hidden boolean? Initial visibility of hidden items (default false). Toggled at runtime.
 ---@field previewer keystone.Explorer.AsyncPreviewLoader?
+---@field on_open fun(path:string[])? Called for a selectable item without closing the explorer.
 ---@field height_ratio number?
 ---@field width_ratio number?
 ---@field list_wrap boolean?
@@ -552,6 +553,19 @@ function Explorer:confirm_choice()
     self:close(path)
 end
 
+--- Acts on the current item like `confirm_choice`, but leaves the explorer open:
+--- directories are entered, selectable items go to the `on_open` handler.
+function Explorer:open_choice()
+    if not self.opts.on_open then return end
+    local path, item = self:_get_current()
+    if not item then return end
+    if not item.selectable then
+        self:run_fetch("in")
+        return
+    end
+    self.opts.on_open(path)
+end
+
 function Explorer:toggle_preview()
     if not self.preview_enabled then return end
     self:relayout(self.vwin ~= nil and "hide_preview" or "show_preview")
@@ -861,6 +875,8 @@ function Explorer:_keymaps()
             fn = function() self:run_fetch("out") end },
         { label = "<CR>",      keys = { "<CR>" },       desc = "Select / open file",
             fn = function() self:confirm_choice() end },
+        { label = "o",         keys = { "o" },          desc = "Open file, keep explorer open",
+            enabled = self.opts.on_open ~= nil, fn = function() self:open_choice() end },
         { label = "gp",     keys = { "gp" },      desc = "Toggle preview",
             enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
         { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
