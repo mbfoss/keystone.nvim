@@ -93,16 +93,6 @@ M.auto_reload = {
         pcall(vim.cmd.checktime)
       end,
     })
-    vim.api.nvim_create_autocmd("FileChangedShellPost", {
-      group = group,
-      desc = "Notify when a buffer is reloaded from disk",
-      callback = function(args)
-        local name = args.file
-        if name == nil or name == "" then name = vim.api.nvim_buf_get_name(args.buf) end
-        name = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
-        vim.notify(name .. " changed on disk — buffer reloaded", vim.log.levels.WARN)
-      end,
-    })
   end,
 }
 
