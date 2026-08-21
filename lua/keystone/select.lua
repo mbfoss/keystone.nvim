@@ -308,12 +308,10 @@ function Picker.new(entries, opts, on_choice)
     return self
 end
 
----@param title string
----@return nil
-function Picker:_open(title)
-    local base  = { relative = "editor", style = "minimal" }
-    local L     = self._layout
-    self._title = " " .. title .. " "
+--- Creates the picker's buffers and floats. Called once, at picker open.
+---@return integer augroup Autocommand group owned by the prompt window.
+function Picker:_create_windows()
+    local base = { relative = "editor", style = "minimal" }
 
     self._pbuf = ui.create_scratch_buffer(false, { modifiable = true })
     self._lbuf = ui.create_scratch_buffer(false, { modifiable = false })
@@ -340,19 +338,22 @@ function Picker:_open(title)
         -- every time a real preview buffer takes over the window, and wiping it
         -- there would leave nothing to fall back to.
         self._vbuf = ui.create_scratch_buffer(false, { modifiable = false, bufhidden = "hide" })
-        -- Its top border lands on `row`, the same one the prompt's does, and its
-        -- height is the rows between the two -- so the preview closes level with
-        -- the bottom of the frame beside it.
-        self._vwin = ui.create_window(self._vbuf, false, vim.tbl_extend("force", base, {
-            row    = L.row,
-            col    = L.col + L.list_width + 2,
-            width  = L.preview_width,
-            height = L.list_height + _PROMPT_ROWS - 1,
-            border = _BORDER_FULL,
-        }), function() self:_finish(nil) end)
+        self._vwin = ui.create_window(self._vbuf, false,
+            vim.tbl_extend("force", base, self:_preview_config()),
+            function() self:_finish(nil) end)
         vim.wo[self._vwin].winhighlight = _WINHL
         vim.wo[self._vwin].wrap = false
     end
+
+    return augroup
+end
+
+---@param title string
+---@return nil
+function Picker:_open(title)
+    self._title = " " .. title .. " "
+
+    local augroup = self:_create_windows()
 
     vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
         buffer   = self._pbuf,
@@ -436,6 +437,22 @@ function Picker:_list_config()
     }
 end
 
+--- Window config for the preview float. Its top border lands on `row`, the same
+--- one the prompt's does, and its height is the rows between the two -- so the
+--- preview closes level with the bottom of the frame beside it.
+---@return vim.api.keyset.win_config
+function Picker:_preview_config()
+    local L = self._layout
+    return {
+        relative = "editor",
+        row      = L.row,
+        col      = L.col + L.list_width + 2,
+        width    = L.preview_width,
+        height   = L.list_height + _PROMPT_ROWS - 1,
+        border   = _BORDER_FULL,
+    }
+end
+
 --- The winbar: the rule, with the count at its right end. The rule itself is the
 --- `wbr` fill char stretched by `%=`, so it is never empty -- an empty 'winbar'
 --- would take the row back and pull the list up into it.
@@ -462,11 +479,7 @@ function Picker:_relayout()
     vim.api.nvim_win_set_config(self._pwin, self:_prompt_config())
     vim.api.nvim_win_set_config(self._lwin, self:_list_config())
     if self._vwin then
-        vim.api.nvim_win_set_config(self._vwin, {
-            relative = "editor", row = L.row, col = L.col + L.list_width + 2,
-            width = L.preview_width, height = L.list_height + _PROMPT_ROWS - 1,
-            border = _BORDER_FULL,
-        })
+        vim.api.nvim_win_set_config(self._vwin, self:_preview_config())
     end
 end
 
