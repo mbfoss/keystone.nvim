@@ -1,0 +1,573 @@
+local TreeBuffer      = require("keystone.util.TreeBuffer")
+local LRU             = require("keystone.util.LRU")
+local ui              = require("keystone.util.ui")
+local floatwin        = require("keystone.util.floatwin")
+local throttle        = require("keystone.util.throttle")
+local kinds           = require("keystone.symboltree.kinds")
+local symbols         = require("keystone.symboltree.symbols")
+
+---@class keystone.symboltree.ItemData
+---@field name string
+---@field detail string?
+---@field kind integer
+---@field icon string
+---@field icon_hl string
+---@field lnum integer
+---@field col integer
+---@field end_lnum integer
+---@field is_current boolean?
+
+--- Id of the single placeholder node shown when there is nothing to display.
+local _placeholder_id = {}
+
+--- Full-line highlight for the symbol enclosing the source cursor. Linked with
+--- `default` so a colorscheme or the user can override it.
+local _current_hl = "KeystoneSymbolTreeCurrent"
+vim.api.nvim_set_hl(0, _current_hl, { default = true, link = "Visual" })
+
+local function _show_help()
+    local help_text = { [[
+NAVIGATION
+==========
+`<CR>`    Jump to symbol
+`o`       Jump to symbol, keep focus in the tree
+
+FOLDING
+=======
+`za`      Toggle expand/collapse
+`zc`      Collapse
+`zo`      Expand
+`zC`      Collapse (recursive)
+`zO`      Expand (recursive)
+
+OTHER
+=====
+`K`       Hover info (kind, detail, position)
+`R`       Refresh symbols
+`g?`      Show this help]]
+    }
+
+    floatwin.open(table.concat(help_text, "\n"), {
+        title = "Symbol Tree",
+        is_markdown = true,
+    })
+end
+
+---@param id any
+---@param data keystone.symboltree.ItemData
+---@return string[][] chunks, string[][] virt_chunks, string? line_hl
+local function _symbol_formatter(id, data)
+    if not data then return {}, {} end
+
+    local chunks = {
+        { data.icon, data.icon_hl },
+        { " " },
+        { data.name },
+    }
+    if data.detail and data.detail ~= "" then
+        table.insert(chunks, { " " })
+        table.insert(chunks, { data.detail, "Comment" })
+    end
+
+    return chunks, {}, data.is_current and _current_hl or nil
+end
+
+local function _is_regular_buffer(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then return false end
+    return vim.bo[bufnr].buftype == ""
+end
+
+--- Resolve configured kind names to the numeric LSP codes used by the symbols.
+---@param names string[]?
+---@return table<integer, true>
+local function _kind_code_set(names)
+    local set = {}
+    for _, name in ipairs(names or {}) do
+        for code, kind in pairs(kinds.kinds) do
+            if kind.name:lower() == name:lower() then
+                set[code] = true
+            end
+        end
+    end
+    return set
+end
+
+---@class keystone.SymbolTree.Opts
+---@field track_cursor boolean? follow the cursor in the source buffer (default true)
+---@field auto_expand boolean? expand every symbol on load (default true)
+---@field show_detail boolean? show the server-provided detail text (default true)
+---@field exclude_kinds string[]? `keystone.symboltree.kinds` names to hide
+---@field collapse_kinds string[]? `keystone.symboltree.kinds` names left collapsed
+---                                on load even when `auto_expand` is set
+---@field debounce_ms integer? edit-to-refresh delay (default 500)
+---@field max_cached_folds integer? folds remembered across all buffers
+---                                (default 2048, roughly 0.5 MB)
+
+---@class keystone.SymbolTree
+---@field new fun(self:keystone.SymbolTree, opts:keystone.SymbolTree.Opts?):keystone.SymbolTree
+---@field private _treebuf keystone.util.TreeBuffer
+---@field private _source_buf integer
+---@field private _symbols keystone.symboltree.Symbol[]
+---@field private _provider keystone.symboltree.symbols.Provider
+---@field private _excluded table<integer, true>
+---@field private _collapsed table<integer, true>
+---@field private _expand_cache keystone.util.LRU fold state, keyed by buffer and item id
+---@field private _expand_prefix string? key prefix identifying the current source
+local SymbolTree = {}
+SymbolTree.__index = SymbolTree
+
+function SymbolTree:new(...)
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init(...) end
+    return obj
+end
+
+---@param opts keystone.SymbolTree.Opts?
+function SymbolTree:init(opts)
+    self._opts = opts and vim.deepcopy(opts) or {}
+    self._source_buf = -1
+    self._symbols = {}
+    self._provider = symbols.Provider:new()
+    self._current_id = nil
+    -- Whether the current-symbol highlight is shown. Only shown while the source
+    -- window is focused, so the Visual-style highlight never clashes with a real
+    -- selection while browsing the tree.
+    self._current_shown = true
+    self._augroup = nil
+
+    -- Kind names are friendlier to configure than the numeric LSP codes, so
+    -- resolve them to codes once here.
+    self._excluded = _kind_code_set(self._opts.exclude_kinds)
+    self._collapsed = _kind_code_set(self._opts.collapse_kinds)
+
+    -- Folding a symbol should survive a refresh, a jump to another buffer and
+    -- back, and the tree buffer being closed and reopened, so the state is kept
+    -- outside the tree itself. One entry per fold rather than one per buffer:
+    -- the cost is then bounded by how much folding was done, whether that was
+    -- spread over two files or two hundred.
+    self._expand_cache = LRU:new(self._opts.max_cached_folds or 2048)
+    self._expand_prefix = nil
+
+    self._refresh_fn = throttle.debounce_wrap(self._opts.debounce_ms or 500, function()
+        self:_request_symbols()
+    end)
+
+    self:_setup_tree()
+end
+
+function SymbolTree:_setup_tree()
+    assert(not self._treebuf)
+
+    self._treebuf = TreeBuffer.new({
+        filetype = "keystone-symboltree",
+        formatter = _symbol_formatter,
+    })
+
+    self._treebuf:subscribe({
+        on_selection = function(id, data)
+            self:_jump_to(data, true)
+        end,
+        -- Folding changes which node stands in for the cursor, so re-resolve it.
+        on_toggle = function(id, _, expanded)
+            if self._expand_prefix and id ~= _placeholder_id then
+                self._expand_cache:put(self._expand_prefix .. id, expanded)
+            end
+            self:_sync_to_cursor()
+        end,
+    })
+end
+
+---@return integer bufnr
+function SymbolTree:create_buffer()
+    local bufnr, created = self._treebuf:create_buffer(function()
+        self:_on_buffer_deleted()
+    end)
+
+    if not created then return bufnr end
+
+    local function with_item(fn)
+        local item = self._treebuf:get_cursor_item()
+        if item and item.id ~= _placeholder_id then fn(item) end
+    end
+
+    local keymaps = {
+        ["o"] = {
+            function()
+                with_item(function(i) self:_jump_to(i.data, false) end)
+            end,
+            "Jump to symbol (keep focus)",
+        },
+        ["K"] = {
+            function()
+                with_item(function(i) self:_show_hover(i) end)
+            end,
+            "Show symbol info",
+        },
+        ["R"] = {
+            function()
+                self:_request_symbols()
+            end,
+            "Refresh symbols",
+        },
+        ["g?"] = {
+            function()
+                _show_help()
+            end,
+            "Show Help",
+        },
+    }
+
+    assert(bufnr > 0)
+    for key, map in pairs(keymaps) do
+        vim.api.nvim_buf_set_keymap(bufnr, "n", key, "", { callback = map[1], desc = map[2] })
+    end
+
+    self:_on_buffer_created()
+
+    return bufnr
+end
+
+function SymbolTree:get_bufnr()
+    return self._treebuf:get_bufnr()
+end
+
+function SymbolTree:_on_buffer_created()
+    assert(not self._augroup)
+
+    local bufnr = self._treebuf:get_bufnr()
+    assert(bufnr > 0)
+    
+    self._augroup = vim.api.nvim_create_augroup(
+        "KeystoneSymbolTree_" .. bufnr, { clear = true })
+
+    local function track(event, opts)
+        opts.group = self._augroup
+        vim.api.nvim_create_autocmd(event, opts)
+    end
+
+    track({ "BufEnter", "BufWinEnter" }, {
+        callback = function(args)
+            if args.buf ~= self._treebuf:get_bufnr() and _is_regular_buffer(args.buf) then
+                self:_set_source(args.buf)
+            end
+        end,
+    })
+
+    -- A reply is only valid for the buffer it was requested for, so re-request
+    -- rather than trusting the cache when the server (re)attaches.
+    track("LspAttach", {
+        callback = function(args)
+            if args.buf == self._source_buf then
+                vim.schedule(function()  -- schedule because lsp (especially in-process) may not ready yet
+                    if vim.api.nvim_get_current_buf() == args.buf then
+                        self:_request_symbols()
+                    end
+                end)
+            end
+        end,
+    })
+
+    track({ "TextChanged", "TextChangedI" }, {
+        callback = function(args)
+            if args.buf == self._source_buf then
+                self._refresh_fn()
+            end
+        end,
+    })
+
+    if self._opts.track_cursor ~= false then
+        track("CursorMoved", {
+            callback = function(args)
+                if args.buf == self._source_buf then
+                    self:_sync_to_cursor()
+                end
+            end,
+        })
+
+        -- Only keep the current-symbol highlight while the source window is
+        -- focused: hide it on entering the tree (or any other window) and
+        -- restore it on returning to the source.
+        track("WinEnter", {
+            callback = function()
+                if vim.api.nvim_get_current_buf() == self._source_buf then
+                    self:_set_current_shown(true)
+                    self:_sync_to_cursor()
+                else
+                    self:_set_current_shown(false)
+                end
+            end,
+        })
+    end
+
+    local current = vim.api.nvim_get_current_buf()
+    if _is_regular_buffer(current) then
+        self:_set_source(current)
+    else
+        self:_show_placeholder("No symbols")
+    end
+end
+
+function SymbolTree:_on_buffer_deleted()
+    if self._augroup then
+        vim.api.nvim_del_augroup_by_id(self._augroup)
+        self._augroup = nil
+    end
+    self._source_buf = -1
+    self._symbols = {}
+end
+
+--- Fold-cache key prefix for a source buffer. The buffer number keeps the key
+--- short, which matters because there is one key per remembered fold; the cost
+--- is that folds do not follow a file across a buffer being wiped and reloaded.
+--- `\0` never occurs in an item id, so the prefix cannot bleed into the id it
+--- is joined with.
+---@param bufnr integer
+---@return string
+local function _expand_prefix(bufnr)
+    return bufnr .. "\0"
+end
+
+---@param bufnr integer
+function SymbolTree:_set_source(bufnr)
+    if bufnr == self._source_buf then return end
+    self._source_buf = bufnr
+    self._symbols = {}
+    self._current_id = nil
+
+    self._expand_prefix = _expand_prefix(bufnr)
+
+    self:_request_symbols()
+end
+
+---@param text string
+function SymbolTree:_show_placeholder(text)
+    self._treebuf:clear_items()
+    self._treebuf:add_item(nil, {
+        id = _placeholder_id,
+        data = { name = text, kind = 0, icon = "󰋗", icon_hl = "Comment", lnum = 0, col = 0, end_lnum = 0 },
+    })
+end
+
+function SymbolTree:_request_symbols()
+    if self._treebuf:get_bufnr() == -1 then return end
+    local bufnr = self._source_buf
+
+    -- Guards a reply against the tree having moved on: navigated to a different
+    -- source buffer, or the tree buffer torn down while the request was in
+    -- flight. (Superseded requests for the same buffer are dropped inside the
+    -- provider.)
+    local function stale()
+        return self._source_buf ~= bufnr or self._treebuf:get_bufnr() == -1
+    end
+
+    self._provider:request(bufnr, {
+        on_symbols = function(syms)
+            if stale() then return end
+            self._symbols = syms
+            self:_populate()
+            self:_sync_to_cursor()
+        end,
+        on_unavailable = function(reason)
+            if stale() then return end
+            self._symbols = {}
+            self:_show_placeholder(reason)
+        end,
+    })
+end
+
+--- Build the id for a symbol from its position in the tree. Position-based so
+--- expansion state survives a refresh as long as the structure is unchanged.
+---@param parent_id string?
+---@param index integer
+---@param symbol keystone.symboltree.Symbol
+---@return string
+local function _make_id(parent_id, index, symbol)
+    return (parent_id or "") .. "/" .. index .. ":" .. symbol.name
+end
+
+---@param list keystone.symboltree.Symbol[]
+---@param parent_id string?
+---@return keystone.util.TreeBuffer.ItemDef[]
+function SymbolTree:_build_items(list, parent_id)
+    local items = {}
+    for index, symbol in ipairs(list) do
+        if not self._excluded[symbol.kind] then
+            local kind = kinds.get(symbol.kind)
+            local id = _make_id(parent_id, index, symbol)
+            local children = self:_build_items(symbol.children, id)
+            -- A remembered fold wins over the configured default: the user
+            -- folded this exact symbol, so keep it that way.
+            local expanded = self._expand_prefix
+                and self._expand_cache:get(self._expand_prefix .. id)
+            if expanded == nil then
+                expanded = self._opts.auto_expand ~= false and not self._collapsed[symbol.kind]
+            end
+            items[#items + 1] = {
+                id = id,
+                expandable = #children > 0,
+                expanded = expanded,
+                data = {
+                    name     = symbol.name,
+                    detail   = self._opts.show_detail ~= false and symbol.detail or nil,
+                    kind     = symbol.kind,
+                    icon     = kind.icon,
+                    icon_hl  = kind.hl,
+                    lnum     = symbol.lnum,
+                    col      = symbol.col,
+                    end_lnum = symbol.end_lnum,
+                },
+                children = children,
+            }
+        end
+    end
+    return items
+end
+
+---@param items table[]
+---@param parent_id any?
+function SymbolTree:_insert_items(items, parent_id)
+    for _, item in ipairs(items) do
+        local children = item.children
+        item.children = nil
+        self._treebuf:add_item(parent_id, item)
+        self:_insert_items(children, item.id)
+    end
+end
+
+function SymbolTree:_populate()
+    self._treebuf:clear_items()
+    self._current_id = nil
+    local items = self:_build_items(self._symbols, nil)
+    if #items == 0 then
+        self:_show_placeholder("No symbols")
+        return
+    end
+    self:_insert_items(items, nil)
+end
+
+--- Deepest item whose range covers `line`, walking down from the roots.
+---@param line integer 1-based
+---@return any? id
+function SymbolTree:_find_item_at_line(line)
+    local found = nil
+
+    local function walk(items)
+        for _, item in ipairs(items) do
+            local data = item.data
+            if data.lnum > 0 and line >= data.lnum and line <= data.end_lnum then
+                found = item.id
+                walk(self._treebuf:get_children(item.id))
+                return
+            end
+        end
+    end
+
+    walk(self._treebuf:get_roots())
+    return found
+end
+
+--- Nearest ancestor that is actually on screen. The deepest matching symbol may
+--- sit under a collapsed parent, in which case the fold's visible node stands in
+--- for it.
+---@param id any?
+---@return any? id
+function SymbolTree:_visible_ancestor(id)
+    while id ~= nil and not self._treebuf:is_visible(id) do
+        id = self._treebuf:get_parent_id(id)
+    end
+    return id
+end
+
+--- Show or hide the current-symbol highlight without forgetting which symbol is
+--- current, so it can be restored when focus returns to the source window.
+---@param shown boolean
+function SymbolTree:_set_current_shown(shown)
+    if self._current_shown == shown then return end
+    self._current_shown = shown
+    local id = self._current_id
+    if not id then return end
+    local data = self._treebuf:get_item_data(id)
+    if data then
+        data.is_current = shown or nil
+        self._treebuf:refresh_item(id)
+    end
+end
+
+--- Highlight the symbol enclosing the source cursor and scroll it into view.
+function SymbolTree:_sync_to_cursor()
+    if self._opts.track_cursor == false then return end
+    if self._treebuf:get_bufnr() == -1 then return end
+
+    local winid = vim.fn.bufwinid(self._source_buf)
+    if winid <= 0 then return end
+
+    local line = vim.api.nvim_win_get_cursor(winid)[1]
+    local id = self:_visible_ancestor(self:_find_item_at_line(line))
+    if id == self._current_id then return end
+
+    if self._current_id then
+        local previous = self._treebuf:get_item_data(self._current_id)
+        if previous then
+            previous.is_current = nil
+            self._treebuf:refresh_item(self._current_id)
+        end
+    end
+
+    self._current_id = id
+    if not id then return end
+
+    if self._current_shown then
+        local data = self._treebuf:get_item_data(id)
+        if data then
+            data.is_current = true
+            self._treebuf:refresh_item(id)
+        end
+    end
+
+    -- Only move the tree cursor when the tree is not the focused window, so we
+    -- never yank the cursor out from under someone browsing the tree.
+    local tree_win = self._treebuf:get_winid()
+    if tree_win > 0 and tree_win ~= vim.api.nvim_get_current_win() then
+        self._treebuf:set_cursor_by_id(id)
+    end
+end
+
+---@param data keystone.symboltree.ItemData
+---@param activate boolean
+function SymbolTree:_jump_to(data, activate)
+    if not data or data.lnum <= 0 then return end
+    if not vim.api.nvim_buf_is_valid(self._source_buf) then return end
+
+    local tree_win = vim.api.nvim_get_current_win()
+    ui.smart_open_buffer(self._source_buf, data.lnum, data.col)
+    if not activate and vim.api.nvim_win_is_valid(tree_win) then
+        vim.api.nvim_set_current_win(tree_win)
+    end
+end
+
+---@param item keystone.util.TreeBuffer.Item
+function SymbolTree:_show_hover(item)
+    local data = item.data ---@type keystone.symboltree.ItemData
+    local kind = kinds.get(data.kind)
+    local lines = {
+        "# " .. data.name,
+        "",
+        "- **Kind**: " .. kind.icon .. " " .. kind.name,
+        "- **Line**: " .. data.lnum .. ":" .. (data.col + 1),
+        "- **Range**: " .. data.lnum .. "-" .. data.end_lnum,
+    }
+    if data.detail and data.detail ~= "" then
+        table.insert(lines, "- **Detail**: " .. data.detail)
+    end
+
+    vim.lsp.util.open_floating_preview(lines, "markdown", {
+        title = " Symbol ",
+        title_pos = "center",
+        border = "rounded",
+        wrap = true,
+        focusable = true,
+        focus_id = "keystone.symboltree.hover",
+    })
+end
+
+return SymbolTree

@@ -1,0 +1,115 @@
+*keystone-tsconfig*            Treesitter highlighting and folding, per buffer
+
+==============================================================================
+Table of Contents                        *keystone-tsconfig-table-of-contents*
+
+1. Configuration                             |keystone-tsconfig-configuration|
+2. Relationship to nvim-treesitter            |keystone-tsconfig-relationship|
+  - What Neovim already does      |keystone-tsconfig-what-neovim-already-does|
+  - What nvim-treesitter does now                 |keystone-tsconfig-upstream|
+  - What this module does            |keystone-tsconfig-what-this-module-does|
+  - Notable behaviour                    |keystone-tsconfig-notable-behaviour|
+Treesitter highlighting and folding, switched on per-buffer whenever a parser
+is available for the buffer’s language.
+
+
+==============================================================================
+1. Configuration                             *keystone-tsconfig-configuration*
+
+>lua
+    require("keystone").setup({
+      tsconfig = {
+        highlight = true,
+        fold      = true,   -- foldmethod=expr using the Treesitter foldexpr
+        fold_open = true,   -- start with all folds open
+        aliases   = {},     -- map a filetype to a parser, e.g. { typescriptreact = "tsx" }
+        disable   = {},     -- languages to skip: a list, or a predicate(lang, bufnr)
+        -- on_attach = function(bufnr, lang) ... end,
+      },
+    })
+<
+
+
+==============================================================================
+2. Relationship to nvim-treesitter            *keystone-tsconfig-relationship*
+
+**This module is not a replacement for nvim-treesitter, and it does not install
+parsers.** The two solve adjacent problems and are normally used together.
+
+Three separate things have to line up before a buffer is highlighted by
+treesitter, and each comes from somewhere different:
+
+  ------------------------------------------------------------------------
+  Piece                    Comes from              Notes
+  ------------------------ ----------------------- -----------------------
+  The treesitter runtime   Neovim itself           Built in
+  (vim.treesitter.start,                           
+  foldexpr)                                        
+
+  Parsers and queries per  nvim-treesitter, or     Neovim bundles only ~7
+  language                 your own build          
+
+  Turning it on for a      this module             What is otherwise left
+  buffer                                           to you
+  ------------------------------------------------------------------------
+
+WHAT NEOVIM ALREADY DOES          *keystone-tsconfig-what-neovim-already-does*
+
+Neovim ships parsers and queries for a small set of languages (`c`, `lua`,
+`markdown`, `markdown_inline`, `query`, `vim`, `vimdoc`) and its own ftplugins
+call `vim.treesitter.start()` for a subset of those: `lua`, `markdown`, `help`
+and `query`. Everything else is left to you, _including languages whose parser
+Neovim bundles_: open a `.c` file in a stock Neovim and you get regex syntax,
+not treesitter, despite `c.so` being present.
+
+
+WHAT NVIM-TREESITTER DOES NOW                     *keystone-tsconfig-upstream*
+
+On its current `main` branch nvim-treesitter is deliberately narrow. It
+describes itself as providing "functions for installing, updating, and removing
+tree-sitter parsers" and "a collection of queries for enabling tree-sitter
+features built into Neovim". The old module system,
+`require("nvim-treesitter.configs").setup({ highlight = { enable = true } })`,
+is **gone**; highlighting and folding are Neovim’s job now, and the README
+tells you to call `vim.treesitter.start()` and set `foldexpr` yourself. (Its
+legacy `master` branch still has the module system; `main` requires a newer
+Neovim than keystone does.)
+
+
+WHAT THIS MODULE DOES                *keystone-tsconfig-what-this-module-does*
+
+Exactly the step that fell out when that module system was removed. On
+`FileType` it resolves the buffer’s language, checks that a parser **and**
+the relevant queries are present, and then starts highlighting and sets
+`foldmethod`/`foldexpr`, per buffer, honouring `aliases` and `disable`.
+
+The division:
+
+>lua
+    -- nvim-treesitter: get the parsers and queries onto the runtimepath
+    require("nvim-treesitter").install({ "rust", "python", "tsx" })
+    
+    -- keystone: turn them on for every buffer that has one
+    require("keystone").setup({ tsconfig = true })
+<
+
+If you already start treesitter yourself in an ftplugin or a `FileType`
+autocmd, you do not need this module; it is that snippet, generalised.
+
+
+NOTABLE BEHAVIOUR                        *keystone-tsconfig-notable-behaviour*
+
+- **No parser, no change.** A language without a parser is left on regex syntax;
+    nothing errors and nothing is installed for you. If a filetype looks
+    un-highlighted, the parser is missing; install it with nvim-treesitter.
+- **Queries are checked, not just parsers.** Starting treesitter with a parser
+    but no `highlights` query colours nothing _and_ switches regex syntax off,
+    which is worse than leaving it alone. This module gates on the query being
+    present, so a half-installed language degrades to plain regex syntax rather
+    than to nothing.
+
+All modules: |keystone-modules|
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,197 @@
+*keystone-bufdelete*         Delete or wipe buffers, keeping the window layout
+
+==============================================================================
+Table of Contents                       *keystone-bufdelete-table-of-contents*
+
+1. Configuration                            |keystone-bufdelete-configuration|
+2. What gets kept                          |keystone-bufdelete-what-gets-kept|
+3. Commands                                      |keystone-bufdelete-commands|
+  - Unsaved changes                       |keystone-bufdelete-unsaved-changes|
+4. What replaces the buffer      |keystone-bufdelete-what-replaces-the-buffer|
+5. Delete or wipe                          |keystone-bufdelete-delete-or-wipe|
+6. Lua API                                        |keystone-bufdelete-lua-api|
+Delete a buffer without collapsing the window layout.
+
+`:bdelete` closes every window that happens to be showing the buffer, so
+deleting a file from a split layout takes the split with it. This module points
+those windows at another buffer first, then deletes; the layout is untouched.
+
+
+==============================================================================
+1. Configuration                            *keystone-bufdelete-configuration*
+
+>lua
+    require("keystone").setup({ bufdelete = true })
+<
+
+>lua
+    require("keystone").setup({
+      bufdelete = {
+        ignore_floats            = true,  -- keep buffers shown in a floating window
+        ignore_file_types        = {},    -- keep these filetypes
+        ignore_filename_patterns = {},    -- keep names matching these Lua patterns
+        ignore_alt_file          = false, -- keep the alternate file (`#`)
+        ignore_special_buffers   = true,  -- keep buffers with a non-empty `buftype`
+      },
+    })
+<
+
+
+==============================================================================
+2. What gets kept                          *keystone-bufdelete-what-gets-kept*
+
+The `ignore_*` options describe buffers a **bulk** selection must leave alone:
+
+  -----------------------------------------------------------------------
+  Option                              Keeps
+  ----------------------------------- -----------------------------------
+  ignore_floats                       buffers displayed in a floating
+                                      window
+
+  ignore_file_types                   buffers whose filetype is in the
+                                      list
+
+  ignore_filename_patterns            buffers whose full name matches a
+                                      Lua pattern
+
+  ignore_alt_file                     the alternate file (#), so <C-^>
+                                      still goes somewhere
+
+  ignore_special_buffers              any buffer with a non-empty
+                                      buftype: help, quickfix, terminal,
+                                      prompt
+  -----------------------------------------------------------------------
+>lua
+    require("keystone").setup({
+      bufdelete = {
+        ignore_file_types        = { "gitcommit", "gitrebase" },
+        ignore_filename_patterns = { "%.env$", "/node_modules/" },
+      },
+    })
+<
+
+They apply whenever a **set** is selected: a glob, `:BDeleteHidden`, or
+`delete_many`. They do **not** block a buffer you name: `:BDelete` on the
+current buffer, `:BDelete foo.lua`, or `:3BDelete` deletes the named target,
+since the selection is already explicit. Pass `{ ignore = true }` to `delete()`
+to opt a single delete into the rules, or `{ ignore = false }` to a bulk call
+to sweep past them.
+
+Buffers kept this way are reported as a count, separately from buffers kept
+because of unsaved changes; the second is a warning, the first is not.
+
+`M.ignore_reason(bufnr)` returns why a buffer would be kept, or `nil`.
+
+
+==============================================================================
+3. Commands                                      *keystone-bufdelete-commands*
+
+Four commands, named after the built-ins whose semantics they keep.
+
+>vim
+    :BDelete            " current buffer
+    :BDelete *          " every listed buffer
+    :BDelete *.log      " glob on buffer names
+    :BDelete foo.lua    " one named buffer
+    :3BDelete           " buffer 3
+    :BWipeout *         " the same sets, with :bwipeout semantics
+    :BDeleteHidden      " every buffer no window is showing
+    :BWipeoutHidden     " the same set, with :bwipeout semantics
+<
+
+Add `!` to any of them to force past unsaved changes.
+
+The argument to `:BDelete`/`:BWipeout` is _always_ a buffer name or a glob over
+buffer names; there are no keywords, so a buffer called `all` is nothing
+special and `:BDelete all` deletes it. `:BDeleteHidden`/`:BWipeoutHidden` take
+no argument at all: their selection is fixed.
+
+Hidden means _no_ window in _any_ tabpage is showing the buffer. A buffer
+sitting in a split two tabs over is not hidden and survives.
+
+Globs are matched against the full path, the path relative to the cwd, and the
+final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
+thing. Completion offers `*` and the names of listed buffers.
+
+
+UNSAVED CHANGES                           *keystone-bufdelete-unsaved-changes*
+
+No command discards an edit. A buffer that is modified, or is a terminal, is
+left alone and reported: `:BWipeout *` with one dirty buffer among ten wipes
+the nine and keeps the tenth, still listed and still on screen.
+
+`!` (`:BDelete! *`, `:BWipeout! *`, `:BDeleteHidden!`) is the explicit override
+that throws the changes away, exactly as `:bdelete!` does.
+
+The guard sits below the delete/wipe split rather than in either command, so
+the two cannot drift apart. If a delete is refused for some other reason after
+the buffer has been swapped out of its windows (a `BufUnload` autocmd,
+`'confirm'`), the buffer is put back in those windows rather than left
+orphaned.
+
+
+==============================================================================
+4. What replaces the buffer      *keystone-bufdelete-what-replaces-the-buffer*
+
+Each window showing the deleted buffer gets, in order of preference:
+
+1. that window’s own alternate file (`#`), if it is still a listed buffer,
+2. otherwise the most recently used listed buffer,
+3. otherwise a single empty buffer, shared by every window that needs one, so
+`:BDelete *` on a four-way split leaves four windows on one empty buffer,
+not four empty buffers.
+
+A floating window is not part of a layout worth preserving, so when its buffer
+is deleted anyway (an explicit `:BDelete`, or `ignore_floats = false`), the
+float is closed rather than repointed. The exception is a float that is the
+only window in its tabpage, which would take the tabpage with it.
+
+
+==============================================================================
+5. Delete or wipe                          *keystone-bufdelete-delete-or-wipe*
+
+`:bdelete` unlists the buffer and unloads its contents, but keeps the buffer
+object, its number, and its marks; reopening the file lands you back where you
+were. `:bwipeout` destroys it outright: the number is freed and the marks are
+gone. Use `:BWipeout` when the buffer should be discarded outright (a stale
+terminal, a renamed file, a session reset), and `:BDelete` otherwise.
+
+
+==============================================================================
+6. Lua API                                        *keystone-bufdelete-lua-api*
+
+>lua
+    local bufdelete = require("keystone.bufdelete")
+    
+    bufdelete.delete()                          -- current buffer, layout preserved
+    bufdelete.delete(bufnr, { force = true })   -- discard unsaved changes
+    bufdelete.delete(bufnr, { wipe = true })    -- `:bwipeout` semantics for this call
+                                                -- (still refuses a modified buffer)
+    bufdelete.delete_many({ 3, 7 })             -- one operation, so neither replaces the other
+    bufdelete.delete_matching("*.log")          -- the glob behind `:BDelete *.log`
+    bufdelete.delete_all({ ignore = false })    -- sweep past the ignore rules
+    bufdelete.delete_others()                   -- returns how many were deleted
+    bufdelete.delete_hidden()                   -- the sweep behind `:BDeleteHidden`
+    bufdelete.delete_hidden({ wipe = true })    -- ...and behind `:BWipeoutHidden`
+    bufdelete.delete_all()
+    
+    bufdelete.listed()                          -- listed buffers, most recently used first
+    bufdelete.hidden()                          -- listed buffers no window shows
+    bufdelete.matching("*.log")                 -- listed buffers a glob matches
+    bufdelete.is_ignored(bufnr)                 -- would a bulk delete keep this one?
+    bufdelete.ignore_reason(bufnr)              -- ...and why
+<
+
+Mappings, if you want them:
+
+>lua
+    vim.keymap.set("n", "<leader>bd", "<Cmd>BDelete<CR>")
+    vim.keymap.set("n", "<leader>bh", "<Cmd>BDeleteHidden<CR>")
+    vim.keymap.set("n", "<leader>bo", function() require("keystone.bufdelete").delete_others() end)
+<
+
+All modules: |keystone-modules|
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

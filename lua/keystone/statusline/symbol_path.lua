@@ -1,0 +1,263 @@
+---Symbol path section provider.
+---
+---Shows the chain of enclosing LSP symbols (class/method/function/...) at the
+---cursor. Document symbols are tracked per buffer via the LSP document-symbol
+---request and refreshed on edits; the section redraws as the cursor moves.
+local M = {}
+
+local throttle = require("keystone.util.throttle")
+
+local _AUGROUP = "keystone_statusline_symbol_path"
+
+-- [bufnr] = DocumentSymbol[] | SymbolInformation[]
+local _symbol_cache = {}
+-- bufnrs with a document-symbol-capable client attached
+local _tracked_bufs = {}
+-- per-buffer debounced refresh functions (created lazily on first TextChanged)
+local _refresh_fns = {}
+-- called whenever the tracked state changes, so the statusline can redraw
+local _on_change = nil
+
+local _KIND = vim.lsp.protocol.SymbolKind
+
+local _KIND_ICONS = {
+  [_KIND.File]          = "󰈙",
+  [_KIND.Module]        = "󰆧",
+  [_KIND.Namespace]     = "󰌗",
+  [_KIND.Package]       = "󰏗",
+  [_KIND.Class]         = "󰌗",
+  [_KIND.Method]        = "󰆧",
+  [_KIND.Property]      = "󰜢",
+  [_KIND.Field]         = "󰇽",
+  [_KIND.Constructor]   = "",
+  [_KIND.Enum]          = "󰕘",
+  [_KIND.Interface]     = "",
+  [_KIND.Function]      = "󰊕",
+  [_KIND.Variable]      = "󰀫",
+  [_KIND.Constant]      = "󰏿",
+  [_KIND.EnumMember]    = "󰕘",
+  [_KIND.Struct]        = "󰙅",
+  [_KIND.Operator]      = "󰆕",
+  [_KIND.TypeParameter] = "󰊄",
+}
+
+-- Kinds worth a link in the trail: the containers you are "inside of" rather
+-- than every symbol the server reports.
+local _PATH_KINDS = {
+  [_KIND.Namespace]   = true,
+  [_KIND.Class]       = true,
+  [_KIND.Method]      = true,
+  [_KIND.Constructor] = true,
+  [_KIND.Function]    = true,
+  [_KIND.Struct]      = true,
+}
+
+---@type table<string, vim.api.keyset.highlight>
+M.highlights = {
+  KeystoneSLSymbolPath = { link = "Statusbar" },
+}
+
+local function _in_range(line0, range)
+  return line0 >= range.start.line and line0 <= range["end"].line
+end
+
+local function _collect_enclosing(symbols, line0, chain)
+  for _, sym in ipairs(symbols) do
+    if sym.range and _in_range(line0, sym.range) then
+      if _PATH_KINDS[sym.kind] then
+        table.insert(chain, sym)
+      end
+      if sym.children and #sym.children > 0 then
+        _collect_enclosing(sym.children, line0, chain)
+      end
+      return
+    end
+  end
+end
+
+---The enclosing-symbol chain at `line`, outermost first.
+---@param symbols table[]?
+---@param line integer 1-based cursor line
+---@return table[] chain
+local function _build_chain(symbols, line)
+  local chain = {}
+  if not symbols or #symbols == 0 then return chain end
+  local line0 = line - 1
+
+  if symbols[1] and symbols[1].range then
+    -- DocumentSymbol tree
+    _collect_enclosing(symbols, line0, chain)
+  else
+    -- SymbolInformation flat list
+    for _, sym in ipairs(symbols) do
+      local r = sym.location and sym.location.range
+      if r and _in_range(line0, r) and _PATH_KINDS[sym.kind] then
+        table.insert(chain, sym)
+      end
+    end
+  end
+  return chain
+end
+
+--- The enclosing-symbol chain for `bufnr` at the cursor of the window being
+--- rendered, or `nil` when the buffer is not the one shown there.
+---@param bufnr integer
+---@return table[]?
+local function _chain_at_cursor(bufnr)
+  local winid = vim.g.statusline_winid
+  if not winid or winid == 0 then
+    winid = vim.api.nvim_get_current_win()
+  end
+  if not vim.api.nvim_win_is_valid(winid) then return nil end
+  if vim.api.nvim_win_get_buf(winid) ~= bufnr then return nil end
+
+  local cursor = vim.api.nvim_win_get_cursor(winid)
+  return _build_chain(_symbol_cache[bufnr], cursor[1])
+end
+
+--- One trail segment: the symbol's name, kind-icon prefixed when `with_icon`.
+--- `%` is doubled so names never act as statusline items.
+---@param sym table
+---@param with_icon boolean
+---@return string
+local function _segment(sym, with_icon)
+  local name = sym.name:gsub("%%", "%%%%")
+  if not with_icon then return name end
+  return (_KIND_ICONS[sym.kind] or "󰊕") .. " " .. name
+end
+
+--- Full form is the whole symbol trail; the short form is the innermost symbol
+--- only, with its name cropped to 20 characters.
+---@param bufnr integer
+---@return string full, string short
+function M.render(bufnr)
+  local chain = _chain_at_cursor(bufnr)
+  if not chain or #chain == 0 then return "", "" end
+
+  -- Nested namespaces are one path, so only the first of a run is marked; the
+  -- rest follow their icon like the segments of a module name, joined by `›`.
+  -- Everywhere else the kind icon is separator enough and a space does it.
+  -- Separators are pieces like any other, so the whole trail -- highlight groups
+  -- included -- is joined once at the end rather than grown per symbol.
+  local parts = { "%#KeystoneSLSymbolPath#" }
+  local prev_kind = nil
+  for i, sym in ipairs(chain) do
+    local with_icon = not (sym.kind == _KIND.Namespace and prev_kind == _KIND.Namespace)
+    if i > 1 then
+      parts[#parts + 1] = with_icon and " " or "›"
+    end
+    parts[#parts + 1] = _segment(sym, with_icon)
+    prev_kind = sym.kind
+  end
+  parts[#parts + 1] = "%*"
+
+  -- The short form stands alone, so its symbol always starts a run.
+  local short = _segment(chain[#chain], true)
+
+  return table.concat(parts), "%#KeystoneSLSymbolPath#" .. short .. "%*"
+end
+
+---@param bufnr integer
+local function _request_symbols(bufnr)
+  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })
+  local client = clients[1]
+  if not client then return end
+
+  local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
+  client:request("textDocument/documentSymbol", params, function(err, result)
+    if err or not result then return end
+    _symbol_cache[bufnr] = result
+    if _on_change then _on_change() end
+  end, bufnr)
+end
+
+---@param bufnr integer
+local function _get_refresh_fn(bufnr)
+  if not _refresh_fns[bufnr] then
+    _refresh_fns[bufnr] = throttle.debounce_wrap(500, function()
+      _request_symbols(bufnr)
+    end)
+  end
+  return _refresh_fns[bufnr]
+end
+
+---@param bufnr integer
+---@return boolean
+local function _buf_has_symbol_client(bufnr)
+  return #vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" }) > 0
+end
+
+---@param on_change fun() called whenever the tracked symbol state changes
+function M.enable(on_change)
+  _on_change = on_change
+  local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
+
+  -- Pick up buffers that already have a symbol-capable client attached.
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(bufnr) and _buf_has_symbol_client(bufnr) then
+      _tracked_bufs[bufnr] = true
+      _request_symbols(bufnr)
+    end
+  end
+
+  vim.api.nvim_create_autocmd("LspAttach", {
+    group = group,
+    callback = function(args)
+      local client = vim.lsp.get_client_by_id(args.data.client_id)
+      if not client or not client:supports_method("textDocument/documentSymbol") then return end
+      _tracked_bufs[args.buf] = true
+      _request_symbols(args.buf)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("LspDetach", {
+    group = group,
+    callback = function(args)
+      local bufnr = args.buf
+      -- Schedule so the client list reflects the detach before we check.
+      vim.schedule(function()
+        if _tracked_bufs[bufnr] and not _buf_has_symbol_client(bufnr) then
+          _tracked_bufs[bufnr] = nil
+          _symbol_cache[bufnr] = nil
+          if _on_change then _on_change() end
+        end
+      end)
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = group,
+    callback = function(args)
+      if _tracked_bufs[args.buf] then
+        _get_refresh_fn(args.buf)()
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    group = group,
+    callback = function(args)
+      if _tracked_bufs[args.buf] and _on_change then _on_change() end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+    group = group,
+    callback = function(args)
+      _refresh_fns[args.buf] = nil
+      _symbol_cache[args.buf] = nil
+      _tracked_bufs[args.buf] = nil
+    end,
+  })
+end
+
+function M.disable()
+  _on_change = nil
+  vim.api.nvim_del_augroup_by_name(_AUGROUP)
+  _refresh_fns = {}
+  _symbol_cache = {}
+  _tracked_bufs = {}
+end
+
+return M
