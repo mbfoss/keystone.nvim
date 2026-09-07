@@ -1,0 +1,255 @@
+-- ---------------------------------------------------------------------------
+-- keystone.util.lspsymbols
+--
+-- Two things every module that reads `textDocument/documentSymbol` needs, and
+-- neither of them is a policy of its own: normalizing a reply into one tree
+-- shape, and asking a client for that reply. Requiring this module loads code
+-- and nothing else: no requires, no keymaps, no autocmds, no state, so it is
+-- safe to load from a spec or from any module.
+-- ---------------------------------------------------------------------------
+
+local M = {}
+
+--- Where a symbol-like LSP item sits in its buffer. The fields shared by every
+--- item carrying a range: a `DocumentSymbol`, a `SymbolInformation` and a
+--- `CallHierarchyItem` all say the same thing this way.
+---@class keystone.util.lspsymbols.Placement
+---@field name string
+---@field detail string?
+---@field kind integer
+---@field lnum integer 1-based line of the symbol's selection start
+---@field col integer 0-based column of the symbol's selection start
+---@field end_lnum integer 1-based last line covered by the symbol
+
+--- A symbol as we keep it internally, normalized from either the hierarchical
+--- `DocumentSymbol[]` or the flat `SymbolInformation[]` server reply.
+---@class keystone.util.lspsymbols.Symbol : keystone.util.lspsymbols.Placement
+---@field children keystone.util.lspsymbols.Symbol[]
+
+--- Place one server item. Returns nil for entries missing the range we need to
+--- place them. `selectionRange` is where the cursor lands; `range` spans the
+--- construct and decides enclosure.
+---
+--- Item shapes differ only in where those ranges live: `DocumentSymbol` and
+--- `CallHierarchyItem` carry `range`/`selectionRange` directly, while
+--- `SymbolInformation` nests one range under `location`.
+---@param item table
+---@return keystone.util.lspsymbols.Placement?
+function M.place(item)
+    if type(item) ~= "table" then return nil end
+
+    local location_range = item.location and item.location.range
+    local full_range = item.range or location_range
+    local start_range = item.selectionRange or full_range
+    if not full_range or not start_range then return nil end
+    if not full_range["end"] or not start_range.start then return nil end
+
+    return {
+        name     = item.name or "?",
+        detail   = item.detail,
+        kind     = item.kind or 0,
+        lnum     = start_range.start.line + 1,
+        col      = start_range.start.character,
+        end_lnum = full_range["end"].line + 1,
+    }
+end
+
+---@param sym table
+---@return keystone.util.lspsymbols.Symbol?
+local function _normalize(sym)
+    local symbol = M.place(sym)
+    if not symbol then return nil end
+    ---@cast symbol keystone.util.lspsymbols.Symbol
+
+    local children = {}
+    for _, child in ipairs(sym.children or {}) do
+        local normalized = _normalize(child)
+        if normalized then children[#children + 1] = normalized end
+    end
+
+    symbol.children = children
+    return symbol
+end
+
+---@param a keystone.util.lspsymbols.Symbol
+---@param b keystone.util.lspsymbols.Symbol
+---@return boolean
+local function _by_position(a, b)
+    if a.lnum ~= b.lnum then return a.lnum < b.lnum end
+    if a.col ~= b.col then return a.col < b.col end
+    return a.name < b.name
+end
+
+---@param symbols keystone.util.lspsymbols.Symbol[]
+local function _sort_recursive(symbols)
+    table.sort(symbols, _by_position)
+    for _, symbol in ipairs(symbols) do
+        _sort_recursive(symbol.children)
+    end
+end
+
+--- Rebuild a parent/child tree from a flat symbol list by range containment.
+--- `SymbolInformation[]` replies (e.g. some Python servers) carry no `children`;
+--- nesting is implied by which symbol's range encloses which. Symbols are sorted
+--- outermost-first (start ascending, span descending) and threaded onto a stack,
+--- so each symbol becomes a child of the innermost preceding symbol that fully
+--- covers it, or a root when nothing does.
+---@param flat keystone.util.lspsymbols.Symbol[]
+---@return keystone.util.lspsymbols.Symbol[]
+local function _build_hierarchy(flat)
+    table.sort(flat, function(a, b)
+        if a.lnum ~= b.lnum then return a.lnum < b.lnum end
+        if a.end_lnum ~= b.end_lnum then return a.end_lnum > b.end_lnum end
+        if a.col ~= b.col then return a.col < b.col end
+        return a.name < b.name
+    end)
+
+    local roots = {}
+    local stack = {}
+    for _, symbol in ipairs(flat) do
+        while #stack > 0 and stack[#stack].end_lnum < symbol.end_lnum do
+            stack[#stack] = nil
+        end
+        local parent = stack[#stack]
+        if parent then
+            parent.children[#parent.children + 1] = symbol
+        else
+            roots[#roots + 1] = symbol
+        end
+        stack[#stack + 1] = symbol
+    end
+    return roots
+end
+
+--- True when the reply is a flat `SymbolInformation[]`: those entries carry a
+--- `location` and no hierarchical `range`/`children` of their own.
+---@param result table[]
+---@return boolean
+local function _is_flat(result)
+    local first = result[1]
+    return type(first) == "table" and first.location ~= nil and first.range == nil
+end
+
+--- Normalize a `textDocument/documentSymbol` reply into a position-sorted tree.
+--- Accepts both reply shapes; a flat `SymbolInformation[]` is threaded back into
+--- a hierarchy by range containment.
+---@param result table[]?
+---@return keystone.util.lspsymbols.Symbol[]
+function M.normalize(result)
+    result = result or {}
+    local symbols = {}
+    for _, sym in ipairs(result) do
+        local normalized = _normalize(sym)
+        if normalized then symbols[#symbols + 1] = normalized end
+    end
+    if _is_flat(result) then
+        symbols = _build_hierarchy(symbols)
+    end
+    _sort_recursive(symbols)
+    return symbols
+end
+
+--- Depth-first path to the innermost symbol whose range covers `line`. A nil
+--- tree is the state before the first reply: the path is then empty.
+---@param symbols keystone.util.lspsymbols.Symbol[]?
+---@param line integer 1-based
+---@return keystone.util.lspsymbols.Symbol[] path outermost first, empty if none match
+function M.path_at_line(symbols, line)
+    local path = {}
+    local current = symbols
+    while current do
+        local match = nil
+        for _, symbol in ipairs(current) do
+            if line >= symbol.lnum and line <= symbol.end_lnum then
+                match = symbol
+                break
+            end
+        end
+        if not match then break end
+        path[#path + 1] = match
+        current = match.children
+    end
+    return path
+end
+
+-- ---------------------------------------------------------------------------
+-- Clients
+-- ---------------------------------------------------------------------------
+
+--- The client that answers document-symbol requests for `bufnr`: the first
+--- attached one that serves the method, or nil. One client is enough for a
+--- question about a buffer, and the first is the one the user named first.
+---@param bufnr integer
+---@return vim.lsp.Client?
+function M.client(bufnr)
+    return vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })[1]
+end
+
+--- Whether any attached client serves `textDocument/documentSymbol` for `bufnr`.
+---@param bufnr integer
+---@return boolean
+function M.has_client(bufnr)
+    return M.client(bufnr) ~= nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Provider: document symbols for a buffer over LSP
+-- ---------------------------------------------------------------------------
+
+---@class keystone.util.lspsymbols.Provider.Handlers
+---@field on_symbols fun(symbols: keystone.util.lspsymbols.Symbol[]) received a non-empty symbol list
+---@field on_unavailable fun(reason: string) no symbols to show; `reason` is a human-readable placeholder
+
+---@class keystone.util.lspsymbols.Provider
+---@field new fun(self:keystone.util.lspsymbols.Provider):keystone.util.lspsymbols.Provider
+---@field private _request_counter integer
+local Provider = {}
+Provider.__index = Provider
+
+function Provider:new()
+    local obj = setmetatable({}, self)
+    if obj.init then obj:init() end
+    return obj
+end
+
+function Provider:init()
+    self._request_counter = 0
+end
+
+--- Requests document symbols for `bufnr`. Exactly one handler fires, and never
+--- for a reply that has been overtaken by a later `request` on this provider.
+---@param bufnr integer
+---@param handlers keystone.util.lspsymbols.Provider.Handlers
+function Provider:request(bufnr, handlers)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        handlers.on_unavailable("No buffer")
+        return
+    end
+
+    local client = M.client(bufnr)
+    if not client then
+        handlers.on_unavailable("No LSP symbols")
+        return
+    end
+
+    self._request_counter = self._request_counter + 1
+    local request_id = self._request_counter
+
+    local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
+    client:request("textDocument/documentSymbol", params, function(err, result)
+        -- Drop replies overtaken by a newer request.
+        if request_id ~= self._request_counter then return end
+
+        -- A null result can arrive as vim.NIL, so check the type.
+        if err or type(result) ~= "table" or #result == 0 then
+            handlers.on_unavailable(err and "Symbol request failed" or "No symbols")
+            return
+        end
+
+        handlers.on_symbols(M.normalize(result))
+    end, bufnr)
+end
+
+M.Provider = Provider
+
+return M

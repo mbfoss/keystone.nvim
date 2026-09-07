@@ -1,0 +1,37 @@
+# README demo: clue. A trigger key shows the keys that can follow it.
+size 120x40
+cwd ..
+init init.lua
+out out/clue.gif
+cast out/clue.cast
+
+font-family SauceCodePro NF
+font-dir /Users/Dev/Library/Fonts
+font-size 17
+line-height 1.19
+theme nord
+fps 20
+idle-time-limit 2
+last-frame-duration 2
+
+keycast on
+keycast-width 15
+env KS_DEMO_FILE=lua/keystone/clue/engine.lua
+env KS_DEMO_CLUE=1
+
+caption Follow-up keys  ·  keystone.clue
+sleep 800ms
+
+caption g lists the motions that start with g
+key g
+wait Goto definition
+sleep 1400ms
+key <Esc>
+sleep 500ms
+
+caption <C-w> lists the window commands
+key <C-w>
+wait Move window up
+sleep 1400ms
+key <Esc>
+sleep 500ms

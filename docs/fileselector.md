@@ -1,0 +1,67 @@
+# fileselector
+
+A file selector for navigating the filesystem.
+
+<!-- panvimdoc-ignore-start -->
+
+![Descending through directories with the preview pane on](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/explore.gif)
+
+<!-- panvimdoc-ignore-end -->
+
+Each entry carries its size and modification time in a right-hand column, laid
+out like `ls -lh`:
+
+```
+  subdir                              Aug 12 09:47
+  notes.md                     500 B  Aug 12 09:47
+  archive.tar.gz               2.9 MB Aug  5 09:05
+  vendor.log                1022.5 KB Nov 22  2019
+```
+
+Directories show no size. Timestamps within the last six months show a clock,
+older ones the year, as `ls -l` does.
+
+## Configuration <!-- tag: configuration -->
+
+```lua
+require("keystone").setup({ fileselector = true })
+```
+
+Or, to change what the detail column shows:
+
+```lua
+require("keystone").setup({
+  fileselector = {
+    detail_fields = { "size", "mtime" }, -- per-entry details, in the order given
+  },
+})
+```
+
+`detail_fields` is both the filter and the ordering: only the fields it lists
+are shown, in the order listed. Set it to `{}` to turn the column off entirely.
+
+| Field | Shows |
+| --- | --- |
+| `size` | Human-readable file size (`500 B`, `2.9 MB`, `1.0 GB`) |
+| `mtime` | Modification time (`Aug 12 09:47`, `Nov 22  2019`) |
+
+Names are cropped to fit before the detail column. In a window too narrow for
+both, names win and the details are dropped.
+
+## Commands <!-- tag: commands -->
+
+| Command | What it does |
+| --- | --- |
+| `:FileSelector` | Open the file selector |
+
+<!-- panvimdoc-ignore-start -->
+
+---
+
+[← All modules](../README.md#modules)
+
+<!-- panvimdoc-ignore-end -->
+
+<!-- vimdoc-only
+All modules: |keystone-modules|
+-->

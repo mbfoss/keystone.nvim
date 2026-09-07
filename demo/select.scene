@@ -1,0 +1,48 @@
+# README demo: select. A vim.ui.select prompt with fuzzy filtering, a live
+# preview, and expansion to the full screen.
+size 120x40
+cwd ..
+init init.lua
+out out/select.gif
+cast out/select.cast
+
+font-family SauceCodePro NF
+font-dir /Users/Dev/Library/Fonts
+font-size 17
+line-height 1.19
+theme nord
+fps 20
+idle-time-limit 2
+last-frame-duration 2
+
+keycast on
+keycast-width 15
+
+caption A vim.ui.select prompt  ·  keystone.select
+sleep 500ms
+type :DemoFiles
+key <CR>
+wait Select a file
+sleep 800ms
+
+type anim
+wait animate\.lua
+wait-no fileselector\.lua
+sleep 900ms
+
+caption <C-t> opens a live preview
+key <C-t>
+wait keystone\.util\.config
+sleep 1200ms
+
+caption <C-e> fills the screen
+key <C-e>
+sleep 1200ms
+key <C-e>
+sleep 800ms
+
+caption Confirm opens the file
+key <CR>
+wait-no Select a file
+wait keystone\.util\.config
+sleep 1200ms

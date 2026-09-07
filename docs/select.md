@@ -1,0 +1,90 @@
+# select
+
+Replaces `vim.ui.select`, the prompt Neovim shows whenever something asks you to
+choose from a list, with a floating one: a bar across the bottom of the editor
+holding a prompt line and a fuzzy-filtered list, and, for callers that offer one,
+a preview window on the right of it.
+
+<!-- panvimdoc-ignore-start -->
+
+![A vim.ui.select prompt with fuzzy filtering and a live preview](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/select.gif)
+
+<!-- panvimdoc-ignore-end -->
+
+## Configuration <!-- tag: configuration -->
+
+```lua
+require("keystone").setup({
+  select = {
+    sort          = false, -- order filtered items by fuzzy score, not the caller's order
+    height_ratio  = 0.25,  -- share of the usable rows the bar spans
+    preview_ratio = 0.5,   -- share of the frame width the preview takes
+  },
+})
+```
+
+Filtering keeps the caller's order by default, so items stay where you last saw
+them as you type; set `sort = true` to float the best fuzzy matches to the top.
+
+`height_ratio` sizes the bar, prompt and border included. It is a fraction of the
+usable rows, the command line and statusline aside, and is clamped so the bar
+always fits. The bar spans the editor width, less one cell of margin either side;
+with the preview showing, the preview takes the right part of that width and the
+prompt and list take the left.
+
+`preview_ratio` sets that split: the share of the frame's width the preview
+takes, clamped to between 0.1 and 0.9 so the list always keeps some room. The
+default 0.5 halves the frame.
+
+## Keys <!-- tag: keys -->
+
+| Key | What it does |
+| --- | --- |
+| `<CR>` | Choose |
+| `<Esc>` | Cancel |
+| `<C-n>` / `<C-p>` (or `<Down>` / `<Up>`) | Move |
+| `<C-d>` / `<C-u>` | Jump half a page |
+| `<C-t>` | Show or hide the preview |
+| `<C-e>` | Expand to fill the screen, or go back to the bar |
+| `<C-l>` | Move focus between the prompt and the list |
+
+## Previews <!-- tag: previews -->
+
+Callers opt into a preview with `preview_item`, this module's one extension over
+`vim.ui.select`'s options (other implementations ignore it):
+
+```lua
+vim.ui.select(items, {
+  prompt       = "Pick a buffer",
+  format_item  = function(item) return item.name end,
+  preview_item = function(item)
+    return { buf = item.bufnr, pos = { item.lnum, 0 } }  -- pos is optional
+  end,
+}, on_choice)
+```
+
+The preview shows the **buffer** you hand back as it currently is, so unsaved
+changes, syntax and extmarks all appear. It starts hidden, so the bar stays small
+until it is asked for; press `<C-t>` to open it. It follows the highlighted item
+as you move or narrow the query, and reads `No preview` for an item the callback
+returns nothing for.
+
+The preview sits beside the list, on the right of the frame, and is independent
+of `<C-e>`: the frame expands around it, and it grows with the frame. Its share
+of the width is `preview_ratio`.
+
+keystone's own modules never require this one: they call `vim.ui.select` and pass
+`preview_item` unconditionally, so they use whichever picker you have
+installed.
+
+<!-- panvimdoc-ignore-start -->
+
+---
+
+[← All modules](../README.md#modules)
+
+<!-- panvimdoc-ignore-end -->
+
+<!-- vimdoc-only
+All modules: |keystone-modules|
+-->

@@ -1,0 +1,207 @@
+*keystone-filetree*                           A file explorer in a side window
+
+==============================================================================
+Table of Contents                        *keystone-filetree-table-of-contents*
+
+1. Configuration                             |keystone-filetree-configuration|
+2. Highlights                                   |keystone-filetree-highlights|
+3. Commands                                       |keystone-filetree-commands|
+4. Keymaps                                         |keystone-filetree-keymaps|
+5. File manipulation                                 |keystone-filetree-files|
+  - Creating                                      |keystone-filetree-creating|
+  - Renaming                                      |keystone-filetree-renaming|
+  - Moving and copying                           |keystone-filetree-move-copy|
+  - Deleting                                      |keystone-filetree-deleting|
+  - External changes                              |keystone-filetree-external|
+A file explorer in a side window.
+
+
+==============================================================================
+1. Configuration                             *keystone-filetree-configuration*
+
+>lua
+    require("keystone").setup({
+      filetree = {
+        width_ratio = 0.2,             -- fraction of the editor width (left/right)
+        height_ratio = 0.2,            -- fraction of the editor height (top/bottom)
+        position = "left",             -- side the window opens on
+                                       -- ("top"|"bottom"|"left"|"right")
+        follow_current_buffer = false, -- reveal the current file as you switch buffers
+        indent_guides = true,          -- draw vertical indent guides
+      },
+    })
+<
+
+Or standalone:
+
+>lua
+    require("keystone.filetree").setup({ width_ratio = 0.2 })
+<
+
+
+==============================================================================
+2. Highlights                                   *keystone-filetree-highlights*
+
+The indent guides are drawn with `KeystoneFileTreeIndentGuide`, a `default`
+link onto the shared `KeystoneSubtle`, which the scope and the other tree
+windows also use. Overriding the group recolours them; overriding
+`KeystoneSubtle` has no effect, as it is rewritten on every colorscheme change.
+
+
+==============================================================================
+3. Commands                                       *keystone-filetree-commands*
+
+`:FileTree` opens the side window and moves focus into it, ready to navigate.
+Run it again and it syncs the tree to the current file instead.
+
+The root the tree opens at depends on what the command is given:
+
+  When                  First open         Afterwards
+  --------------------- ------------------ ------------------------
+  :FileTree             Opens at the cwd   Keeps its current root
+  :FileTree dir         Opens at dir       Root becomes dir
+  :cd changes the cwd   n/a                Root unaffected
+Without `dir` the first open always uses the cwd, whatever the current buffer
+points at; later runs leave the root where it is. Setting a new root re-reads
+the tree from that directory.
+
+
+==============================================================================
+4. Keymaps                                         *keystone-filetree-keymaps*
+
+Buffer-local, inside the tree window. `g?` shows the same list in a float.
+
+  -----------------------------------------------------------------------
+  Key                                 What it does
+  ----------------------------------- -----------------------------------
+  <CR>                                Open file / toggle directory
+
+  o                                   Open file, keeping focus in the
+                                      tree
+
+  za / zc / zo                        Toggle / collapse / expand
+
+  zC / zO                             Collapse / expand recursively
+
+  a / A                               Create file / directory next to the
+                                      item under the cursor
+
+  i / I                               Create file / directory inside the
+                                      directory under the cursor
+
+  r                                   Rename the item under the cursor
+
+  <Tab>                               Toggle selection of the item under
+                                      the cursor (also in visual mode,
+                                      over a range)
+
+  <S-Tab>                             Clear the selection
+
+  x / c                               Move / copy the selected items into
+                                      the directory under the cursor
+
+  d                                   Delete the selected items to the
+                                      system trash
+
+  D                                   Delete the selected items
+                                      permanently
+
+  gb                                  Reveal the previous buffer
+
+  gh                                  Toggle hidden files
+
+  K                                   Hover info (type, size, modified)
+
+  R                                   Refresh the tree
+
+  g?                                  Show the help float
+  -----------------------------------------------------------------------
+
+==============================================================================
+5. File manipulation                                 *keystone-filetree-files*
+
+Everything below acts on real files on disk. The tree refreshes the affected
+directories and reveals the result.
+
+
+CREATING                                          *keystone-filetree-creating*
+
+`a` and `A` create next to the item under the cursor, in its parent directory,
+whether that item is a file or a directory. `i` and `I` create _inside_ it when
+it is a directory (and in its parent otherwise), which is how you add the first
+entry to an empty directory.
+
+Each prompts for a name and validates as you type: not empty, no path
+separators, so the result always lands in the chosen directory. Files are
+created empty (`0644`), directories `0755`. An existing name is an error, never
+an overwrite.
+
+
+RENAMING                                          *keystone-filetree-renaming*
+
+`r` prompts with the current name filled in and renames in place, under the
+same validation, so a rename cannot move the item elsewhere. Alongside it:
+
+- **LSP is told.** Clients supporting `workspace/willRenameFiles` are asked first
+    and their workspace edit applied (rewriting imports of the old path); clients
+    supporting `workspace/didRenameFiles` are notified after.
+- **Open buffers follow.** A buffer on the old path is swapped for one on the new
+    path in every window showing it, and the stale buffer is deleted.
+
+
+MOVING AND COPYING                               *keystone-filetree-move-copy*
+
+Mark items with `<Tab>` (or over a visual range), then put the cursor on the
+destination and press `x` to move or `c` to copy. The destination is the item
+under the cursor when it is a directory, otherwise its parent. A confirmation
+lists the sources and destination first.
+
+The selection can span the whole tree, and is cleared once the transfer runs.
+Operations that would misbehave are dropped from the batch:
+
+  -----------------------------------------------------------------------
+  Case                                Result
+  ----------------------------------- -----------------------------------
+  The item is the tree root           Skipped
+
+  Copying into the directory it is    Duplicated as name copy, then
+  already in                          name copy 2, …
+
+  Moving into the directory it is     No-op
+  already in                          
+
+  Moving or copying a directory into  Skipped, with a warning
+  itself or a descendant              
+
+  The name already exists in the      Skipped, with a warning; never
+  destination                         overwritten
+  -----------------------------------------------------------------------
+Moves use `rename(2)` and carry the same LSP and buffer handling as `r`. Copies
+are recursive; symlinks are copied as links, not as their target.
+
+
+DELETING                                          *keystone-filetree-deleting*
+
+`d` moves the selected items to the system trash; `D` deletes them permanently.
+Both are recursive for directories and both confirm first, listing every path.
+The tree root is never deleted.
+
+Trash support is resolved per platform: `trash` or Finder via `osascript` on
+macOS, the Recycle Bin via PowerShell on Windows, `gio trash` / `trash-put` /
+`trash` elsewhere. With none available, `d` errors and deletes nothing; use
+`D`.
+
+Unlike rename and move, deletion tells LSP nothing and leaves open buffers
+loaded with their contents.
+
+
+EXTERNAL CHANGES                                  *keystone-filetree-external*
+
+Visible directories are monitored, so changes made outside Neovim show up on
+their own. `R` forces a full reload if one is missed.
+
+All modules: |keystone-modules|
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,43 @@
+# README demo: animate. Half-page and long jumps scroll through the lines
+# between the start and the destination instead of snapping there.
+size 120x40
+cwd ..
+init init.lua
+out out/animate.gif
+cast out/animate.cast
+
+font-family SauceCodePro NF
+font-dir /Users/Dev/Library/Fonts
+font-size 17
+line-height 1.19
+theme nord
+fps 20
+idle-time-limit 2
+last-frame-duration 2
+
+keycast on
+keycast-width 15
+env KS_DEMO_FILE=lua/keystone/animate.lua
+
+caption Interpolated scrolling  ·  keystone.animate
+sleep 800ms
+
+caption <C-d> / <C-u> glide instead of snapping
+key <C-d>
+sleep 1000ms
+key <C-d>
+sleep 1000ms
+key <C-u>
+sleep 1000ms
+
+caption Long jumps animate too
+key G
+sleep 1400ms
+
+caption :1 returns to the top
+key :1<CR>
+sleep 1400ms
+
+# Redraw so the executed command does not linger on the cmdline row.
+key <C-l>
+sleep 600ms

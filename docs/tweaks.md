@@ -1,0 +1,41 @@
+# tweaks
+
+Editor behaviours, each behind its own flag, with the defaults shown below.
+
+<!-- panvimdoc-ignore-start -->
+
+![The yank flash, writing into a directory that does not exist yet, and q closing a help buffer](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/tweaks.gif)
+
+<!-- panvimdoc-ignore-end -->
+
+## Configuration <!-- tag: configuration -->
+
+```lua
+require("keystone").setup({
+  tweaks = {
+    highlight_on_yank    = true,  -- briefly highlight yanked text
+    restore_cursor       = true,  -- jump to last cursor position when reopening a file
+    auto_create_dir      = true,  -- create missing parent directories on save
+    auto_reload          = true,  -- reload files changed outside Neovim
+    disable_auto_comment = false, -- stop auto-continuing comment leaders
+    trim_whitespace      = false, -- strip trailing whitespace on save
+    auto_nohlsearch      = false, -- clear search highlighting on the triggers below
+    auto_nohlsearch_triggers = {
+      on_insert     = true,  -- when entering insert mode
+      on_win_change = false, -- when changing window
+    },
+  },
+})
+```
+
+<!-- panvimdoc-ignore-start -->
+
+---
+
+[← All modules](../README.md#modules)
+
+<!-- panvimdoc-ignore-end -->
+
+<!-- vimdoc-only
+All modules: |keystone-modules|
+-->

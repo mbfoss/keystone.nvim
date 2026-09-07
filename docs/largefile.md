@@ -1,0 +1,40 @@
+# largefile
+
+Opens files above a size threshold without attaching Treesitter, LSP or
+ftplugins. It checks the size during filetype detection and assigns a sentinel
+filetype, so the `FileType` handlers for the real filetype never fire, and
+nothing
+has to be torn down after the load.
+
+<!-- panvimdoc-ignore-start -->
+
+![Opening and moving around a 23 MB, 240k-line log](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/largefile.gif)
+
+<!-- panvimdoc-ignore-end -->
+
+## Configuration <!-- tag: configuration -->
+
+```lua
+require("keystone").setup({
+  largefile = {
+    size_threshold   = 1.5 * 1024 * 1024, -- bytes above which a file is treated as large
+    disable_syntax   = true,              -- leave syntax highlighting off
+    disable_folding  = true,
+    disable_swapfile = true,
+    disable_undofile = false,
+    notify           = true,              -- announce when a buffer opens in fast mode
+  },
+})
+```
+
+<!-- panvimdoc-ignore-start -->
+
+---
+
+[← All modules](../README.md#modules)
+
+<!-- panvimdoc-ignore-end -->
+
+<!-- vimdoc-only
+All modules: |keystone-modules|
+-->

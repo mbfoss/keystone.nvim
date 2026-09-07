@@ -1,0 +1,167 @@
+-- Individual quality-of-life behaviours, each self-contained in its own
+-- augroup so the parent module can enable/disable them independently. Every
+-- feature exposes `augroup` (the name used for teardown) and `setup(config)`
+-- (installs its autocmds / options).
+
+local M = {}
+
+---@class keystone.tweaks.Feature
+---@field augroup string augroup name, also used to tear the feature down
+---@field setup fun(config: keystone.tweaks.Config) install autocmds/options
+---@field teardown fun()? release state the augroup does not own
+
+-- Briefly flash the just-yanked region. Purely visual feedback; nothing here
+-- changes buffer contents.
+---@type keystone.tweaks.Feature
+M.highlight_on_yank = {
+  augroup = "keystone_tweaks_yank",
+  setup = function(config)
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_yank", { clear = true })
+    vim.api.nvim_create_autocmd("TextYankPost", {
+      group = group,
+      desc = "Highlight yanked text",
+      callback = function()
+        vim.hl.on_yank({ higroup = config.yank_hlgroup, timeout = config.yank_timeout })
+      end,
+    })
+  end,
+}
+
+-- Restore the cursor to its last position when reopening a file. Skips special
+-- buffers and commit/rebase buffers, where jumping to the previous line is
+-- almost never what you want.
+---@type keystone.tweaks.Feature
+M.restore_cursor = {
+  augroup = "keystone_tweaks_restore_cursor",
+  setup = function()
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_restore_cursor", { clear = true })
+    vim.api.nvim_create_autocmd("BufReadPost", {
+      group = group,
+      desc = "Restore last cursor position",
+      callback = function(args)
+        local buf = args.buf
+        if vim.bo[buf].buftype ~= "" then return end
+        local ft = vim.bo[buf].filetype
+        if ft ~= "" then return end
+        local mark = vim.api.nvim_buf_get_mark(buf, '"')
+        local line = mark[1]
+        if line > 0 and line <= vim.api.nvim_buf_line_count(buf) then
+          pcall(vim.api.nvim_win_set_cursor, 0, mark)
+        end
+      end,
+    })
+  end,
+}
+
+-- Create missing parent directories when writing a new file, so `:e
+-- a/b/c.lua` followed by `:w` just works.
+---@type keystone.tweaks.Feature
+M.auto_create_dir = {
+  augroup = "keystone_tweaks_auto_create_dir",
+  setup = function()
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_auto_create_dir", { clear = true })
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = group,
+      desc = "Create missing parent directories on save",
+      callback = function(args)
+        -- Leave non-file targets (scp://, oil://, ...) to their handlers.
+        if args.match:match("^%w+://") then return end
+        local dir = vim.fn.fnamemodify(args.match, ":p:h")
+        if vim.fn.isdirectory(dir) == 0 then
+          vim.fn.mkdir(dir, "p")
+        end
+      end,
+    })
+  end,
+}
+
+-- Pick up edits made to a file outside Neovim. `autoread` reloads unchanged
+-- buffers; the `checktime` triggers make that happen the moment you refocus or
+-- switch back to the buffer rather than only on the next command.
+---@type keystone.tweaks.Feature
+M.auto_reload = {
+  augroup = "keystone_tweaks_auto_reload",
+  setup = function()
+    vim.o.autoread = true
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_auto_reload", { clear = true })
+    vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "TermClose", "TermLeave" }, {
+      group = group,
+      desc = "Check for external file changes",
+      callback = function()
+        -- `checktime` is illegal from the command-line window / command mode.
+        if vim.o.buftype ~= "" then return end
+        if vim.fn.mode() == "c" or vim.fn.getcmdwintype() ~= "" then return end
+        pcall(vim.cmd.checktime)
+      end,
+    })
+  end,
+}
+
+-- Stop Neovim from continuing comment leaders onto the next line (when pressing
+-- `o`/`O` or hitting <CR> in insert). Runs on FileType so it wins against the
+-- ftplugins that set `formatoptions`.
+---@type keystone.tweaks.Feature
+M.disable_auto_comment = {
+  augroup = "keystone_tweaks_disable_auto_comment",
+  setup = function()
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_disable_auto_comment", { clear = true })
+    vim.api.nvim_create_autocmd("FileType", {
+      group = group,
+      desc = "Disable auto comment continuation",
+      callback = function()
+        vim.opt_local.formatoptions:remove({ "c", "r", "o" })
+      end,
+    })
+  end,
+}
+
+-- Strip trailing whitespace on save. Off by default because, unlike the other
+-- features, it rewrites buffer contents.
+---@type keystone.tweaks.Feature
+M.trim_whitespace = {
+  augroup = "keystone_tweaks_trim_whitespace",
+  setup = function()
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_trim_whitespace", { clear = true })
+    vim.api.nvim_create_autocmd("BufWritePre", {
+      group = group,
+      desc = "Trim trailing whitespace on save",
+      callback = function(args)
+        if vim.bo[args.buf].binary then return end
+        local view = vim.fn.winsaveview()
+        vim.cmd([[silent! keeppatterns %s/\s\+$//e]])
+        vim.fn.winrestview(view)
+      end,
+    })
+  end,
+}
+
+-- Clear search highlighting on the enabled `auto_nohlsearch_triggers`: entering
+-- insert mode or changing window. `:nohlsearch` is undone when an autocmd
+-- returns, hence the `vim.schedule`.
+---@type keystone.tweaks.Feature
+M.auto_nohlsearch = {
+  augroup = "keystone_tweaks_auto_nohlsearch",
+  setup = function(config)
+    local triggers = config.auto_nohlsearch_triggers
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_auto_nohlsearch", { clear = true })
+    local function clear()
+      if vim.v.hlsearch == 1 then vim.schedule(function() vim.cmd.nohlsearch() end) end
+    end
+    if triggers.on_insert then
+      vim.api.nvim_create_autocmd("InsertEnter", {
+        group = group,
+        desc = "Clear search highlight on insert",
+        callback = clear,
+      })
+    end
+    if triggers.on_win_change then
+      vim.api.nvim_create_autocmd("WinEnter", {
+        group = group,
+        desc = "Clear search highlight on window change",
+        callback = clear,
+      })
+    end
+  end,
+}
+
+return M
