@@ -155,7 +155,7 @@ Enabling the relevant module registers its command:
 
 | Command | Module | Purpose |
 | --- | --- | --- |
-| `:FileTree` | [filetree](docs/filetree.md) | Toggle the file-tree side window |
+| `:FileTree` | [filetree](docs/filetree.md) | Open or close the file-tree side window |
 | `:FileSelector` | [explore](docs/explore.md) | Open the file selector |
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |

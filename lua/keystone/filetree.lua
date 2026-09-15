@@ -44,8 +44,8 @@ function M.setup(opts)
         nargs = "*",
         desc = "File tree window",
         complete = function(arg_lead, cmd_line, _)
-            return require("keystone.util.usercmd").complete(arg_lead, cmd_line, function(cmd, rest)
-                return require("keystone.filetree.command").get_subcommands(cmd, rest)
+            return require("keystone.util.usercmd").complete(arg_lead, cmd_line, function(cmd, rest, lead)
+                return require("keystone.filetree.command").get_subcommands(cmd, rest, lead)
             end)
         end,
     })
