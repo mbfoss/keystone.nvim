@@ -25,14 +25,8 @@ local function _setlocal(win, opt, val)
     vim.api.nvim_set_option_value(opt, val, { win = win, scope = "local" })
 end
 
-local function _open()
-    -- Already visible: re-reveal so the command still syncs the tree to the
-    -- current buffer (a no-op when the current buffer isn't a real file).
-    if _get_win() then
-        if _tree then _tree:reveal_current_file(true) end
-        return
-    end
-
+---@return keystone.FileTree
+local function _get_tree()
     if not _tree then
         local FileTree = require("keystone.filetree.FileTree")
         _tree = FileTree:new({
@@ -42,9 +36,20 @@ local function _open()
             },
         })
     end
+    return _tree
+end
 
-    _tree:create_buffer()
-    local bufnr = _tree:get_bufnr()
+local function _open()
+    -- Already visible: re-reveal so the command still syncs the tree to the
+    -- current buffer (a no-op when the current buffer isn't a real file).
+    if _get_win() then
+        if _tree then _tree:reveal_current_file(true) end
+        return
+    end
+
+    local tree = _get_tree()
+    tree:create_buffer()
+    local bufnr = tree:get_bufnr()
     if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
         return
     end
@@ -69,7 +74,7 @@ local function _open()
     _setlocal(win, "winfixbuf", true)
     _setlocal(win, "winfixheight", true)
 
-    _tree:reveal(filename, true)
+    tree:reveal(filename, true)
 end
 
 function M.toggle()
@@ -81,7 +86,12 @@ function M.toggle()
     end
 end
 
-function M.open()
+--- Open the tree, first setting its root to `dir` when given.
+---@param dir string?
+function M.open(dir)
+    if dir then
+        _get_tree():set_root(dir)
+    end
     _open()
 end
 

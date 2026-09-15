@@ -6,12 +6,14 @@ end
 
 ---@param cmd string
 ---@param rest string[]
----@param for_cmd_menu boolean?
+---@param arg_lead string
 ---@return string[]
-function M.get_subcommands(cmd, rest, for_cmd_menu)
+function M.get_subcommands(cmd, rest, arg_lead)
     if cmd == "FileTree" then
         if #rest == 0 then
             return { "open", "close", "toggle" }
+        elseif #rest == 1 and rest[1] == "open" then
+            return vim.fn.getcompletion(arg_lead, "dir")
         end
     end
     return {}
@@ -25,7 +27,12 @@ function M.run_command(cmd, args, opts)
         local command = args[1]
         local name = args[2]
         if command == nil or command == "" or command == "open" then
-            _tree().open()
+            local dir = name and vim.fn.fnamemodify(name, ":p")
+            if dir and vim.fn.isdirectory(dir) == 0 then
+                vim.notify("Not a directory: " .. dir, vim.log.levels.ERROR)
+                return
+            end
+            _tree().open(dir)
         elseif command == "close" then
             _tree().close()
         elseif command == "toggle" then

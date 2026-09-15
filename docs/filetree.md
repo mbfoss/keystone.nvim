@@ -29,10 +29,10 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 
 | Command | What it does |
 | --- | --- |
-| `:FileTree` | Toggle the side window |
-| `:FileTree open` | Open it |
+| `:FileTree` | Same as `open` |
+| `:FileTree open [dir]` | Open the side window, or reveal the current file in it. With `dir`, set the tree root to `dir` first |
 | `:FileTree close` | Close it |
-| `:FileTree toggle` | Same as no argument |
+| `:FileTree toggle` | Open or close it |
 
 ## Keymaps
 
@@ -41,6 +41,7 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
 | Key | What it does |
 | --- | --- |
 | `<CR>` | Open file / toggle directory |
+| `o` | Open file, keeping focus in the tree |
 | `za` / `zc` / `zo` | Toggle / collapse / expand |
 | `zC` / `zO` | Collapse / expand recursively |
 | `a` / `A` | Create file / directory next to the item under the cursor |

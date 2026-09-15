@@ -37,6 +37,7 @@ local function _show_help()
 NAVIGATION
 ==========
 `<CR>`    Open file / Toggle directory
+`o`       Open file (keep focus)
 
 FOLDING
 =======
@@ -226,6 +227,7 @@ function FileTree:_on_buffer_created()
     end
     local on_dir_changed = function()
         vim.schedule(function()
+            self._opts.dir = nil
             self:_set_root(vim.fn.getcwd())
         end)
     end
@@ -307,6 +309,12 @@ function FileTree:create_buffer()
     end
 
     local keymaps = {
+        ["o"] = {
+            function()
+                with_item(function(i) self:_open_file_keep_focus(i) end)
+            end,
+            "Open file (keep focus)",
+        },
         ["a"] = {
             function()
                 with_item(function(i) self:_create_node(i, false, true) end)
@@ -432,6 +440,15 @@ end
 
 function FileTree:get_bufnr()
     return self._treebuf:get_bufnr()
+end
+
+--- Set the root directory. Applied now if the buffer exists, otherwise when it is created.
+---@param dir string
+function FileTree:set_root(dir)
+    self._opts.dir = dir
+    if self._treebuf:get_bufnr() > 0 then
+        self:_set_root(dir)
+    end
 end
 
 ---@param rel string
@@ -829,6 +846,16 @@ function FileTree:reveal_current_file(collapse_others)
         if path ~= "" then
             self:_reveal(path, collapse_others or false)
         end
+    end
+end
+
+---@private
+--- Open a file without leaving the tree window. No-op on directories.
+---@param item keystone.util.TreeBuffer.Item
+function FileTree:_open_file_keep_focus(item)
+    local data = item.data ---@type keystone.FileTree.ItemData
+    if not data.is_dir and fs.file_exists(data.path) then
+        ui.smart_open_file(data.path, nil, nil, false)
     end
 end
 
