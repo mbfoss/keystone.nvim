@@ -4,6 +4,7 @@ local common = require "keystone.util.timer"
 ---@field buf_id integer
 ---@field height integer
 ---@field width integer
+---@field level "info"|"warn"|"error"|"lsp"
 ---@field timer uv.uv_timer_t?
 
 ---@class keystone.notify.Config
@@ -191,6 +192,10 @@ local function _notify(msg, opts)
   end
 
   opts = opts or {}
+
+  if opts.level == "lsp" and not M.config.lsp_progress then
+    return
+  end
 
   local id = opts.id or ("n_" .. _id_counter)
   if not opts.id then
@@ -432,7 +437,17 @@ function M.disable_lsp_progress()
       common.stop_and_close_timer(state.timer)
     end
     _pending_lsp_notify[token] = nil
-    _close(token)
+  end
+
+  local visible = {}
+  for _, id in ipairs(_order) do
+    local n = _active[id]
+    if n and n.level == "lsp" then
+      table.insert(visible, id)
+    end
+  end
+  for _, id in ipairs(visible) do
+    _close(id)
   end
 end
 
