@@ -2,7 +2,9 @@ local M = {}
 
 
 ---@class keystone.filetree.Config
----@field width_ratio number?
+---@field width_ratio number?   fraction of the editor width the window takes (left/right)
+---@field height_ratio number?  fraction of the editor height the window takes (top/bottom)
+---@field position "top"|"bottom"|"left"|"right"?  side the window opens on
 ---@field follow_current_buffer boolean?
 
 ---@return keystone.filetree.Config
@@ -10,6 +12,8 @@ local function _get_default_config()
     ---@type keystone.filetree.Config
     return {
         width_ratio = 0.2,
+        height_ratio = 0.3,
+        position = "left",
         follow_current_buffer = false,
     }
 end

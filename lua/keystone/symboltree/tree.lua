@@ -63,7 +63,6 @@ local function _open()
     _setlocal(win, "wrap", false)
     _setlocal(win, "spell", false)
     _setlocal(win, "winfixbuf", true)
-    _setlocal(win, "winfixheight", true)
 end
 
 function M.toggle()
