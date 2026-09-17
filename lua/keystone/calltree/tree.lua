@@ -1,6 +1,6 @@
 local M = {}
 
-local config   = require("keystone.calltree").config
+local config   = require("keystone.calltree.config").current
 local fixedwin = require("keystone.util.fixedwin")
 
 local _KEY_MARKER = "Keystone_calltreewin"

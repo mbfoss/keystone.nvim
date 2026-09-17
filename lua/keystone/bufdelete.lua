@@ -1,5 +1,7 @@
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 -- ---------------------------------------------------------------------------
 -- Buffer deletion that leaves the window layout alone
 --
@@ -634,7 +636,7 @@ end
 ---@param opts keystone.bufdelete.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
   if not M.config.enabled then return end
 
   _register_delete("BDelete", false, "Delete buffers, keeping the window layout")

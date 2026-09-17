@@ -10,6 +10,8 @@
 --- source, not here.
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 ---@class keystone.completion.Config
 ---@field enabled boolean
 ---@field delay integer debounce before autotriggering, in ms
@@ -299,7 +301,7 @@ end
 ---@param opts keystone.completion.Config?
 M.setup = function(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
   if M.config.enabled then
     apply_config(M.config)
     setup_autocmds()

@@ -1,6 +1,7 @@
 local M = {}
 
 local _features = require("keystone.tweaks.features")
+local cfgutil = require("keystone.util.config")
 
 -- ---------------------------------------------------------------------------
 -- Config
@@ -139,7 +140,7 @@ end
 ---@param opts keystone.tweaks.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
 
   -- Re-apply from a clean slate so `setup` is idempotent.
   M.disable()
