@@ -50,12 +50,23 @@ local function _open_win()
         return nil
     end
 
-    -- A width-pinned split. fixedwin tracks the ratio as the user resizes and
-    -- re-pins it across layout/editor changes; persist the last-known ratio so
-    -- reopening the tree keeps the user's chosen width.
-    local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
-        config.width_ratio = ratio
-    end, { pos = config.position == "right" and "botright" or "topleft" })
+    -- A split pinned to a ratio of the editor size: width for left/right, height
+    -- for top/bottom. fixedwin tracks the ratio as the user resizes and re-pins it
+    -- across layout/editor changes; persist the last-known ratio so reopening the
+    -- tree keeps the user's chosen size.
+    local position = config.position or "bottom"
+    local vertical = position == "left" or position == "right"
+    local pos = (position == "left" or position == "top") and "topleft" or "botright"
+    local win
+    if vertical then
+        win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
+            config.width_ratio = ratio
+        end, { pos = pos })
+    else
+        win = fixedwin.create_fixed_win("height", config.height_ratio or 0.3, function(ratio)
+            config.height_ratio = ratio
+        end, { pos = pos })
+    end
 
     vim.w[win][_KEY_MARKER] = true
 
@@ -66,7 +77,6 @@ local function _open_win()
     _setlocal(win, "wrap", false)
     _setlocal(win, "spell", false)
     _setlocal(win, "winfixbuf", true)
-    _setlocal(win, "winfixheight", true)
 
     return win
 end

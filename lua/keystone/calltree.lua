@@ -10,8 +10,9 @@ local M = {}
 -- ---------------------------------------------------------------------------
 
 ---@class keystone.calltree.Config
----@field width_ratio number?   fraction of the editor width the window takes
----@field position "left"|"right"?  side the window opens on
+---@field width_ratio number?   fraction of the editor width the window takes (left/right)
+---@field height_ratio number?  fraction of the editor height the window takes (top/bottom)
+---@field position "top"|"bottom"|"left"|"right"?  side the window opens on
 ---@field direction keystone.calltree.Direction?  which way to walk by default
 ---@field show_detail boolean?  show the server-provided detail text
 ---@field auto_expand_root boolean?  expand the root as soon as it resolves
@@ -21,7 +22,8 @@ local function _get_default_config()
     ---@type keystone.calltree.Config
     return {
         width_ratio      = 0.2,
-        position         = "left",
+        height_ratio     = 0.3,
+        position         = "bottom",
         direction        = "incoming",
         show_detail      = true,
         auto_expand_root = true,
