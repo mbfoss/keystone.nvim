@@ -8,6 +8,13 @@ local cfgmod = require("keystone.symboltree.config")
 ---@type keystone.symboltree.Config
 M.config = cfgmod.current
 
+---Options that are valid but have no default, so `get_default_config()` has no
+---key for them; `keystone.health` would otherwise call them misspellings.
+---@type table<string, true>
+M.config_optional = {
+    exclude_kinds = true,
+}
+
 local _setup = false
 
 --- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.

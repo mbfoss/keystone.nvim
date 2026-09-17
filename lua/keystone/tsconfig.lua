@@ -175,6 +175,13 @@ end
 -- Setup
 -- ---------------------------------------------------------------------------
 
+---Options that are valid but have no default, so `get_default_config()` has no
+---key for them; `keystone.health` would otherwise call them misspellings.
+---@type table<string, true>
+M.config_optional = {
+  on_attach = true,
+}
+
 local _setup = false
 
 --- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.

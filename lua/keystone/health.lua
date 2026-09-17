@@ -43,21 +43,23 @@ end
 ---@param defaults table
 ---@param prefix string path of the enclosing table, "" at the top level
 ---@param out table[]
+---@param optional table<string, true>  paths that are valid with no default
 ---@return table[]
-local function _diff_config(current, defaults, prefix, out)
+local function _diff_config(current, defaults, prefix, out, optional)
   for key, value in pairs(current) do
     local path = prefix .. tostring(key)
     local default = defaults[key]
     if type(value) == "table" and type(default) == "table" and not vim.islist(value) then
-      _diff_config(value, default, path .. ".", out)
+      _diff_config(value, default, path .. ".", out, optional)
     elseif not vim.deep_equal(value, default) then
       table.insert(out, {
         path = path,
         -- one line: a health entry is a bullet, not a pretty-printed dump.
         value = vim.inspect(value, { newline = " ", indent = "" }),
         -- `setup()` merges opts wholesale, so a misspelled option is kept
-        -- silently; only a key the defaults never mention can be one.
-        unknown = default == nil,
+        -- silently; only a key neither the defaults nor `config_optional`
+        -- mention can be one.
+        unknown = default == nil and not optional[path],
       })
     end
   end
@@ -72,7 +74,7 @@ local function _changed_options(mod)
   if type(mod.get_default_config) ~= "function" or type(mod.config) ~= "table" then
     return {}
   end
-  local diffs = _diff_config(mod.config, mod.get_default_config(), "", {})
+  local diffs = _diff_config(mod.config, mod.get_default_config(), "", {}, mod.config_optional or {})
   table.sort(diffs, function(a, b) return a.path < b.path end)
   return diffs
 end
