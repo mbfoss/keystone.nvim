@@ -53,7 +53,8 @@ local function _diff_config(current, defaults, prefix, out)
     elseif not vim.deep_equal(value, default) then
       table.insert(out, {
         path = path,
-        value = vim.inspect(value),
+        -- one line: a health entry is a bullet, not a pretty-printed dump.
+        value = vim.inspect(value, { newline = " ", indent = "" }),
         -- `setup()` merges opts wholesale, so a misspelled option is kept
         -- silently; only a key the defaults never mention can be one.
         unknown = default == nil,
@@ -77,10 +78,8 @@ local function _changed_options(mod)
 end
 
 local function _check_requirements()
-  _h.start("keystone: requirements")
-  if vim.fn.has("nvim-0.11") == 1 then
-    _h.ok("Neovim " .. tostring(vim.version()))
-  else
+  if vim.fn.has("nvim-0.11") ~= 1 then
+    _h.start("keystone: requirements")
     _h.error("keystone.nvim requires Neovim >= 0.11")
   end
 end
@@ -126,12 +125,10 @@ local function _check_configs(names, active)
     local mod = active[name]
     local diffs = mod and _changed_options(mod) or {}
     if #diffs > 0 then
-      _h.start("keystone." .. name)
-      local lines = {}
+      _h.start("configuration [keystone." .. name .. "]")
       for _, entry in ipairs(diffs) do
-        table.insert(lines, ("  %s = %s"):format(entry.path, entry.value))
+        _h.info(("%s = %s"):format(entry.path, entry.value))
       end
-      _h.info(table.concat(lines, "\n"))
       for _, entry in ipairs(diffs) do
         if entry.unknown then
           _h.warn(("`%s` is not an option this module defines"):format(entry.path), {

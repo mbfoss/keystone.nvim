@@ -13,22 +13,19 @@ local M = {}
 ---@field disable string[]|fun(lang:string, bufnr:integer):boolean languages to skip; a list of language names or a predicate returning true to skip
 ---@field on_attach? fun(bufnr:integer, lang:string) extra per-buffer setup hook, run after highlighting starts
 
----@return keystone.tsconfig.Config
-local function _get_default_config()
-  ---@type keystone.tsconfig.Config
-  return {
-    enabled   = true,
-    highlight = true,
-    fold      = true,
-    fold_open = true,
-    aliases   = {},
-    disable   = {},
-    on_attach = nil,
-  }
-end
+---@type keystone.tsconfig.Config
+local _default_config = {
+  enabled   = true,
+  highlight = true,
+  fold      = true,
+  fold_open = true,
+  aliases   = {},
+  disable   = {},
+  on_attach = nil,
+}
 
 ---@type keystone.tsconfig.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- State
@@ -178,10 +175,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -193,7 +190,7 @@ end
 ---@param opts keystone.tsconfig.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
   if M.config.enabled then
     M.enable()

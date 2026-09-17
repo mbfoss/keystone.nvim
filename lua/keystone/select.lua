@@ -75,26 +75,24 @@ local _PROMPT_ROWS   = 3
 ---@field with_preview keystone.select.WithPreviewConfig
 ---@field without_preview keystone.select.WithoutPreviewConfig
 
----@return keystone.select.Config
-local function _default_config()
-    return {
-        enabled         = true,
-        sort            = false,
-        with_preview    = {
-            width_ratio  = 0.8,
-            height_ratio = 0.7,
-        },
-        without_preview = {
-            min_width_ratio  = 0.4,
-            max_width_ratio  = 0.8,
-            min_height_ratio = 0.2,
-            max_height_ratio = 0.7,
-        },
-    }
-end
+---@type keystone.select.Config
+local _default_config = {
+    enabled         = true,
+    sort            = false,
+    with_preview    = {
+        width_ratio  = 0.8,
+        height_ratio = 0.7,
+    },
+    without_preview = {
+        min_width_ratio  = 0.4,
+        max_width_ratio  = 0.8,
+        min_height_ratio = 0.2,
+        max_height_ratio = 0.7,
+    },
+}
 
 ---@type keystone.select.Config
-M.config = _default_config()
+M.config = vim.deepcopy(_default_config)
 
 ---@class keystone.select.Preview
 ---@field buf integer Buffer to display. May be a live, modified buffer.
@@ -785,10 +783,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -803,7 +801,7 @@ end
 ---@param opts keystone.select.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
     if not M.config.enabled then return end
 
     vim.ui.select = M.select

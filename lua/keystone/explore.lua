@@ -3,22 +3,20 @@ local M = {}
 ---@class keystone.explore.Config
 ---@field detail_fields keystone.explore.DetailField[] Per-entry details shown right-aligned, in order. Empty disables them.
 
-local function _get_default_config()
-    ---@type keystone.explore.Config
-    return {
-        detail_fields = { "size", "mtime" },
-    }
-end
+---@type keystone.explore.Config
+local _default_config = {
+    detail_fields = { "size", "mtime" },
+}
 
 ---@type keystone.explore.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_get_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -30,7 +28,7 @@ end
 ---@param opts keystone.explore.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
     -- Replaced wholesale: deep-extend merges lists by index, which would keep
     -- defaults past the end of a shorter user-supplied list.
     if opts and opts.detail_fields then

@@ -19,29 +19,26 @@ local _features = require("keystone.tweaks.features")
 ---@field disable_auto_comment boolean? stop auto-continuing comment leaders on new lines
 ---@field trim_whitespace boolean? strip trailing whitespace on save (off by default)
 
----@return keystone.tweaks.Config
-local function _get_default_config()
-  ---@type keystone.tweaks.Config
-  return {
-    enabled              = true,
-    highlight_on_yank    = true,
-    yank_hlgroup         = "IncSearch",
-    yank_timeout         = 150,
-    restore_cursor       = true,
-    auto_create_dir      = true,
-    auto_reload          = true,
-    quick_close          = false,
-    quick_close_filetypes = {
-      "help", "qf", "man", "lspinfo", "checkhealth",
-      "startuptime", "query", "notify", "git",
-    },
-    disable_auto_comment = false,
-    trim_whitespace      = false,
-  }
-end
+---@type keystone.tweaks.Config
+local _default_config = {
+  enabled              = true,
+  highlight_on_yank    = true,
+  yank_hlgroup         = "IncSearch",
+  yank_timeout         = 150,
+  restore_cursor       = true,
+  auto_create_dir      = true,
+  auto_reload          = true,
+  quick_close          = false,
+  quick_close_filetypes = {
+    "help", "qf", "man", "lspinfo", "checkhealth",
+    "startuptime", "query", "notify", "git",
+  },
+  disable_auto_comment = false,
+  trim_whitespace      = false,
+}
 
 ---@type keystone.tweaks.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- State
@@ -127,10 +124,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -142,7 +139,7 @@ end
 ---@param opts keystone.tweaks.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
   -- Re-apply from a clean slate so `setup` is idempotent.
   M.disable()

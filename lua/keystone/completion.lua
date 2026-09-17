@@ -18,20 +18,17 @@ local M = {}
 ---@field cr_confirm boolean map `<CR>` to confirm the current completion candidate (equivalent to <C-y>; can be used to enter snippet mode)
 ---@field source_order (string[])|fun() Sources tried in order; the first available one fires. "omnifunc"/"completefunc" are the named option-backed slots (LSP lives on omnifunc); any other entry is literal insert-mode keys, e.g. "<C-x><C-n>" buffer words.
 
----@return keystone.completion.Config
-local function default_config()
-  ---@type keystone.completion.Config
-  return {
-    enabled        = true,
-    delay          = 100,
-    key            = "<C-Space>",
-    tab_completion = true,
-    cr_confirm     = true,
-    source_order   = { "completefunc", "omnifunc" },
-  }
-end
+---@type keystone.completion.Config
+local _default_config = {
+  enabled        = true,
+  delay          = 100,
+  key            = "<C-Space>",
+  tab_completion = true,
+  cr_confirm     = true,
+  source_order   = { "completefunc", "omnifunc" },
+}
 
-M.config = default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- State ----------------------------------------------------------------------
 
@@ -287,10 +284,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -302,7 +299,7 @@ end
 ---@param opts keystone.completion.Config?
 M.setup = function(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
   if M.config.enabled then
     apply_config(M.config)
     setup_autocmds()

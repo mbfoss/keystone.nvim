@@ -101,41 +101,38 @@ end
 ---@field settings? table<string, vim.lsp.Config> per-server config overrides, e.g. { lua_ls = { settings = {...} } }
 ---@field on_attach? fun(client: vim.lsp.Client, bufnr: integer) extra per-buffer setup hook
 
----@return keystone.lspconfig.Config
-local function _get_default_config()
-  ---@type keystone.lspconfig.Config
-  return {
-    enabled            = true,
-    servers            = "all",
-    auto_enable        = true,
-    format             = {
-      on_save    = false,
-      async      = false,
-      timeout_ms = 2000,
-      filter     = nil,
-    },
-    inlay_hints        = true,
-    document_highlight = true,
-    signature_help     = true,
-    log_level          = nil,
-    lsp_rolling_log    = true,
-    diagnostics        = {
-      virtual_text     = { spacing = 2, prefix = "●" },
-      --virtual_lines    = { current_line = true, },
-      signs            = false,
-      underline        = false,
-      update_in_insert = false,
-      severity_sort    = true,
-      float            = { border = "rounded", source = true },
-    },
-    capabilities       = nil,
-    settings           = nil,
-    on_attach          = nil,
-  }
-end
+---@type keystone.lspconfig.Config
+local _default_config = {
+  enabled            = true,
+  servers            = "all",
+  auto_enable        = true,
+  format             = {
+    on_save    = false,
+    async      = false,
+    timeout_ms = 2000,
+    filter     = nil,
+  },
+  inlay_hints        = true,
+  document_highlight = true,
+  signature_help     = true,
+  log_level          = nil,
+  lsp_rolling_log    = true,
+  diagnostics        = {
+    virtual_text     = { spacing = 2, prefix = "●" },
+    --virtual_lines    = { current_line = true, },
+    signs            = false,
+    underline        = false,
+    update_in_insert = false,
+    severity_sort    = true,
+    float            = { border = "rounded", source = true },
+  },
+  capabilities       = nil,
+  settings           = nil,
+  on_attach          = nil,
+}
 
 ---@type keystone.lspconfig.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- State
@@ -519,10 +516,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -534,7 +531,7 @@ end
 ---@param opts keystone.lspconfig.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
   if M.config.enabled then
     M.enable()

@@ -151,30 +151,28 @@ end
 -- Config
 -- ---------------------------------------------------------------------------
 
-local function _get_default_config()
-  ---@type keystone.statusline.Config
-  return {
-    enabled = true,
-    separator = "│",
-    sections = {
-      left  = { "mode", "git", "filename", "symbol_path", },
-      right = { "lsp_progress", "diagnostics", "filetype", "position", },
-    },
-    priority = {
-      "filename",
-      "position",
-      "diagnostics",
-      "mode",
-      "git",
-      "filetype",
-      "lsp_progress",
-      "symbol_path",
-    },
-  }
-end
+---@type keystone.statusline.Config
+local _default_config = {
+  enabled = true,
+  separator = "│",
+  sections = {
+    left  = { "mode", "git", "filename", "symbol_path", },
+    right = { "lsp_progress", "diagnostics", "filetype", "position", },
+  },
+  priority = {
+    "filename",
+    "position",
+    "diagnostics",
+    "mode",
+    "git",
+    "filetype",
+    "lsp_progress",
+    "symbol_path",
+  },
+}
 
 ---@type keystone.statusline.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- Built-in simple sections (stateless). Complex ones live in their own files.
@@ -744,10 +742,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -759,7 +757,7 @@ end
 ---@param opts keystone.statusline.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
   _warned = {}
   if not M.config.enabled then
     M.disable()

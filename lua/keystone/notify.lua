@@ -69,19 +69,17 @@ local _log_level_map = {
   [vim.log.levels.ERROR] = "error",
 }
 
-local function _get_defaults()
-  return {
-    enabled = true,
-    width = 0.3,
-    border = "rounded",
-    timeout = 3000,
-    lsp_progress = false,
-    lsp_progress_delay = 1000, -- this avoids progress notification for short updates
-    history_limit = 100,
-  }
-end
+local _default_config = {
+  enabled = true,
+  width = 0.3,
+  border = "rounded",
+  timeout = 3000,
+  lsp_progress = false,
+  lsp_progress_delay = 1000, -- this avoids progress notification for short updates
+  history_limit = 100,
+}
 
-M.config = _get_defaults()
+M.config = vim.deepcopy(_default_config)
 
 ---@return integer
 local function _get_offset()
@@ -486,10 +484,10 @@ local function _run_command(_, args, _opts)
 end
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_defaults())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -501,7 +499,7 @@ end
 
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_defaults(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
   if M.config.enabled then
     M.enable()

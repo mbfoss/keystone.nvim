@@ -38,26 +38,23 @@ local M = {}
 ---@field synmaxcol integer? `synmaxcol` to clamp to (caps per-line syntax cost)
 ---@field notify boolean? emit a message when a buffer is opened in fast mode
 
----@return keystone.largefile.Config
-local function _get_default_config()
-  ---@type keystone.largefile.Config
-  return {
-    enabled            = true,
-    size_threshold     = 1.5 * 1024 * 1024,  -- 1.5 MiB
-    filetype           = "bigfile",
-    keep_syntax        = false,
-    disable_folding    = true,
-    disable_swapfile   = true,
-    disable_undofile   = false,
-    disable_matchparen = true,
-    undolevels         = -1,
-    synmaxcol          = 256,
-    notify             = true,
-  }
-end
+---@type keystone.largefile.Config
+local _default_config = {
+  enabled            = true,
+  size_threshold     = 1.5 * 1024 * 1024,  -- 1.5 MiB
+  filetype           = "bigfile",
+  keep_syntax        = false,
+  disable_folding    = true,
+  disable_swapfile   = true,
+  disable_undofile   = false,
+  disable_matchparen = true,
+  undolevels         = -1,
+  synmaxcol          = 256,
+  notify             = true,
+}
 
 ---@type keystone.largefile.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- State
@@ -232,10 +229,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -247,7 +244,7 @@ end
 ---@param opts keystone.largefile.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
   M.disable()
   if M.config.enabled then
