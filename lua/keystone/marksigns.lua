@@ -1,6 +1,7 @@
 local M = {}
 
 local throttle = require("keystone.util.throttle")
+local cfgutil = require("keystone.util.config")
 
 -- ---------------------------------------------------------------------------
 -- Mark signs
@@ -319,7 +320,7 @@ end
 ---@param opts keystone.marksigns.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+    cfgutil.apply(M.config, _default_config, opts)
 
     M.disable()
     if M.config.enabled then

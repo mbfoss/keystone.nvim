@@ -2,6 +2,7 @@ local M             = {}
 
 local icons         = require("keystone.icons")
 local throttle      = require("keystone.util.throttle")
+local cfgutil = require("keystone.util.config")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
 local _enabled      = false
@@ -757,7 +758,7 @@ end
 ---@param opts keystone.statusline.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
   _warned = {}
   if not M.config.enabled then
     M.disable()

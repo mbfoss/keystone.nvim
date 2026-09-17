@@ -1,44 +1,19 @@
 local M = {}
 
+local cfgmod = require("keystone.symboltree.config")
 
----@class keystone.symboltree.Config
----@field width_ratio number?
----@field track_cursor boolean?  highlight/follow the symbol under the cursor
----@field auto_expand boolean?   expand every symbol on load
----@field show_detail boolean?   show the server-provided detail text
----@field exclude_kinds string[]? LSP symbol kind names to hide, e.g. { "Variable" }
----@field collapse_kinds string[]? LSP symbol kind names left collapsed on load
----                                even when `auto_expand` is set
----@field debounce_ms integer?   edit-to-refresh delay
----@field max_cached_folds integer? folds remembered across all buffers
 
+---The live options, held by `keystone.symboltree.config`; the same table, so
+---`keystone.health` and the submodules all see one config.
 ---@type keystone.symboltree.Config
-local _default_config = {
-    width_ratio = 0.2,
-    track_cursor = true,
-    auto_expand = true,
-    show_detail = true,
-    exclude_kinds = nil,
-    collapse_kinds = { "Function", "Method", "Object" },
-    debounce_ms = 500,
-    max_cached_folds = 2048,
-}
-
---- List-valued options a user supplies replace the default outright.
---- `vim.tbl_deep_extend` would otherwise merge them index by index, leaving
---- trailing defaults behind, e.g. { "Class" } over the default becoming
---- { "Class", "Method" }.
-local _LIST_KEYS = { "exclude_kinds", "collapse_kinds" }
-
----@type keystone.symboltree.Config
-M.config = vim.deepcopy(_default_config)
+M.config = cfgmod.current
 
 local _setup = false
 
 --- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_default_config)
+    return cfgmod.defaults()
 end
 
 --- Whether `setup()` has been called for this module.
@@ -50,12 +25,7 @@ end
 ---@param opts table?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
-    for _, key in ipairs(_LIST_KEYS) do
-        if opts and opts[key] then
-            M.config[key] = vim.deepcopy(opts[key])
-        end
-    end
+    cfgmod.apply(opts)
 
     vim.api.nvim_create_user_command("SymbolTree", function(cmd_opts)
         require("keystone.util.usercmd").handle(cmd_opts, function(cmd, args, run_opts)

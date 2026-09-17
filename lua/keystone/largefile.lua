@@ -1,5 +1,7 @@
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 -- ---------------------------------------------------------------------------
 -- Large file handling
 --
@@ -244,7 +246,7 @@ end
 ---@param opts keystone.largefile.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
 
   M.disable()
   if M.config.enabled then

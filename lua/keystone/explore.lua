@@ -1,5 +1,7 @@
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 ---@class keystone.explore.Config
 ---@field detail_fields keystone.explore.DetailField[] Per-entry details shown right-aligned, in order. Empty disables them.
 
@@ -28,7 +30,7 @@ end
 ---@param opts keystone.explore.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+    cfgutil.apply(M.config, _default_config, opts)
     -- Replaced wholesale: deep-extend merges lists by index, which would keep
     -- defaults past the end of a shorter user-supplied list.
     if opts and opts.detail_fields then

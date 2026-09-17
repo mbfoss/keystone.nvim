@@ -12,6 +12,7 @@
 --- immediately instead of stalling in operator-pending.
 local Keys = require("keystone.clue.keys")
 local Tree = require("keystone.clue.tree")
+local config = require("keystone.clue.config").current
 
 local uv = vim.uv or vim.loop
 
@@ -214,7 +215,7 @@ end
 ---@param node keystone.clue.Node
 local function _loop(mode, start, node)
     local View = require("keystone.clue.view")
-    local delay = require("keystone.clue").config.delay
+    local delay = config.delay
 
     while true do
         local kids = Tree.children(node)
@@ -289,6 +290,8 @@ function M.start(prefix)
         return
     end
     local mode = _mapmode()
+    -- `keystone.clue` requires this module, so its clue registry is reached
+    -- lazily; only the config is a leaf module the top of this file can hold.
     local clue = require("keystone.clue")
     local root = Tree.build(mode, clue.get_clues(mode), clue.get_builtins(mode))
     local node = Tree.find(root, prefix)

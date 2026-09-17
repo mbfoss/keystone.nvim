@@ -1,5 +1,7 @@
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 -- ---------------------------------------------------------------------------
 -- Config
 -- ---------------------------------------------------------------------------
@@ -190,7 +192,7 @@ end
 ---@param opts keystone.tsconfig.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+  cfgutil.apply(M.config, _default_config, opts)
 
   if M.config.enabled then
     M.enable()

@@ -2,6 +2,7 @@
 local M = {}
 
 local ui = require("keystone.util.ui")
+local cfgutil = require("keystone.util.config")
 
 -- ---------------------------------------------------------------------------
 -- A deliberately small picker: the minimal subset of a fuzzy picker needed to
@@ -801,7 +802,7 @@ end
 ---@param opts keystone.select.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+    cfgutil.apply(M.config, _default_config, opts)
     if not M.config.enabled then return end
 
     vim.ui.select = M.select

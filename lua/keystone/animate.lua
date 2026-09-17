@@ -2,6 +2,8 @@
 ---@class keystone.animate
 local M = {}
 
+local cfgutil = require("keystone.util.config")
+
 local _ns_name_onkey = "keystone_animate_onkey"
 local _augroup_name = "keystone_animate"
 
@@ -478,7 +480,7 @@ end
 ---@param opts keystone.animate.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
+    cfgutil.apply(M.config, _default_config, opts)
 
     if M.config.enabled then
         M.enable()

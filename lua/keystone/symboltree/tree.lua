@@ -1,6 +1,6 @@
 local M = {}
 
-local config   = require("keystone.symboltree").config
+local config   = require("keystone.symboltree.config").current
 local fixedwin = require("keystone.util.fixedwin")
 
 local _KEY_MARKER = "Keystone_symboltreewin"
