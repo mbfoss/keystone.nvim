@@ -42,21 +42,18 @@ vim.api.nvim_set_hl(0, _HL_GLOBAL, { default = true, link = "DiagnosticInfo" })
 ---@field hl_global string? highlight group for `A-Z` (file) marks
 ---@field sign_priority integer? sign priority, weighed against other plugins' signs
 
----@return keystone.marksigns.Config
-local function _get_default_config()
-    ---@type keystone.marksigns.Config
-    return {
-        enabled       = true,
-        marks         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-        combine       = true,
-        hl_local      = _HL_LOCAL,
-        hl_global     = _HL_GLOBAL,
-        sign_priority = 5,
-    }
-end
+---@type keystone.marksigns.Config
+local _default_config = {
+    enabled       = true,
+    marks         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    combine       = true,
+    hl_local      = _HL_LOCAL,
+    hl_global     = _HL_GLOBAL,
+    sign_priority = 5,
+}
 
 ---@type keystone.marksigns.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- State
@@ -307,10 +304,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_get_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -322,7 +319,7 @@ end
 ---@param opts keystone.marksigns.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
     M.disable()
     if M.config.enabled then

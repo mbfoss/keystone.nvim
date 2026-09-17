@@ -17,8 +17,45 @@ local M = {}
 ---@field desc? string  display description
 ---@field group? boolean
 
+---@class keystone.clue.Config
+---@field delay integer                                ms to wait before the popup appears
+---@field border string|string[]                       float border style
+---@field max_desc_width integer                       max display width of a hint's description (cropped with …)
+---@field preset boolean                               register builtin g/z/window descriptions
+---@field builtin { marks: boolean, registers: boolean } enable dynamic generators
+---@field triggers keystone.clue.Trigger[]             keys that open the clue popup
+
 ---@type keystone.clue.Config
-M.config = require("keystone.clue.config").defaults()
+local _default_config = {
+    delay = 300,
+    border = "rounded",
+    max_desc_width = 40,
+    preset = true,
+    builtin = { marks = true, registers = true },
+    triggers = {
+        { mode = "n", keys = "<leader>" },
+        { mode = "x", keys = "<leader>" },
+        { mode = "n", keys = "g" },
+        { mode = "x", keys = "g" },
+        { mode = "n", keys = "z" },
+        { mode = "x", keys = "z" },
+        { mode = "n", keys = "'" },
+        { mode = "n", keys = "`" },
+        { mode = "x", keys = "'" },
+        { mode = "x", keys = "`" },
+        { mode = "n", keys = '"' },
+        { mode = "x", keys = '"' },
+        { mode = "n", keys = "]" },
+        { mode = "n", keys = "[" },
+        { mode = "n", keys = "<C-w>" },
+        { mode = "i", keys = "<C-x>" },
+        { mode = "i", keys = "<C-r>" },
+        { mode = "c", keys = "<C-r>" },
+    },
+}
+
+---@type keystone.clue.Config
+M.config = vim.deepcopy(_default_config)
 
 ---@type table<string, keystone.clue.Clue[]>
 M._clues = {}
@@ -89,10 +126,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(require("keystone.clue.config").defaults())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -105,7 +142,7 @@ end
 function M.setup(opts)
     _setup = true
     opts = opts or {}
-    M.config = vim.tbl_deep_extend("force", require("keystone.clue.config").defaults(), opts)
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts)
     -- `triggers` is an array, so it must replace wholesale rather than merge by
     -- index. `builtin` is a dict and is correctly handled by the deep merge above
     -- (a partial `{ marks = false }` must keep the default `registers = true`).

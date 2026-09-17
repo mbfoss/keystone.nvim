@@ -12,20 +12,17 @@ local M = {}
 ---@field debounce_ms integer?   edit-to-refresh delay
 ---@field max_cached_folds integer? folds remembered across all buffers
 
----@return keystone.symboltree.Config
-local function _get_default_config()
-    ---@type keystone.symboltree.Config
-    return {
-        width_ratio = 0.2,
-        track_cursor = true,
-        auto_expand = true,
-        show_detail = true,
-        exclude_kinds = nil,
-        collapse_kinds = { "Function", "Method", "Object" },
-        debounce_ms = 500,
-        max_cached_folds = 2048,
-    }
-end
+---@type keystone.symboltree.Config
+local _default_config = {
+    width_ratio = 0.2,
+    track_cursor = true,
+    auto_expand = true,
+    show_detail = true,
+    exclude_kinds = nil,
+    collapse_kinds = { "Function", "Method", "Object" },
+    debounce_ms = 500,
+    max_cached_folds = 2048,
+}
 
 --- List-valued options a user supplies replace the default outright.
 --- `vim.tbl_deep_extend` would otherwise merge them index by index, leaving
@@ -34,14 +31,14 @@ end
 local _LIST_KEYS = { "exclude_kinds", "collapse_kinds" }
 
 ---@type keystone.symboltree.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_get_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -53,7 +50,7 @@ end
 ---@param opts table?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
     for _, key in ipairs(_LIST_KEYS) do
         if opts and opts[key] then
             M.config[key] = vim.deepcopy(opts[key])

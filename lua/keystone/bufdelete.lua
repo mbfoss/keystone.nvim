@@ -35,21 +35,18 @@ local M = {}
 ---@field ignore_alt_file boolean? keep the current window's alternate file (`#`)
 ---@field ignore_special_buffers boolean? keep buffers with a non-empty `buftype` (help, quickfix, terminal, ...)
 
----@return keystone.bufdelete.Config
-local function _get_default_config()
-  ---@type keystone.bufdelete.Config
-  return {
-    enabled                     = true,
-    ignore_floats               = true,
-    ignore_file_types           = {},
-    ignore_filename_patterns    = {},
-    ignore_alt_file             = false,
-    ignore_special_buffers      = true, -- buffers with special buftype
-  }
-end
+---@type keystone.bufdelete.Config
+local _default_config = {
+  enabled                     = true,
+  ignore_floats               = true,
+  ignore_file_types           = {},
+  ignore_filename_patterns    = {},
+  ignore_alt_file             = false,
+  ignore_special_buffers      = true, -- buffers with special buftype
+}
 
 ---@type keystone.bufdelete.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
 -- Options
@@ -622,10 +619,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-  return vim.deepcopy(_get_default_config())
+  return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -637,7 +634,7 @@ end
 ---@param opts keystone.bufdelete.Config?
 function M.setup(opts)
   _setup = true
-  M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+  M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
   if not M.config.enabled then return end
 
   _register_delete("BDelete", false, "Delete buffers, keeping the window layout")

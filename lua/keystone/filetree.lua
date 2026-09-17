@@ -7,26 +7,23 @@ local M = {}
 ---@field position "top"|"bottom"|"left"|"right"?  side the window opens on
 ---@field follow_current_buffer boolean?
 
----@return keystone.filetree.Config
-local function _get_default_config()
-    ---@type keystone.filetree.Config
-    return {
-        width_ratio = 0.2,
-        height_ratio = 0.3,
-        position = "left",
-        follow_current_buffer = false,
-    }
-end
+---@type keystone.filetree.Config
+local _default_config = {
+    width_ratio = 0.2,
+    height_ratio = 0.3,
+    position = "left",
+    follow_current_buffer = false,
+}
 
 ---@type keystone.filetree.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_get_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -38,7 +35,7 @@ end
 ---@param opts table?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
     vim.api.nvim_create_user_command("FileTree", function(cmd_opts)
         require("keystone.util.usercmd").handle(cmd_opts, function(cmd, args, run_opts)

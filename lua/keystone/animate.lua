@@ -15,20 +15,18 @@ local _augroup_name = "keystone_animate"
 ---@field duration number? Hard cap on animation duration in milliseconds (default: 300)
 ---@field step number? Frame interval in milliseconds (default: 16)
 
-local function _get_default_config()
-    ---@type keystone.animate.Config
-    return {
-        enabled = true,
-        filter = nil,
-        easing = nil,
-        speed = 20,
-        duration = 300,
-        step = 16,
-    }
-end
+---@type keystone.animate.Config
+local _default_config = {
+    enabled = true,
+    filter = nil,
+    easing = nil,
+    speed = 20,
+    duration = 300,
+    step = 16,
+}
 
 ---@type keystone.animate.Config
-M.config = _get_default_config()
+M.config = vim.deepcopy(_default_config)
 
 local function _keycode(str)
     return vim.api.nvim_replace_termcodes(str, true, false, true)
@@ -465,10 +463,10 @@ end
 
 local _setup = false
 
---- Deep copy of the module defaults, as `setup()` starts from. Safe to mutate.
+--- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
 ---@return table
 function M.get_default_config()
-    return vim.deepcopy(_get_default_config())
+    return vim.deepcopy(_default_config)
 end
 
 --- Whether `setup()` has been called for this module.
@@ -480,7 +478,7 @@ end
 ---@param opts keystone.animate.Config?
 function M.setup(opts)
     _setup = true
-    M.config = vim.tbl_deep_extend("force", _get_default_config(), opts or {})
+    M.config = vim.tbl_deep_extend("force", vim.deepcopy(_default_config), opts or {})
 
     if M.config.enabled then
         M.enable()
