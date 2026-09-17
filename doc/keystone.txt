@@ -147,7 +147,7 @@ Enabling the relevant module registers its command:
   -----------------------------------------------------------------------
   Command                 Module                  Purpose
   ----------------------- ----------------------- -----------------------
-  :FileTree               filetree                Toggle the file-tree
+  :FileTree               filetree                Open the file-tree
                                                   side window
 
   :FileSelector           explore                 Open the file selector

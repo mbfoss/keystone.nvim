@@ -29,10 +29,7 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 
 | Command | What it does |
 | --- | --- |
-| `:FileTree` | Same as `open` |
-| `:FileTree open [dir]` | Open the side window, or reveal the current file in it. With `dir`, set the tree root to `dir` first |
-| `:FileTree close` | Close it |
-| `:FileTree toggle` | Open or close it |
+| `:FileTree [dir]` | Open the side window, or reveal the current file in it. With `dir`, set the tree root to `dir` first |
 
 ## Keymaps
 
