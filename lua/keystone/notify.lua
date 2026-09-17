@@ -45,6 +45,12 @@ local _pending_lsp_notify = {}
 ---@type keystone.notify.HistoryEntry[]
 local _history = {}
 
+--- Pending work, drained in order once the editor accepts it.
+---@type function[]
+local _queue = {}
+
+local _drain_pending = false
+
 local _id_counter = 0
 local _initialized = false
 local _enabled = false
@@ -83,6 +89,55 @@ local _default_config = {
 }
 
 M.config = vim.deepcopy(_default_config)
+
+--- |state()| flags for the contexts that hold |textlock|: halfway a mapping,
+--- executing an autocommand, and Insert mode completion. Opening a window or
+--- writing a buffer raises E565 there.
+local _BUSY = "mxa"
+
+local _drain
+
+--- Runs the oldest queued item. Callers guarantee the editor is ready. The item
+--- is popped and the next drain scheduled before the call, so an item that
+--- errors cannot stall the ones behind it.
+local function _run()
+  local fn = table.remove(_queue, 1)
+
+  _drain_pending = _queue[1] ~= nil
+
+  if _drain_pending then
+    vim.schedule(_drain)
+  end
+
+  if fn then
+    fn()
+  end
+end
+
+--- Runs the queue, or waits for |SafeState| if the editor is busy. `vim.wait()`
+--- -- as used by `vim.lsp.buf_request_sync()` -- drains scheduled callbacks and
+--- timers from inside textlocked contexts, so being reached through
+--- `vim.schedule()` is no guarantee the editor is ready. |SafeState| fires only
+--- when it is, and is exempt from the check: it reports `x` itself, being an
+--- autocommand.
+function _drain()
+  if vim.fn.state(_BUSY) == "" then
+    _run()
+    return
+  end
+
+  vim.api.nvim_create_autocmd("SafeState", { once = true, callback = _run })
+end
+
+---@param fn function
+local function _enqueue(fn)
+  table.insert(_queue, fn)
+
+  if not _drain_pending then
+    _drain_pending = true
+    vim.schedule(_drain)
+  end
+end
 
 ---@return integer
 local function _get_offset()
@@ -140,14 +195,14 @@ local function _schedule_layout()
 
   _layout_scheduled = true
 
-  vim.schedule(function()
-    _layout_scheduled = false
+  _enqueue(function()
     _layout()
+    _layout_scheduled = false
   end)
 end
 
 ---@param id string|integer
-local function _close(id)
+local function _do_close(id)
   local n = _active[id]
 
   if not n then
@@ -179,6 +234,12 @@ local function _close(id)
   _schedule_layout()
 end
 
+---@param id string|integer
+local function _close(id)
+  _enqueue(function()
+    _do_close(id)
+  end)
+end
 
 ---@param msg string|string[]
 ---@param opts? keystone.notify.NotifyOpts
@@ -208,14 +269,6 @@ local function _notify(msg, opts)
   local icon = _icon_map[level]
   local title = " " .. (opts.title or icon or "Notification") .. " "
   local title_hl = _hl_map[level] or "DiagnosticInfo"
-
-  _push_history({
-    id = id,
-    title = title,
-    level = level,
-    message = vim.deepcopy(lines),
-    timestamp = vim.uv.now(),
-  })
 
   local width = _get_width(lines, title)
   local n = _active[id]
@@ -279,13 +332,22 @@ local function _notify(msg, opts)
       _close(id)
     end, timeout)
   end
+
+  _push_history({
+    id = id,
+    title = title,
+    level = level,
+    message = vim.deepcopy(lines),
+    timestamp = vim.uv.now(),
+  })
+
   return id
 end
 
 ---@param msg string|string[]
 ---@param opts? keystone.notify.NotifyOpts
 function M.notify(msg, opts)
-  vim.schedule(function()
+  _enqueue(function()
     _notify(msg, opts)
   end)
 end
