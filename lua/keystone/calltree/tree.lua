@@ -59,20 +59,21 @@ local function _open_win()
     local pos = (position == "left" or position == "top") and "topleft" or "botright"
     local win
     if vertical then
-        win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
-            config.width_ratio = ratio
-        end, { pos = pos })
+        win = fixedwin.create_fixed_win(bufnr, {
+            axis = "width", ratio = config.width_ratio or 0.2, pos = pos,
+            on_delete = function(ratio) config.width_ratio = ratio end,
+        })
     else
-        win = fixedwin.create_fixed_win("height", config.height_ratio or 0.3, function(ratio)
-            config.height_ratio = ratio
-        end, { pos = pos })
+        win = fixedwin.create_fixed_win(bufnr, {
+            axis = "height", ratio = config.height_ratio or 0.3, pos = pos,
+            on_delete = function(ratio) config.height_ratio = ratio end,
+        })
     end
 
     vim.w[win][_KEY_MARKER] = true
 
     local bufname = "keystone://" .. bufnr .. "/call-tree"
     vim.api.nvim_buf_set_name(bufnr, bufname)
-    vim.api.nvim_win_set_buf(win, bufnr)
 
     _setlocal(win, "wrap", false)
     _setlocal(win, "spell", false)

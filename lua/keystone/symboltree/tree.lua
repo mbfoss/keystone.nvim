@@ -50,15 +50,15 @@ local function _open()
     -- A width-pinned split on the far right. fixedwin tracks the ratio as the
     -- user resizes and re-pins it across layout/editor changes; persist the
     -- last-known ratio so reopening the tree keeps the user's chosen width.
-    local win = fixedwin.create_fixed_win("width", config.width_ratio or 0.2, function(ratio)
-        config.width_ratio = ratio
-    end, { pos = "topleft" })
+    local win = fixedwin.create_fixed_win(bufnr, {
+        axis = "width", ratio = config.width_ratio or 0.2, pos = "topleft",
+        on_delete = function(ratio) config.width_ratio = ratio end,
+    })
 
     vim.w[win][_KEY_MARKER] = true
 
     local bufname = "keystone://" .. bufnr .. "/Symbol Tree"
     vim.api.nvim_buf_set_name(bufnr, bufname)
-    vim.api.nvim_win_set_buf(win, bufnr)
 
     _setlocal(win, "wrap", false)
     _setlocal(win, "spell", false)
