@@ -30,6 +30,9 @@ require("keystone").setup({
 | `:Notifications` | List the notification history, newest first (same as `list`) |
 | `:Notifications list` | List the notification history, newest first |
 | `:Notifications clear` | Discard the notification history |
+| `:Notifications lsp_progress` | Report whether LSP progress notifications are enabled |
+| `:Notifications lsp_progress enable` | Show LSP progress as notifications |
+| `:Notifications lsp_progress disable` | Stop showing LSP progress notifications |
 
 <!-- panvimdoc-ignore-start -->
 

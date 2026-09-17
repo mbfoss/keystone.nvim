@@ -448,13 +448,14 @@ end
 
 ----------- COMMAND -----------
 
-local _subcommand_list = { "list", "clear" }
+local _subcommand_list = { "list", "clear", "lsp_progress" }
 
 ---@param _ string
 ---@param rest string[]
 ---@return string[]
 local function _get_subcommands(_, rest)
   if #rest == 0 then return _subcommand_list end
+  if #rest == 1 and rest[1] == "lsp_progress" then return { "enable", "disable" } end
   return {}
 end
 
@@ -467,6 +468,18 @@ local function _run_command(_, args, _opts)
     require("keystone.notify.picker").open()
   elseif cmd == "clear" then
     M.clear_history()
+  elseif cmd == "lsp_progress" then
+    local action = args[2]
+    if action == "enable" then
+      M.enable_lsp_progress()
+    elseif action == "disable" then
+      M.disable_lsp_progress()
+    elseif action == nil then
+      vim.notify("LSP progress notifications are " .. (M.config.lsp_progress and "enabled" or "disabled"),
+        vim.log.levels.INFO, { title = "Notifications" })
+    else
+      vim.notify("[keystone] Usage: Notifications lsp_progress [enable|disable]", vim.log.levels.WARN)
+    end
   else
     vim.notify("[keystone] Unknown Notifications subcommand: " .. tostring(cmd), vim.log.levels.WARN)
   end
@@ -504,7 +517,7 @@ function M.setup(opts)
     require("keystone.util.usercmd").handle(cmd_opts, _run_command)
   end, {
     nargs = "*",
-    desc = "List or clear the notification history",
+    desc = "Manage notifications",
     complete = function(arg_lead, cmd_line, _)
       return require("keystone.util.usercmd").complete(arg_lead, cmd_line, _get_subcommands)
     end,
