@@ -17,7 +17,7 @@ registered provider, or an inline function.
     require("keystone").setup({
       statusline = {
         sections = {
-          left  = { "mode", "git", "filename" },
+          left  = { "mode", "filename" },
           right = { "lsp_progress", "diagnostics", "filetype", "position" },
         },
       },
