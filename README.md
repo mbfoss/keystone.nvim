@@ -172,17 +172,10 @@ Enabling the relevant module registers its command:
 Reports the Neovim version, the modules whose `setup()` has run (`active`) and
 those it has not (`inactive`), then a section per active module listing only the
 options you changed from that module's defaults. Unrecognised option names are
-reported as warnings: `setup()` merges the table you pass wholesale, so a
-misspelled option would otherwise be accepted without complaint.
+reported as warnings.
 
 Some modules add a deeper check of their own: `:checkhealth keystone.tsconfig`
 reports the installed parsers and any missing queries.
-
-## Full option reference <!-- tag: options -->
-
-The module pages cover the common cases. For the complete, authoritative list,
-each module documents every field as a `Config` class annotation near the top of
-its file (`lua/keystone/<module>.lua`).
 
 ## License
 
