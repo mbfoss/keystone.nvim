@@ -1136,8 +1136,8 @@ end
 
 ---@private
 --- Delete the given items (recursively for directories), pruning any of them
---- from the marked selection. Uses the system trash when `use_trash` is true
---- and available, otherwise deletes permanently.
+--- from the marked selection. Uses the system trash when `use_trash` is true,
+--- aborting if none is available; otherwise deletes permanently.
 ---@param items keystone.util.TreeBuffer.Item[]
 ---@param use_trash boolean
 function FileTree:_delete_items(items, use_trash)
@@ -1150,8 +1150,8 @@ function FileTree:_delete_items(items, use_trash)
     if #targets == 0 then return end
 
     if use_trash and not fs.has_trash() then
-        vim.notify("System trash not available", vim.log.levels.WARN)
-        use_trash = false
+        vim.notify("System trash not available; use D to delete permanently", vim.log.levels.ERROR)
+        return
     end
 
     local lines = {}
