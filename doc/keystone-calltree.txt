@@ -53,7 +53,7 @@ the window pointed at the current position; use `toggle` to close it.
 Inside the window, `g?` lists the keys. The main ones:
 
   Key         What it does
-  ----------- -----------------------------------------------
+  ----------- --------------------------------------------------
   <CR> / za   Expand or collapse
   o / O       Jump to the call site (O also moves focus there)
   K           Hover info (kind, location, call sites)

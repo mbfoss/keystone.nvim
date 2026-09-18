@@ -40,10 +40,14 @@ Or standalone:
 ==============================================================================
 2. Commands                                       *keystone-filetree-commands*
 
-  Command            What it does
-  ------------------ ------------------------
-  :FileTree [dir]    Open the side window, or reveal the current file in it.
-                     With {dir}, set the tree root to {dir} first
+  -----------------------------------------------------------------------
+  Command                             What it does
+  ----------------------------------- -----------------------------------
+  :FileTree [dir]                     Open the side window, or reveal the
+                                      current file in it. With dir, set
+                                      the tree root to dir first
+
+  -----------------------------------------------------------------------
 
 ==============================================================================
 3. Keymaps                                         *keystone-filetree-keymaps*
@@ -54,7 +58,9 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
   Key                                 What it does
   ----------------------------------- -----------------------------------
   <CR>                                Open file / toggle directory
-  o                                   Open file, keeping focus in the tree
+
+  o                                   Open file, keeping focus in the
+                                      tree
 
   za / zc / zo                        Toggle / collapse / expand
 

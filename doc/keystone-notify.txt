@@ -28,25 +28,25 @@ A floating notification UI, optionally including LSP progress messages.
 ==============================================================================
 2. Commands                                         *keystone-notify-commands*
 
-  -----------------------------------------------------------------------
-  Command                             Purpose
-  ----------------------------------- -----------------------------------
-  :Notifications                      List the notification history,
-                                      newest first (same as list)
+  -------------------------------------------------------------------------
+  Command                               Purpose
+  ------------------------------------- -----------------------------------
+  :Notifications                        List the notification history,
+                                        newest first (same as list)
 
-  :Notifications list                 List the notification history,
-                                      newest first
+  :Notifications list                   List the notification history,
+                                        newest first
 
-  :Notifications clear                Discard the notification history
+  :Notifications clear                  Discard the notification history
 
-  :Notifications lsp_progress         Report whether LSP progress
-                                      notifications are enabled
+  :Notifications lsp_progress           Report whether LSP progress
+                                        notifications are enabled
 
-  :Notifications lsp_progress enable  Show LSP progress as notifications
+  :Notifications lsp_progress enable    Show LSP progress as notifications
 
-  :Notifications lsp_progress disable Stop showing LSP progress
-                                      notifications
-  -----------------------------------------------------------------------
+  :Notifications lsp_progress disable   Stop showing LSP progress
+                                        notifications
+  -------------------------------------------------------------------------
 The list goes through `vim.ui.select`: keystone’s own |keystone-select|
 module when it is enabled, whichever implementation is installed otherwise.
 Pickers that support previews show the full message beside the list; confirming
