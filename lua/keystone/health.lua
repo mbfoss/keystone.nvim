@@ -127,7 +127,7 @@ local function _check_configs(names, active)
     local mod = active[name]
     local diffs = mod and _changed_options(mod) or {}
     if #diffs > 0 then
-      _h.start("configuration [keystone." .. name .. "]")
+      _h.start("keystone." .. name .. ": configuration")
       for _, entry in ipairs(diffs) do
         _h.info(("%s = %s"):format(entry.path, entry.value))
       end
