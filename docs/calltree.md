@@ -50,8 +50,7 @@ Inside the window, `g?` lists the keys. The main ones:
 | Key | What it does |
 | --- | --- |
 | `<CR>` / `za` | Expand or collapse |
-| `o` / `O` | Jump to the symbol (`O` also moves focus there) |
-| `c` | Jump to the call site |
+| `o` / `O` | Jump to the call site (`O` also moves focus there) |
 | `K` | Hover info (kind, location, call sites) |
 | `<Tab>` | Swap direction |
 | `r` | Re-root on the symbol under the cursor |

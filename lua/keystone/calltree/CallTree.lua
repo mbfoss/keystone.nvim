@@ -207,15 +207,11 @@ function CallTree:create_buffer()
     local keymaps = {
         -- Navigation
         ["o"] = {
-            function() with_call(function(call) self:_jump_to(call, false) end) end,
-            "Jump to symbol (keep focus)",
+            function() with_call(function(call) self:_jump_to_call_site(call, false) end) end,
+            "Jump to call site (keep focus)",
         },
         ["O"] = {
-            function() with_call(function(call) self:_jump_to(call, true) end) end,
-            "Jump to symbol",
-        },
-        ["c"] = {
-            function() with_call(function(call) self:_jump_to_call_site(call) end) end,
+            function() with_call(function(call) self:_jump_to_call_site(call, true) end) end,
             "Jump to call site",
         },
         ["K"] = {
@@ -510,12 +506,13 @@ end
 --- Jump to where the call itself is written, which for an outgoing call is in a
 --- different document than the symbol it names.
 ---@param call keystone.calltree.Call
-function CallTree:_jump_to_call_site(call)
+---@param activate boolean
+function CallTree:_jump_to_call_site(call, activate)
     if not call.call_uri or not call.call_lnum then
-        self:_jump_to(call, false)
+        self:_jump_to(call, activate)
         return
     end
-    self:_open(call.call_uri, call.call_lnum, call.call_col or 0, false)
+    self:_open(call.call_uri, call.call_lnum, call.call_col or 0, activate)
 end
 
 ---@param call keystone.calltree.Call
