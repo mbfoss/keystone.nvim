@@ -24,8 +24,9 @@ require("keystone").setup({
 
 ## Sections
 
-Built-in sections are `mode`, `git`, `filename`, `diagnostics`, `filetype`,
-`position`, and `lsp_progress`.
+Built-in sections are `mode`, `filename`, `diagnostics`, `filetype`, `position`,
+and `lsp_progress`. Two more are available but not shown by default: `git`
+(the current branch) and `symbol_path` (the LSP symbol under the cursor).
 
 A section can also be an inline function returning a statusline string:
 

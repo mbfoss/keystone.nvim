@@ -157,7 +157,7 @@ local _default_config = {
   enabled = true,
   separator = "│",
   sections = {
-    left  = { "mode", "git", "filename", "symbol_path", },
+    left  = { "mode", "filename", },
     right = { "lsp_progress", "diagnostics", "filetype", "position", },
   },
   priority = {
