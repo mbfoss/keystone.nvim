@@ -121,8 +121,8 @@ The tree root is never deleted.
 
 Trash support is resolved per platform: `trash` or Finder via `osascript` on
 macOS, the Recycle Bin via PowerShell on Windows, and `gio trash` / `trash-put`
-/ `trash` on other unices. When none is available, `d` warns and falls back to a
-permanent delete for that invocation.
+/ `trash` on other unices. When none is available, `d` reports an error and deletes
+nothing; use `D` instead.
 
 Unlike rename and move, deletion tells LSP nothing and leaves open buffers
 alone: a buffer on a deleted file stays loaded with its contents.

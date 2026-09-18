@@ -877,7 +877,7 @@ function Explorer:_keymaps()
             fn = function() self:confirm_choice() end },
         { label = "o",         keys = { "o" },          desc = "Open file, keep explorer open",
             enabled = self.opts.on_open ~= nil, fn = function() self:open_choice() end },
-        { label = "gp",     keys = { "gp" },      desc = "Toggle preview",
+        { label = "<Tab>",     keys = { "<Tab>" },      desc = "Toggle preview",
             enabled = self.preview_enabled, fn = function() self:toggle_preview() end },
         { label = "gh",        keys = { "gh" },         desc = "Toggle hidden items",
             fn = function() self:toggle_hidden() end },
