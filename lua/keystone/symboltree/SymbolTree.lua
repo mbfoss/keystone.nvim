@@ -31,6 +31,7 @@ NAVIGATION
 ==========
 `<CR>`    Jump to symbol
 `o`       Jump to symbol, keep focus in the tree
+`O`       Jump to symbol, focus the source
 
 FOLDING
 =======
@@ -196,6 +197,12 @@ function SymbolTree:create_buffer()
                 with_item(function(i) self:_jump_to(i.data, false) end)
             end,
             "Jump to symbol (keep focus)",
+        },
+        ["O"] = {
+            function()
+                with_item(function(i) self:_jump_to(i.data, true) end)
+            end,
+            "Jump to symbol",
         },
         ["K"] = {
             function()
@@ -538,11 +545,7 @@ function SymbolTree:_jump_to(data, activate)
     if not data or data.lnum <= 0 then return end
     if not vim.api.nvim_buf_is_valid(self._source_buf) then return end
 
-    local tree_win = vim.api.nvim_get_current_win()
-    ui.smart_open_buffer(self._source_buf, data.lnum, data.col)
-    if not activate and vim.api.nvim_win_is_valid(tree_win) then
-        vim.api.nvim_set_current_win(tree_win)
-    end
+    ui.smart_open_buffer(self._source_buf, data.lnum, data.col, activate)
 end
 
 ---@param item keystone.util.TreeBuffer.Item
