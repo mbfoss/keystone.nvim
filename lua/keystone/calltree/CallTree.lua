@@ -490,11 +490,7 @@ function CallTree:_open(uri, lnum, col, activate)
     local bufnr = _uri_bufnr(uri)
     if not bufnr then return end
 
-    local tree_win = vim.api.nvim_get_current_win()
-    ui.smart_open_buffer(bufnr, lnum, col)
-    if not activate and vim.api.nvim_win_is_valid(tree_win) then
-        vim.api.nvim_set_current_win(tree_win)
-    end
+    ui.smart_open_buffer(bufnr, lnum, col, activate)
 end
 
 ---@param call keystone.calltree.Call

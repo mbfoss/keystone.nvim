@@ -40,9 +40,16 @@ they are not merged with the defaults.
 
 ## Keys
 
-`g?` inside the window lists them all. Folding uses the usual `za`/`zc`/`zo`
-(and `zC`/`zO` to recurse); `K` shows hover info for the symbol under the cursor
-and `R` refreshes.
+Inside the window, `g?` lists the keys.
+
+| Key | What it does |
+| --- | --- |
+| `<CR>` | Expand or collapse; on a leaf, jump to the symbol |
+| `o` / `O` | Jump to the symbol (`O` also moves focus there) |
+| `za` / `zc` / `zo` | Toggle / collapse / expand |
+| `zC` / `zO` | Collapse / expand recursively |
+| `K` | Hover info for the symbol |
+| `R` | Refresh |
 
 <!-- panvimdoc-ignore-start -->
 
