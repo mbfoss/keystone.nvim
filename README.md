@@ -125,7 +125,7 @@ Each module has its own page in [docs/](docs/):
 | [unsaved](docs/unsaved.md) | Diff modified buffers against disk |
 | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 | [animate](docs/animate.md) | Interpolated scrolling |
-| [tweaks](docs/tweaks.md) | Seven editor behaviour flags |
+| [tweaks](docs/tweaks.md) | Editor behaviour flags |
 
 <!-- panvimdoc-ignore-end -->
 
@@ -149,7 +149,7 @@ Each module has its own help page:
 - |keystone-unsaved| Diff modified buffers against disk
 - |keystone-bufdelete| Delete or wipe buffers, keeping the window layout
 - |keystone-animate| Interpolated scrolling
-- |keystone-tweaks| Seven editor behaviour flags
+- |keystone-tweaks| Editor behaviour flags
 -->
 
 ## Commands

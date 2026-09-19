@@ -1,7 +1,6 @@
 # tweaks
 
-Seven editor behaviours, each behind its own flag. Four are on by default and
-three are off, as shown below.
+Editor behaviours, each behind its own flag, with the defaults shown below.
 
 <!-- panvimdoc-ignore-start -->
 
@@ -21,9 +20,17 @@ require("keystone").setup({
     quick_close          = false, -- close help/qf/man/... buffers with q
     disable_auto_comment = false, -- stop auto-continuing comment leaders
     trim_whitespace      = false, -- strip trailing whitespace on save
+    auto_nohlsearch      = false, -- clear search highlighting on the triggers below
+    auto_nohlsearch_triggers = {
+      on_insert     = true,  -- when entering insert mode
+      on_win_change = false, -- when changing window
+    },
   },
 })
 ```
+
+`auto_nohlsearch` clears search highlighting on the `auto_nohlsearch_triggers`
+that are enabled.
 
 <!-- panvimdoc-ignore-start -->
 

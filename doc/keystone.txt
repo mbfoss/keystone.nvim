@@ -9,8 +9,7 @@ Table of Contents                                 *keystone-table-of-contents*
 3. Modules                                                  |keystone-modules|
 4. Commands                                                |keystone-commands|
 5. Health                                                    |keystone-health|
-6. Full option reference                                    |keystone-options|
-7. License                                                  |keystone-license|
+6. License                                                  |keystone-license|
 Quality-of-life editor modules for Neovim: file, symbol and call trees, a
 key-hint popup, completion, a statusline, LSP and Treesitter setup, and a set
 of editor behaviour flags.
@@ -138,7 +137,7 @@ Each module has its own help page:
 - |keystone-unsaved| Diff modified buffers against disk
 - |keystone-bufdelete| Delete or wipe buffers, keeping the window layout
 - |keystone-animate| Interpolated scrolling
-- |keystone-tweaks| Seven editor behaviour flags
+- |keystone-tweaks| Editor behaviour flags
 
 
 ==============================================================================
@@ -149,8 +148,8 @@ Enabling the relevant module registers its command:
   -----------------------------------------------------------------------
   Command                 Module                  Purpose
   ----------------------- ----------------------- -----------------------
-  :FileTree               filetree                Open the file-tree
-                                                  side window
+  :FileTree               filetree                Open the file-tree side
+                                                  window
 
   :FileSelector           explore                 Open the file selector
 
@@ -183,23 +182,14 @@ Enabling the relevant module registers its command:
 Reports the Neovim version, the modules whose `setup()` has run (`active`) and
 those it has not (`inactive`), then a section per active module listing only
 the options you changed from that module’s defaults. Unrecognised option
-names are reported as warnings: `setup()` merges the table you pass wholesale,
-so a misspelled option would otherwise be accepted without complaint.
+names are reported as warnings.
 
 Some modules add a deeper check of their own: `:checkhealth keystone.tsconfig`
 reports the installed parsers and any missing queries.
 
 
 ==============================================================================
-6. Full option reference                                    *keystone-options*
-
-The module pages cover the common cases. For the complete, authoritative list,
-each module documents every field as a `Config` class annotation near the top
-of its file (`lua/keystone/<module>.lua`).
-
-
-==============================================================================
-7. License                                                  *keystone-license*
+6. License                                                  *keystone-license*
 
 MIT. See LICENSE and ATTRIBUTIONS.md in the repository for third-party credits.
 

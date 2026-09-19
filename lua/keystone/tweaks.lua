@@ -19,6 +19,12 @@ local cfgutil = require("keystone.util.config")
 ---@field quick_close_filetypes string[]? filetypes affected by `quick_close`
 ---@field disable_auto_comment boolean? stop auto-continuing comment leaders on new lines
 ---@field trim_whitespace boolean? strip trailing whitespace on save (off by default)
+---@field auto_nohlsearch boolean? clear search highlighting on `auto_nohlsearch_triggers`
+---@field auto_nohlsearch_triggers keystone.tweaks.NohlsearchTriggers? when `auto_nohlsearch` clears it
+
+---@class keystone.tweaks.NohlsearchTriggers
+---@field on_insert boolean? clear it when entering insert mode
+---@field on_win_change boolean? clear it when changing window
 
 ---@type keystone.tweaks.Config
 local _default_config = {
@@ -36,6 +42,11 @@ local _default_config = {
   },
   disable_auto_comment = false,
   trim_whitespace      = false,
+  auto_nohlsearch      = false,
+  auto_nohlsearch_triggers = {
+    on_insert     = true,
+    on_win_change = false,
+  },
 }
 
 ---@type keystone.tweaks.Config
@@ -55,6 +66,7 @@ local _feature_names = {
   "quick_close",
   "disable_auto_comment",
   "trim_whitespace",
+  "auto_nohlsearch",
 }
 
 -- Names of the features currently installed.
@@ -91,6 +103,7 @@ function M.disable_feature(name)
   local feat = _features[name]
   if not feat or not _active[name] then return end
   pcall(vim.api.nvim_del_augroup_by_name, feat.augroup)
+  if feat.teardown then feat.teardown() end
   _active[name] = nil
 end
 

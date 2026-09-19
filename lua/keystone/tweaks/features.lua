@@ -8,6 +8,7 @@ local M = {}
 ---@class keystone.tweaks.Feature
 ---@field augroup string augroup name, also used to tear the feature down
 ---@field setup fun(config: keystone.tweaks.Config) install autocmds/options
+---@field teardown fun()? release state the augroup does not own
 
 -- Briefly flash the just-yanked region. Purely visual feedback; nothing here
 -- changes buffer contents.
@@ -154,6 +155,35 @@ M.trim_whitespace = {
         vim.fn.winrestview(view)
       end,
     })
+  end,
+}
+
+-- Clear search highlighting on the enabled `auto_nohlsearch_triggers`: entering
+-- insert mode or changing window. `:nohlsearch` is undone when an autocmd
+-- returns, hence the `vim.schedule`.
+---@type keystone.tweaks.Feature
+M.auto_nohlsearch = {
+  augroup = "keystone_tweaks_auto_nohlsearch",
+  setup = function(config)
+    local triggers = config.auto_nohlsearch_triggers
+    local group = vim.api.nvim_create_augroup("keystone_tweaks_auto_nohlsearch", { clear = true })
+    local function clear()
+      if vim.v.hlsearch == 1 then vim.schedule(function() vim.cmd.nohlsearch() end) end
+    end
+    if triggers.on_insert then
+      vim.api.nvim_create_autocmd("InsertEnter", {
+        group = group,
+        desc = "Clear search highlight on insert",
+        callback = clear,
+      })
+    end
+    if triggers.on_win_change then
+      vim.api.nvim_create_autocmd("WinEnter", {
+        group = group,
+        desc = "Clear search highlight on window change",
+        callback = clear,
+      })
+    end
   end,
 }
 
