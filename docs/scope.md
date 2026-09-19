@@ -1,8 +1,8 @@
 # scope
 
 Draws a guide along the scope under the cursor, meaning the body of the function,
-block or table the cursor is in. It can also draw a guide on every indent
-level.
+block or table the cursor is in, and a guide on every indent level. Each is
+enabled by default and can be turned off on its own.
 
 The scope comes from Treesitter: it is the smallest syntax node around the
 cursor whose body is indented deeper than its first line. A cursor on a header

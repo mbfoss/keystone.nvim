@@ -1,4 +1,4 @@
-*keystone-scope*   A guide along the current scope, and optional indent guides
+*keystone-scope*   Guides along the current scope and indent levels
 
 ==============================================================================
 Table of Contents                           *keystone-scope-table-of-contents*
@@ -8,8 +8,8 @@ Table of Contents                           *keystone-scope-table-of-contents*
 3. API                                                    |keystone-scope-api|
 4. How it draws                                  |keystone-scope-how-it-draws|
 Draws a guide along the scope under the cursor, meaning the body of the
-function, block or table the cursor is in. It can also draw a guide on every
-indent level.
+function, block or table the cursor is in, and a guide on every indent level.
+Each is enabled by default and can be turned off on its own.
 
 The scope comes from Treesitter: it is the smallest syntax node around the
 cursor whose body is indented deeper than its first line. A cursor on a header
