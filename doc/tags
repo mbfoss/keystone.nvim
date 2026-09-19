@@ -64,7 +64,6 @@ keystone-notify	keystone-notify.txt	/*keystone-notify*
 keystone-notify-commands	keystone-notify.txt	/*keystone-notify-commands*
 keystone-notify-configuration	keystone-notify.txt	/*keystone-notify-configuration*
 keystone-notify-table-of-contents	keystone-notify.txt	/*keystone-notify-table-of-contents*
-keystone-options	keystone.txt	/*keystone-options*
 keystone-scope	keystone-scope.txt	/*keystone-scope*
 keystone-scope-api	keystone-scope.txt	/*keystone-scope-api*
 keystone-scope-configuration	keystone-scope.txt	/*keystone-scope-configuration*
