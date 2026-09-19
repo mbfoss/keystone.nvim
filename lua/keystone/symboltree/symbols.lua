@@ -168,9 +168,9 @@ end
 local Provider = {}
 Provider.__index = Provider
 
-function Provider:new(...)
+function Provider:new()
     local obj = setmetatable({}, self)
-    if obj.init then obj:init(...) end
+    if obj.init then obj:init() end
     return obj
 end
 
