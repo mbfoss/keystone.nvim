@@ -27,6 +27,7 @@ require("keystone").setup({
   tweaks     = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
   largefile  = true,  -- skips treesitter/LSP/ftplugins on large files
   marksigns  = true,  -- shows the marks that are set in the sign column (0.12+)
+  scope      = true,  -- guide along the current scope, optional indent guides
   animate    = false, -- interpolated scrolling
 
   -- Replaces something built in
@@ -117,6 +118,7 @@ Each module has its own page in [docs/](docs/):
 | [lspconfig](docs/lspconfig.md) | Enables configured LSP servers, with log rotation |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
 | [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
+| [scope](docs/scope.md) | A guide along the current scope, and optional indent guides |
 | [largefile](docs/largefile.md) | Opens large files without Treesitter, LSP or ftplugins |
 | [notify](docs/notify.md) | A floating notification UI |
 | [select](docs/select.md) | A floating `vim.ui.select` prompt with fuzzy filtering |
@@ -140,6 +142,7 @@ Each module has its own help page:
 - |keystone-lspconfig| Enables configured LSP servers, with log rotation
 - |keystone-tsconfig| Treesitter highlighting and folding, per buffer
 - |keystone-marksigns| Shows the marks that are set in the sign column
+- |keystone-scope| A guide along the current scope, and optional indent guides
 - |keystone-largefile| Opens large files without Treesitter, LSP or ftplugins
 - |keystone-notify| A floating notification UI
 - |keystone-select| A floating `vim.ui.select` prompt with fuzzy filtering

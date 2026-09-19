@@ -34,6 +34,7 @@ local _MODULES = {
   "filetree",
   "lspconfig",
   "marksigns",
+  "scope",
   "select",
   "statusline",
   "symboltree",
