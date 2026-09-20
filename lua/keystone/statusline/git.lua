@@ -89,9 +89,8 @@ function M.render(opts)
   local branch = _branch[bufnr]
   if not branch or branch == "" then return "", "" end
   local hl = opts.is_current and "KeystoneSLGit" or "KeystoneSLGitNC"
-  local prefix = "%#" .. hl .. "#󰘬 "
-  return prefix .. branch:gsub("%%", "%%%%") .. "%*",
-      prefix .. _crop(branch, 12):gsub("%%", "%%%%") .. "%*"
+  return string.format("%%#%s#󰘬 %s%%*", hl, (branch:gsub("%%", "%%%%"))),
+      string.format("%%#%s#󰘬 %s%%*", hl, (_crop(branch, 12):gsub("%%", "%%%%")))
 end
 
 ---@param on_change fun() called whenever a cached branch changes

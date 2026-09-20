@@ -116,7 +116,7 @@ end
 local function _segment(sym, with_icon)
   local name = sym.name:gsub("%%", "%%%%")
   if not with_icon then return name end
-  return (_KIND_ICONS[sym.kind] or "󰊕") .. " " .. name
+  return string.format("%s %s", _KIND_ICONS[sym.kind] or "󰊕", name)
 end
 
 --- Full form is the whole symbol trail; the short form is the innermost symbol
@@ -131,7 +131,7 @@ function M.render(opts)
   -- Nested namespaces are one path: only the first of a run is marked, the rest
   -- joined by `›` like module-name segments. Elsewhere the kind icon separates
   -- well enough. Separators are pieces too, so the trail is joined once at the end.
-  local parts = { "%#" .. hl .. "#" }
+  local parts = { string.format("%%#%s#", hl) }
   local prev_kind = nil
   for i, sym in ipairs(chain) do
     local with_icon = not (sym.kind == _KIND.Namespace and prev_kind == _KIND.Namespace)
@@ -146,7 +146,7 @@ function M.render(opts)
   -- The short form stands alone, so its symbol always starts a run.
   local short = _segment(chain[#chain], true)
 
-  return table.concat(parts), "%#" .. hl .. "#" .. short .. "%*"
+  return table.concat(parts), string.format("%%#%s#%s%%*", hl, short)
 end
 
 ---@param bufnr integer

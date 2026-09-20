@@ -18,15 +18,16 @@ function M.render(opts)
   local parts = {}
   for _, token in pairs(_progress) do
     if vim.lsp.buf_is_attached(bufnr, token.client_id) then
-      local text = token.percentage and (token.name .. " " .. token.percentage .. "%%") or token.name
-      table.insert(parts, text)
+      parts[#parts + 1] = token.percentage
+          and string.format("%s %d%%%%", token.name, token.percentage)
+          or token.name
     end
   end
   local hl = opts.is_current and "KeystoneSLLspProgress" or "KeystoneSLLspProgressNC"
   if #parts == 0 then return "", "" end
   -- Short form drops the client names/percentages, keeping just the icon.
-  return "%#" .. hl .. "#󰒓 " .. table.concat(parts, "  ") .. "%*",
-      "%#" .. hl .. "#󰒓 %*"
+  return string.format("%%#%s#󰒓 %s%%*", hl, table.concat(parts, "  ")),
+      string.format("%%#%s#󰒓 %%*", hl)
 end
 
 local _group = nil

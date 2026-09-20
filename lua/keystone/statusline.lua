@@ -197,8 +197,8 @@ local _MODE_MAP = {
 ---@return string full, string short
 local function _section_mode(_)
   local info = _MODE_MAP[vim.fn.mode()] or { label = "?", short = "?", hl = "KeystoneSLModeNormal" }
-  local prefix = "%#" .. info.hl .. "#"
-  return prefix .. info.label .. "%*", prefix .. info.short .. "%*"
+  return string.format("%%#%s#%s%%*", info.hl, info.label),
+      string.format("%%#%s#%s%%*", info.hl, info.short)
 end
 
 --- Icons for buffers that have no file, and therefore no filetype icon, of
@@ -273,9 +273,8 @@ local function _section_filename(opts)
   local icon_str = (icon and icon ~= "") and (icon .. " ") or ""
   local mod      = vim.bo[bufnr].modified and " [+]" or ""
   local ro       = vim.bo[bufnr].readonly and " [ro]" or ""
-  local suffix   = mod .. ro
-  return "%*" .. icon_str .. rel .. suffix,
-      "%*" .. icon_str .. tail .. suffix
+  return string.format("%%*%s%s%s%s", icon_str, rel, mod, ro),
+      string.format("%%*%s%s%s%s", icon_str, tail, mod, ro)
 end
 
 ---@param opts keystone.statusline.RenderOpts
@@ -287,9 +286,9 @@ local function _section_diagnostics(opts)
   local h = counts[vim.diagnostic.severity.HINT] or 0
 
   local parts = {}
-  if e > 0 then table.insert(parts, "%#KeystoneSLDiagError#󰅚 " .. e) end
-  if w > 0 then table.insert(parts, "%#KeystoneSLDiagWarn#󰀪 " .. w) end
-  if h > 0 then table.insert(parts, "%#KeystoneSLDiagHint#󰋽 " .. h) end
+  if e > 0 then parts[#parts + 1] = string.format("%%#KeystoneSLDiagError#󰅚 %d", e) end
+  if w > 0 then parts[#parts + 1] = string.format("%%#KeystoneSLDiagWarn#󰀪 %d", w) end
+  if h > 0 then parts[#parts + 1] = string.format("%%#KeystoneSLDiagHint#󰋽 %d", h) end
   if #parts == 0 then return "" end
 
   return table.concat(parts, " ") .. "%*"
@@ -464,7 +463,7 @@ end
 ---@return string
 local function _separator_glyph(is_current)
   local hl = is_current and _separator_hl or _separatorNC_hl
-  return "%#" .. hl .. "#" .. M.config.separator .. "%*"
+  return string.format("%%#%s#%s%%*", hl, M.config.separator)
 end
 
 ---The separator string drawn between adjacent sections, in the separator
@@ -473,7 +472,7 @@ end
 ---@param is_current boolean
 ---@return string
 local function _separator(is_current)
-  return " " .. _separator_glyph(is_current) .. " "
+  return string.format(" %s ", _separator_glyph(is_current))
 end
 
 ---Join the shown entries with `sep`, adding one space of edge padding on each
@@ -487,7 +486,7 @@ local function _concat_shown(entries, sep)
     if entry.shown then parts[#parts + 1] = entry.text end
   end
   if #parts == 0 then return "" end
-  return " " .. table.concat(parts, sep) .. " "
+  return string.format(" %s ", table.concat(parts, sep))
 end
 
 ---One side's running totals: the summed width and count of its shown entries.
@@ -659,7 +658,7 @@ local function _render()
     mid = _separator_glyph(is_current)
   end
 
-  return ltext .. mid .. "%=" .. rtext
+  return string.format("%s%s%%=%s", ltext, mid, rtext)
 end
 
 function M.render()
