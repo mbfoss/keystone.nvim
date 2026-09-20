@@ -3,7 +3,7 @@ local ui             = require("keystone.util.ui")
 local fs             = require("keystone.filetree.fs")
 local TreeBuffer     = require("keystone.util.TreeBuffer")
 local LRU            = require("keystone.util.LRU")
-local floatwin       = require("keystone.util.floatwin")
+local hover          = require("keystone.util.hover")
 local inputwin       = require("keystone.util.inputwin")
 local icons          = require("keystone.icons")
 
@@ -74,9 +74,9 @@ OTHER
 `g?`      Show this help]]
     }
 
-    floatwin.open(table.concat(help_text, "\n"), {
+    hover.show(table.concat(help_text, "\n"), {
         title = "File Tree",
-        is_markdown = true,
+        syntax = "markdown",
     })
 end
 

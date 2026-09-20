@@ -1,7 +1,7 @@
 local TreeBuffer      = require("keystone.util.TreeBuffer")
 local LRU             = require("keystone.util.LRU")
 local ui              = require("keystone.util.ui")
-local floatwin        = require("keystone.util.floatwin")
+local hover           = require("keystone.util.hover")
 local throttle        = require("keystone.util.throttle")
 local kinds           = require("keystone.symboltree.kinds")
 local symbols         = require("keystone.symboltree.symbols")
@@ -22,7 +22,7 @@ local _placeholder_id = {}
 
 --- Full-line highlight for the symbol enclosing the source cursor. Linked with
 --- `default` so a colorscheme or the user can override it.
-local _current_hl = "KeystoneSymbolTreeCurrent"
+local _current_hl     = "KeystoneSymbolTreeCurrent"
 vim.api.nvim_set_hl(0, _current_hl, { default = true, link = "Visual" })
 
 local function _show_help()
@@ -48,9 +48,9 @@ OTHER
 `g?`      Show this help]]
     }
 
-    floatwin.open(table.concat(help_text, "\n"), {
+    hover.show(table.concat(help_text, "\n"), {
         title = "Symbol Tree",
-        is_markdown = true,
+        syntax = "markdown",
     })
 end
 
@@ -243,7 +243,7 @@ function SymbolTree:_on_buffer_created()
 
     local bufnr = self._treebuf:get_bufnr()
     assert(bufnr > 0)
-    
+
     self._augroup = vim.api.nvim_create_augroup(
         "KeystoneSymbolTree_" .. bufnr, { clear = true })
 
@@ -265,7 +265,7 @@ function SymbolTree:_on_buffer_created()
     track("LspAttach", {
         callback = function(args)
             if args.buf == self._source_buf then
-                vim.schedule(function()  -- schedule because lsp (especially in-process) may not ready yet
+                vim.schedule(function() -- schedule because lsp (especially in-process) may not ready yet
                     if vim.api.nvim_get_current_buf() == args.buf then
                         self:_request_symbols()
                     end

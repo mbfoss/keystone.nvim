@@ -1,8 +1,8 @@
-local TreeBuffer = require("keystone.util.TreeBuffer")
-local ui         = require("keystone.util.ui")
-local floatwin   = require("keystone.util.floatwin")
-local kinds      = require("keystone.symboltree.kinds")
-local calls      = require("keystone.calltree.calls")
+local TreeBuffer        = require("keystone.util.TreeBuffer")
+local ui                = require("keystone.util.ui")
+local hover             = require("keystone.util.hover")
+local kinds             = require("keystone.symboltree.kinds")
+local calls             = require("keystone.calltree.calls")
 
 --- What one line of the tree holds. `call` is nil for the placeholder rows
 --- ("Loading…", "No callers", an error message) which are inert: they never
@@ -21,7 +21,7 @@ local _PLACEHOLDER_KIND = { name = "Placeholder", icon = "󰋗", hl = "Comment" 
 
 --- Full-line highlight for the root of the tree. Linked with `default` so a
 --- colorscheme or the user can override it.
-local _root_hl = "KeystoneCallTreeRoot"
+local _root_hl          = "KeystoneCallTreeRoot"
 vim.api.nvim_set_hl(0, _root_hl, { default = true, link = "Title" })
 
 --- Highlight for the direction tag on the root line.
@@ -68,9 +68,9 @@ OTHER
 `g?`      Show this help]]
     }
 
-    floatwin.open(table.concat(help_text, "\n"), {
+    hover.show(table.concat(help_text, "\n"), {
         title = "Call Tree",
-        is_markdown = true,
+        syntax = "markdown",
     })
 end
 
@@ -417,8 +417,8 @@ end
 function CallTree:_set_placeholder_child(parent_id, text)
     self._treebuf:set_children(parent_id, {
         {
-            id   = self:_new_id(),
-            data = { text = text, icon = _PLACEHOLDER_KIND.icon, icon_hl = _PLACEHOLDER_KIND.hl, state = "loaded" },
+            id         = self:_new_id(),
+            data       = { text = text, icon = _PLACEHOLDER_KIND.icon, icon_hl = _PLACEHOLDER_KIND.hl, state = "loaded" },
             expandable = false,
         },
     })

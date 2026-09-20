@@ -3,7 +3,7 @@ local common      = require("keystone.util.timer")
 local fsutil      = require("keystone.util.fsutil")
 local ui          = require("keystone.util.ui")
 local layouts     = require("keystone.explore.layouts")
-local floatwin    = require("keystone.util.floatwin")
+local hover       = require("keystone.util.hover")
 local strutil     = require("keystone.util.strutil")
 
 ---@mod keystone.picker
@@ -915,7 +915,7 @@ function Explorer:show_help()
         lines[#lines + 1] = string.format("  %-" .. key_width .. "s   %s", m.label, m.desc)
     end
 
-    floatwin.open(table.concat(lines, "\n"), {
+    hover.show(table.concat(lines, "\n"), {
         title = "Keymaps",
     })
 end
