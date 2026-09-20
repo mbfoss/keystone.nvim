@@ -118,7 +118,8 @@ describe("scope by treesitter as it reparses", function()
   local lines = { "local function f()", "  local x = 1", "  return x", "end" }
 
   before_each(function()
-    scope.setup()
+    -- Guides off: they share the scope's character, so a cell is unambiguous.
+    scope.setup({ guides = false })
     open_file(lines, ".lua")
     -- As a FileType handler would: the first parse lands during the redraw.
     vim.treesitter.start(0, "lua")
@@ -295,5 +296,70 @@ describe("scope rendering", function()
     scope.setup({ scope = true, guides = false })
     cursor(3)
     assert.same({ col = 2, first = 3, last = 8 }, scope.get())
+  end)
+end)
+
+describe("scope blending", function()
+  local saved
+
+  ---@param name string
+  ---@return integer?
+  local function fg(name)
+    return vim.api.nvim_get_hl(0, { name = name, link = false }).fg
+  end
+
+  before_each(function()
+    saved = {
+      termguicolors = vim.o.termguicolors,
+      Normal = vim.api.nvim_get_hl(0, { name = "Normal" }),
+      KeystoneScope = vim.api.nvim_get_hl(0, { name = "KeystoneScope" }),
+      KeystoneIndentGuide = vim.api.nvim_get_hl(0, { name = "KeystoneIndentGuide" }),
+    }
+    vim.o.termguicolors = true
+    vim.api.nvim_set_hl(0, "Normal", { bg = 0x000000 })
+    vim.api.nvim_set_hl(0, "KeystoneScope", { fg = 0x808080 })
+    vim.api.nvim_set_hl(0, "KeystoneIndentGuide", { fg = 0x808080 })
+  end)
+
+  after_each(function()
+    scope.disable()
+    vim.o.termguicolors = saved.termguicolors
+    for name, hl in pairs(saved) do
+      if type(hl) == "table" then vim.api.nvim_set_hl(0, name, hl) end
+    end
+  end)
+
+  it("fades the guides into the background", function()
+    scope.setup({ scope_blend = 50, guide_blend = 100 })
+    assert.equals(0x404040, fg("KeystoneScopeBlend"))
+    assert.equals(0x000000, fg("KeystoneIndentGuideBlend"))
+  end)
+
+  it("recomputes from the source group on a colorscheme change", function()
+    scope.setup({ scope_blend = 50 })
+    assert.equals(0x404040, fg("KeystoneScopeBlend"))
+    vim.api.nvim_set_hl(0, "Normal", { bg = 0xffffff })
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+    -- Mixed from the source again, not from the previous blend.
+    assert.equals(0xc0c0c0, fg("KeystoneScopeBlend"))
+  end)
+
+  it("keeps the source foreground without a blend", function()
+    scope.setup({ scope_blend = 0 })
+    assert.equals(0x808080, fg("KeystoneScopeBlend"))
+  end)
+
+  it("takes no background from the source", function()
+    -- As `NonText` has under `desert`: it would paint a block behind every
+    -- guide, the guides being one cell of virtual text each.
+    vim.api.nvim_set_hl(0, "KeystoneScope", { fg = 0x808080, bg = 0x4d4d4d })
+    scope.setup({ scope_blend = 50 })
+    assert.is_nil(vim.api.nvim_get_hl(0, { name = "KeystoneScopeBlend" }).bg)
+  end)
+
+  it("leaves no blended group when the source has no foreground", function()
+    vim.api.nvim_set_hl(0, "KeystoneScope", {})
+    scope.setup({ scope_blend = 50 })
+    assert.is_nil(fg("KeystoneScopeBlend"))
   end)
 end)

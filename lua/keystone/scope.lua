@@ -27,8 +27,13 @@ local cfgutil = require("keystone.util.config")
 local _HL_SCOPE = "KeystoneScope"
 local _HL_GUIDE = "KeystoneIndentGuide"
 
+-- Variants of the groups above, drawn with instead of them while a blend is
+-- configured; see `_setup_highlights`.
+local _HL_SCOPE_BLEND = "KeystoneScopeBlend"
+local _HL_GUIDE_BLEND = "KeystoneIndentGuideBlend"
+
 vim.api.nvim_set_hl(0, _HL_SCOPE, { default = true, link = "NonText" })
-vim.api.nvim_set_hl(0, _HL_GUIDE, { default = true, link = "NonText" })
+vim.api.nvim_set_hl(0, _HL_GUIDE, { default = true, link = _HL_SCOPE })
 
 ---@class keystone.scope.Config
 ---@field enabled boolean? master switch; when false nothing is drawn
@@ -36,6 +41,8 @@ vim.api.nvim_set_hl(0, _HL_GUIDE, { default = true, link = "NonText" })
 ---@field guides boolean? draw a guide on every indent level
 ---@field scope_char string? character of the scope guide (one cell wide)
 ---@field guide_char string? character of the indent guides (one cell wide)
+---@field scope_blend integer? percent the scope guide fades into the background, 0-100
+---@field guide_blend integer? percent the indent guides fade into the background, 0-100
 ---@field exclude_filetypes string[]? filetypes left alone
 
 ---@type keystone.scope.Config
@@ -43,8 +50,10 @@ local _default_config = {
   enabled           = true,
   scope             = true,
   guides            = true,
-  scope_char        = "│",
-  guide_char        = "┆",
+  scope_char        = "┃",
+  guide_char        = "│",
+  scope_blend       = 25,
+  guide_blend       = 50,
   exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
 }
 
@@ -470,6 +479,63 @@ local function _clear(win)
 end
 
 -- ---------------------------------------------------------------------------
+-- Highlights
+-- ---------------------------------------------------------------------------
+
+--- `fg` mixed `pct` percent of the way to `bg`, all 24-bit colours.
+---@param fg integer
+---@param bg integer
+---@param pct integer
+---@return integer
+local function _mix(fg, bg, pct)
+  local out = 0
+  for _, scale in ipairs({ 65536, 256, 1 }) do
+    local f, b = math.floor(fg / scale) % 256, math.floor(bg / scale) % 256
+    out = out + math.floor(f + (b - f) * pct / 100 + 0.5) * scale
+  end
+  return out
+end
+
+--- The background the guides fade into: the one of `Normal`, or the darkest or
+--- lightest the terminal can show when it has none.
+---@return integer
+local function _backdrop()
+  local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+  return normal.bg or (vim.o.background == "light" and 0xffffff or 0x000000)
+end
+
+--- Define `dst` as the foreground of `src` faded `pct` percent into the
+--- background. Only the foreground is taken: a guide is a single cell of
+--- virtual text, so a background of the source's would paint a block behind
+--- every one of them, and `NonText`, the default source, carries one in some
+--- colorschemes. `ctermfg` comes over unfaded, there being no 24-bit colour to
+--- fade there. `dst` links to `src` when it has no foreground at all, so the
+--- guides are always drawn with `dst`.
+---@param src string
+---@param dst string
+---@param pct integer
+local function _blended(src, dst, pct)
+  -- Resolved rather than followed by hand: `src` links to `NonText` by default.
+  local hl = vim.api.nvim_get_hl(0, { name = src, link = false })
+  if not (hl.fg or hl.ctermfg) then
+    vim.api.nvim_set_hl(0, dst, { link = src })
+    return
+  end
+  vim.api.nvim_set_hl(0, dst, {
+    fg = hl.fg and _mix(hl.fg, _backdrop(), math.min(pct, 100)) or nil,
+    ctermfg = hl.ctermfg,
+  })
+end
+
+--- Pick the groups the guides are drawn with, defining the blended variants
+--- from the current colours. Run on enable and on every colorscheme change,
+--- since a new scheme redefines both the sources and the backdrop.
+local function _setup_highlights()
+  _blended(_HL_SCOPE, _HL_SCOPE_BLEND, M.config.scope_blend)
+  _blended(_HL_GUIDE, _HL_GUIDE_BLEND, M.config.guide_blend)
+end
+
+-- ---------------------------------------------------------------------------
 -- Rendering
 -- ---------------------------------------------------------------------------
 
@@ -531,8 +597,8 @@ local function _on_win(_, win, buf, toprow, botrow)
   local stack = config.guides and _enclosing(indent, toprow, last_row) or {}
 
   local folds = vim.api.nvim_get_option_value("foldenable", { win = win })
-  local guide_text = { { config.guide_char, _HL_GUIDE } }
-  local scope_text = { { config.scope_char, _HL_SCOPE } }
+  local guide_text = { { config.guide_char, _HL_GUIDE_BLEND } }
+  local scope_text = { { config.scope_char, _HL_SCOPE_BLEND } }
 
   vim.api.nvim_win_call(win, function()
     local leftcol = vim.fn.winsaveview().leftcol
@@ -634,8 +700,13 @@ function M.enable()
   for _, ft in ipairs(M.config.exclude_filetypes) do _excluded[ft] = true end
 
   vim.api.nvim_set_decoration_provider(_NS, { on_win = _on_win, on_end = _on_end })
+  _setup_highlights()
 
   local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
+  vim.api.nvim_create_autocmd("ColorScheme", {
+    group = group,
+    callback = _setup_highlights,
+  })
   -- Not needed until the buffer is shown again.
   vim.api.nvim_create_autocmd("BufHidden", {
     group = group,
