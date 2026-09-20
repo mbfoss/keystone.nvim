@@ -438,7 +438,11 @@ local function _same_range(a, b)
   return a.buf == b.buf and a.col == b.col and a.first == b.first and a.last == b.last
 end
 
---- Redraw the rows of `win` covered by either scope.
+--- Ask for the rows of `win` covered by either scope to be redrawn at the next
+--- screen update. Not forced: a forced update from a cursor autocmd draws a
+--- frame of its own, and a smooth-scroll plugin scrolls by jumping to the
+--- destination and animating back from where it started, so that frame shows
+--- the destination the scroll is about to rewind past.
 ---@param win integer
 ---@param old keystone.scope.Scope?
 ---@param new keystone.scope.Scope?
@@ -452,7 +456,7 @@ local function _redraw(win, old, new)
     end
   end
   if first then
-    vim.api.nvim__redraw({ win = win, range = { first, last + 1 } })
+    vim.api.nvim__redraw({ win = win, range = { first, last + 1 }, flush = false })
   end
 end
 
