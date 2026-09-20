@@ -1,8 +1,6 @@
----Symbol path section provider.
----
----Shows the chain of enclosing LSP symbols (class/method/function/...) at the
----cursor. Document symbols are tracked per buffer via the LSP document-symbol
----request and refreshed on edits; the section redraws as the cursor moves.
+---Symbol path section provider: the chain of enclosing LSP symbols at the cursor.
+---Document symbols are tracked per buffer via the document-symbol request and
+---refreshed on edits; the section redraws as the cursor moves.
 local M = {}
 
 local throttle = require("keystone.util.throttle")
@@ -50,11 +48,6 @@ local _PATH_KINDS = {
   [_KIND.Constructor] = true,
   [_KIND.Function]    = true,
   [_KIND.Struct]      = true,
-}
-
----@type table<string, vim.api.keyset.highlight>
-M.highlights = {
-  KeystoneSLSymbolPath = { link = "Statusbar" },
 }
 
 local function _in_range(line0, range)
@@ -128,18 +121,17 @@ end
 
 --- Full form is the whole symbol trail; the short form is the innermost symbol
 --- only, with its name cropped to 20 characters.
----@param bufnr integer
+---@param opts keystone.statusline.RenderOpts
 ---@return string full, string short
-function M.render(bufnr)
-  local chain = _chain_at_cursor(bufnr)
+function M.render(opts)
+  local chain = _chain_at_cursor(opts.bufnr)
   if not chain or #chain == 0 then return "", "" end
+  local hl = opts.is_current and "KeystoneSLSymbolPath" or "KeystoneSLSymbolPathNC"
 
-  -- Nested namespaces are one path, so only the first of a run is marked; the
-  -- rest follow their icon like the segments of a module name, joined by `›`.
-  -- Everywhere else the kind icon is separator enough and a space does it.
-  -- Separators are pieces like any other, so the whole trail -- highlight groups
-  -- included -- is joined once at the end rather than grown per symbol.
-  local parts = { "%#KeystoneSLSymbolPath#" }
+  -- Nested namespaces are one path: only the first of a run is marked, the rest
+  -- joined by `›` like module-name segments. Elsewhere the kind icon separates
+  -- well enough. Separators are pieces too, so the trail is joined once at the end.
+  local parts = { "%#" .. hl .. "#" }
   local prev_kind = nil
   for i, sym in ipairs(chain) do
     local with_icon = not (sym.kind == _KIND.Namespace and prev_kind == _KIND.Namespace)
@@ -154,7 +146,7 @@ function M.render(bufnr)
   -- The short form stands alone, so its symbol always starts a run.
   local short = _segment(chain[#chain], true)
 
-  return table.concat(parts), "%#KeystoneSLSymbolPath#" .. short .. "%*"
+  return table.concat(parts), "%#" .. hl .. "#" .. short .. "%*"
 end
 
 ---@param bufnr integer
@@ -191,6 +183,10 @@ end
 ---@param on_change fun() called whenever the tracked symbol state changes
 function M.enable(on_change)
   _on_change = on_change
+
+  vim.api.nvim_set_hl(0, "KeystoneSLSymbolPath", { default = true, link = "StatusLine" })
+  vim.api.nvim_set_hl(0, "KeystoneSLSymbolPathNC", { default = true, link = "StatusLineNC" })
+
   local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
 
   -- Pick up buffers that already have a symbol-capable client attached.

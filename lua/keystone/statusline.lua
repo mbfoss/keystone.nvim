@@ -2,60 +2,52 @@ local M             = {}
 
 local icons         = require("keystone.icons")
 local throttle      = require("keystone.util.throttle")
-local cfgutil = require("keystone.util.config")
+local cfgutil       = require("keystone.util.config")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
 local _enabled      = false
 
-local _STATUSLINE   = '%{%v:lua.require("keystone.statusline").render()%}'
+local _STATUSLINE   = '%!v:lua.require("keystone.statusline").render()'
 
 ---@type string?
 local _saved_statusline
 
----A section provider renders one statusline section and optionally owns its own
----highlights and lifecycle. The built-in sections are registered exactly like
----user-provided ones; see `M.register`.
+---@class keystone.statusline.RenderOpts
+---@field bufnr integer
+---@field winid integer
+---@field is_current boolean
+
+---One statusline section, optionally owning its own lifecycle. Built-ins are
+---registered exactly like user-provided ones; see `M.register`.
 ---
----  - `render`     returns the section text (statusline syntax); `""` to omit it.
----                 It may return a *second* value: a compact variant used when the
----                 window is too narrow to fit every section at full width. The fit
----                 pass switches the least important sections to their short form
----                 before dropping any outright. Return only one value (or an equal
----                 second one) when a section has no shorter form. Returning both in
----                 one call lets a section share work between the two variants.
----  - `highlights` highlight groups to define on enable / `ColorScheme`. They are
----                 only set if not already defined, so users can override them.
----  - `enable`     sets up any state/autocmds. Receives an `on_change` callback to
----                 invoke whenever the section's state changes, triggering a
----                 throttled `redrawstatus`.
----  - `disable`    tears down whatever `enable` set up.
+---  - `render`  section text, `""` to omit; an optional second return is the
+---              compact variant the fit pass uses before dropping the section.
+---  - `enable`  sets up state/autocmds; calls `on_change` when they change.
+---  - `disable` tears down whatever `enable` set up.
 ---@class keystone.statusline.Provider
----@field render      fun(bufnr: integer): string, string?
----@field highlights? table<string, vim.api.keyset.highlight>
+---@field render      fun(opts:keystone.statusline.RenderOpts): string, string?
 ---@field enable?     fun(on_change: fun())
 ---@field disable?    fun()
 
 ---A section is either the name of a registered provider or an inline function
 ---returning a statusline string (and, optionally, a short variant as a second
 ---return; see `Provider.render`).
----@alias keystone.statusline.Section string | fun(bufnr: integer): string, string?
+---@alias keystone.statusline.Section string | fun(opts: keystone.statusline.RenderOpts): string, string?
 
 ---@class keystone.statusline.Sections
 ---@field left  keystone.statusline.Section[]
 ---@field right keystone.statusline.Section[]
 
----Section names ordered by priority, **most important first**. When the
----window is too narrow to hold every section, the least important sections are
----dropped one at a time until the rest fit, starting from the end of this
----list. Named sections not listed here are considered lower priority than any
----listed one (dropped first); inline function sections are never dropped.
+---Section names ordered by priority, **most important first**; the least
+---important give way first when the window is too narrow. Unlisted names rank
+---below every listed one; inline function sections are never dropped.
 ---@alias keystone.statusline.Priority string[]
 ---
 ---@class keystone.statusline.Config
 ---@field enabled   boolean
 ---@field sections  keystone.statusline.Sections
 ---@field priority  keystone.statusline.Priority
----@field separator string  drawn between adjacent sections, always highlighted `NonText`
+---@field separator string  drawn between sections, in `KeystoneStatuslineSep(NC)`
 
 -- ---------------------------------------------------------------------------
 -- Provider registry
@@ -87,32 +79,40 @@ local function _is_used(name)
   return false
 end
 
----Define a highlight group only if it is not already defined, so user/colorscheme
----definitions win. `create = false` keeps the probe from defining the very group
----it is asking about.
----@param name string
----@param opts vim.api.keyset.highlight
-local function _def(name, opts)
-  if next(vim.api.nvim_get_hl(0, { name = name, create = false })) == nil then
-    vim.api.nvim_set_hl(0, name, opts)
-  end
+---The separator's groups, one per window state. Users override `…Sep` / `…SepNC`,
+---which only *default*-link to `…SepDefault` / `…SepDefaultNC`, so their
+---definitions win and survive the rebuild those get on every `ColorScheme`.
+local _separator_hl   = "KeystoneStatuslineSep"
+local _separatorNC_hl = "KeystoneStatuslineSepNC"
+
+---A `%#Group#` attribute is *combined* with the window's base statusline group,
+---so only the foreground needs overriding. The combine ORs in `reverse`, which
+---draws a group's *background* as its foreground -- hence the field swap below.
+---@param name string  the group to define
+---@param base string  the statusline group it is drawn over
+---@param src  vim.api.keyset.highlight  the highlight to take the foreground from
+local function _def_separator(name, base, src)
+  local base_hl = vim.api.nvim_get_hl(0, { name = base, link = false })
+  local base_cterm = base_hl.cterm
+  local hl = {} ---@type vim.api.keyset.highlight
+  if base_hl.reverse then hl.bg = src.fg else hl.fg = src.fg end
+  if base_cterm and base_cterm.reverse then hl.ctermbg = src.ctermfg else hl.ctermfg = src.ctermfg end
+  vim.api.nvim_set_hl(0, name .. "Default", hl)
+  vim.api.nvim_set_hl(0, name, { default = true, link = name .. "Default" })
 end
 
----@param provider keystone.statusline.Provider
-local function _apply_highlights(provider)
-  for name, opts in pairs(provider.highlights or {}) do
-    _def(name, opts)
-  end
+local function _update_separator_hl()
+  local src = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
+  _def_separator(_separator_hl, "StatusLine", src --[[@as vim.api.keyset.highlight]])
+  _def_separator(_separatorNC_hl, "StatusLineNC", src --[[@as vim.api.keyset.highlight]])
 end
 
----Register a section provider under `name` so it can be referenced from
----`config.sections`. A bare function is treated as a render-only provider.
----
----May be called at any time: if the statusline is already enabled, the
----provider's highlights are applied and its `enable` hook is run immediately.
+---Register a section provider under `name` for use in `config.sections`; a bare
+---function is treated as a render-only provider. May be called at any time: an
+---already-enabled section's `enable` hook runs immediately.
 ---
 ---@param name     string
----@param provider keystone.statusline.Provider | fun(bufnr: integer): string
+---@param provider keystone.statusline.Provider | fun(opts: keystone.statusline.RenderOpts): string
 function M.register(name, provider)
   if type(provider) == "function" then
     provider = { render = provider }
@@ -131,7 +131,6 @@ function M.register(name, provider)
   _registry[name] = provider
   _warned[name] = nil
   if _enabled and _is_used(name) then
-    _apply_highlights(provider)
     _active[name] = true
     if provider.enable then provider.enable(_redrawstatus) end
   end
@@ -213,13 +212,9 @@ local _BUFTYPE_ICONS = {
   acwrite  = "󰈔",
 }
 
---- `fnamemodify(name, ":~:.")` costs ~11µs, on its own more than every other
---- section put together, and its result only changes when the buffer's path or
---- the effective cwd does. Both are rare, so the escaped result is cached by
---- path and the whole table is dropped on `DirChanged`, which fires for `:cd`,
---- `:tcd` and `:lcd` *and* for window switches that change the effective cwd.
---- Reading the cwd to key the cache instead is a non-starter: `getcwd()` is
---- just as expensive as the call it would be guarding.
+--- `fnamemodify(name, ":~:.")` costs ~11µs, more than every other section put
+--- together, and only changes with the path or cwd. So it is cached by path and
+--- dropped wholesale on `DirChanged`; keying by cwd would cost as much as it saves.
 ---@type table<string, string>
 local _rel_cache = {}
 local _rel_count = 0
@@ -243,13 +238,13 @@ local function _rel_path(name)
   return rel
 end
 
---- Full filename is the path relative to cwd; the short form is the tail only.
---- Special buffers get a `buftype` icon instead of a filetype one, and, having
---- no real path to shorten, the same text for both variants: the running
---- command for a terminal, the buffer name's tail otherwise.
----@param bufnr integer
+--- Full form is the path relative to cwd, short form the tail. Special buffers
+--- get a `buftype` icon and, having no path to shorten, the same text for both:
+--- a terminal's running command, otherwise the buffer name's tail.
+---@param opts keystone.statusline.RenderOpts
 ---@return string full, string short
-local function _section_filename(bufnr)
+local function _section_filename(opts)
+  local bufnr = opts.bufnr
   local name = vim.api.nvim_buf_get_name(bufnr)
   if name == "" then
     return "%*[No Name]", "%*[No Name]"
@@ -283,10 +278,10 @@ local function _section_filename(bufnr)
       "%*" .. icon_str .. tail .. suffix
 end
 
----@param bufnr integer
+---@param opts keystone.statusline.RenderOpts
 ---@return string
-local function _section_diagnostics(bufnr)
-  local counts = vim.diagnostic.count(bufnr)
+local function _section_diagnostics(opts)
+  local counts = vim.diagnostic.count(opts.bufnr)
   local e = counts[vim.diagnostic.severity.ERROR] or 0
   local w = counts[vim.diagnostic.severity.WARN] or 0
   local h = counts[vim.diagnostic.severity.HINT] or 0
@@ -300,9 +295,10 @@ local function _section_diagnostics(bufnr)
   return table.concat(parts, " ") .. "%*"
 end
 
----@param bufnr integer
+---@param opts keystone.statusline.RenderOpts
 ---@return string
-local function _section_filetype(bufnr)
+local function _section_filetype(opts)
+  local bufnr = opts.bufnr
   if vim.bo[bufnr].buftype ~= "" then return "" end
   local ft = vim.bo[bufnr].filetype
   if ft == "" then return "" end
@@ -317,42 +313,38 @@ end
 ---Register the built-in sections through the same public registry users use.
 local function _register_builtins()
   M.register("mode", {
+    enable = function()
+      local hls = {
+        KeystoneSLModeNormal  = { default = true, fg = "#6E94C9", bold = true },
+        KeystoneSLModeInsert  = { default = true, fg = "#7BA87A", bold = true },
+        KeystoneSLModeVisual  = { default = true, fg = "#9D82C7", bold = true },
+        KeystoneSLModeReplace = { default = true, fg = "#B87A90", bold = true },
+        KeystoneSLModeCommand = { default = true, fg = "#CDCDCD", bold = true },
+      }
+      for n, hl in pairs(hls) do vim.api.nvim_set_hl(0, n, hl) end
+    end,
     render = _section_mode,
-    highlights = {
-      KeystoneSLModeNormal  = { fg = "#6E94C9", bold = true },
-      KeystoneSLModeInsert  = { fg = "#7BA87A", bold = true },
-      KeystoneSLModeVisual  = { fg = "#9D82C7", bold = true },
-      KeystoneSLModeReplace = { fg = "#B87A90", bold = true },
-      KeystoneSLModeCommand = { fg = "#CDCDCD", bold = true },
-    },
   })
-  M.register("git", require("keystone.statusline.git"))
   M.register("filename", _section_filename)
   M.register("diagnostics", {
+    enable = function()
+      local hls = {
+        KeystoneSLDiagError = { default = true, link = "DiagnosticError" },
+        KeystoneSLDiagWarn  = { default = true, link = "DiagnosticWarn" },
+        KeystoneSLDiagHint  = { default = true, link = "DiagnosticHint" },
+      }
+      for n, hl in pairs(hls) do vim.api.nvim_set_hl(0, n, hl) end
+    end,
     render = _section_diagnostics,
-    highlights = {
-      KeystoneSLDiagError = { link = "DiagnosticError" },
-      KeystoneSLDiagWarn  = { link = "DiagnosticWarn" },
-      KeystoneSLDiagHint  = { link = "DiagnosticHint" },
-    },
   })
   M.register("filetype", _section_filetype)
   M.register("position", _section_position)
+  M.register("git", require("keystone.statusline.git"))
   M.register("lsp_progress", require("keystone.statusline.lsp_progress"))
   M.register("symbol_path", require("keystone.statusline.symbol_path"))
 end
 
 _register_builtins()
-
--- ---------------------------------------------------------------------------
--- Highlights
--- ---------------------------------------------------------------------------
-
-local function _setup_highlights()
-  for name, provider in pairs(_registry) do
-    if _is_used(name) then _apply_highlights(provider) end
-  end
-end
 
 -- ---------------------------------------------------------------------------
 -- Render
@@ -392,11 +384,9 @@ local function _rank_lookup()
   return _rank_map
 end
 
----Priority rank of a section: its 1-based index in `config.priority` (lower is
----more important, dropped last). Named sections that are not listed share the
----one rank past the end of the list, so they rank after every listed one.
----Inline function sections cannot be named, so they return `nil` and are never
----dropped.
+---Priority rank: the 1-based index in `config.priority` (lower is dropped last).
+---Unlisted names share the rank one past its end, ranking after every listed one.
+---Inline functions cannot be named, so they rank `nil` and are never dropped.
 ---@param section keystone.statusline.Section
 ---@return integer?
 local function _rank(section)
@@ -404,16 +394,15 @@ local function _rank(section)
   return _rank_lookup()[section] or #M.config.priority + 1
 end
 
----Render one section, keeping a provider that throws from taking the entire
----statusline down with it. The failure is reported once, since a section that
----errors does so on every redraw, and the section is omitted until it renders
----cleanly.
----@param render fun(bufnr: integer): string?, string?
+---Render one section, keeping a provider that throws from taking the statusline
+---down with it. Reported once, since such a section errors on every redraw, and
+---omitted until it renders cleanly.
+---@param render fun(opts: keystone.statusline.RenderOpts): string?, string?
 ---@param id     keystone.statusline.Section  the section, for reporting
----@param bufnr  integer
+---@param render_opts keystone.statusline.RenderOpts
 ---@return string? text, string? short
-local function _safe_render(render, id, bufnr)
-  local ok, text, short = pcall(render, bufnr)
+local function _safe_render(render, id, render_opts)
+  local ok, text, short = pcall(render, render_opts)
   if ok then return text, short end
   if not _warned[id] then
     _warned[id] = true
@@ -426,24 +415,23 @@ local function _safe_render(render, id, bufnr)
   return nil, nil
 end
 
----Render each section once and measure its display width (statusline widths are
----additive, since highlight/field syntax stays zero- or fixed-width regardless
----of neighbours, so per-section widths can later be summed and subtracted without
----re-measuring).
+---Render each section once and measure its display width. Widths are additive --
+---highlight/field syntax is zero- or fixed-width regardless of neighbours -- so
+---the fit pass can sum and subtract them without re-measuring.
 ---@param section_list keystone.statusline.Section[]
----@param bufnr        integer
----@param winid        integer
+---@param render_opts keystone.statusline.RenderOpts
 ---@return keystone.statusline._Entry[]
-local function _build_entries(section_list, bufnr, winid)
+local function _build_entries(section_list, render_opts)
   local entries = {}
+  local winid = render_opts.winid
   for _, section in ipairs(section_list) do
     ---@type string?, string?
     local text, short
     if type(section) == "function" then
-      text, short = _safe_render(section, section, bufnr)
+      text, short = _safe_render(section, section, render_opts)
     elseif type(section) == "string" then
       local provider = _registry[section]
-      if provider then text, short = _safe_render(provider.render, section, bufnr) end
+      if provider then text, short = _safe_render(provider.render, section, render_opts) end
     end
     if text and text ~= "" then
       local width = vim.api.nvim_eval_statusline(text, { winid = winid }).width
@@ -470,12 +458,22 @@ local function _build_entries(section_list, bufnr, winid)
   return entries
 end
 
----The separator string drawn between adjacent sections, in the `NonText`
+---The separator glyph in its own highlight, for use on its own between the two
+---groups.
+---@param is_current boolean
+---@return string
+local function _separator_glyph(is_current)
+  local hl = is_current and _separator_hl or _separatorNC_hl
+  return "%#" .. hl .. "#" .. M.config.separator .. "%*"
+end
+
+---The separator string drawn between adjacent sections, in the separator
 ---highlight, flanked by a space on each side. Sections themselves emit no
 ---surrounding padding; spacing lives here so it is uniform and configurable.
+---@param is_current boolean
 ---@return string
-local function _separator()
-  return " %#NonText#" .. M.config.separator .. "%* "
+local function _separator(is_current)
+  return " " .. _separator_glyph(is_current) .. " "
 end
 
 ---Join the shown entries with `sep`, adding one space of edge padding on each
@@ -529,13 +527,9 @@ local function _width(groups, sep_w)
   return total
 end
 
----The order sections give way in: least important first, and among equal ranks
----the later one first. Sections without a rank (inline functions) are never
----dropped and so never appear here. Ranks are already small integers (indices
----into `config.priority`, plus the one rank past its end shared by names it
----does not list), so one bucket pass orders them with no sort. The sweep spans
----only the range of ranks actually present, keeping the cost tied to the number
----of sections rather than to the length of `config.priority`.
+---The order sections give way in: least important first, later first among equal
+---ranks; unranked inline functions never appear. Ranks are small integers, so one
+---bucket pass over just the range present orders them with no sort.
 ---@param groups keystone.statusline._Group[]
 ---@return keystone.statusline._Entry[]                                 order
 ---@return table<keystone.statusline._Entry, keystone.statusline._Group> group_of
@@ -572,12 +566,9 @@ local function _drop_order(groups)
   return order, group_of
 end
 
----Shrink the statusline into `budget` columns in two passes over the drop
----order: first switch sections to their short variant, then, if that is still
----not enough, hide sections outright, stopping as soon as it fits. Each step
----adjusts its group's running totals, so both passes are O(n) overall.
----Operates purely on the pre-measured widths; the only string touched is
----swapping an entry to its already-rendered short text.
+---Shrink into `budget` columns in two passes over the drop order: switch to short
+---variants, then hide outright, stopping as soon as it fits. Works purely on the
+---pre-measured widths and running totals, so both passes are O(n).
 ---@param left    keystone.statusline._Entry[]
 ---@param right   keystone.statusline._Entry[]
 ---@param budget  integer columns the two groups together may occupy
@@ -625,44 +616,47 @@ local function _render()
   end
   if not vim.api.nvim_win_is_valid(winid) then return "" end
 
-  -- With `laststatus=3` there is a single statusline spanning the whole screen,
-  -- drawn for whichever window is current, including floating ones, which have
-  -- no statusline of their own to suppress, and split ones, whose own width says
-  -- nothing about how much room the line actually has.
+  -- With `laststatus=3` one statusline spans the screen, drawn for whichever
+  -- window is current -- including floats, which have none of their own, and
+  -- splits, whose width says nothing about the room the line actually has.
   local global = vim.o.laststatus == 3
   if not global and vim.api.nvim_win_get_config(winid).relative ~= "" then
     return ""
   end
-  local win_width = global and vim.o.columns or vim.api.nvim_win_get_width(winid)
-  local bufnr     = vim.api.nvim_win_get_buf(winid)
+  local win_width   = global and vim.o.columns or vim.api.nvim_win_get_width(winid)
+  local bufnr       = vim.api.nvim_win_get_buf(winid)
 
-  local secs      = M.config.sections
-  local left      = _build_entries(secs.left, bufnr, winid)
-  local right     = _build_entries(secs.right, bufnr, winid)
+  local is_current  = vim.api.nvim_get_current_win() == winid
+  local render_opts = { ---@type keystone.statusline.RenderOpts
+    bufnr = bufnr,
+    winid = winid,
+    is_current = is_current,
+  }
 
-  local sep       = _separator()
-  local sep_w     = vim.api.nvim_eval_statusline(sep, { winid = winid }).width
+  local secs        = M.config.sections
+  local left        = _build_entries(secs.left, render_opts)
+  local right       = _build_entries(secs.right, render_opts)
 
-  -- The gap between the two groups must be able to hold the separator glyph
-  -- itself: the groups already contribute one space of edge padding each, so
-  -- only the glyph's own width has to be held back from the fit budget, and
-  -- only when there are two groups that could actually meet, since otherwise
-  -- holding a column back just drops a section a column early.
-  local glyph_w   = sep_w - 2
-  local reserve   = (#left > 0 and #right > 0) and glyph_w or 0
-  local budget    = win_width - reserve
-  local used      = _fit(left, right, budget, sep_w)
+  local sep         = _separator(is_current)
+  local sep_w       = vim.api.nvim_eval_statusline(sep, { winid = winid }).width
 
-  local ltext     = _concat_shown(left, sep)
-  local rtext     = _concat_shown(right, sep)
+  -- The gap must hold the separator glyph: the groups already contribute a space
+  -- of padding each, so only the glyph's own width is held back, and only when
+  -- two groups could actually meet -- otherwise a section is dropped a column early.
+  local glyph_w     = sep_w - 2
+  local reserve     = (#left > 0 and #right > 0) and glyph_w or 0
+  local budget      = win_width - reserve
+  local used        = _fit(left, right, budget, sep_w)
 
-  -- Groups that end up touching get a separator between them, exactly like
-  -- adjacent sections within a group; `%=` then expands to nothing. Skipped
-  -- when even the fully-shrunk line overflows, where the glyph would have
-  -- nowhere to go and only add to the overflow.
-  local mid       = ""
+  local ltext       = _concat_shown(left, sep)
+  local rtext       = _concat_shown(right, sep)
+
+  -- Touching groups get a separator between them, like adjacent sections within
+  -- one; `%=` then expands to nothing. Skipped when even the fully-shrunk line
+  -- overflows, where the glyph has nowhere to go and only adds to it.
+  local mid         = ""
   if used <= budget and ltext ~= "" and rtext ~= "" and win_width - used <= glyph_w then
-    mid = "%#NonText#" .. M.config.separator .. "%*"
+    mid = _separator_glyph(is_current)
   end
 
   return ltext .. mid .. "%=" .. rtext
@@ -703,7 +697,8 @@ function M.enable()
   if _enabled then return end
   _enabled = true
 
-  _setup_highlights()
+  _update_separator_hl()
+
   -- Never save our own expression over the real previous value, or a stray
   -- `enable` would make the restore in `M.disable` a no-op.
   local current = vim.o.statusline
@@ -715,7 +710,7 @@ function M.enable()
   local group = vim.api.nvim_create_augroup("keystone_statusline", { clear = true })
   vim.api.nvim_create_autocmd("ColorScheme", {
     group = group,
-    callback = _setup_highlights,
+    callback = _update_separator_hl,
   })
   vim.api.nvim_create_autocmd("DirChanged", {
     group = group,
@@ -763,9 +758,7 @@ function M.setup(opts)
   if not M.config.enabled then
     M.disable()
   elseif _enabled then
-    -- Already running, so `M.enable` would return without doing anything: apply
-    -- what the new config changes: highlights, and which providers are live.
-    _setup_highlights()
+    _update_separator_hl()
     _sync_active()
   else
     M.enable()

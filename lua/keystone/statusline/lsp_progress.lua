@@ -11,14 +11,10 @@ local M = {}
 ---@type table<string|integer, keystone.statusline.LspToken>
 local _progress = {}
 
----@type table<string, vim.api.keyset.highlight>
-M.highlights = {
-  KeystoneSLLspProgress = { link = "Statusbar" },
-}
-
----@param bufnr integer
+---@param opts keystone.statusline.RenderOpts
 ---@return string full, string short
-function M.render(bufnr)
+function M.render(opts)
+  local bufnr = opts.bufnr
   local parts = {}
   for _, token in pairs(_progress) do
     if vim.lsp.buf_is_attached(bufnr, token.client_id) then
@@ -26,16 +22,20 @@ function M.render(bufnr)
       table.insert(parts, text)
     end
   end
+  local hl = opts.is_current and "KeystoneSLLspProgress" or "KeystoneSLLspProgressNC"
   if #parts == 0 then return "", "" end
   -- Short form drops the client names/percentages, keeping just the icon.
-  return "%#KeystoneSLLspProgress#󰒓 " .. table.concat(parts, "  ") .. "%*",
-      "%#KeystoneSLLspProgress#󰒓 %*"
+  return "%#" .. hl .. "#󰒓 " .. table.concat(parts, "  ") .. "%*",
+      "%#" .. hl .. "#󰒓 %*"
 end
 
 local _group = nil
 
 ---@param on_change fun() called whenever the tracked progress state changes
 function M.enable(on_change)
+  vim.api.nvim_set_hl(0, "KeystoneSLLspProgress", { default = true, link = "StatusLine" })
+  vim.api.nvim_set_hl(0, "KeystoneSLLspProgressNC", { default = true, link = "StatusLineNC" })
+
   _group = vim.api.nvim_create_augroup("keystone_statusline_lsp_progress", { clear = true })
   vim.api.nvim_create_autocmd("LspProgress", {
     group = _group,

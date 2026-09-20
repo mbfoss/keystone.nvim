@@ -1,9 +1,6 @@
----Git branch section provider.
----
----Resolves the current branch itself via `git rev-parse` (no dependency on
----gitsigns or any other plugin), caching the result per buffer and refreshing on
----buffer/focus/directory changes and after writes. Detached HEAD renders as the
----short commit hash.
+---Git branch section provider. Resolves the branch via `git rev-parse` (no
+---gitsigns dependency), cached per buffer and refreshed on buffer/focus/directory
+---changes and after writes. Detached HEAD renders as the short commit hash.
 local M          = {}
 
 local spawn      = require("keystone.util.spawn")
@@ -15,11 +12,6 @@ local _AUGROUP   = "keystone_statusline_git"
 local _branch    = {}
 -- called whenever a cached branch changes, so the statusline can redraw
 local _on_change = nil
-
----@type table<string, vim.api.keyset.highlight>
-M.highlights     = {
-  KeystoneSLGit = { link = "" },
-}
 
 ---@param bufnr integer
 ---@return string directory used to resolve the buffer's repository
@@ -90,12 +82,14 @@ local function _crop(s, max)
   return vim.fn.strcharpart(s, 0, max - 1) .. "…"
 end
 
----@param bufnr integer
+---@param opts keystone.statusline.RenderOpts
 ---@return string full, string short
-function M.render(bufnr)
+function M.render(opts)
+  local bufnr = opts.bufnr
   local branch = _branch[bufnr]
   if not branch or branch == "" then return "", "" end
-  local prefix = "%#KeystoneSLGit#󰘬 "
+  local hl = opts.is_current and "KeystoneSLGit" or "KeystoneSLGitNC"
+  local prefix = "%#" .. hl .. "#󰘬 "
   return prefix .. branch:gsub("%%", "%%%%") .. "%*",
       prefix .. _crop(branch, 12):gsub("%%", "%%%%") .. "%*"
 end
@@ -103,6 +97,10 @@ end
 ---@param on_change fun() called whenever a cached branch changes
 function M.enable(on_change)
   _on_change = on_change
+
+  vim.api.nvim_set_hl(0, "KeystoneSLGit", {default = true, link = "StatusLine"})
+  vim.api.nvim_set_hl(0, "KeystoneSLGitNC", {default = true, link = "StatusLineNC"})
+
   local group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true })
 
   local refresh_current = throttle.debounce_wrap(150, function()
