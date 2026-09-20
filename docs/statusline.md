@@ -9,7 +9,7 @@ registered provider, or an inline function.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -22,7 +22,7 @@ require("keystone").setup({
 })
 ```
 
-## Sections
+## Sections <!-- tag: sections -->
 
 Default sections are `mode`, `filename`, `diagnostics`, `filetype`, `position`,
 and `lsp_progress`.
@@ -40,7 +40,7 @@ statusline = {
 }
 ```
 
-## API
+## API <!-- tag: api -->
 
 Register a named provider so it can be used by name in `sections`:
 

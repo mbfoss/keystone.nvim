@@ -8,13 +8,13 @@ Diff every modified buffer against its saved state on disk.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({ unsaved = true })
 ```
 
-## Commands
+## Commands <!-- tag: commands -->
 
 | Command | What it does |
 | --- | --- |

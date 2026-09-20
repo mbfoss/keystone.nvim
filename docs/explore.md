@@ -22,7 +22,7 @@ space-padded) so the values read as columns rather than ragged text:
 Directories show no size. Timestamps within the last six months show a clock,
 older ones show the year, the way `ls -l` switches.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({ explore = true })
@@ -50,7 +50,7 @@ Names are cropped to fit before the detail column, so a long filename can never
 push a value out of alignment. In a window too narrow to afford both, names win
 and the details are dropped.
 
-## Commands
+## Commands <!-- tag: commands -->
 
 | Command | What it does |
 | --- | --- |

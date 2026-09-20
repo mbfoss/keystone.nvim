@@ -9,7 +9,7 @@ jumping straight to the destination.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({

@@ -12,7 +12,7 @@ settings below.
 
 <!-- panvimdoc-ignore-end -->
 
-## Scope
+## Scope <!-- tag: scope -->
 
 Despite the name, this is **not**
 [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig), and it is not a
@@ -25,7 +25,7 @@ replacement for it. It runs one step later in the chain:
 | The LSP client, `vim.lsp.config` / `vim.lsp.enable` | Neovim itself |
 | **Enabling those configs, and the settings around them** | **this module** |
 
-### What it does
+### What it does <!-- tag: does -->
 
 - **Enables servers.** Neovim will not start a server until something calls
   `vim.lsp.enable()`. With `servers = "all"` this module scans the runtimepath
@@ -41,7 +41,7 @@ replacement for it. It runs one step later in the chain:
 - **Caps `lsp.log`.** Neovim never rotates it and only warns past 1 GB; this
   rotates it at `max_bytes` and keeps a limited number of rotated files.
 
-### What it does not do
+### What it does not do <!-- tag: does-not -->
 
 - **It does not install language servers.** The binary has to already be on
   `PATH`, via mason, your system package manager, or however you prefer. If a
@@ -94,7 +94,7 @@ require("keystone").setup({ lspconfig = true })
 If you already call `vim.lsp.enable()` yourself and want nothing else from this
 module, you do not need it.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({

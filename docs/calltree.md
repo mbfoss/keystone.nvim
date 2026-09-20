@@ -12,7 +12,7 @@ recursion cannot expand forever.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -28,7 +28,7 @@ require("keystone").setup({
 })
 ```
 
-## Commands
+## Commands <!-- tag: commands -->
 
 Open it with `:CallTree` on the symbol to inspect. Running it again re-roots
 the tree on whatever the cursor is on now, so you can walk the code and keep the
@@ -43,7 +43,7 @@ window pointed at the current position; use `toggle` to close it.
 | `toggle` | Open, or close if already showing |
 | `close` | Close the window |
 
-## Keys
+## Keys <!-- tag: keys -->
 
 Inside the window, `g?` lists the keys. The main ones:
 

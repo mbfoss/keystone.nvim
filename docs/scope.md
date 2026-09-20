@@ -4,6 +4,12 @@ Draws a guide along the scope under the cursor, meaning the body of the function
 block or table the cursor is in, and a guide on every indent level. Each is
 enabled by default and can be turned off on its own.
 
+<!-- panvimdoc-ignore-start -->
+
+![The scope guide along the block under the cursor, with indent guides on every level](https://raw.githubusercontent.com/mbfoss/keystone.nvim/refs/heads/assets/scope.png)
+
+<!-- panvimdoc-ignore-end -->
+
 The scope comes from Treesitter: it is the smallest syntax node around the
 cursor whose body is indented deeper than its first line. A cursor on a header
 line (`function f()`, `if x then`) selects the body below it, and a cursor on
@@ -13,7 +19,7 @@ guides are still drawn.
 
 Only the current window shows a scope.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -35,7 +41,7 @@ would not. A blank line takes the larger indent of its neighbours. Comments
 (lines starting with the leader of `'commentstring'`) do not open or close a
 level, so one written left of its block does not break the guides.
 
-## Highlights
+## Highlights <!-- tag: highlights -->
 
 Both groups are defined with `default = true`, so a colorscheme or your own
 `nvim_set_hl` call wins over them.
@@ -45,7 +51,7 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 | `KeystoneScope` | The scope guide | `NonText` |
 | `KeystoneIndentGuide` | Indent guides | `NonText` |
 
-## API
+## API <!-- tag: api -->
 
 | Function | Purpose |
 | --- | --- |
@@ -55,7 +61,7 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 | `require("keystone.scope").toggle()` | Toggle drawing |
 | `require("keystone.scope").is_enabled()` | Whether guides are being drawn |
 
-## How it draws
+## How it draws <!-- tag: drawing -->
 
 Guides are ephemeral extmarks set from a decoration provider. Only the lines
 being redrawn are computed, and nothing is stored in the buffer. Moving the

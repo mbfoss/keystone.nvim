@@ -6,7 +6,7 @@ Table of Contents                       *keystone-marksigns-table-of-contents*
 1. Configuration                            |keystone-marksigns-configuration|
 2. Highlights                                  |keystone-marksigns-highlights|
 3. API                                                |keystone-marksigns-api|
-4. How it stays current              |keystone-marksigns-how-it-stays-current|
+4. How it stays current                           |keystone-marksigns-updates|
 Draws the name of every mark that is set (`ma`, `mA`, …) in the sign column
 of the line holding it, so the marks in a buffer are visible without `:marks`.
 
@@ -69,7 +69,7 @@ Both groups are defined with `default = true`, so a colorscheme or your own
   -----------------------------------------------------------------------------------
 
 ==============================================================================
-4. How it stays current              *keystone-marksigns-how-it-stays-current*
+4. How it stays current                           *keystone-marksigns-updates*
 
 `MarkSet` covers every explicit change: a mark set with `m`, `:mark` or
 `nvim_buf_set_mark()`, and one deleted with `:delmarks` or

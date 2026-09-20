@@ -9,7 +9,7 @@ is available for the buffer's language.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -40,7 +40,7 @@ treesitter, and each comes from somewhere different:
 | Parsers and queries per language | **nvim-treesitter**, or your own build | Neovim bundles only ~7 |
 | *Turning it on for a buffer* | **this module** | What is otherwise left to you |
 
-### What Neovim already does
+### What Neovim already does <!-- tag: neovim -->
 
 Neovim ships parsers and queries for a small set of languages (`c`, `lua`,
 `markdown`, `markdown_inline`, `query`, `vim`, `vimdoc`) and its own ftplugins
@@ -60,7 +60,7 @@ tells you to call `vim.treesitter.start()` and set `foldexpr` yourself. (Its
 legacy `master` branch still has the module system; `main` requires a newer
 Neovim than keystone does.)
 
-### What this module does
+### What this module does <!-- tag: module -->
 
 Exactly the step that fell out when that module system was removed. On
 `FileType` it resolves the buffer's language, checks that a parser **and** the
@@ -80,7 +80,7 @@ require("keystone").setup({ tsconfig = true })
 If you already start treesitter yourself in an ftplugin or a `FileType`
 autocmd, you do not need this module; it is that snippet, generalised.
 
-### Notable behaviour
+### Notable behaviour <!-- tag: behaviour -->
 
 - **No parser, no change.** A language without a parser is left on regex syntax;
   nothing errors and nothing is installed for you. If a filetype looks

@@ -8,7 +8,7 @@ Editor behaviours, each behind its own flag, with the defaults shown below.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({

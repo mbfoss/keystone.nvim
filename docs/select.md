@@ -10,7 +10,7 @@ preview window for callers that offer one.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -47,7 +47,7 @@ picker; `height_ratio` and `max_height_ratio` include the prompt above the list,
 `min_height_ratio`, which applies to the list alone. Where a minimum and a maximum
 cross, the maximum wins.
 
-## Keys
+## Keys <!-- tag: keys -->
 
 | Key | What it does |
 | --- | --- |
@@ -56,7 +56,7 @@ cross, the maximum wins.
 | `<C-n>` / `<C-p>` (or `<Down>` / `<Up>`) | Move |
 | `<C-d>` / `<C-u>` | Jump half a page |
 
-## Previews
+## Previews <!-- tag: previews -->
 
 Callers opt into a preview with `preview_item`, this module's one extension over
 `vim.ui.select`'s options (other implementations ignore it):

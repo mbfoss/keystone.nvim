@@ -8,7 +8,7 @@ A floating notification UI, optionally including LSP progress messages.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -23,7 +23,7 @@ require("keystone").setup({
 })
 ```
 
-## Commands
+## Commands <!-- tag: commands -->
 
 | Command | Purpose |
 | --- | --- |

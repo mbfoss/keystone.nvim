@@ -9,7 +9,7 @@ none is active unless you name it in `setup()`.
 
 > **Requires Neovim ≥ 0.11.** No other plugins required.
 
-## Installation
+## Installation <!-- tag: installation -->
 
 With Neovim ≥ 0.12
 
@@ -55,7 +55,7 @@ last group only registers a command, while the "replaces something built in"
 group takes over a global, so those are the ones to turn off if you already have
 a statusline, a `vim.notify` or a key-hint plugin of your own.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 You configure Keystone with a single `setup()` call. The table you pass has one
 **key per module** you want to turn on. Nothing is enabled unless you list it,
@@ -100,7 +100,7 @@ options, the same table that would follow its key above:
 require("keystone.filetree").setup({ width_ratio = 0.2 })
 ```
 
-## Modules
+## Modules <!-- tag: modules -->
 
 <!-- panvimdoc-ignore-start -->
 
@@ -152,9 +152,11 @@ Each module has its own help page:
 - |keystone-tweaks| Editor behaviour flags
 -->
 
-## Commands
+## Commands <!-- tag: commands -->
 
 Enabling the relevant module registers its command:
+
+<!-- panvimdoc-ignore-start -->
 
 | Command | Module | Purpose |
 | --- | --- | --- |
@@ -166,7 +168,21 @@ Enabling the relevant module registers its command:
 | `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
 | `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 
-## Health
+<!-- panvimdoc-ignore-end -->
+
+<!-- vimdoc-only
+- `:FileTree` |keystone-filetree| Open the file-tree side window
+- `:FileSelector` |keystone-explore| Open the file selector
+- `:CallTree` |keystone-calltree| Show the call hierarchy of the symbol under
+  the cursor
+- `:SymbolTree` |keystone-symboltree| Toggle the document-symbol side window
+- `:Notifications` |keystone-notify| List or clear the notification history
+- `:DiffUnsaved` |keystone-unsaved| Diff unsaved buffers against disk
+- `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` |keystone-bufdelete|
+  Delete or wipe buffers, keeping the window layout
+-->
+
+## Health <!-- tag: health -->
 
 ```vim
 :checkhealth keystone
@@ -180,7 +196,7 @@ reported as warnings.
 Some modules add a deeper check of their own: `:checkhealth keystone.tsconfig`
 reports the installed parsers and any missing queries.
 
-## License
+## License <!-- tag: license -->
 
 <!-- panvimdoc-ignore-start -->
 

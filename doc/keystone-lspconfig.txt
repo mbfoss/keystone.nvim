@@ -4,8 +4,8 @@
 Table of Contents                       *keystone-lspconfig-table-of-contents*
 
 1. Scope                                            |keystone-lspconfig-scope|
-  - What it does                             |keystone-lspconfig-what-it-does|
-  - What it does not do               |keystone-lspconfig-what-it-does-not-do|
+  - What it does                                     |keystone-lspconfig-does|
+  - What it does not do                          |keystone-lspconfig-does-not|
   - Using it alongside nvim-lspconfig           |keystone-lspconfig-alongside|
 2. Configuration                            |keystone-lspconfig-configuration|
 Defaults and per-server configuration on top of Neovim’s built-in `vim.lsp`.
@@ -37,7 +37,7 @@ It runs one step later in the chain:
   settings around them                
   -----------------------------------------------------------------------
 
-WHAT IT DOES                                 *keystone-lspconfig-what-it-does*
+WHAT IT DOES                                         *keystone-lspconfig-does*
 
 - **Enables servers.** Neovim will not start a server until something calls
     `vim.lsp.enable()`. With `servers = "all"` this module scans the runtimepath
@@ -54,7 +54,7 @@ WHAT IT DOES                                 *keystone-lspconfig-what-it-does*
     rotates it at `max_bytes` and keeps a limited number of rotated files.
 
 
-WHAT IT DOES NOT DO                   *keystone-lspconfig-what-it-does-not-do*
+WHAT IT DOES NOT DO                              *keystone-lspconfig-does-not*
 
 - **It does not install language servers.** The binary has to already be on
     `PATH`, via mason, your system package manager, or however you prefer. If a

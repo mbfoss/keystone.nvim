@@ -5,10 +5,10 @@ Table of Contents                        *keystone-tsconfig-table-of-contents*
 
 1. Configuration                             |keystone-tsconfig-configuration|
 2. Relationship to nvim-treesitter            |keystone-tsconfig-relationship|
-  - What Neovim already does      |keystone-tsconfig-what-neovim-already-does|
+  - What Neovim already does                        |keystone-tsconfig-neovim|
   - What nvim-treesitter does now                 |keystone-tsconfig-upstream|
-  - What this module does            |keystone-tsconfig-what-this-module-does|
-  - Notable behaviour                    |keystone-tsconfig-notable-behaviour|
+  - What this module does                           |keystone-tsconfig-module|
+  - Notable behaviour                            |keystone-tsconfig-behaviour|
 Treesitter highlighting and folding, switched on per-buffer whenever a parser
 is available for the buffer’s language.
 
@@ -53,7 +53,7 @@ treesitter, and each comes from somewhere different:
   buffer                                           to you
   ------------------------------------------------------------------------
 
-WHAT NEOVIM ALREADY DOES          *keystone-tsconfig-what-neovim-already-does*
+WHAT NEOVIM ALREADY DOES                            *keystone-tsconfig-neovim*
 
 Neovim ships parsers and queries for a small set of languages (`c`, `lua`,
 `markdown`, `markdown_inline`, `query`, `vim`, `vimdoc`) and its own ftplugins
@@ -76,7 +76,7 @@ legacy `master` branch still has the module system; `main` requires a newer
 Neovim than keystone does.)
 
 
-WHAT THIS MODULE DOES                *keystone-tsconfig-what-this-module-does*
+WHAT THIS MODULE DOES                               *keystone-tsconfig-module*
 
 Exactly the step that fell out when that module system was removed. On
 `FileType` it resolves the buffer’s language, checks that a parser **and**
@@ -97,7 +97,7 @@ If you already start treesitter yourself in an ftplugin or a `FileType`
 autocmd, you do not need this module; it is that snippet, generalised.
 
 
-NOTABLE BEHAVIOUR                        *keystone-tsconfig-notable-behaviour*
+NOTABLE BEHAVIOUR                                *keystone-tsconfig-behaviour*
 
 - **No parser, no change.** A language without a parser is left on regex syntax;
     nothing errors and nothing is installed for you. If a filetype looks

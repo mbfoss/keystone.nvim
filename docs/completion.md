@@ -10,7 +10,7 @@ Neovim ≥ 0.11 the `omnifunc` source is the built-in `vim.lsp.completion`.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({

@@ -11,7 +11,7 @@ the `FileType` handlers for the real filetype never fire.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({

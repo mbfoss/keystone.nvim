@@ -6,12 +6,12 @@ Table of Contents                        *keystone-filetree-table-of-contents*
 1. Configuration                             |keystone-filetree-configuration|
 2. Commands                                       |keystone-filetree-commands|
 3. Keymaps                                         |keystone-filetree-keymaps|
-4. File manipulation                     |keystone-filetree-file-manipulation|
+4. File manipulation                                 |keystone-filetree-files|
   - Creating                                      |keystone-filetree-creating|
   - Renaming                                      |keystone-filetree-renaming|
-  - Moving and copying                  |keystone-filetree-moving-and-copying|
+  - Moving and copying                           |keystone-filetree-move-copy|
   - Deleting                                      |keystone-filetree-deleting|
-  - External changes                      |keystone-filetree-external-changes|
+  - External changes                              |keystone-filetree-external|
 A file explorer in a side window.
 
 
@@ -101,7 +101,7 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
   -----------------------------------------------------------------------
 
 ==============================================================================
-4. File manipulation                     *keystone-filetree-file-manipulation*
+4. File manipulation                                 *keystone-filetree-files*
 
 Everything below acts on real files on disk. The tree refreshes the affected
 directories afterwards and reveals the result.
@@ -134,7 +134,7 @@ Two things happen alongside the rename:
     new path in every window showing it, and the stale buffer is deleted.
 
 
-MOVING AND COPYING                      *keystone-filetree-moving-and-copying*
+MOVING AND COPYING                               *keystone-filetree-move-copy*
 
 Mark items with `<Tab>` (or over a visual range), then put the cursor on the
 destination and press `x` to move or `c` to copy. The destination is the item
@@ -185,7 +185,7 @@ Unlike rename and move, deletion tells LSP nothing and leaves open buffers
 alone: a buffer on a deleted file stays loaded with its contents.
 
 
-EXTERNAL CHANGES                          *keystone-filetree-external-changes*
+EXTERNAL CHANGES                                  *keystone-filetree-external*
 
 Visible directories are monitored, so files created, renamed, or removed
 outside Neovim show up without any action. `R` forces a full reload if a change

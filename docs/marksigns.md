@@ -10,7 +10,7 @@ cells wide.
 > **Requires Neovim ≥ 0.12.** The module is driven by the `MarkSet` event, which
 > older versions do not have; on those it warns once and stays inert.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -30,7 +30,7 @@ and when several land on the same line they appear in the order given there.
 Signs are only drawn in ordinary file buffers; trees, terminals and other
 special buffers are left alone.
 
-## Highlights
+## Highlights <!-- tag: highlights -->
 
 Both groups are defined with `default = true`, so a colorscheme or your own
 `nvim_set_hl` call wins over them.
@@ -40,7 +40,7 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 | `KeystoneMarkSignsLocal` | `a-z` | `DiagnosticHint` |
 | `KeystoneMarkSignsGlobal` | `A-Z` | `DiagnosticInfo` |
 
-## API
+## API <!-- tag: api -->
 
 | Function | Purpose |
 | --- | --- |
@@ -49,7 +49,7 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 | `require("keystone.marksigns").disable()` | Stop, and remove the signs already placed |
 | `require("keystone.marksigns").is_enabled()` | Whether signs are being drawn |
 
-## How it stays current
+## How it stays current <!-- tag: updates -->
 
 `MarkSet` covers every explicit change: a mark set with `m`, `:mark` or
 `nvim_buf_set_mark()`, and one deleted with `:delmarks` or

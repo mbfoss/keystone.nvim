@@ -8,7 +8,7 @@ A file explorer in a side window.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -28,13 +28,13 @@ Or standalone:
 require("keystone.filetree").setup({ width_ratio = 0.2 })
 ```
 
-## Commands
+## Commands <!-- tag: commands -->
 
 | Command | What it does |
 | --- | --- |
 | `:FileTree [dir]` | Open the side window, or reveal the current file in it. With `dir`, set the tree root to `dir` first |
 
-## Keymaps
+## Keymaps <!-- tag: keymaps -->
 
 Buffer-local, inside the tree window. `g?` shows the same list in a float.
 
@@ -58,12 +58,12 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
 | `R` | Refresh the tree |
 | `g?` | Show the help float |
 
-## File manipulation
+## File manipulation <!-- tag: files -->
 
 Everything below acts on real files on disk. The tree refreshes the affected
 directories afterwards and reveals the result.
 
-### Creating
+### Creating <!-- tag: creating -->
 
 `a` and `A` create next to the item under the cursor, in its parent directory,
 whether that item is a file or a directory. `i` and `I` create *inside* it when
@@ -75,7 +75,7 @@ may not contain path separators; it always lands in the chosen directory, so
 you cannot type your way out of it. Files are created empty (`0644`),
 directories with mode `0755`. An existing name is an error, never an overwrite.
 
-### Renaming
+### Renaming <!-- tag: renaming -->
 
 `r` prompts with the current name filled in, and renames in place, using the same
 validation applies, so a rename cannot move the item to another directory. Two
@@ -88,7 +88,7 @@ things happen alongside the rename:
 - **Open buffers follow.** A buffer on the old path is swapped for one on the
   new path in every window showing it, and the stale buffer is deleted.
 
-### Moving and copying
+### Moving and copying <!-- tag: move-copy -->
 
 Mark items with `<Tab>` (or over a visual range), then put the cursor on the
 destination and press `x` to move or `c` to copy. The destination is the item
@@ -113,7 +113,7 @@ Moves use `rename(2)` and so carry the same LSP and buffer handling as `r`
 above. Copies are recursive: directories are walked and recreated, symlinks are
 copied as links (the link is duplicated, not its target).
 
-### Deleting
+### Deleting <!-- tag: deleting -->
 
 `d` moves the selected items to the system trash; `D` deletes them permanently.
 Both are recursive for directories and both confirm first, listing every path.
@@ -127,7 +127,7 @@ nothing; use `D` instead.
 Unlike rename and move, deletion tells LSP nothing and leaves open buffers
 alone: a buffer on a deleted file stays loaded with its contents.
 
-### External changes
+### External changes <!-- tag: external -->
 
 Visible directories are monitored, so files created, renamed, or removed outside
 Neovim show up without any action. `R` forces a full reload if a change is

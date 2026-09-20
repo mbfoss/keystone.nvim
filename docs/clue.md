@@ -12,7 +12,7 @@ insert and command-line mode.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -27,7 +27,7 @@ require("keystone").setup({
 })
 ```
 
-## API
+## API <!-- tag: api -->
 
 Add your own group/label descriptions:
 

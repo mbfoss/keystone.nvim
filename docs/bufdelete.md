@@ -6,7 +6,7 @@ Delete a buffer without collapsing the window layout.
 deleting a file from a split layout takes the split with it. This module points
 those windows at another buffer first, then deletes; the layout is untouched.
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({ bufdelete = true })
@@ -24,7 +24,7 @@ require("keystone").setup({
 })
 ```
 
-## What gets kept
+## What gets kept <!-- tag: keep -->
 
 The `ignore_*` options describe buffers a **bulk** selection must leave alone:
 
@@ -58,7 +58,7 @@ because of unsaved changes; the second is a warning, the first is not.
 
 `M.ignore_reason(bufnr)` returns why a buffer would be kept, or `nil`.
 
-## Commands
+## Commands <!-- tag: commands -->
 
 Four commands, named after the built-ins whose semantics they keep.
 
@@ -87,7 +87,7 @@ Globs are matched against the full path, the path relative to the cwd, and the
 final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
 thing. Completion offers `*` and the names of listed buffers.
 
-### Unsaved changes
+### Unsaved changes <!-- tag: unsaved -->
 
 No command discards an edit. A buffer that is modified, or is a terminal, is
 left alone and reported: `:BWipeout *` with one dirty buffer among ten wipes the
@@ -101,7 +101,7 @@ two cannot drift apart. If a delete is refused for some other reason after the
 buffer has been swapped out of its windows (a `BufUnload` autocmd, `'confirm'`),
 the buffer is put back in those windows rather than left orphaned.
 
-## What replaces the buffer
+## What replaces the buffer <!-- tag: replacement -->
 
 Each window showing the deleted buffer gets, in order of preference:
 
@@ -116,7 +116,7 @@ is deleted anyway (an explicit `:BDelete`, or `ignore_floats = false`), the
 float is closed rather than repointed. The exception is a float that is the only
 window in its tabpage, which would take the tabpage with it.
 
-## Delete or wipe
+## Delete or wipe <!-- tag: wipe -->
 
 `:bdelete` unlists the buffer and unloads its contents, but keeps the buffer
 object, its number, and its marks; reopening the file lands you back where you
@@ -124,7 +124,7 @@ were. `:bwipeout` destroys it outright: the number is freed and the marks are
 gone. Use `:BWipeout` when the buffer should be discarded outright (a stale
 terminal, a renamed file, a session reset), and `:BDelete` otherwise.
 
-## Lua API
+## Lua API <!-- tag: api -->
 
 ```lua
 local bufdelete = require("keystone.bufdelete")

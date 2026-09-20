@@ -4,12 +4,12 @@
 Table of Contents                       *keystone-bufdelete-table-of-contents*
 
 1. Configuration                            |keystone-bufdelete-configuration|
-2. What gets kept                          |keystone-bufdelete-what-gets-kept|
+2. What gets kept                                    |keystone-bufdelete-keep|
 3. Commands                                      |keystone-bufdelete-commands|
-  - Unsaved changes                       |keystone-bufdelete-unsaved-changes|
-4. What replaces the buffer      |keystone-bufdelete-what-replaces-the-buffer|
-5. Delete or wipe                          |keystone-bufdelete-delete-or-wipe|
-6. Lua API                                        |keystone-bufdelete-lua-api|
+  - Unsaved changes                               |keystone-bufdelete-unsaved|
+4. What replaces the buffer                   |keystone-bufdelete-replacement|
+5. Delete or wipe                                    |keystone-bufdelete-wipe|
+6. Lua API                                            |keystone-bufdelete-api|
 Delete a buffer without collapsing the window layout.
 
 `:bdelete` closes every window that happens to be showing the buffer, so
@@ -38,7 +38,7 @@ those windows at another buffer first, then deletes; the layout is untouched.
 
 
 ==============================================================================
-2. What gets kept                          *keystone-bufdelete-what-gets-kept*
+2. What gets kept                                    *keystone-bufdelete-keep*
 
 The `ignore_*` options describe buffers a **bulk** selection must leave alone:
 
@@ -114,7 +114,7 @@ final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
 thing. Completion offers `*` and the names of listed buffers.
 
 
-UNSAVED CHANGES                           *keystone-bufdelete-unsaved-changes*
+UNSAVED CHANGES                                   *keystone-bufdelete-unsaved*
 
 No command discards an edit. A buffer that is modified, or is a terminal, is
 left alone and reported: `:BWipeout *` with one dirty buffer among ten wipes
@@ -131,7 +131,7 @@ orphaned.
 
 
 ==============================================================================
-4. What replaces the buffer      *keystone-bufdelete-what-replaces-the-buffer*
+4. What replaces the buffer                   *keystone-bufdelete-replacement*
 
 Each window showing the deleted buffer gets, in order of preference:
 
@@ -148,7 +148,7 @@ only window in its tabpage, which would take the tabpage with it.
 
 
 ==============================================================================
-5. Delete or wipe                          *keystone-bufdelete-delete-or-wipe*
+5. Delete or wipe                                    *keystone-bufdelete-wipe*
 
 `:bdelete` unlists the buffer and unloads its contents, but keeps the buffer
 object, its number, and its marks; reopening the file lands you back where you
@@ -158,7 +158,7 @@ terminal, a renamed file, a session reset), and `:BDelete` otherwise.
 
 
 ==============================================================================
-6. Lua API                                        *keystone-bufdelete-lua-api*
+6. Lua API                                            *keystone-bufdelete-api*
 
 >lua
     local bufdelete = require("keystone.bufdelete")

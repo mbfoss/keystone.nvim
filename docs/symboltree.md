@@ -9,7 +9,7 @@ as you edit and able to follow the cursor.
 
 <!-- panvimdoc-ignore-end -->
 
-## Configuration
+## Configuration <!-- tag: configuration -->
 
 ```lua
 require("keystone").setup({
@@ -29,7 +29,7 @@ require("keystone").setup({
 `exclude_kinds` and `collapse_kinds` are replaced outright when you set them;
 they are not merged with the defaults.
 
-## Commands
+## Commands <!-- tag: commands -->
 
 | Command | What it does |
 | --- | --- |
@@ -38,7 +38,7 @@ they are not merged with the defaults.
 | `:SymbolTree close` | Close it |
 | `:SymbolTree toggle` | Same as no argument |
 
-## Keys
+## Keys <!-- tag: keys -->
 
 Inside the window, `g?` lists the keys.
 
