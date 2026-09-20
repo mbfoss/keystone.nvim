@@ -29,9 +29,6 @@ require("keystone").setup({
 })
 ```
 
-`auto_nohlsearch` clears search highlighting on the `auto_nohlsearch_triggers`
-that are enabled.
-
 <!-- panvimdoc-ignore-start -->
 
 ---

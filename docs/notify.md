@@ -36,8 +36,8 @@ require("keystone").setup({
 
 <!-- panvimdoc-ignore-start -->
 
-The list goes through `vim.ui.select`: keystone's own [select](select.md)
-module when it is enabled, whichever implementation is installed otherwise.
+The list goes through `vim.ui.select`: keystone's own [select](select.md) module
+when enabled, whichever implementation is installed otherwise.
 
 <!-- panvimdoc-ignore-end -->
 

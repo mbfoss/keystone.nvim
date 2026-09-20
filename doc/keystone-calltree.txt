@@ -7,10 +7,9 @@ Table of Contents                        *keystone-calltree-table-of-contents*
 2. Commands                                       |keystone-calltree-commands|
 3. Keys                                               |keystone-calltree-keys|
 A side window showing the LSP call hierarchy of the symbol under the cursor:
-who calls it (_incoming_, the default) or what it calls (_outgoing_). Each
-level is fetched only when you expand it, so an unexpanded branch issues no
-requests. A function that reaches itself is marked `↺` and left as a leaf, so
-recursion cannot expand forever.
+who calls it (_incoming_, the default) or what it calls (_outgoing_). Levels
+are fetched on expand. A function that reaches itself is marked `↺` and left
+as a leaf.
 
 
 ==============================================================================
@@ -35,8 +34,7 @@ recursion cannot expand forever.
 2. Commands                                       *keystone-calltree-commands*
 
 Open it with `:CallTree` on the symbol to inspect. Running it again re-roots
-the tree on whatever the cursor is on now, so you can walk the code and keep
-the window pointed at the current position; use `toggle` to close it.
+the tree on the cursor’s current position; use `toggle` to close it.
 
   Argument              What it does
   --------------------- ------------------------------------------------

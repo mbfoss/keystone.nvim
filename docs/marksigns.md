@@ -1,11 +1,10 @@
 # marksigns
 
 Draws the name of every mark that is set (`ma`, `mA`, …) in the sign column of
-the line holding it, so the marks in a buffer are visible without `:marks`.
+its line, so a buffer's marks are visible without `:marks`.
 
-Buffer-local marks (`a-z`) and file marks (`A-Z`) get their own highlight. When
-two marks share a line, both names go in the one sign; the sign column is two
-cells wide.
+Buffer-local marks (`a-z`) and file marks (`A-Z`) get their own highlight. Two
+marks on one line share the sign; the sign column is two cells wide.
 
 > **Requires Neovim ≥ 0.12.** The module is driven by the `MarkSet` event, which
 > older versions do not have; on those it warns once and stays inert.
@@ -25,10 +24,7 @@ require("keystone").setup({
 ```
 
 `marks` is both the filter and the ordering: only the names it lists are signed,
-and when several land on the same line they appear in the order given there.
-
-Signs are only drawn in ordinary file buffers; trees, terminals and other
-special buffers are left alone.
+in the order given. Signs are drawn only in ordinary file buffers.
 
 ## Highlights <!-- tag: highlights -->
 
@@ -51,15 +47,13 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 
 ## How it stays current <!-- tag: updates -->
 
-`MarkSet` covers every explicit change: a mark set with `m`, `:mark` or
-`nvim_buf_set_mark()`, and one deleted with `:delmarks` or
-`nvim_buf_del_mark()`, and names the mark, so the buffer that owns it is the
-only one recomputed. A file mark is the exception: it moves between buffers, and
-the buffer that used to hold it gets no event, so all of them are redone.
+`MarkSet` covers every explicit change (`m`, `:mark`, `nvim_buf_set_mark()`,
+`:delmarks`, `nvim_buf_del_mark()`) and names the mark, so only its buffer is
+recomputed. File marks are the exception: they move between buffers and the old
+buffer gets no event, so all buffers are redone.
 
-One change the event does not report is deleting the line a mark sits on, which
-drops the mark silently. `TextChanged` and `InsertLeave` catch that with a
-debounced recompute of the whole buffer.
+The event does not report deleting the line a mark sits on, which drops the mark
+silently; `TextChanged` and `InsertLeave` catch that with a debounced recompute.
 
 <!-- panvimdoc-ignore-start -->
 

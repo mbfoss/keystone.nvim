@@ -12,9 +12,8 @@ Table of Contents                       *keystone-bufdelete-table-of-contents*
 6. Lua API                                            |keystone-bufdelete-api|
 Delete a buffer without collapsing the window layout.
 
-`:bdelete` closes every window that happens to be showing the buffer, so
-deleting a file from a split layout takes the split with it. This module points
-those windows at another buffer first, then deletes; the layout is untouched.
+`:bdelete` closes every window showing the buffer, taking your splits with it.
+This module points those windows at another buffer first, then deletes.
 
 
 ==============================================================================
@@ -71,14 +70,13 @@ The `ignore_*` options describe buffers a **bulk** selection must leave alone:
 <
 
 They apply whenever a **set** is selected: a glob, `:BDeleteHidden`, or
-`delete_many`. They do **not** block a buffer you name: `:BDelete` on the
-current buffer, `:BDelete foo.lua`, or `:3BDelete` deletes the named target,
-since the selection is already explicit. Pass `{ ignore = true }` to `delete()`
-to opt a single delete into the rules, or `{ ignore = false }` to a bulk call
-to sweep past them.
+`delete_many`. They do **not** block a buffer you name (`:BDelete`, `:BDelete
+foo.lua`, `:3BDelete`). Pass `{ ignore = true }` to `delete()` to opt a single
+delete into the rules, or `{ ignore = false }` to a bulk call to sweep past
+them.
 
-Buffers kept this way are reported as a count, separately from buffers kept
-because of unsaved changes; the second is a warning, the first is not.
+Buffers kept this way are reported as a count, separately from buffers kept for
+unsaved changes; only the second is a warning.
 
 `M.ignore_reason(bufnr)` returns why a buffer would be kept, or `nil`.
 
@@ -101,13 +99,12 @@ Four commands, named after the built-ins whose semantics they keep.
 
 Add `!` to any of them to force past unsaved changes.
 
-The argument to `:BDelete`/`:BWipeout` is _always_ a buffer name or a glob over
-buffer names; there are no keywords, so a buffer called `all` is nothing
-special and `:BDelete all` deletes it. `:BDeleteHidden`/`:BWipeoutHidden` take
-no argument at all: their selection is fixed.
+The argument to `:BDelete`/`:BWipeout` is always a buffer name or a glob over
+buffer names; there are no keywords, so `:BDelete all` deletes a buffer called
+`all`. `:BDeleteHidden`/`:BWipeoutHidden` take no argument.
 
-Hidden means _no_ window in _any_ tabpage is showing the buffer. A buffer
-sitting in a split two tabs over is not hidden and survives.
+Hidden means _no_ window in _any_ tabpage shows the buffer, so a buffer in a
+split two tabs over survives.
 
 Globs are matched against the full path, the path relative to the cwd, and the
 final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
@@ -116,18 +113,15 @@ thing. Completion offers `*` and the names of listed buffers.
 
 UNSAVED CHANGES                                   *keystone-bufdelete-unsaved*
 
-No command discards an edit. A buffer that is modified, or is a terminal, is
-left alone and reported: `:BWipeout *` with one dirty buffer among ten wipes
-the nine and keeps the tenth, still listed and still on screen.
+No command discards an edit. A modified buffer, or a terminal, is left alone
+and reported: `:BWipeout *` with one dirty buffer among ten wipes nine.
 
-`!` (`:BDelete! *`, `:BWipeout! *`, `:BDeleteHidden!`) is the explicit override
-that throws the changes away, exactly as `:bdelete!` does.
+`!` (`:BDelete! *`, `:BWipeout! *`, `:BDeleteHidden!`) throws the changes away,
+exactly as `:bdelete!` does.
 
-The guard sits below the delete/wipe split rather than in either command, so
-the two cannot drift apart. If a delete is refused for some other reason after
-the buffer has been swapped out of its windows (a `BufUnload` autocmd,
-`'confirm'`), the buffer is put back in those windows rather than left
-orphaned.
+If a delete is refused for some other reason after the buffer has been swapped
+out of its windows (a `BufUnload` autocmd, `'confirm'`), it is put back rather
+than left orphaned.
 
 
 ==============================================================================
@@ -141,20 +135,18 @@ Each window showing the deleted buffer gets, in order of preference:
 `:BDelete *` on a four-way split leaves four windows on one empty buffer,
 not four empty buffers.
 
-A floating window is not part of a layout worth preserving, so when its buffer
-is deleted anyway (an explicit `:BDelete`, or `ignore_floats = false`), the
-float is closed rather than repointed. The exception is a float that is the
-only window in its tabpage, which would take the tabpage with it.
+When a float’s buffer is deleted anyway (an explicit `:BDelete`, or
+`ignore_floats = false`) the float is closed rather than repointed — unless
+it is the only window in its tabpage.
 
 
 ==============================================================================
 5. Delete or wipe                                    *keystone-bufdelete-wipe*
 
-`:bdelete` unlists the buffer and unloads its contents, but keeps the buffer
-object, its number, and its marks; reopening the file lands you back where you
-were. `:bwipeout` destroys it outright: the number is freed and the marks are
-gone. Use `:BWipeout` when the buffer should be discarded outright (a stale
-terminal, a renamed file, a session reset), and `:BDelete` otherwise.
+`:bdelete` unlists and unloads the buffer but keeps its number and marks, so
+reopening the file lands you back where you were. `:bwipeout` frees the number
+and drops the marks. Use `:BWipeout` for a stale terminal, a renamed file or a
+session reset, and `:BDelete` otherwise.
 
 
 ==============================================================================

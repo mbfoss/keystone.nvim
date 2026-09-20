@@ -22,10 +22,9 @@ Diff every modified buffer against its saved state on disk.
   Command        What it does
   -------------- -----------------------------------
   :DiffUnsaved   Diff unsaved buffers against disk
-The buffer list is presented through `vim.ui.select`, so it uses whichever
-implementation you have installed. With keystone’s |keystone-select| module
-enabled, the preview beside the list shows each buffer’s unsaved contents;
-other implementations may not be able to show the preview.
+The buffer list goes through `vim.ui.select`. With keystone’s
+|keystone-select| module enabled, the preview beside the list shows each
+buffer’s unsaved contents; other implementations may not show a preview.
 
 All modules: |keystone-modules|
 

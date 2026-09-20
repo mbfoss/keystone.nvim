@@ -1,10 +1,9 @@
 # clue
 
-A popup listing the keys that can follow a trigger, shown after the trigger has
-been held for `delay` milliseconds. The default triggers are `<leader>`, `g` and
-`z` in normal and visual mode; `'` and `` ` `` (marks) and `"` (registers) in
-both; `[`, `]` and `<C-w>` in normal mode; `<C-x>` in insert mode; and `<C-r>` in
-insert and command-line mode.
+A popup listing the keys that can follow a trigger, shown `delay` milliseconds
+after the trigger. Default triggers: `<leader>`, `g`, `z`, `'`, `` ` `` and `"`
+in normal and visual mode; `[`, `]` and `<C-w>` in normal mode; `<C-x>` in insert
+mode; `<C-r>` in insert and command-line mode.
 
 <!-- panvimdoc-ignore-start -->
 

@@ -61,7 +61,7 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
 ## File manipulation <!-- tag: files -->
 
 Everything below acts on real files on disk. The tree refreshes the affected
-directories afterwards and reveals the result.
+directories and reveals the result.
 
 ### Creating <!-- tag: creating -->
 
@@ -70,36 +70,31 @@ whether that item is a file or a directory. `i` and `I` create *inside* it when
 it is a directory (and in its parent otherwise), which is how you add the first
 entry to an empty directory.
 
-Each prompts for a name and validates as you type: the name may not be empty and
-may not contain path separators; it always lands in the chosen directory, so
-you cannot type your way out of it. Files are created empty (`0644`),
-directories with mode `0755`. An existing name is an error, never an overwrite.
+Each prompts for a name and validates as you type: not empty, no path
+separators, so the result always lands in the chosen directory. Files are created
+empty (`0644`), directories `0755`. An existing name is an error, never an
+overwrite.
 
 ### Renaming <!-- tag: renaming -->
 
-`r` prompts with the current name filled in, and renames in place, using the same
-validation applies, so a rename cannot move the item to another directory. Two
-things happen alongside the rename:
+`r` prompts with the current name filled in and renames in place, under the same
+validation, so a rename cannot move the item elsewhere. Alongside it:
 
-- **LSP is told.** Every attached client supporting `workspace/willRenameFiles`
-  is asked first and its workspace edit applied (so imports referring to the old
-  path get rewritten), and clients supporting `workspace/didRenameFiles` are
-  notified after.
-- **Open buffers follow.** A buffer on the old path is swapped for one on the
-  new path in every window showing it, and the stale buffer is deleted.
+- **LSP is told.** Clients supporting `workspace/willRenameFiles` are asked first
+  and their workspace edit applied (rewriting imports of the old path); clients
+  supporting `workspace/didRenameFiles` are notified after.
+- **Open buffers follow.** A buffer on the old path is swapped for one on the new
+  path in every window showing it, and the stale buffer is deleted.
 
 ### Moving and copying <!-- tag: move-copy -->
 
 Mark items with `<Tab>` (or over a visual range), then put the cursor on the
 destination and press `x` to move or `c` to copy. The destination is the item
-under the cursor when it is a directory, otherwise its parent directory. A
-confirmation lists the sources and the destination before anything is touched.
+under the cursor when it is a directory, otherwise its parent. A confirmation
+lists the sources and destination first.
 
-Selection is not limited to one directory; you can mark items across the whole
-tree and land them in one place. The selection is cleared once the transfer runs.
-
-Operations that would misbehave are dropped from the batch rather than
-attempted:
+The selection can span the whole tree, and is cleared once the transfer runs.
+Operations that would misbehave are dropped from the batch:
 
 | Case | Result |
 | --- | --- |
@@ -109,9 +104,8 @@ attempted:
 | Moving or copying a directory into itself or a descendant | Skipped, with a warning |
 | The name already exists in the destination | Skipped, with a warning; never overwritten |
 
-Moves use `rename(2)` and so carry the same LSP and buffer handling as `r`
-above. Copies are recursive: directories are walked and recreated, symlinks are
-copied as links (the link is duplicated, not its target).
+Moves use `rename(2)` and carry the same LSP and buffer handling as `r`. Copies
+are recursive; symlinks are copied as links, not as their target.
 
 ### Deleting <!-- tag: deleting -->
 
@@ -120,18 +114,16 @@ Both are recursive for directories and both confirm first, listing every path.
 The tree root is never deleted.
 
 Trash support is resolved per platform: `trash` or Finder via `osascript` on
-macOS, the Recycle Bin via PowerShell on Windows, and `gio trash` / `trash-put`
-/ `trash` on other unices. When none is available, `d` reports an error and deletes
-nothing; use `D` instead.
+macOS, the Recycle Bin via PowerShell on Windows, `gio trash` / `trash-put` /
+`trash` elsewhere. With none available, `d` errors and deletes nothing; use `D`.
 
 Unlike rename and move, deletion tells LSP nothing and leaves open buffers
-alone: a buffer on a deleted file stays loaded with its contents.
+loaded with their contents.
 
 ### External changes <!-- tag: external -->
 
-Visible directories are monitored, so files created, renamed, or removed outside
-Neovim show up without any action. `R` forces a full reload if a change is
-missed.
+Visible directories are monitored, so changes made outside Neovim show up on
+their own. `R` forces a full reload if one is missed.
 
 <!-- panvimdoc-ignore-start -->
 

@@ -15,8 +15,8 @@ settings below.
 ## Scope <!-- tag: scope -->
 
 Despite the name, this is **not**
-[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig), and it is not a
-replacement for it. It runs one step later in the chain:
+[nvim-lspconfig](https://github.com/neovim/nvim-lspconfig), nor a replacement for
+it. It runs one step later in the chain:
 
 | Step | Provided by |
 | --- | --- |
@@ -43,34 +43,28 @@ replacement for it. It runs one step later in the chain:
 
 ### What it does not do <!-- tag: does-not -->
 
-- **It does not install language servers.** The binary has to already be on
-  `PATH`, via mason, your system package manager, or however you prefer. If a
-  config's `cmd` cannot run from a shell, enabling it changes nothing.
-- **It does not ship server configurations.** There is no `lsp/` directory in
-  this repository. It enables configs that *already exist* on your runtimepath,
-  most commonly nvim-lspconfig's, which ships them as `lsp/<name>.lua` for
-  exactly this mechanism, or your own in `~/.config/nvim/lsp/`.
+- **It does not install language servers.** The binary must already be on
+  `PATH`. If a config's `cmd` cannot run from a shell, enabling it changes
+  nothing.
+- **It does not ship server configurations.** There is no `lsp/` directory here.
+  It enables configs already on your runtimepath: nvim-lspconfig's
+  `lsp/<name>.lua` files, or your own in `~/.config/nvim/lsp/`.
 - **It does not define keymaps.** Neovim's global defaults are what you get,
   `gra`, `gri`, `grn`, `grr`, `grt`, `grx`, `gO` and insert-mode `<C-s>` (see
   `:help lsp-defaults`).
 
 ### Using it alongside nvim-lspconfig <!-- tag: alongside -->
 
-The two do not fight over starting servers. nvim-lspconfig does not enable
-anything on its own: loading it registers `:LspInfo`, `:LspLog`, `:LspStart`,
-`:LspRestart` and `:LspStop`, creates no autocmds, and never calls
-`vim.lsp.enable()`. Activation is left to you, or, here, to this module.
+The two do not fight over starting servers. nvim-lspconfig enables nothing on its
+own: loading it registers `:LspInfo`, `:LspLog`, `:LspStart`, `:LspRestart` and
+`:LspStop`, and never calls `vim.lsp.enable()`. Activation is left to you, or to
+this module. Enabling the same server twice is harmless — `vim.lsp.enable()` is
+idempotent.
 
-Enabling the same server twice is also harmless: `vim.lsp.enable()` is
-idempotent, so a server enabled by this module *and* by a `vim.lsp.enable()`
-call of your own still produces exactly one client.
-
-What does change is the meaning of `servers = "all"`. It enables every
-`lsp/*.lua` on the runtimepath, and nvim-lspconfig ships **407** of them: one
-per server it supports, not one per server you have installed. Configs whose
-`cmd` is not executable are skipped, with the error going to `lsp.log` rather
-than to the screen, so the practical effect is confined to the ones you do have
-installed. Still, with nvim-lspconfig on the runtimepath, name the servers
+What does change is the meaning of `servers = "all"`: nvim-lspconfig ships **407**
+`lsp/*.lua` configs, one per server it supports, not one per server you have
+installed. Configs whose `cmd` is not executable are skipped (the error goes to
+`lsp.log`), but with nvim-lspconfig on the runtimepath, name the servers
 explicitly:
 
 ```lua
@@ -80,9 +74,7 @@ require("keystone").setup({
 ```
 
 `servers = "all"` is aimed at the case where the only `lsp/` directory is your
-own, and every config in it is one you wrote and installed a binary for.
-
-So a working setup is usually three things, only the last of which is keystone:
+own. A working setup is usually three things, only the last of which is keystone:
 
 ```lua
 -- 1. the binary            $ brew install lua-language-server
@@ -91,8 +83,8 @@ So a working setup is usually three things, only the last of which is keystone:
 require("keystone").setup({ lspconfig = true })
 ```
 
-If you already call `vim.lsp.enable()` yourself and want nothing else from this
-module, you do not need it.
+If you already call `vim.lsp.enable()` and want nothing else here, you do not
+need this module.
 
 ## Configuration <!-- tag: configuration -->
 

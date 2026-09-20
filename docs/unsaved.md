@@ -22,18 +22,16 @@ require("keystone").setup({ unsaved = true })
 
 <!-- panvimdoc-ignore-start -->
 
-The buffer list is presented through `vim.ui.select`, so it uses whichever
-implementation you have installed. With keystone's [select](select.md) module
-enabled, the preview beside the list shows each buffer's unsaved contents;
-other implementations may not be able to show the preview.
+The buffer list goes through `vim.ui.select`. With keystone's
+[select](select.md) module enabled, the preview beside the list shows each
+buffer's unsaved contents; other implementations may not show a preview.
 
 <!-- panvimdoc-ignore-end -->
 
 <!-- vimdoc-only
-The buffer list is presented through `vim.ui.select`, so it uses whichever
-implementation you have installed. With keystone's |keystone-select| module
-enabled, the preview beside the list shows each buffer's unsaved contents;
-other implementations may not be able to show the preview.
+The buffer list goes through `vim.ui.select`. With keystone's |keystone-select|
+module enabled, the preview beside the list shows each buffer's unsaved
+contents; other implementations may not show a preview.
 -->
 
 <!-- panvimdoc-ignore-start -->

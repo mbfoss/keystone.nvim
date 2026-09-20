@@ -11,11 +11,9 @@ Table of Contents                                 *keystone-table-of-contents*
 5. Health                                                    |keystone-health|
 6. License                                                  |keystone-license|
 Quality-of-life editor modules for Neovim: file, symbol and call trees, a
-key-hint popup, completion, a statusline, LSP and Treesitter setup, and a set
-of editor behaviour flags.
-
-Each module is independent (it can be required and configured on its own) and
-none is active unless you name it in `setup()`.
+key-hint popup, completion, a statusline, LSP and Treesitter setup, and editor
+behaviour flags. Each module is independent, and none is active unless you name
+it in `setup()`.
 
 
   **Requires Neovim ≥ 0.11.** No other plugins required.
@@ -58,36 +56,26 @@ With Neovim ≥ 0.12
     })
 <
 
-Any other plugin manager works too; just point it at `mbfoss/keystone.nvim` and
-call `setup()` yourself.
+Any other plugin manager works too; point it at `mbfoss/keystone.nvim` and call
+`setup()` yourself.
 
-Installing only puts keystone on the runtimepath; the `setup()` call is what
-decides which modules run. The four groups differ in how intrusive they are:
-the last group only registers a command, while the "replaces something built
-in" group takes over a global, so those are the ones to turn off if you already
-have a statusline, a `vim.notify` or a key-hint plugin of your own.
+The groups differ in how intrusive they are: the last only registers a command,
+while "replaces something built in" takes over a global — turn those off if
+you already have a statusline, `vim.notify` or key-hint plugin.
 
 
 ==============================================================================
 2. Configuration                                      *keystone-configuration*
 
-You configure Keystone with a single `setup()` call. The table you pass has one
-**key per module** you want to turn on. Nothing is enabled unless you list it,
-modules you leave out stay off.
-
-The **value** you give a module says _how_ to turn it on:
+The table passed to `setup()` has one key per module. Modules you leave out
+stay off. The value says how to turn the module on:
 
   Value     Meaning
   --------- ----------------------------------------------------------
   true      Enable the module with its default options.
   { ... }   Enable the module, overriding only the options you name.
   false     Leave the module off (same as omitting it).
-So these two are equivalent, both enabling `filetree` with its defaults:
-
->lua
-    require("keystone").setup({ filetree = true })
-    require("keystone").setup({ filetree = {} })
-<
+So `filetree = true` and `filetree = {}` are equivalent.
 
 A fuller example:
 
@@ -106,9 +94,8 @@ Each module’s available options are documented on its own page under
 
 SETTING UP A SINGLE MODULE                            *keystone-single-module*
 
-The `setup()` above is a convenience wrapper. Every module is standalone, so it
-can be configured directly instead: the table you pass is that module’s
-options, the same table that would follow its key above:
+`setup()` is a convenience wrapper. Every module is standalone and takes the
+same options table directly:
 
 >lua
     require("keystone.filetree").setup({ width_ratio = 0.2 })
@@ -163,13 +150,12 @@ Enabling the relevant module registers its command:
     :checkhealth keystone
 <
 
-Reports the Neovim version, the modules whose `setup()` has run (`active`) and
-those it has not (`inactive`), then a section per active module listing only
-the options you changed from that module’s defaults. Unrecognised option
-names are reported as warnings.
+Reports the Neovim version, which modules are `active`/`inactive`, and per
+active module the options changed from its defaults. Unrecognised option names
+are warnings.
 
-Some modules add a deeper check of their own: `:checkhealth keystone.tsconfig`
-reports the installed parsers and any missing queries.
+Some modules add a check of their own: `:checkhealth keystone.tsconfig` reports
+installed parsers and missing queries.
 
 
 ==============================================================================

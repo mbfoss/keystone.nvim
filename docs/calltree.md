@@ -1,10 +1,9 @@
 # calltree
 
-A side window showing the LSP call hierarchy of the symbol under the cursor:
-who calls it (*incoming*, the default) or what it calls (*outgoing*). Each level
-is fetched only when you expand it, so an unexpanded branch issues no
-requests. A function that reaches itself is marked `↺` and left as a leaf, so
-recursion cannot expand forever.
+A side window showing the LSP call hierarchy of the symbol under the cursor: who
+calls it (*incoming*, the default) or what it calls (*outgoing*). Levels are
+fetched on expand. A function that reaches itself is marked `↺` and left as a
+leaf.
 
 <!-- panvimdoc-ignore-start -->
 
@@ -30,9 +29,8 @@ require("keystone").setup({
 
 ## Commands <!-- tag: commands -->
 
-Open it with `:CallTree` on the symbol to inspect. Running it again re-roots
-the tree on whatever the cursor is on now, so you can walk the code and keep the
-window pointed at the current position; use `toggle` to close it.
+Open it with `:CallTree` on the symbol to inspect. Running it again re-roots the
+tree on the cursor's current position; use `toggle` to close it.
 
 | Argument | What it does |
 | --- | --- |

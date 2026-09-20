@@ -1,9 +1,9 @@
 # largefile
 
 Opens files above a size threshold without attaching Treesitter, LSP or
-ftplugins. Rather than tearing that machinery down after the file has loaded, it
-checks the size during filetype detection and assigns a sentinel filetype, so
-the `FileType` handlers for the real filetype never fire.
+ftplugins. It checks the size during filetype detection and assigns a sentinel
+filetype, so the `FileType` handlers for the real filetype never fire — nothing
+has to be torn down after the load.
 
 <!-- panvimdoc-ignore-start -->
 

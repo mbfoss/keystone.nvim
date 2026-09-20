@@ -1,8 +1,8 @@
 # select
 
-Replaces `vim.ui.select`, the prompt Neovim shows whenever something asks you
-to choose from a list (LSP code actions, etc...), with a floating one: a prompt line, a fuzzy-filtered list, and a
-preview window for callers that offer one.
+Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks you to
+choose from a list — with a floating one: a prompt line, a fuzzy-filtered list,
+and a preview window for callers that offer one.
 
 <!-- panvimdoc-ignore-start -->
 
@@ -33,19 +33,16 @@ require("keystone").setup({
 Filtering keeps the caller's order by default, so items stay where you last saw
 them as you type; set `sort = true` to float the best fuzzy matches to the top.
 
-With a preview the picker is a fixed fraction of the editor, since the preview
-needs the room whatever the items look like, and `width_ratio` buys the whole row, the
-list and the preview taking half each. Without one the items decide: the list is
-as wide as its widest label and as tall as it has items, clamped into the
-`without_preview` bounds, so a two-item choice reads as a small menu rather than a
-mostly empty picker. Both are measured once, over the full item list, so filtering
-never resizes anything.
+With a preview the picker is a fixed fraction of the editor; `width_ratio` buys
+the whole row, list and preview taking half each. Without one the items decide:
+as wide as the widest label, as tall as the item count, clamped into the
+`without_preview` bounds. Both are measured once over the full item list, so
+filtering never resizes anything.
 
-Every ratio is a fraction of the editor, and every one of them covers the whole
-picker; `height_ratio` and `max_height_ratio` include the prompt above the list,
-`width_ratio` includes the gap between the list and the preview. The exception is
-`min_height_ratio`, which applies to the list alone. Where a minimum and a maximum
-cross, the maximum wins.
+Every ratio is a fraction of the editor and covers the whole picker:
+`height_ratio` and `max_height_ratio` include the prompt, `width_ratio` includes
+the gap between list and preview. `min_height_ratio` is the exception and applies
+to the list alone. Where a minimum and a maximum cross, the maximum wins.
 
 ## Keys <!-- tag: keys -->
 
@@ -71,12 +68,12 @@ vim.ui.select(items, {
 }, on_choice)
 ```
 
-The preview shows the **buffer** you hand back, as it currently is, so unsaved
+The preview shows the **buffer** you hand back as it currently is, so unsaved
 changes, syntax and extmarks all appear.
 
-keystone's own modules never require this one: they call `vim.ui.select` and
-pass `preview_item` unconditionally, so they use whichever picker you have
-installed: this one when it is enabled, a plain list otherwise.
+keystone's own modules never require this one: they call `vim.ui.select` and pass
+`preview_item` unconditionally, so they use whichever picker you have
+installed.
 
 <!-- panvimdoc-ignore-start -->
 
