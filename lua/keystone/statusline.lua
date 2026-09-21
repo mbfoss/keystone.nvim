@@ -47,7 +47,7 @@ local _saved_statusline
 ---@field enabled   boolean
 ---@field sections  keystone.statusline.Sections
 ---@field priority  keystone.statusline.Priority
----@field separator string  drawn between sections, in `KeystoneStatuslineSep(NC)`
+---@field separator string  drawn between sections, in `KeystoneSLSep(NC)`
 
 -- ---------------------------------------------------------------------------
 -- Provider registry
@@ -82,8 +82,8 @@ end
 ---The separator's groups, one per window state. Users override `…Sep` / `…SepNC`,
 ---which only *default*-link to `…SepDefault` / `…SepDefaultNC`, so their
 ---definitions win and survive the rebuild those get on every `ColorScheme`.
-local _separator_hl   = "KeystoneStatuslineSep"
-local _separatorNC_hl = "KeystoneStatuslineSepNC"
+local _separator_hl   = "KeystoneSLSep"
+local _separatorNC_hl = "KeystoneSLSepNC"
 
 ---A `%#Group#` attribute is *combined* with the window's base statusline group,
 ---so only the foreground needs overriding. The combine ORs in `reverse`, which
