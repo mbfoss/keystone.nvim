@@ -30,6 +30,14 @@ local Signal = require("keystone.util.Signal")
 ---@field collapse_symbol_hl string?
 ---@field indent_string string?
 ---@field collapsible boolean?  -- whether nodes can be expanded/collapsed (default true)
+---@field indent_guides boolean?  -- draw vertical indent guides (default true)
+---@field indent_guide_char string?
+---@field indent_guide_hl string?
+
+---@class keystone.util.TreeBuffer.Indent
+---@field text string
+---@field width integer  -- display width
+---@field guide_cols integer[]  -- byte offsets of guide chars
 
 ---@class keystone.util.TreeBuffer
 ---@field private _filetype string?
@@ -39,7 +47,11 @@ local Signal = require("keystone.util.Signal")
 ---@field private _expand_symbol_hl string?
 ---@field private _collapse_symbol_hl string?
 ---@field private _indent_string string
----@field private _indent_cache table<integer, string>
+---@field private _indent_cache table<integer, keystone.util.TreeBuffer.Indent>
+---@field private _indent_guides boolean
+---@field private _indent_guide_char string
+---@field private _indent_guide_hl string
+---@field private _indent_guide_pad string
 ---@field private _on_selection keystone.util.Signal<fun(id:any,data:any)>
 ---@field private _on_toggle keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
 ---@field private _bufnr integer
@@ -56,10 +68,9 @@ TreeBuffer.__index = TreeBuffer
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
     local expand_symbol = opts.expand_symbol or "›"
-    local indent_cache = {}
-    for i = 0, 20 do
-        indent_cache[i] = string.rep(indent_str, i)
-    end
+    local indent_guide_char = opts.indent_guide_char or "│"
+    local guide_pad_width = math.max(0, vim.fn.strdisplaywidth(indent_str) - vim.fn.strdisplaywidth(indent_guide_char))
+    local indent_guide_pad = string.rep(" ", guide_pad_width)
     return setmetatable({
         _filetype            = opts.filetype,
         _formatter           = opts.formatter,
@@ -68,7 +79,11 @@ function TreeBuffer.new(opts)
         _expand_symbol_hl    = opts.expand_symbol_hl,
         _collapse_symbol_hl  = opts.collapse_symbol_hl,
         _indent_string       = indent_str,
-        _indent_cache        = indent_cache,
+        _indent_cache        = {},
+        _indent_guides       = opts.indent_guides ~= false,
+        _indent_guide_char   = indent_guide_char,
+        _indent_guide_hl     = opts.indent_guide_hl or "NonText",
+        _indent_guide_pad    = indent_guide_pad,
         _on_selection        = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
         _on_toggle           = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
         _bufnr               = -1,
@@ -226,32 +241,53 @@ function TreeBuffer:subscribe(callbacks)
 end
 
 ---@private
+---@param depth integer
+---@return keystone.util.TreeBuffer.Indent
+function TreeBuffer:_get_indent(depth)
+    local indent = self._indent_cache[depth]
+    if indent then return indent end
+    local text, guide_cols
+    if self._indent_guides then
+        local unit = self._indent_guide_char .. self._indent_guide_pad
+        text, guide_cols = string.rep(unit, depth), {}
+        for i = 0, depth - 1 do guide_cols[#guide_cols + 1] = i * #unit end
+    else
+        text, guide_cols = string.rep(self._indent_string, depth), {}
+    end
+    indent = { text = text, width = vim.fn.strdisplaywidth(text), guide_cols = guide_cols }
+    self._indent_cache[depth] = indent
+    return indent
+end
+
+---@private
 ---@param flatnode keystone.util.Tree.FlatNode
 ---@param row integer
 ---@return string line, table hl_calls, table extmarks
 function TreeBuffer:_render_node(flatnode, row)
     local id, data, depth = flatnode.id, flatnode.data, flatnode.depth
-    local indent = self._indent_cache[depth] or string.rep(self._indent_string, depth)
-    local prefix
-    local hl_calls = {}
+    local indent = self:_get_indent(depth)
+    local chunks, prefix_width = {}, indent.width
+
     if self._collapsible then
         local expandable = data.expandable or self._tree:have_children(id)
         local icon = expandable and (data.expanded and self._collapse_symbol or self._expand_symbol) or ""
-        prefix = icon ~= "" and (indent .. icon .. " ") or indent
-        local icon_hl = data.expanded and self._collapse_symbol_hl or self._expand_symbol_hl
-        if icon ~= "" and icon_hl then
-            hl_calls[#hl_calls + 1] = { hl = icon_hl, row = row, s_col = #indent, e_col = #indent + #icon }
+        if icon ~= "" then
+            local icon_hl = data.expanded and self._collapse_symbol_hl or self._expand_symbol_hl
+            chunks[#chunks + 1] = { icon, icon_hl }
+            chunks[#chunks + 1] = { " " }
+            prefix_width = prefix_width + vim.fn.strdisplaywidth(icon) + 1
         end
-    else
-        prefix = indent
     end
 
-    local text_chunks, virt, line_hl = self._formatter(id, data.userdata, data.expanded,
-        vim.fn.strdisplaywidth(prefix))
-    local line = prefix
-    local col = #prefix
+    local text_chunks, virt, line_hl = self._formatter(id, data.userdata, data.expanded, prefix_width)
+    for _, c in ipairs(text_chunks) do chunks[#chunks + 1] = c end
 
-    for _, chunk in ipairs(text_chunks) do
+    local line, col, hl_calls = indent.text, #indent.text, {}
+    local guide_len = #self._indent_guide_char
+    for _, s_col in ipairs(indent.guide_cols) do
+        hl_calls[#hl_calls + 1] = { hl = self._indent_guide_hl, row = row, s_col = s_col, e_col = s_col + guide_len }
+    end
+    for _, chunk in ipairs(chunks) do
         local txt, hl = chunk[1], chunk[2]
         txt = (txt or ""):gsub("\n", "↵")
         local len = #txt
