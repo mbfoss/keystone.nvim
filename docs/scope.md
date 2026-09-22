@@ -26,8 +26,6 @@ require("keystone").setup({
     guides            = true,  -- guide on every indent level
     scope_char        = "┃",   -- one cell wide
     guide_char        = "│",   -- one cell wide
-    scope_fade        = 25,    -- percent the scope guide fades into the background
-    guide_fade        = 50,    -- percent the indent guides fade into the background
     exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
   },
 })
@@ -42,31 +40,29 @@ guides.
 
 ## Highlights <!-- tag: highlights -->
 
-Both groups are defined with `default = true`, so a colorscheme or your own
-`nvim_set_hl` call wins over them.
+The guides are drawn with `KeystoneScope` and `KeystoneIndentGuide`. Both link to
+a faded default with `default = true`, so a colorscheme or your own `nvim_set_hl`
+call on them wins over the link and is drawn as given.
 
-| Group | Used for | Links to |
+| Group | Used for | Is |
 | --- | --- | --- |
-| `KeystoneScope` | The scope guide | `NonText` |
-| `KeystoneIndentGuide` | Indent guides | `KeystoneScope` |
-
-`scope_fade` and `guide_fade` fade a guide into the background: 0 keeps its own
-colour, 100 leaves it the background's. By default the scope guide is the heavier
-character faded 25 percent and the indent guides the lighter one faded 50.
+| `KeystoneScope` | The scope guide | `NonText` faded 25% |
+| `KeystoneIndentGuide` | Indent guides | `NonText` faded 50% |
+| `KeystoneScopeDefault` | The default above | |
+| `KeystoneIndentGuideDefault` | The default above | |
 
 Neovim's `blend=` attribute only takes effect in floats and the popup menu, so
-the fade is baked into a colour instead: the group's foreground is mixed that far
-into the background of `Normal` and kept in `KeystoneScopeFaded` or
-`KeystoneIndentGuideFaded`, recomputed on every colorscheme change. Setting a
-fade therefore leaves `KeystoneScope` and `KeystoneIndentGuide` free to define
-as usual. Only the foreground is taken; a background would paint a block behind
-every guide cell, and `NonText` carries one under some colorschemes.
+the fade is baked into a colour instead: the foreground of `NonText` is mixed
+that far into the background of `Normal` and kept in the `Default` groups,
+recomputed on every colorscheme change. Only the foreground is taken; a
+background would paint a block behind every guide cell, and `NonText` carries
+one under some colorschemes.
 
 The mix is a 24-bit colour, so it only reaches the screen where Neovim draws with
 `gui` attributes: a TUI with `'termguicolors'`, or an external UI attached with
 `rgb`. Elsewhere the faded group renders from its `cterm` attributes, which
 carry no fade, so the characters alone tell the guides apart — a dashed
-`guide_char` like `╎` helps there. A source group with no foreground is drawn
+`guide_char` like `╎` helps there. A `NonText` with no foreground is drawn
 unfaded. The mix is against `Normal`, so a window with another background
 through `'winhighlight'` fades towards the wrong colour.
 
