@@ -26,8 +26,8 @@ require("keystone").setup({
     guides            = true,  -- guide on every indent level
     scope_char        = "┃",   -- one cell wide
     guide_char        = "│",   -- one cell wide
-    scope_blend       = 25,    -- percent the scope guide fades into the background
-    guide_blend       = 50,    -- percent the indent guides fade into the background
+    scope_fade        = 25,    -- percent the scope guide fades into the background
+    guide_fade        = 50,    -- percent the indent guides fade into the background
     exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
   },
 })
@@ -50,24 +50,24 @@ Both groups are defined with `default = true`, so a colorscheme or your own
 | `KeystoneScope` | The scope guide | `NonText` |
 | `KeystoneIndentGuide` | Indent guides | `KeystoneScope` |
 
-`scope_blend` and `guide_blend` fade a guide into the background: 0 keeps its own
+`scope_fade` and `guide_fade` fade a guide into the background: 0 keeps its own
 colour, 100 leaves it the background's. By default the scope guide is the heavier
 character faded 25 percent and the indent guides the lighter one faded 50.
 
 Neovim's `blend=` attribute only takes effect in floats and the popup menu, so
 the fade is baked into a colour instead: the group's foreground is mixed that far
-into the background of `Normal` and kept in `KeystoneScopeBlend` or
-`KeystoneIndentGuideBlend`, recomputed on every colorscheme change. Setting a
-blend therefore leaves `KeystoneScope` and `KeystoneIndentGuide` free to define
+into the background of `Normal` and kept in `KeystoneScopeFaded` or
+`KeystoneIndentGuideFaded`, recomputed on every colorscheme change. Setting a
+fade therefore leaves `KeystoneScope` and `KeystoneIndentGuide` free to define
 as usual. Only the foreground is taken; a background would paint a block behind
 every guide cell, and `NonText` carries one under some colorschemes.
 
 The mix is a 24-bit colour, so it only reaches the screen where Neovim draws with
 `gui` attributes: a TUI with `'termguicolors'`, or an external UI attached with
-`rgb`. Elsewhere the blended group renders from its `cterm` attributes, which
+`rgb`. Elsewhere the faded group renders from its `cterm` attributes, which
 carry no fade, so the characters alone tell the guides apart — a dashed
 `guide_char` like `╎` helps there. A source group with no foreground is drawn
-unblended. The mix is against `Normal`, so a window with another background
+unfaded. The mix is against `Normal`, so a window with another background
 through `'winhighlight'` fades towards the wrong colour.
 
 ## API <!-- tag: api -->

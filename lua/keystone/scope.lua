@@ -28,10 +28,10 @@ local color = require("keystone.util.color")
 local _HL_SCOPE = "KeystoneScope"
 local _HL_GUIDE = "KeystoneIndentGuide"
 
--- Variants of the groups above, drawn with instead of them while a blend is
+-- Variants of the groups above, drawn with instead of them while a fade is
 -- configured; see `_setup_highlights`.
-local _HL_SCOPE_BLEND = "KeystoneScopeBlend"
-local _HL_GUIDE_BLEND = "KeystoneIndentGuideBlend"
+local _HL_SCOPE_FADED = "KeystoneScopeFaded"
+local _HL_GUIDE_FADED = "KeystoneIndentGuideFaded"
 
 vim.api.nvim_set_hl(0, _HL_SCOPE, { default = true, link = "NonText" })
 vim.api.nvim_set_hl(0, _HL_GUIDE, { default = true, link = _HL_SCOPE })
@@ -42,8 +42,8 @@ vim.api.nvim_set_hl(0, _HL_GUIDE, { default = true, link = _HL_SCOPE })
 ---@field guides boolean? draw a guide on every indent level
 ---@field scope_char string? character of the scope guide (one cell wide)
 ---@field guide_char string? character of the indent guides (one cell wide)
----@field scope_blend integer? percent the scope guide fades into the background, 0-100
----@field guide_blend integer? percent the indent guides fade into the background, 0-100
+---@field scope_fade integer? percent the scope guide fades into the background, 0-100
+---@field guide_fade integer? percent the indent guides fade into the background, 0-100
 ---@field exclude_filetypes string[]? filetypes left alone
 
 ---@type keystone.scope.Config
@@ -53,8 +53,8 @@ local _default_config = {
   guides            = true,
   scope_char        = "┃",
   guide_char        = "│",
-  scope_blend       = 25,
-  guide_blend       = 50,
+  scope_fade        = 25,
+  guide_fade        = 50,
   exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
 }
 
@@ -487,12 +487,12 @@ end
 -- Highlights
 -- ---------------------------------------------------------------------------
 
---- Pick the groups the guides are drawn with, defining the blended variants
+--- Pick the groups the guides are drawn with, defining the faded variants
 --- from the current colours. Run on enable and on every colorscheme change,
 --- since a new scheme redefines both the sources and the backdrop.
 local function _setup_highlights()
-  color.blend(_HL_SCOPE, _HL_SCOPE_BLEND, M.config.scope_blend)
-  color.blend(_HL_GUIDE, _HL_GUIDE_BLEND, M.config.guide_blend)
+  color.fade(_HL_SCOPE, _HL_SCOPE_FADED, M.config.scope_fade)
+  color.fade(_HL_GUIDE, _HL_GUIDE_FADED, M.config.guide_fade)
 end
 
 -- ---------------------------------------------------------------------------
@@ -557,8 +557,8 @@ local function _on_win(_, win, buf, toprow, botrow)
   local stack = config.guides and _enclosing(indent, toprow, last_row) or {}
 
   local folds = vim.api.nvim_get_option_value("foldenable", { win = win })
-  local guide_text = { { config.guide_char, _HL_GUIDE_BLEND } }
-  local scope_text = { { config.scope_char, _HL_SCOPE_BLEND } }
+  local guide_text = { { config.guide_char, _HL_GUIDE_FADED } }
+  local scope_text = { { config.scope_char, _HL_SCOPE_FADED } }
 
   vim.api.nvim_win_call(win, function()
     local leftcol = vim.fn.winsaveview().leftcol

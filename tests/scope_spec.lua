@@ -299,7 +299,7 @@ describe("scope rendering", function()
   end)
 end)
 
-describe("scope blending", function()
+describe("scope fading", function()
   local saved
 
   ---@param name string
@@ -330,36 +330,36 @@ describe("scope blending", function()
   end)
 
   it("fades the guides into the background", function()
-    scope.setup({ scope_blend = 50, guide_blend = 100 })
-    assert.equals(0x404040, fg("KeystoneScopeBlend"))
-    assert.equals(0x000000, fg("KeystoneIndentGuideBlend"))
+    scope.setup({ scope_fade = 50, guide_fade = 100 })
+    assert.equals(0x404040, fg("KeystoneScopeFaded"))
+    assert.equals(0x000000, fg("KeystoneIndentGuideFaded"))
   end)
 
   it("recomputes from the source group on a colorscheme change", function()
-    scope.setup({ scope_blend = 50 })
-    assert.equals(0x404040, fg("KeystoneScopeBlend"))
+    scope.setup({ scope_fade = 50 })
+    assert.equals(0x404040, fg("KeystoneScopeFaded"))
     vim.api.nvim_set_hl(0, "Normal", { bg = 0xffffff })
     vim.api.nvim_exec_autocmds("ColorScheme", {})
-    -- Mixed from the source again, not from the previous blend.
-    assert.equals(0xc0c0c0, fg("KeystoneScopeBlend"))
+    -- Mixed from the source again, not from the previous fade.
+    assert.equals(0xc0c0c0, fg("KeystoneScopeFaded"))
   end)
 
-  it("keeps the source foreground without a blend", function()
-    scope.setup({ scope_blend = 0 })
-    assert.equals(0x808080, fg("KeystoneScopeBlend"))
+  it("keeps the source foreground without a fade", function()
+    scope.setup({ scope_fade = 0 })
+    assert.equals(0x808080, fg("KeystoneScopeFaded"))
   end)
 
   it("takes no background from the source", function()
     -- As `NonText` has under `desert`: it would paint a block behind every
     -- guide, the guides being one cell of virtual text each.
     vim.api.nvim_set_hl(0, "KeystoneScope", { fg = 0x808080, bg = 0x4d4d4d })
-    scope.setup({ scope_blend = 50 })
-    assert.is_nil(vim.api.nvim_get_hl(0, { name = "KeystoneScopeBlend" }).bg)
+    scope.setup({ scope_fade = 50 })
+    assert.is_nil(vim.api.nvim_get_hl(0, { name = "KeystoneScopeFaded" }).bg)
   end)
 
-  it("leaves no blended group when the source has no foreground", function()
+  it("leaves no faded group when the source has no foreground", function()
     vim.api.nvim_set_hl(0, "KeystoneScope", {})
-    scope.setup({ scope_blend = 50 })
-    assert.is_nil(fg("KeystoneScopeBlend"))
+    scope.setup({ scope_fade = 50 })
+    assert.is_nil(fg("KeystoneScopeFaded"))
   end)
 end)
