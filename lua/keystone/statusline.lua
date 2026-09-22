@@ -3,6 +3,7 @@ local M             = {}
 local icons         = require("keystone.icons")
 local throttle      = require("keystone.util.throttle")
 local cfgutil       = require("keystone.util.config")
+local color         = require("keystone.util.color")
 
 local _redrawstatus = throttle.throttle_wrap(300, vim.cmd.redrawstatus)
 local _enabled      = false
@@ -88,23 +89,29 @@ local _separatorNC_hl = "KeystoneSLSepNC"
 ---A `%#Group#` attribute is *combined* with the window's base statusline group,
 ---so only the foreground needs overriding. The combine ORs in `reverse`, which
 ---draws a group's *background* as its foreground -- hence the field swap below.
+---The `…Default` group is rebuilt on every `ColorScheme`, which redefines both
+---`NonText` and `base`.
 ---@param name string  the group to define
 ---@param base string  the statusline group it is drawn over
----@param src  vim.api.keyset.highlight  the highlight to take the foreground from
-local function _def_separator(name, base, src)
-  local base_hl = vim.api.nvim_get_hl(0, { name = base, link = false })
-  local base_cterm = base_hl.cterm
-  local hl = {} ---@type vim.api.keyset.highlight
-  if base_hl.reverse then hl.bg = src.fg else hl.fg = src.fg end
-  if base_cterm and base_cterm.reverse then hl.ctermbg = src.ctermfg else hl.ctermfg = src.ctermfg end
-  vim.api.nvim_set_hl(0, name .. "Default", hl)
+local function _def_separator(name, base)
+  color.create_themed_hl({
+    name = name .. "Default",
+    spec = function()
+      local src = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
+      local base_hl = vim.api.nvim_get_hl(0, { name = base, link = false })
+      local base_cterm = base_hl.cterm
+      local hl = {} ---@type vim.api.keyset.highlight
+      if base_hl.reverse then hl.bg = src.fg else hl.fg = src.fg end
+      if base_cterm and base_cterm.reverse then hl.ctermbg = src.ctermfg else hl.ctermfg = src.ctermfg end
+      return hl
+    end,
+  })
   vim.api.nvim_set_hl(0, name, { default = true, link = name .. "Default" })
 end
 
-local function _update_separator_hl()
-  local src = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
-  _def_separator(_separator_hl, "StatusLine", src --[[@as vim.api.keyset.highlight]])
-  _def_separator(_separatorNC_hl, "StatusLineNC", src --[[@as vim.api.keyset.highlight]])
+local function _setup_separator_hl()
+  _def_separator(_separator_hl, "StatusLine")
+  _def_separator(_separatorNC_hl, "StatusLineNC")
 end
 
 ---Register a section provider under `name` for use in `config.sections`; a bare
@@ -696,7 +703,7 @@ function M.enable()
   if _enabled then return end
   _enabled = true
 
-  _update_separator_hl()
+  _setup_separator_hl()
 
   -- Never save our own expression over the real previous value, or a stray
   -- `enable` would make the restore in `M.disable` a no-op.
@@ -707,10 +714,6 @@ function M.enable()
   _sync_active()
 
   local group = vim.api.nvim_create_augroup("keystone_statusline", { clear = true })
-  vim.api.nvim_create_autocmd("ColorScheme", {
-    group = group,
-    callback = _update_separator_hl,
-  })
   vim.api.nvim_create_autocmd("DirChanged", {
     group = group,
     pattern = "*",
@@ -757,7 +760,7 @@ function M.setup(opts)
   if not M.config.enabled then
     M.disable()
   elseif _enabled then
-    _update_separator_hl()
+    _setup_separator_hl()
     _sync_active()
   else
     M.enable()
