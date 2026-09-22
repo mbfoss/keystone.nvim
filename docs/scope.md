@@ -40,31 +40,22 @@ guides.
 
 ## Highlights <!-- tag: highlights -->
 
-The guides are drawn with `KeystoneScope` and `KeystoneIndentGuide`. Both link to
-a faded default with `default = true`, so a colorscheme or your own `nvim_set_hl`
-call on them wins over the link and is drawn as given.
+The guides are drawn with the groups below. Each `default`-links to its
+`…Default` group, so a colorscheme or an `nvim_set_hl` call on it takes
+precedence.
 
-| Group | Used for | Is |
+| Group | Used for | Defaults to |
 | --- | --- | --- |
-| `KeystoneScope` | The scope guide | `NonText` faded 25% |
-| `KeystoneIndentGuide` | Indent guides | `NonText` faded 50% |
-| `KeystoneScopeDefault` | The default above | |
-| `KeystoneIndentGuideDefault` | The default above | |
+| `KeystoneScope` | The scope guide | `KeystoneScopeDefault` |
+| `KeystoneIndentGuide` | Indent guides | `KeystoneIndentGuideDefault` |
 
-Neovim's `blend=` attribute only takes effect in floats and the popup menu, so
-the fade is baked into a colour instead: the foreground of `NonText` is mixed
-that far into the background of `Normal` and kept in the `Default` groups,
-recomputed on every colorscheme change. Only the foreground is taken; a
-background would paint a block behind every guide cell, and `NonText` carries
-one under some colorschemes.
+The `…Default` groups are rebuilt on every colorscheme change; override the two
+groups above instead.
 
-The mix is a 24-bit colour, so it only reaches the screen where Neovim draws with
-`gui` attributes: a TUI with `'termguicolors'`, or an external UI attached with
-`rgb`. Elsewhere the faded group renders from its `cterm` attributes, which
-carry no fade, so the characters alone tell the guides apart — a dashed
-`guide_char` like `╎` helps there. A `NonText` with no foreground is drawn
-unfaded. The mix is against `Normal`, so a window with another background
-through `'winhighlight'` fades towards the wrong colour.
+| Group | Is |
+| --- | --- |
+| `KeystoneScopeDefault` | `NonText` faded 25% into the background |
+| `KeystoneIndentGuideDefault` | `NonText` faded 50% into the background |
 
 ## API <!-- tag: api -->
 
@@ -78,10 +69,8 @@ through `'winhighlight'` fades towards the wrong colour.
 
 ## How it draws <!-- tag: drawing -->
 
-Guides are ephemeral extmarks set from a decoration provider: only the lines
-being redrawn are computed, and nothing is stored in the buffer. Cursor movement
-redraws nothing by itself, so when the scope changes the rows it covered and the
-rows it now covers are redrawn.
+Guides are drawn as ephemeral extmarks, so they are never part of the buffer's
+content: nothing is inserted and nothing is written to disk.
 
 <!-- panvimdoc-ignore-start -->
 

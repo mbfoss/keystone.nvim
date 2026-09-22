@@ -118,6 +118,18 @@ Callers today: `keystone.unsaved.session.open`,
 - **statusline**: sections are pluggable providers with `render` / `enable` /
   `disable` / `highlights`. Built-in sections are registered exactly like
   user-provided ones via `M.register`.
+- **scope**: guides are ephemeral extmarks set from a decoration provider, so
+  only the lines being redrawn are computed and nothing is stored in the buffer.
+  A cursor move redraws nothing by itself, so when the scope changes both the
+  rows it covered and the rows it now covers are redrawn. `blend=` applies only
+  to floats and the popup menu, so the fade is baked into a colour instead: the
+  foreground of `NonText` mixed into the background of `Normal`, kept in the
+  `…Default` groups and rebuilt on every `ColorScheme`. Only the foreground is
+  carried over, since a background would paint a block behind each one-cell
+  guide. The mix is 24-bit, so without `'termguicolors'` the groups render from
+  their unfaded `cterm` attributes and only `scope_char` / `guide_char` tell the
+  guides apart. A window whose `'winhighlight'` background is not `Normal`'s
+  fades towards the wrong colour.
 - **completion**: a source-agnostic trigger engine. It decides *when* to complete
   and fires the sources in `source_order` as black boxes; the LSP item lifecycle
   belongs to the source (`vim.lsp.completion`).
