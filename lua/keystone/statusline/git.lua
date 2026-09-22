@@ -39,13 +39,14 @@ local function _git(dir, args, cb)
   local cmd = { "git" }
   vim.list_extend(cmd, args)
   local out = {}
-  local ok = pcall(spawn, cmd, {
+  -- spawn reports a failed exec by returning nil, not by raising, and still
+  -- fires on_exit with a negative code, so cb runs exactly once either way.
+  spawn(cmd, {
     cwd = dir,
     stdout = function(data) out[#out + 1] = data end,
   }, function(code)
     cb(code == 0 and (table.concat(out):gsub("%s+", "")) or nil)
   end)
-  if not ok then cb(nil) end
 end
 
 ---@param bufnr integer
