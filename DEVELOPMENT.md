@@ -128,8 +128,7 @@ Callers today: `keystone.unsaved.session.open`,
   carried over, since a background would paint a block behind each one-cell
   guide. The mix is 24-bit, so without `'termguicolors'` the groups render from
   their unfaded `cterm` attributes and only `scope_char` / `guide_char` tell the
-  guides apart. A window whose `'winhighlight'` background is not `Normal`'s
-  fades towards the wrong colour.
+  guides apart.
 - **completion**: a source-agnostic trigger engine. It decides *when* to complete
   and fires the sources in `source_order` as black boxes; the LSP item lifecycle
   belongs to the source (`vim.lsp.completion`).
