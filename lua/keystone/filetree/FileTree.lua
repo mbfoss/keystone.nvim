@@ -93,10 +93,11 @@ local function _file_formatter(id, data, selected)
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
     end
     local name_hl = selected and "Special" or nil
-    local chunks = {
-        { data.icon, data.icon_hl },
-        { " " },
-    }
+    local chunks = {}
+    if not data.is_dir then
+        table.insert(chunks, { data.icon, data.icon_hl })
+        table.insert(chunks, { " " })
+    end
     if selected then
         table.insert(chunks, { "✳", "Special" })
     end

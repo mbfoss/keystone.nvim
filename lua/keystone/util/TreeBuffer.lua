@@ -37,7 +37,6 @@ local Signal = require("keystone.util.Signal")
 ---@field private _collapse_char string
 ---@field private _icon_hl string
 ---@field private _indent_string string
----@field private _expand_padding string
 ---@field private _indent_cache table<integer, string>
 ---@field private _on_selection keystone.util.Signal<fun(id:any,data:any)>
 ---@field private _on_toggle keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
@@ -66,7 +65,6 @@ function TreeBuffer.new(opts)
         _collapse_char  = opts.collapse_char or "⌄",
         _icon_hl        = opts.icon_hl or "FoldColumn",
         _indent_string  = indent_str,
-        _expand_padding = string.rep(" ", vim.fn.strdisplaywidth(expand_char)) .. " ",
         _indent_cache   = indent_cache,
         _on_selection   = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
         _on_toggle      = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
@@ -235,7 +233,7 @@ function TreeBuffer:_render_node(flatnode, row)
     if self._collapsible then
         local expandable = data.expandable or self._tree:have_children(id)
         local icon = expandable and (data.expanded and self._collapse_char or self._expand_char) or ""
-        prefix = icon ~= "" and (indent .. icon .. " ") or (indent .. self._expand_padding)
+        prefix = icon ~= "" and (indent .. icon .. " ") or indent
     else
         prefix = indent
     end
