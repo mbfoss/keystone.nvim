@@ -24,18 +24,20 @@ local Signal = require("keystone.util.Signal")
 ---@class keystone.util.TreeBuffer.Opts
 ---@field filetype string?
 ---@field formatter keystone.util.TreeBuffer.FormatterFn
----@field expand_char string?
----@field collapse_char string?
----@field icon_hl string?
+---@field expand_symbol string?
+---@field collapse_symbol string?
+---@field expand_symbol_hl string?
+---@field collapse_symbol_hl string?
 ---@field indent_string string?
 ---@field collapsible boolean?  -- whether nodes can be expanded/collapsed (default true)
 
 ---@class keystone.util.TreeBuffer
 ---@field private _filetype string?
 ---@field private _formatter keystone.util.TreeBuffer.FormatterFn
----@field private _expand_char string
----@field private _collapse_char string
----@field private _icon_hl string
+---@field private _expand_symbol string
+---@field private _collapse_symbol string
+---@field private _expand_symbol_hl string?
+---@field private _collapse_symbol_hl string?
 ---@field private _indent_string string
 ---@field private _indent_cache table<integer, string>
 ---@field private _on_selection keystone.util.Signal<fun(id:any,data:any)>
@@ -53,27 +55,28 @@ TreeBuffer.__index = TreeBuffer
 ---@return keystone.util.TreeBuffer
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
-    local expand_char = opts.expand_char or "›"
+    local expand_symbol = opts.expand_symbol or "›"
     local indent_cache = {}
     for i = 0, 20 do
         indent_cache[i] = string.rep(indent_str, i)
     end
     return setmetatable({
-        _filetype       = opts.filetype,
-        _formatter      = opts.formatter,
-        _expand_char    = expand_char,
-        _collapse_char  = opts.collapse_char or "⌄",
-        _icon_hl        = opts.icon_hl or "FoldColumn",
-        _indent_string  = indent_str,
-        _indent_cache   = indent_cache,
-        _on_selection   = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
-        _on_toggle      = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
-        _bufnr          = -1,
-        _ns_id          = -1,
-        _tree           = Tree.new(),
-        _flat_ids       = {}, ---@type any[]
-        _id_to_idx      = {}, ---@type table<any, integer>
-        _collapsible    = opts.collapsible ~= false,
+        _filetype            = opts.filetype,
+        _formatter           = opts.formatter,
+        _expand_symbol       = expand_symbol,
+        _collapse_symbol     = opts.collapse_symbol or "⌄",
+        _expand_symbol_hl    = opts.expand_symbol_hl,
+        _collapse_symbol_hl  = opts.collapse_symbol_hl,
+        _indent_string       = indent_str,
+        _indent_cache        = indent_cache,
+        _on_selection        = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
+        _on_toggle           = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
+        _bufnr               = -1,
+        _ns_id               = -1,
+        _tree                = Tree.new(),
+        _flat_ids            = {}, ---@type any[]
+        _id_to_idx           = {}, ---@type table<any, integer>
+        _collapsible         = opts.collapsible ~= false,
     }, TreeBuffer)
 end
 
@@ -230,10 +233,15 @@ function TreeBuffer:_render_node(flatnode, row)
     local id, data, depth = flatnode.id, flatnode.data, flatnode.depth
     local indent = self._indent_cache[depth] or string.rep(self._indent_string, depth)
     local prefix
+    local hl_calls = {}
     if self._collapsible then
         local expandable = data.expandable or self._tree:have_children(id)
-        local icon = expandable and (data.expanded and self._collapse_char or self._expand_char) or ""
+        local icon = expandable and (data.expanded and self._collapse_symbol or self._expand_symbol) or ""
         prefix = icon ~= "" and (indent .. icon .. " ") or indent
+        local icon_hl = data.expanded and self._collapse_symbol_hl or self._expand_symbol_hl
+        if icon ~= "" and icon_hl then
+            hl_calls[#hl_calls + 1] = { hl = icon_hl, row = row, s_col = #indent, e_col = #indent + #icon }
+        end
     else
         prefix = indent
     end
@@ -242,7 +250,6 @@ function TreeBuffer:_render_node(flatnode, row)
         vim.fn.strdisplaywidth(prefix))
     local line = prefix
     local col = #prefix
-    local hl_calls = {}
 
     for _, chunk in ipairs(text_chunks) do
         local txt, hl = chunk[1], chunk[2]
