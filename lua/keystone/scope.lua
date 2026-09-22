@@ -1,6 +1,7 @@
 local M = {}
 
 local cfgutil = require("keystone.util.config")
+local color = require("keystone.util.color")
 
 -- ---------------------------------------------------------------------------
 -- Scope
@@ -486,57 +487,12 @@ end
 -- Highlights
 -- ---------------------------------------------------------------------------
 
---- `fg` mixed `pct` percent of the way to `bg`, all 24-bit colours.
----@param fg integer
----@param bg integer
----@param pct integer
----@return integer
-local function _mix(fg, bg, pct)
-  local out = 0
-  for _, scale in ipairs({ 65536, 256, 1 }) do
-    local f, b = math.floor(fg / scale) % 256, math.floor(bg / scale) % 256
-    out = out + math.floor(f + (b - f) * pct / 100 + 0.5) * scale
-  end
-  return out
-end
-
---- The background the guides fade into: the one of `Normal`, or the darkest or
---- lightest the terminal can show when it has none.
----@return integer
-local function _backdrop()
-  local normal = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
-  return normal.bg or (vim.o.background == "light" and 0xffffff or 0x000000)
-end
-
---- Define `dst` as the foreground of `src` faded `pct` percent into the
---- background. Only the foreground is taken: a guide is a single cell of
---- virtual text, so a background of the source's would paint a block behind
---- every one of them, and `NonText`, the default source, carries one in some
---- colorschemes. `ctermfg` comes over unfaded, there being no 24-bit colour to
---- fade there. `dst` links to `src` when it has no foreground at all, so the
---- guides are always drawn with `dst`.
----@param src string
----@param dst string
----@param pct integer
-local function _blended(src, dst, pct)
-  -- Resolved rather than followed by hand: `src` links to `NonText` by default.
-  local hl = vim.api.nvim_get_hl(0, { name = src, link = false })
-  if not (hl.fg or hl.ctermfg) then
-    vim.api.nvim_set_hl(0, dst, { link = src })
-    return
-  end
-  vim.api.nvim_set_hl(0, dst, {
-    fg = hl.fg and _mix(hl.fg, _backdrop(), math.min(pct, 100)) or nil,
-    ctermfg = hl.ctermfg,
-  })
-end
-
 --- Pick the groups the guides are drawn with, defining the blended variants
 --- from the current colours. Run on enable and on every colorscheme change,
 --- since a new scheme redefines both the sources and the backdrop.
 local function _setup_highlights()
-  _blended(_HL_SCOPE, _HL_SCOPE_BLEND, M.config.scope_blend)
-  _blended(_HL_GUIDE, _HL_GUIDE_BLEND, M.config.guide_blend)
+  color.blend(_HL_SCOPE, _HL_SCOPE_BLEND, M.config.scope_blend)
+  color.blend(_HL_GUIDE, _HL_GUIDE_BLEND, M.config.guide_blend)
 end
 
 -- ---------------------------------------------------------------------------

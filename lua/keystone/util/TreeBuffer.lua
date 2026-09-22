@@ -1,6 +1,7 @@
 local Tree = require("keystone.util.Tree")
 local uiutil = require("keystone.util.ui")
 local Signal = require("keystone.util.Signal")
+local color = require("keystone.util.color")
 
 ---@class keystone.util.TreeBuffer.Item
 ---@field id any
@@ -33,6 +34,7 @@ local Signal = require("keystone.util.Signal")
 ---@field indent_guides boolean?  -- draw vertical indent guides (default true)
 ---@field indent_guide_char string?
 ---@field indent_guide_hl string?
+---@field indent_guide_blend integer?  -- percent the guides fade into the background, 0-100
 
 ---@class keystone.util.TreeBuffer.Indent
 ---@field text string
@@ -69,29 +71,33 @@ function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
     local expand_symbol = opts.expand_symbol or "›"
     local indent_guide_char = opts.indent_guide_char or "│"
+    local guide_src = opts.indent_guide_hl or "NonText"
+    local guide_pct = opts.indent_guide_blend or 50
+    local guide_hl = ("KeystoneTreeFaded_%s_%d"):format(guide_src:gsub("[^%w_]", "_"), guide_pct)
+    color.create_blended_hl({ src = guide_src, dst = guide_hl, pct = guide_pct })
     local guide_pad_width = math.max(0, vim.fn.strdisplaywidth(indent_str) - vim.fn.strdisplaywidth(indent_guide_char))
     local indent_guide_pad = string.rep(" ", guide_pad_width)
     return setmetatable({
-        _filetype            = opts.filetype,
-        _formatter           = opts.formatter,
-        _expand_symbol       = expand_symbol,
-        _collapse_symbol     = opts.collapse_symbol or "⌄",
-        _expand_symbol_hl    = opts.expand_symbol_hl,
-        _collapse_symbol_hl  = opts.collapse_symbol_hl,
-        _indent_string       = indent_str,
-        _indent_cache        = {},
-        _indent_guides       = opts.indent_guides ~= false,
-        _indent_guide_char   = indent_guide_char,
-        _indent_guide_hl     = opts.indent_guide_hl or "NonText",
-        _indent_guide_pad    = indent_guide_pad,
-        _on_selection        = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
-        _on_toggle           = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
-        _bufnr               = -1,
-        _ns_id               = -1,
-        _tree                = Tree.new(),
-        _flat_ids            = {}, ---@type any[]
-        _id_to_idx           = {}, ---@type table<any, integer>
-        _collapsible         = opts.collapsible ~= false,
+        _filetype           = opts.filetype,
+        _formatter          = opts.formatter,
+        _expand_symbol      = expand_symbol,
+        _collapse_symbol    = opts.collapse_symbol or "⌄",
+        _expand_symbol_hl   = opts.expand_symbol_hl,
+        _collapse_symbol_hl = opts.collapse_symbol_hl,
+        _indent_string      = indent_str,
+        _indent_cache       = {},
+        _indent_guides      = opts.indent_guides ~= false,
+        _indent_guide_char  = indent_guide_char,
+        _indent_guide_hl    = guide_hl,
+        _indent_guide_pad   = indent_guide_pad,
+        _on_selection       = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any)>
+        _on_toggle          = Signal.new(), ---@type keystone.util.Signal<fun(id:any,data:any,expanded:boolean)>
+        _bufnr              = -1,
+        _ns_id              = -1,
+        _tree               = Tree.new(),
+        _flat_ids           = {}, ---@type any[]
+        _id_to_idx          = {}, ---@type table<any, integer>
+        _collapsible        = opts.collapsible ~= false,
     }, TreeBuffer)
 end
 
