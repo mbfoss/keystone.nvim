@@ -1,7 +1,7 @@
 local M = {}
 
----@type table<string, {src:string, pct:integer}>  -- synced group -> source
-local _synced = {}
+---@type table<string, fun(): vim.api.keyset.highlight>  -- themed group -> spec
+local _specs = {}
 local _augroup ---@type integer?
 
 ---Mix two 24-bit colours: `pct` percent of the way from `fg` to `bg`.
@@ -25,22 +25,47 @@ function M.backdrop()
     return normal.bg or (vim.o.background == "light" and 0xffffff or 0x000000)
 end
 
----Define `dst` as the foreground of `src` faded `pct` percent into the background.
+---Spec for the foreground of `src` faded `pct` percent into the background.
 ---Only the foreground is taken, so no block is painted behind the text. `ctermfg`
----comes over unfaded. `dst` links to `src` when `src` has no foreground.
+---comes over unfaded. Links to `src` when it has no foreground.
+---@param src string
+---@param pct integer
+---@return vim.api.keyset.highlight
+local function _blended_spec(src, pct)
+    local hl = vim.api.nvim_get_hl(0, { name = src, link = false })
+    if not (hl.fg or hl.ctermfg) then return { link = src } end
+    return {
+        fg = hl.fg and M.mix(hl.fg, M.backdrop(), math.min(pct, 100)) or nil,
+        ctermfg = hl.ctermfg,
+    }
+end
+
+---Define `dst` as `src` faded `pct` percent into the background, once.
 ---@param src string
 ---@param dst string
 ---@param pct integer
 function M.blend(src, dst, pct)
-    local hl = vim.api.nvim_get_hl(0, { name = src, link = false })
-    if not (hl.fg or hl.ctermfg) then
-        vim.api.nvim_set_hl(0, dst, { link = src })
-        return
+    vim.api.nvim_set_hl(0, dst, _blended_spec(src, pct))
+end
+
+---@class keystone.util.color.CreateThemedHlOpts
+---@field name string  -- group to define
+---@field spec fun(): vim.api.keyset.highlight  -- evaluated now and on every colorscheme change
+
+---Define `opts.name` from `opts.spec`, and redefine it on every colorscheme change.
+---@param opts keystone.util.color.CreateThemedHlOpts
+function M.create_themed_hl(opts)
+    _specs[opts.name] = opts.spec
+    vim.api.nvim_set_hl(0, opts.name, opts.spec())
+    if not _augroup then
+        _augroup = vim.api.nvim_create_augroup("KeystoneThemedHl", { clear = true })
+        vim.api.nvim_create_autocmd("ColorScheme", {
+            group = _augroup,
+            callback = function()
+                for name, spec in pairs(_specs) do vim.api.nvim_set_hl(0, name, spec()) end
+            end,
+        })
     end
-    vim.api.nvim_set_hl(0, dst, {
-        fg = hl.fg and M.mix(hl.fg, M.backdrop(), math.min(pct, 100)) or nil,
-        ctermfg = hl.ctermfg,
-    })
 end
 
 ---@class keystone.util.color.CreateBlendedHlOpts
@@ -52,17 +77,10 @@ end
 ---and keep it in sync on every colorscheme change.
 ---@param opts keystone.util.color.CreateBlendedHlOpts
 function M.create_blended_hl(opts)
-    _synced[opts.dst] = { src = opts.src, pct = opts.pct }
-    M.blend(opts.src, opts.dst, opts.pct)
-    if not _augroup then
-        _augroup = vim.api.nvim_create_augroup("KeystoneBlendedHl", { clear = true })
-        vim.api.nvim_create_autocmd("ColorScheme", {
-            group = _augroup,
-            callback = function()
-                for name, f in pairs(_synced) do M.blend(f.src, name, f.pct) end
-            end,
-        })
-    end
+    M.create_themed_hl({
+        name = opts.dst,
+        spec = function() return _blended_spec(opts.src, opts.pct) end,
+    })
 end
 
 return M
