@@ -175,8 +175,8 @@ function FileTree:_setup_tree()
         formatter = function(id, data)
             return _file_formatter(id, data, self._selected[data.path] == true)
         end,
-        expand_symbol = "\u{f07b}",   -- closed folder
-        collapse_symbol = "\u{f07c}", -- open folder
+        expand_symbol = "",   -- closed folder
+        collapse_symbol = "", -- open folder
         expand_symbol_hl = "Directory",
         collapse_symbol_hl = "Directory",
     })
