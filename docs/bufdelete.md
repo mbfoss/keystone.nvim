@@ -106,7 +106,7 @@ Each window showing the deleted buffer gets, in order of preference:
    not four empty buffers.
 
 When a float's buffer is deleted anyway (an explicit `:BDelete`, or
-`ignore_floats = false`) the float is closed rather than repointed — unless it is
+`ignore_floats = false`) the float is closed rather than repointed: unless it is
 the only window in its tabpage.
 
 ## Delete or wipe <!-- tag: wipe -->

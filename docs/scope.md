@@ -1,7 +1,7 @@
 # scope
 
-Draws a guide along the scope under the cursor — the body of the function, block
-or table it is in — and a guide on every indent level. Both are on by default and
+Draws a guide along the scope under the cursor (the body of the function, block
+or table it is in) and a guide on every indent level. Both are on by default and
 can be turned off separately.
 
 <!-- panvimdoc-ignore-start -->

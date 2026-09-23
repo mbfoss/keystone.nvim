@@ -58,7 +58,8 @@ it. It runs one step later in the chain:
 The two do not fight over starting servers. nvim-lspconfig enables nothing on its
 own: loading it registers `:LspInfo`, `:LspLog`, `:LspStart`, `:LspRestart` and
 `:LspStop`, and never calls `vim.lsp.enable()`. Activation is left to you, or to
-this module. Enabling the same server twice is harmless — `vim.lsp.enable()` is
+this module. Enabling the same server twice is harmless, since `vim.lsp.enable()`
+is
 idempotent.
 
 What does change is the meaning of `servers = "all"`: nvim-lspconfig ships **407**

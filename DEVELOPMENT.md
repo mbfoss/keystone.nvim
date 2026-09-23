@@ -81,8 +81,8 @@ picker directly. Which implementation answers is up to the user.
 
 [`keystone.select`](lua/keystone/select.lua) is one such implementation, a module
 like any other: its `setup` assigns `vim.ui.select`, and nothing in keystone
-requires it. It is the minimal subset for that interface — a prompt float, a
-fuzzy-filtered list float, an optional preview float — with no sources, async
+requires it. It is the minimal subset for that interface (a prompt float, a
+fuzzy-filtered list float, an optional preview float), with no sources, async
 finders, query flags or history.
 
 `opts.preview_item` is its one extension over `vim.ui.select.Opts`:
@@ -93,7 +93,7 @@ preview_item = function(item) return { buf = <bufnr>, pos = { lnum, col } } end
 
 The caller hands back a **buffer**, so a modified buffer previews as it stands.
 To preview a file, read it into a scratch buffer (see `keystone.unsaved.session`)
-rather than loading it — loading fires the whole autocmd chain and prompts on a
+rather than loading it: loading fires the whole autocmd chain and prompts on a
 stale swap file. Implementations that do not know the option ignore it, so it is
 safe to pass unconditionally; annotate the opts table
 `---@type keystone.select.Opts` so the language server resolves it without
@@ -105,7 +105,8 @@ Callers today: `keystone.unsaved.session.open`,
 ### Notable module internals
 
 - **largefile**: assigns a sentinel filetype (default `bigfile`) during filetype
-  detection, so no `FileType`-keyed attach handler matches — nothing has to be
+  detection, so no `FileType`-keyed attach handler matches, and nothing has to
+  be
   torn down after the load. A `FileType <sentinel>` autocmd applies buffer-local
   tweaks and optionally restores regex syntax.
 - **lspconfig**: Neovim never rotates `lsp.log`. With `lsp_rolling_log`, keystone

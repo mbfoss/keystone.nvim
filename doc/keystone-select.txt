@@ -6,9 +6,9 @@ Table of Contents                          *keystone-select-table-of-contents*
 1. Configuration                               |keystone-select-configuration|
 2. Keys                                                 |keystone-select-keys|
 3. Previews                                         |keystone-select-previews|
-Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks
-you to choose from a list — with a floating one: a prompt line, a
-fuzzy-filtered list, and a preview window for callers that offer one.
+Replaces `vim.ui.select`, the prompt Neovim shows whenever something asks you
+to choose from a list, with a floating one: a prompt line, a fuzzy-filtered
+list, and a preview window for callers that offer one.
 
 
 ==============================================================================

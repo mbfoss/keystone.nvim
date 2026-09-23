@@ -1,7 +1,7 @@
 # select
 
-Replaces `vim.ui.select` — the prompt Neovim shows whenever something asks you to
-choose from a list — with a floating one: a prompt line, a fuzzy-filtered list,
+Replaces `vim.ui.select`, the prompt Neovim shows whenever something asks you to
+choose from a list, with a floating one: a prompt line, a fuzzy-filtered list,
 and a preview window for callers that offer one.
 
 <!-- panvimdoc-ignore-start -->

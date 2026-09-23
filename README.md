@@ -48,7 +48,7 @@ Any other plugin manager works too; point it at `mbfoss/keystone.nvim` and call
 `setup()` yourself.
 
 The groups differ in how intrusive they are: the last only registers a command,
-while "replaces something built in" takes over a global — turn those off if you
+while "replaces something built in" takes over a global: turn those off if you
 already have a statusline, `vim.notify` or key-hint plugin.
 
 ## Configuration <!-- tag: configuration -->
