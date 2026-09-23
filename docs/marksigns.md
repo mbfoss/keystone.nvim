@@ -6,7 +6,7 @@ its line, so a buffer's marks are visible without `:marks`.
 Buffer-local marks (`a-z`) and file marks (`A-Z`) get their own highlight. Two
 marks on one line share the sign; the sign column is two cells wide.
 
-> **Requires Neovim ≥ 0.12.** The module is driven by the `MarkSet` event, which
+> **Requires Neovim >= 0.12.** The module is driven by the `MarkSet` event, which
 > older versions do not have; on those it warns once and stays inert.
 
 ## Configuration <!-- tag: configuration -->

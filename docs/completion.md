@@ -2,7 +2,7 @@
 
 A source-agnostic autocompletion engine. It decides *when* to complete
 (autotrigger or the manual key) and fires the sources in `source_order`; on
-Neovim ≥ 0.11 the `omnifunc` source is the built-in `vim.lsp.completion`.
+Neovim >= 0.11 the `omnifunc` source is the built-in `vim.lsp.completion`.
 
 <!-- panvimdoc-ignore-start -->
 

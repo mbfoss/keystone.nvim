@@ -46,22 +46,25 @@ break the guides.
 2. Highlights                                      *keystone-scope-highlights*
 
 The guides are drawn with the groups below. Each `default`-links to its
-`Default` group, so a colorscheme or an `nvim_set_hl` call on it takes
+`…Default` group, so a colorscheme or an `nvim_set_hl` call on it takes
 precedence.
 
   Group                 Used for          Defaults to
-  --------------------- ----------------- --------------------------
+  --------------------- ----------------- ----------------------------
   KeystoneScope         The scope guide   KeystoneScopeDefault
   KeystoneIndentGuide   Indent guides     KeystoneIndentGuideDefault
+The `…Default` groups are rebuilt on every colorscheme change; override the
+two groups above instead.
 
-The `Default` groups are rebuilt on every colorscheme change; override the two
-groups above instead.
+  -----------------------------------------------------------------------
+  Group                               Is
+  ----------------------------------- -----------------------------------
+  KeystoneScopeDefault                NonText faded 25% into the
+                                      background
 
-  Group                        Is
-  ---------------------------- ----------------------------------------
-  KeystoneScopeDefault         NonText faded 25% into the background
-  KeystoneIndentGuideDefault   NonText faded 50% into the background
-
+  KeystoneIndentGuideDefault          NonText faded 50% into the
+                                      background
+  -----------------------------------------------------------------------
 
 ==============================================================================
 3. API                                                    *keystone-scope-api*
@@ -85,8 +88,8 @@ groups above instead.
 ==============================================================================
 4. How it draws                                       *keystone-scope-drawing*
 
-Guides are drawn as ephemeral extmarks, so they are never part of the buffer's
-content: nothing is inserted and nothing is written to disk.
+Guides are drawn as ephemeral extmarks, so they are never part of the
+buffer’s content: nothing is inserted and nothing is written to disk.
 
 All modules: |keystone-modules|
 

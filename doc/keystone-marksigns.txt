@@ -14,8 +14,8 @@ Buffer-local marks (`a-z`) and file marks (`A-Z`) get their own highlight. Two
 marks on one line share the sign; the sign column is two cells wide.
 
 
-  **Requires Neovim ≥ 0.12.** The module is driven by the `MarkSet` event,
-  which older versions do not have; on those it warns once and stays inert.
+  **Requires Neovim >= 0.12.** The module is driven by the `MarkSet` event, which
+  older versions do not have; on those it warns once and stays inert.
 
 ==============================================================================
 1. Configuration                            *keystone-marksigns-configuration*
