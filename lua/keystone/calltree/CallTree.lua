@@ -37,35 +37,19 @@ local _DIRECTIONS = {
 
 local function _show_help()
     local help_text = { [[
-NAVIGATION
-==========
 `<CR>`    Expand/collapse
 `o`       Jump to the symbol, keep focus in the tree
 `O`       Jump to the symbol and focus it
 `c`       Jump to the call site
 `K`       Hover info (kind, location, call sites)
-
-FOLDING
-=======
 `za`      Toggle expand/collapse
-`zc`      Collapse
-`zo`      Expand
-`zC`      Collapse (recursive)
-`zO`      Expand (recursive)
-
-HIERARCHY
-=========
-The tag on the root line names what the rows below the root are:
-`CALLERS` (incoming) or `CALLS` (outgoing).
-
+`zc / zo` Collapse / Expand
+`zC / zO` Collapse / Expand (recursive)
 `<Tab>`   Swap direction (incoming <-> outgoing)
 `r`       Re-root the tree on the symbol under the cursor
 `<BS>`    Back to the previous root
 `R`       Refresh
-
-OTHER
-=====
-`g?`      Show this help]]
+]]
     }
 
     hover.show(table.concat(help_text, "\n"), {

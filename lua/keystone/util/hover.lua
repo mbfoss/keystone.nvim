@@ -101,6 +101,11 @@ function M.show(text, opts)
         max_height = max_height,
     })
 
+    if opts.syntax == "markdown" then
+        vim.wo[win].conceallevel = 3
+        vim.wo[win].concealcursor = "nv"
+    end
+
     -- A repeat call focuses the open hover, already sized.
     -- Measure the buffer: the preview trims leading blanks and rewrites markdown.
     if win ~= vim.api.nvim_get_current_win() then

@@ -34,50 +34,27 @@ local _error_node_id = {} -- unique id for the error node
 
 -- Marker drawn in front of selected items. A `default` link, so a colorscheme
 -- or a user `nvim_set_hl` call wins over it.
-local _HL_SELECTED = "KeystoneFileTreeSelected"
+local _HL_SELECTED   = "KeystoneFileTreeSelected"
 local _SELECT_MARKER = "▌"
 vim.api.nvim_set_hl(0, _HL_SELECTED, { default = true, link = "Special" })
 
 local function _show_help()
     local help_text = { [[
-NAVIGATION
-==========
-`<CR>`    Open file / Toggle directory
-`o`       Open file (keep focus)
-
-FOLDING
-=======
-`za`      Toggle expand/collapse
-`zc`      Collapse
-`zo`      Expand
-`zC`      Collapse (recursive)
-`zO`      Expand (recursive)
-
-MANAGEMENT
-==========
-`a`       Create file at location
-`i`       Create file inside directory
-`A`       Create directory at location
-`I`       Create directory inside directory
-`r`       Rename file or directory
-
-SELECTION
-=========
-`<Tab>`   Toggle selection of item under cursor
-`<Tab>`   (visual) Toggle selection of items in the visual selection
-`<S-Tab>` Clear the selection
-`x`       Move selected items into the directory under cursor
-`c`       Copy selected items into the directory under cursor
-`d`       Delete selected items (system trash)
-`D`       Delete selected items (permanently, no trash)
-
-OTHER
-=====
-`gb`      Reveal previous buffer
-`gh`      Toggle hidden files
-`K`       Hover info (type, size, modified)
-`R`       Refresh tree
-`g?`      Show this help]]
+`<CR> / o`     Open - Toggle dir / Open (keep focus)
+`za / zc / zo` Toggle / Collapse / Expand
+`zC / zO`      Collapse / Expand recursive
+`a / i`        Create file here / in dir
+`A / I`        Create dir here / in dir
+`r`            Rename
+`<Tab>`        Select item / (visual) select items
+`<S-Tab>`      Clear selection
+`x / c`        Move / Copy selected here
+`d / D`        Trash / Permanently delete selected
+`gb`           Previous buffer
+`gh`           Toggle hidden files
+`K`            Hover info
+`R`            Refresh tree
+]]
     }
 
     hover.show(table.concat(help_text, "\n"), {
@@ -98,14 +75,16 @@ local function _file_formatter(id, data, selected)
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
     end
-    local name_hl = selected and _HL_SELECTED or nil
     -- Always emitted, so selecting an item does not shift its name sideways.
-    local chunks = { { selected and _SELECT_MARKER or " ", _HL_SELECTED } }
+    local chunks = {}
     if not data.is_dir then
         table.insert(chunks, { data.icon, data.icon_hl })
         table.insert(chunks, { " " })
     end
-    table.insert(chunks, { data.name, name_hl })
+    if selected then
+        table.insert(chunks, { _SELECT_MARKER, _HL_SELECTED })
+    end
+    table.insert(chunks, { data.name, selected and _HL_SELECTED or nil })
     return chunks, virt_chunks
 end
 
@@ -179,7 +158,7 @@ function FileTree:_setup_tree()
         formatter = function(id, data)
             return _file_formatter(id, data, self._selected[data.path] == true)
         end,
-        expand_symbol = "",   -- closed folder
+        expand_symbol = "", -- closed folder
         collapse_symbol = "", -- open folder
         expand_symbol_hl = "Directory",
         collapse_symbol_hl = "Directory",
