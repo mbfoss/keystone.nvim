@@ -16,7 +16,7 @@ local M = {}
 ---@type keystone.calltree.Config
 local _defaults = {
     width_ratio      = 0.2,
-    height_ratio     = 0.3,
+    height_ratio     = 0.2,
     position         = "bottom",
     direction        = "incoming",
     show_detail      = true,

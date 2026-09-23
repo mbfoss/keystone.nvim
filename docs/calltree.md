@@ -17,7 +17,7 @@ leaf.
 require("keystone").setup({
   calltree = {
     width_ratio      = 0.2,        -- fraction of the editor width (left/right)
-    height_ratio     = 0.3,        -- fraction of the editor height (top/bottom)
+    height_ratio     = 0.2,        -- fraction of the editor height (top/bottom)
     position         = "bottom",   -- side the window opens on
                                    -- ("top"|"bottom"|"left"|"right")
     direction        = "incoming", -- which way to walk ("incoming"|"outgoing")

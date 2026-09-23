@@ -22,7 +22,7 @@ A file explorer in a side window.
     require("keystone").setup({
       filetree = {
         width_ratio = 0.2,             -- fraction of the editor width (left/right)
-        height_ratio = 0.3,            -- fraction of the editor height (top/bottom)
+        height_ratio = 0.2,            -- fraction of the editor height (top/bottom)
         position = "left",             -- side the window opens on
                                        -- ("top"|"bottom"|"left"|"right")
         follow_current_buffer = false, -- reveal the current file as you switch buffers

@@ -14,7 +14,7 @@ local M = {}
 ---@type keystone.filetree.Config
 local _defaults = {
     width_ratio = 0.2,
-    height_ratio = 0.3,
+    height_ratio = 0.2,
     position = "left",
     follow_current_buffer = false,
 }
