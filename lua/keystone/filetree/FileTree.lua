@@ -32,6 +32,12 @@ local icons          = require("keystone.icons")
 
 local _error_node_id = {} -- unique id for the error node
 
+-- Marker drawn in front of selected items. A `default` link, so a colorscheme
+-- or a user `nvim_set_hl` call wins over it.
+local _HL_SELECTED = "KeystoneFileTreeSelected"
+local _SELECT_MARKER = "▌"
+vim.api.nvim_set_hl(0, _HL_SELECTED, { default = true, link = "Special" })
+
 local function _show_help()
     local help_text = { [[
 NAVIGATION
@@ -92,14 +98,12 @@ local function _file_formatter(id, data, selected)
     if data.error_flag then
         table.insert(virt_chunks, { data.error_icon or "⚠", "ErrorMsg" })
     end
-    local name_hl = selected and "Special" or nil
-    local chunks = {}
+    local name_hl = selected and _HL_SELECTED or nil
+    -- Always emitted, so selecting an item does not shift its name sideways.
+    local chunks = { { selected and _SELECT_MARKER or " ", _HL_SELECTED } }
     if not data.is_dir then
         table.insert(chunks, { data.icon, data.icon_hl })
         table.insert(chunks, { " " })
-    end
-    if selected then
-        table.insert(chunks, { "✳", "Special" })
     end
     table.insert(chunks, { data.name, name_hl })
     return chunks, virt_chunks
