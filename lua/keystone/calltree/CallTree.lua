@@ -19,11 +19,6 @@ local calls             = require("keystone.calltree.calls")
 ---@type keystone.symboltree.Kind
 local _PLACEHOLDER_KIND = { name = "Placeholder", icon = "󰋗", hl = "Comment" }
 
---- Full-line highlight for the root of the tree. Linked with `default` so a
---- colorscheme or the user can override it.
-local _root_hl          = "KeystoneCallTreeRoot"
-vim.api.nvim_set_hl(0, _root_hl, { default = true, link = "Title" })
-
 --- Highlight for the direction tag on the root line.
 local _direction_hl = "KeystoneCallTreeDirection"
 vim.api.nvim_set_hl(0, _direction_hl, { default = true, link = "Special" })
@@ -87,23 +82,23 @@ local function _call_formatter(data, show_detail, direction)
     vim.list_extend(chunks, {
         { data.icon, data.icon_hl },
         { " " },
-        { call.name },
+        { call.name, data.is_root and "Title" or nil },
     })
     if data.recursive then
         table.insert(chunks, { " ↺", "WarningMsg" })
     end
     if show_detail and call.detail and call.detail ~= "" then
         table.insert(chunks, { " " })
-        table.insert(chunks, { call.detail, "Comment" })
+        table.insert(chunks, { call.detail, "@module" })
+    end
+    if call.call_count > 1 then
+        table.insert(chunks, { " (" .. call.call_count .. ")", "Comment" })
     end
 
     local location = _display_name(call.uri) .. ":" .. (call.call_lnum or call.lnum)
-    local virt_chunks = { { " " }, { location, "Comment" } }
-    if call.call_count > 1 then
-        table.insert(virt_chunks, { " (" .. call.call_count .. ")", "Number" })
-    end
-
-    return chunks, virt_chunks, data.is_root and _root_hl or nil
+    table.insert(chunks, {" "})
+    table.insert(chunks, {location, "Comment"})
+    return chunks, {}
 end
 
 ---@class keystone.CallTree.Opts
@@ -516,14 +511,9 @@ function CallTree:_show_hover(call)
         table.insert(lines, "- **Call sites**: " .. call.call_count)
     end
 
-    vim.lsp.util.open_floating_preview(lines, "markdown", {
-        title = " Call ",
-        title_pos = "center",
-        border = "rounded",
-        max_width = math.floor(vim.o.columns * 0.8),
-        max_height = math.floor(vim.o.lines * 0.8),
-        wrap = false,
-        focus_id = "keystone_calltree_hover",
+    hover.show(table.concat(lines, "\n"), {
+        title = "Call",
+        syntax = "markdown",
     })
 end
 
