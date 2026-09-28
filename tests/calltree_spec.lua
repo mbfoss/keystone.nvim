@@ -94,6 +94,24 @@ describe("calltree.calls.normalize_calls", function()
         assert.equals("file:///b.lua", b2.call_uri)
     end)
 
+    it("collapses the same call repeated on one line", function()
+        local out = calls.normalize_calls({
+            { from = item("caller", "file:///a.lua", range(1, 0, 5, 0)),
+              fromRanges = { range(3, 2, 3, 5), range(3, 20, 3, 23) } },
+        }, "incoming", "file:///root.lua", 1)
+        assert.equals(1, #out)
+        assert.equals(4, out[1].call_lnum)
+        assert.equals(2, out[1].call_col) -- the first occurrence on the line
+    end)
+
+    it("keeps distinct calls on the same line", function()
+        local out = calls.normalize_calls({
+            { from = item("foo", "file:///a.lua", range(1, 0, 5, 0)), fromRanges = { range(3, 2, 3, 5) } },
+            { from = item("bar", "file:///a.lua", range(1, 0, 5, 0)), fromRanges = { range(3, 20, 3, 23) } },
+        }, "incoming", "file:///root.lua", 1)
+        assert.equals(2, #out)
+    end)
+
     it("sorts by document then position", function()
         local out = calls.normalize_calls({
             { from = item("z", "file:///b.lua", range(1, 0, 2, 0)), fromRanges = {} },

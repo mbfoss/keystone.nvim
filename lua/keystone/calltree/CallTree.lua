@@ -76,22 +76,22 @@ local function _call_formatter(data, show_detail, direction)
     local chunks = {}
     -- Only the root carries the tag: every other row is reached through it, so
     -- one marker says which way the whole tree is being walked.
+    local label, label_hl
     if data.is_root then
+        label,label_hl = call.name, "Title"
         chunks[#chunks + 1] = { _DIRECTIONS[direction] .. " ", _direction_hl }
+    else
+        label = call.detail or call.name
     end
     vim.list_extend(chunks, {
         { data.icon, data.icon_hl },
         { " " },
-        { call.name, data.is_root and "Title" or nil },
+        { label, label_hl },
     })
     if data.recursive then
         table.insert(chunks, { " ↺", "WarningMsg" })
     end
-    if show_detail and call.detail and call.detail ~= "" then
-        table.insert(chunks, { " " })
-        table.insert(chunks, { call.detail, "@module" })
-    end
-
+    
     local location = _display_name(call.call_uri or call.uri) .. ":" .. (call.call_lnum or call.lnum)
     table.insert(chunks, {" "})
     table.insert(chunks, {location, "Comment"})

@@ -63,7 +63,8 @@ end
 --- Normalize a `callHierarchy/incomingCalls` or `callHierarchy/outgoingCalls`
 --- reply into a position-sorted list, one entry per call site: a caller or
 --- callee reached from several places becomes several rows, each pointing at
---- its own site.
+--- its own site. The same call repeated on one line is collapsed to a single
+--- row.
 ---
 --- The two replies differ in where the call sites live: for incoming calls
 --- `fromRanges` are positions inside the *caller* (`from`), for outgoing calls
@@ -75,25 +76,31 @@ end
 ---@return keystone.calltree.Call[]
 function M.normalize_calls(result, direction, parent_uri, client_id)
     local calls = {}
+    local seen = {}
     for _, entry in ipairs(result or {}) do
         local target = type(entry) == "table" and (direction == "incoming" and entry.from or entry.to)
         if target then
             local ranges = type(entry.fromRanges) == "table" and entry.fromRanges or {}
-            local placed = false
+            local has_site = false
             for _, range in ipairs(ranges) do
                 if range and range.start then
+                    has_site = true
                     local call = M.normalize_item(target, client_id)
                     if call then
                         call.call_uri  = direction == "incoming" and call.uri or parent_uri
                         call.call_lnum = range.start.line + 1
                         call.call_col  = range.start.character
-                        calls[#calls + 1] = call
-                        placed = true
+                        -- Same symbol called again on the same line is one row.
+                        local key = M.identity(call) .. "|" .. call.call_uri .. ":" .. call.call_lnum
+                        if not seen[key] then
+                            seen[key] = true
+                            calls[#calls + 1] = call
+                        end
                     end
                 end
             end
             -- A caller with no reported call sites still earns one row.
-            if not placed then
+            if not has_site then
                 local call = M.normalize_item(target, client_id)
                 if call then calls[#calls + 1] = call end
             end
