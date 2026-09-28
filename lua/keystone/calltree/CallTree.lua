@@ -58,11 +58,12 @@ local function _show_help()
     })
 end
 
+--- Path as the hover reports it: relative to the cwd, or `~` when outside it.
 ---@param uri string
 ---@return string
 local function _display_name(uri)
     local path = vim.uri_to_fname(uri)
-    return vim.fn.fnamemodify(path, ":t")
+    return vim.fn.fnamemodify(path, ":~:.")
 end
 
 ---@param data keystone.calltree.ItemData
