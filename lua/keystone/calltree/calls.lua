@@ -12,9 +12,8 @@ local M = {}
 ---@field col integer 0-based column of the symbol's selection start
 ---@field end_lnum integer 1-based last line covered by the symbol
 ---@field call_uri string? document containing the call site, nil for the root
----@field call_lnum integer? 1-based line of the first call site
----@field call_col integer? 0-based column of the first call site
----@field call_count integer number of call sites (0 for the root)
+---@field call_lnum integer? 1-based line of the call site
+---@field call_col integer? 0-based column of the call site
 ---@field client_id integer id of the client that owns `item`
 ---@field item table raw `CallHierarchyItem`, needed for follow-up requests
 
@@ -44,30 +43,9 @@ function M.normalize_item(item, client_id)
         lnum       = start_range.start.line + 1,
         col        = start_range.start.character,
         end_lnum   = full_range["end"].line + 1,
-        call_count = 0,
         client_id  = client_id,
         item       = item,
     }
-end
-
---- Earliest range in `ranges`, so a caller listed once for several call sites
---- jumps to the first of them.
----@param ranges table[]?
----@return table? range
-local function _first_range(ranges)
-    local first = nil
-    for _, range in ipairs(ranges or {}) do
-        local start = range and range.start
-        if start then
-            if not first
-                or start.line < first.start.line
-                or (start.line == first.start.line and start.character < first.start.character)
-            then
-                first = range
-            end
-        end
-    end
-    return first
 end
 
 ---@param a keystone.calltree.Call
@@ -77,11 +55,15 @@ local function _by_position(a, b)
     if a.uri ~= b.uri then return a.uri < b.uri end
     if a.lnum ~= b.lnum then return a.lnum < b.lnum end
     if a.col ~= b.col then return a.col < b.col end
-    return a.name < b.name
+    if a.name ~= b.name then return a.name < b.name end
+    if a.call_lnum ~= b.call_lnum then return (a.call_lnum or 0) < (b.call_lnum or 0) end
+    return (a.call_col or 0) < (b.call_col or 0)
 end
 
 --- Normalize a `callHierarchy/incomingCalls` or `callHierarchy/outgoingCalls`
---- reply into a position-sorted list.
+--- reply into a position-sorted list, one entry per call site: a caller or
+--- callee reached from several places becomes several rows, each pointing at
+--- its own site.
 ---
 --- The two replies differ in where the call sites live: for incoming calls
 --- `fromRanges` are positions inside the *caller* (`from`), for outgoing calls
@@ -95,17 +77,26 @@ function M.normalize_calls(result, direction, parent_uri, client_id)
     local calls = {}
     for _, entry in ipairs(result or {}) do
         local target = type(entry) == "table" and (direction == "incoming" and entry.from or entry.to)
-        local call = target and M.normalize_item(target, client_id)
-        if call then
+        if target then
             local ranges = type(entry.fromRanges) == "table" and entry.fromRanges or {}
-            local first = _first_range(ranges)
-            if first then
-                call.call_uri  = direction == "incoming" and call.uri or parent_uri
-                call.call_lnum = first.start.line + 1
-                call.call_col  = first.start.character
+            local placed = false
+            for _, range in ipairs(ranges) do
+                if range and range.start then
+                    local call = M.normalize_item(target, client_id)
+                    if call then
+                        call.call_uri  = direction == "incoming" and call.uri or parent_uri
+                        call.call_lnum = range.start.line + 1
+                        call.call_col  = range.start.character
+                        calls[#calls + 1] = call
+                        placed = true
+                    end
+                end
             end
-            call.call_count = #ranges
-            calls[#calls + 1] = call
+            -- A caller with no reported call sites still earns one row.
+            if not placed then
+                local call = M.normalize_item(target, client_id)
+                if call then calls[#calls + 1] = call end
+            end
         end
     end
     table.sort(calls, _by_position)

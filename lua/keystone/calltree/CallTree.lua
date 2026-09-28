@@ -36,7 +36,7 @@ local function _show_help()
 `o`       Jump to the symbol, keep focus in the tree
 `O`       Jump to the symbol and focus it
 `c`       Jump to the call site
-`K`       Hover info (kind, location, call sites)
+`K`       Hover info (kind, location, call site)
 `za`      Toggle expand/collapse
 `zc / zo` Collapse / Expand
 `zC / zO` Collapse / Expand (recursive)
@@ -91,11 +91,8 @@ local function _call_formatter(data, show_detail, direction)
         table.insert(chunks, { " " })
         table.insert(chunks, { call.detail, "@module" })
     end
-    if call.call_count > 1 then
-        table.insert(chunks, { " (" .. call.call_count .. ")", "Comment" })
-    end
 
-    local location = _display_name(call.uri) .. ":" .. (call.call_lnum or call.lnum)
+    local location = _display_name(call.call_uri or call.uri) .. ":" .. (call.call_lnum or call.lnum)
     table.insert(chunks, {" "})
     table.insert(chunks, {location, "Comment"})
     return chunks, {}
@@ -508,7 +505,6 @@ function CallTree:_show_hover(call)
         table.insert(lines, "- **Call site**: "
             .. vim.fn.fnamemodify(vim.uri_to_fname(call.call_uri or call.uri), ":~:.")
             .. ":" .. call.call_lnum)
-        table.insert(lines, "- **Call sites**: " .. call.call_count)
     end
 
     hover.show(table.concat(lines, "\n"), {
