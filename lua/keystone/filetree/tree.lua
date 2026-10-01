@@ -106,6 +106,17 @@ function M.open(dir)
     _open()
 end
 
+--- Open the tree as `open()` does, then move focus into its window so the tree
+--- can be navigated straight away.
+---@param dir string?
+function M.activate(dir)
+    M.open(dir)
+    local win = _get_win()
+    if win and vim.api.nvim_get_current_win() ~= win then
+        vim.api.nvim_set_current_win(win)
+    end
+end
+
 function M.close()
     local win = _get_win()
     if win then

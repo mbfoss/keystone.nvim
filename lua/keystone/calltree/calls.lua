@@ -283,14 +283,14 @@ function Provider:_prepare_enclosing(bufnr, client, params, request_id, handlers
         local range = symbol and (symbol.selectionRange or symbol.range
             or (symbol.location and symbol.location.range))
         if not range or not range.start then
-            handlers.on_unavailable("Not available")
+            handlers.on_unavailable("Call hierarchy not available")
             return
         end
 
         local at = { textDocument = params.textDocument, position = range.start }
         self:_prepare_at(bufnr, client, at, request_id, {
             on_root = handlers.on_root,
-            on_unavailable = function() handlers.on_unavailable("Not available") end,
+            on_unavailable = function() handlers.on_unavailable("Call hierarchy not available") end,
         })
     end, bufnr)
 end

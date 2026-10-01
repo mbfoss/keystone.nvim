@@ -31,7 +31,7 @@ function M.run_command(cmd, args, opts)
             vim.notify("Not a directory: " .. dir, vim.log.levels.ERROR)
             return
         end
-        _tree().open(dir)
+        _tree().activate(dir)
     end
 end
 

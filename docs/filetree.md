@@ -30,9 +30,12 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 
 ## Commands <!-- tag: commands -->
 
+`:FileTree` opens the side window and moves focus into it, ready to navigate.
+Run it again and it syncs the tree to the current file instead.
+
 | Command | What it does |
 | --- | --- |
-| `:FileTree [dir]` | Open the side window, or reveal the current file in it. With `dir`, set the tree root to `dir` first |
+| `:FileTree [dir]` | Open the side window (focused), or reveal the current file in it. With `dir`, set the tree root to `dir` first |
 
 ## Keymaps <!-- tag: keymaps -->
 
