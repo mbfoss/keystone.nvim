@@ -128,4 +128,11 @@ function M.is_visible()
     return _get_win() ~= nil
 end
 
+--- Whether the tree has been created yet. A created tree always has a root
+--- (cwd by default), so this marks the first open.
+---@return boolean
+function M.has_tree()
+    return _tree ~= nil
+end
+
 return M

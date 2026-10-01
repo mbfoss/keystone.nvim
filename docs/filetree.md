@@ -35,18 +35,15 @@ Run it again and it syncs the tree to the current file instead.
 
 The root the tree opens at depends on what the command is given:
 
-| When | Tree not open yet | Tree already open |
+| When | First open | Afterwards |
 | --- | --- | --- |
-| `:FileTree`, no file in the current buffer | Opens at the cwd | Keeps its current root |
-| `:FileTree`, current buffer's file under the cwd | Opens at the cwd | Root becomes the cwd |
-| `:FileTree`, current buffer's file outside the cwd | Opens at `/` | Root becomes `/` |
+| `:FileTree` | Opens at the cwd | Keeps its current root |
 | `:FileTree dir` | Opens at `dir` | Root becomes `dir` |
-| `:cd` changes the cwd | — | Root is left alone |
+| `:cd` changes the cwd | — | Root unaffected |
 
-Without `dir` the root comes from the current buffer: the cwd while the buffer
-is inside it, and `/` when it is not, so a file opened from elsewhere still has
-its directory within reach. Setting a new root re-reads the tree from that
-directory.
+Without `dir` the first open always uses the cwd, whatever the current buffer
+points at; later runs leave the root where it is. Setting a new root re-reads
+the tree from that directory.
 
 ## Keymaps <!-- tag: keymaps -->
 
