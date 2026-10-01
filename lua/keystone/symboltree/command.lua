@@ -23,7 +23,9 @@ end
 function M.run_command(cmd, args, opts)
     if cmd == "SymbolTree" then
         local command = args[1]
-        if command == nil or command == "" or command == "toggle" then
+        if command == nil or command == "" then
+            _tree().activate()
+        elseif command == "toggle" then
             _tree().toggle()
         elseif command == "open" then
             _tree().open()

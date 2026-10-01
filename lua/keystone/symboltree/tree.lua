@@ -78,6 +78,15 @@ function M.open()
     _open()
 end
 
+---Open the tree if needed, then move focus into it.
+function M.activate()
+    _open()
+    local win = _get_win()
+    if win then
+        vim.api.nvim_set_current_win(win)
+    end
+end
+
 function M.close()
     local win = _get_win()
     if win then
