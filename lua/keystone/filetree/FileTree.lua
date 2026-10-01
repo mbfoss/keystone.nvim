@@ -111,7 +111,6 @@ end
 
 ---@class keystone.FileTree.Opts
 ---@field dir string?
----@field follow_cwd boolean?
 ---@field show_hidden boolean?
 ---@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?}?
 ---@field monitor_file_system boolean?
@@ -213,24 +212,12 @@ function FileTree:_on_buffer_created()
             end
         end
     end
-    local on_dir_changed = function()
-        vim.schedule(function()
-            self._opts.dir = nil
-            self:_set_root(vim.fn.getcwd())
-        end)
-    end
-
     if track_config.enabled ~= false then
         track("BufEnter", {
             callback = on_buffer_enter,
         })
     end
 
-    if self._opts.follow_cwd ~= false then
-        track("DirChanged", {
-            callback = on_dir_changed,
-        })
-    end
     self:_set_root(self._opts.dir or vim.fn.getcwd())
 end
 

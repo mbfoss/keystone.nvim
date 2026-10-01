@@ -33,9 +33,20 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 `:FileTree` opens the side window and moves focus into it, ready to navigate.
 Run it again and it syncs the tree to the current file instead.
 
-| Command | What it does |
-| --- | --- |
-| `:FileTree [dir]` | Open the side window (focused), or reveal the current file in it. With `dir`, set the tree root to `dir` first |
+The root the tree opens at depends on what the command is given:
+
+| When | Tree not open yet | Tree already open |
+| --- | --- | --- |
+| `:FileTree`, no file in the current buffer | Opens at the cwd | Keeps its current root |
+| `:FileTree`, current buffer's file under the cwd | Opens at the cwd | Root becomes the cwd |
+| `:FileTree`, current buffer's file outside the cwd | Opens at `/` | Root becomes `/` |
+| `:FileTree dir` | Opens at `dir` | Root becomes `dir` |
+| `:cd` changes the cwd | — | Root is left alone |
+
+Without `dir` the root comes from the current buffer: the cwd while the buffer
+is inside it, and `/` when it is not, so a file opened from elsewhere still has
+its directory within reach. Setting a new root re-reads the tree from that
+directory.
 
 ## Keymaps <!-- tag: keymaps -->
 

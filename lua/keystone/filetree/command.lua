@@ -17,6 +17,17 @@ function M.get_subcommands(cmd, rest, arg_lead)
     return {}
 end
 
+--- Root for a `FileTree` call with no directory argument: the cwd when the
+--- current buffer lies under it, otherwise `/`, so a file outside the cwd still
+--- has its directory reachable. nil leaves the tree on its existing root.
+---@return string?
+local function _default_dir()
+    local bufpath = vim.api.nvim_buf_get_name(0)
+    if bufpath == "" then return nil end
+    local cwd = vim.fn.getcwd()
+    return vim.fs.relpath(cwd, bufpath) and cwd or "/"
+end
+
 ---@param cmd string
 ---@param args string[]
 ---@param opts vim.api.keyset.create_user_command.command_args
@@ -26,7 +37,7 @@ function M.run_command(cmd, args, opts)
             vim.notify("FileTree takes at most one directory", vim.log.levels.ERROR)
             return
         end
-        local dir = args[1] and vim.fn.fnamemodify(args[1], ":p")
+        local dir = args[1] and vim.fn.fnamemodify(args[1], ":p") or _default_dir()
         if dir and vim.fn.isdirectory(dir) == 0 then
             vim.notify("Not a directory: " .. dir, vim.log.levels.ERROR)
             return
