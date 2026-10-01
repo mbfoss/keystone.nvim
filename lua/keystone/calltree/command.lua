@@ -24,15 +24,18 @@ function M.run_command(cmd, args, opts)
     if cmd == "CallTree" then
         local command = args[1]
         -- No argument re-targets the symbol under the cursor rather than
-        -- toggling, so repeating the command follows you around the code.
-        if command == nil or command == "" or command == "open" then
+        -- toggling, so repeating the command follows you around the code, and
+        -- it moves focus into the window so the tree is navigable at once.
+        if command == nil or command == "" then
+            _tree().activate()
+        elseif command == "open" then
             _tree().open()
         elseif command == "toggle" then
             _tree().toggle()
         elseif command == "incoming" then
-            _tree().open("incoming")
+            _tree().activate("incoming")
         elseif command == "outgoing" then
-            _tree().open("outgoing")
+            _tree().activate("outgoing")
         elseif command == "swap" then
             _tree().swap_direction()
         elseif command == "refresh" then

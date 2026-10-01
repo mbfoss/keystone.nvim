@@ -101,6 +101,17 @@ function M.open(direction)
     _get_tree():show_from_cursor(source_buf, source_win, direction)
 end
 
+--- Open the tree as `open()` does, then move focus into its window so the tree
+--- can be navigated straight away.
+---@param direction keystone.calltree.Direction? overrides the configured direction
+function M.activate(direction)
+    M.open(direction)
+    local win = _get_win()
+    if win and vim.api.nvim_get_current_win() ~= win then
+        vim.api.nvim_set_current_win(win)
+    end
+end
+
 function M.close()
     local win = _get_win()
     if win then

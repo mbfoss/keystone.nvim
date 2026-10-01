@@ -33,13 +33,15 @@ as a leaf.
 ==============================================================================
 2. Commands                                       *keystone-calltree-commands*
 
-Open it with `:CallTree` on the symbol to inspect. Running it again re-roots
-the tree on the cursor’s current position; use `toggle` to close it.
+Run `:CallTree` on the symbol to inspect: it builds the tree and moves focus
+into the window, ready to navigate. Running it again re-roots the tree on the
+cursor’s current position; use `toggle` to close it.
 
   Argument              What it does
-  --------------------- ------------------------------------------------
-  (none) / open         Build the tree for the symbol under the cursor
-  incoming / outgoing   Same, forcing a direction
+  --------------------- -------------------------------------------
+  (none)                Build the tree and focus the window
+  open                  Build it, but leave focus where it is
+  incoming / outgoing   Same as (none), forcing a direction
   swap                  Flip direction, keeping the current root
   refresh               Re-fetch everything from the current root
   toggle                Open, or close if already showing
