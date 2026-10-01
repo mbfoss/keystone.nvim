@@ -16,6 +16,8 @@ local _types
 local _extensions
 local _filenames
 
+local _AUGROUP = "keystone_icons"
+
 ---@param group string
 ---@param color string
 ---@return nil
@@ -23,6 +25,17 @@ local function _set_hl(group, color)
     vim.api.nvim_set_hl(0, group, {
         fg = color,
     })
+end
+
+---Colors are hardcoded, so the groups only need reinstating, not recomputing:
+---`:colorscheme` clears every global group, which would otherwise leave the
+---icons unhighlighted for the rest of the session.
+---@return nil
+local function _apply_hl()
+    assert(_types)
+    for n, t in pairs(_types) do
+        _set_hl("KeystoneIcons" .. n, t.color)
+    end
 end
 
 ---@return nil
@@ -37,9 +50,12 @@ local function _init()
     _extensions = data.get_extensions()
     _filenames = data.get_filenames()
 
-    for n, t in pairs(_types) do
-        _set_hl("KeystoneIcons" .. n, t.color)
-    end
+    _apply_hl()
+
+    vim.api.nvim_create_autocmd("ColorScheme", {
+        group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true }),
+        callback = _apply_hl,
+    })
 
     _ready = true
 end
