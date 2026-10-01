@@ -32,8 +32,8 @@ local _HL_GUIDE = "KeystoneIndentGuide"
 -- guide less far than the indent guides; see `_setup_highlights`.
 local _HL_SCOPE_DEFAULT = "KeystoneScopeDefault"
 local _HL_GUIDE_DEFAULT = "KeystoneIndentGuideDefault"
-local _SCOPE_FADE_PCT = 25
-local _GUIDE_FADE_PCT = 50
+local _SCOPE_FADE_PCT = 40
+local _GUIDE_FADE_PCT = 60
 
 ---@class keystone.scope.Config
 ---@field enabled boolean? master switch; when false nothing is drawn

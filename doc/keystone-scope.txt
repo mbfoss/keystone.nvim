@@ -59,10 +59,10 @@ two groups above instead.
   -----------------------------------------------------------------------
   Group                               Is
   ----------------------------------- -----------------------------------
-  KeystoneScopeDefault                NonText faded 25% into the
+  KeystoneScopeDefault                NonText faded 40% into the
                                       background
 
-  KeystoneIndentGuideDefault          NonText faded 50% into the
+  KeystoneIndentGuideDefault          NonText faded 80% into the
                                       background
   -----------------------------------------------------------------------
 

@@ -54,8 +54,8 @@ groups above instead.
 
 | Group | Is |
 | --- | --- |
-| `KeystoneScopeDefault` | `NonText` faded 25% into the background |
-| `KeystoneIndentGuideDefault` | `NonText` faded 50% into the background |
+| `KeystoneScopeDefault` | `NonText` faded 40% into the background |
+| `KeystoneIndentGuideDefault` | `NonText` faded 60% into the background |
 
 ## API <!-- tag: api -->
 
