@@ -62,7 +62,7 @@ two groups above instead.
   KeystoneScopeDefault                NonText faded 40% into the
                                       background
 
-  KeystoneIndentGuideDefault          NonText faded 80% into the
+  KeystoneIndentGuideDefault          NonText faded 60% into the
                                       background
   -----------------------------------------------------------------------
 
