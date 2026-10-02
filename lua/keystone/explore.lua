@@ -38,9 +38,16 @@ function M.setup(opts)
     end
     require("keystone.explore.command").configure({ detail_fields = M.config.detail_fields })
     vim.api.nvim_create_user_command("FileSelector", function(cmd_opts)
-        require("keystone.util.usercmd").handle(cmd_opts, function(cmd, args, run_opts)
-            require("keystone.explore.command").run_command(cmd, args, run_opts)
-        end)
+        -- nargs="*" always yields fargs; the fallback is only to satisfy its
+        -- optional type. Errors become notifications, not stack traces.
+        local ok, err = pcall(require("keystone.explore.command").run_command,
+            cmd_opts.name, cmd_opts.fargs or {}, cmd_opts)
+        if not ok then
+            vim.notify(
+                "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
+                vim.log.levels.ERROR
+            )
+        end
     end, {
         nargs = "*",
         desc = "Explore",

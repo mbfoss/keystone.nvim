@@ -66,13 +66,15 @@ patterns:
 - Interactive command implementations live in a submodule that is only
   `require`d the first time the command runs (e.g. `keystone.unsaved.session`,
   `keystone.explore.explorer`).
-- User commands are created with `nvim_create_user_command` directly, with the
-  callbacks delegating to `keystone.util.usercmd`: `handle(opts, run_fn)` in the
-  command body and `complete(arg_lead, cmd_line, subcommand)` in the `complete`
-  callback. Requiring the module *inside* those callbacks keeps it out of
-  `setup`. It parses no arguments itself: dispatch passes `opts.fargs` through,
-  and completion runs its raw command line back through `nvim_parse_cmd`. Both
-  paths therefore split by Vim's `<f-args>` rules (`:h <f-args>`).
+- User commands are created with `nvim_create_user_command` directly. The
+  command body runs its implementation through `pcall`, reporting a raised
+  error with `vim.notify` instead of a stack trace, and hands it `opts.fargs`;
+  the `complete` callback delegates to `keystone.util.usercmd.complete(arg_lead,
+  cmd_line, subcommand)`. Requiring anything needed *inside* those callbacks
+  keeps it out of `setup`. Neither path parses arguments itself: dispatch passes
+  Vim's `opts.fargs` through, and completion runs its raw command line back
+  through `nvim_parse_cmd`. Both therefore split by Vim's `<f-args>` rules
+  (`:h <f-args>`).
 
 ### Choosing from a list
 

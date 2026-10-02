@@ -533,7 +533,7 @@ end
 
 --- Body shared by `:BDelete` and `:BWipeout`: `wipe` is the only difference.
 ---@param wipe boolean
----@return keystone.util.usercmd.run_fn
+---@return fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
 local function _make_delete_command(wipe)
   return function(_, args, opts)
     local arg = args[1]
@@ -572,7 +572,7 @@ end
 --- Body shared by `:BDeleteHidden` and `:BWipeoutHidden`: `wipe` is the only
 --- difference, exactly as it is between `:BDelete` and `:BWipeout`.
 ---@param wipe boolean
----@return keystone.util.usercmd.run_fn
+---@return fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
 local function _make_hidden_command(wipe)
   return function(_, _args, opts)
     M.delete_hidden({ force = opts.bang, wipe = wipe })
@@ -591,7 +591,15 @@ end
 local function _register_delete(name, wipe, desc)
   local run = _make_delete_command(wipe)
   vim.api.nvim_create_user_command(name, function(cmd_opts)
-    require("keystone.util.usercmd").handle(cmd_opts, run)
+    -- nargs="*" always yields fargs; the fallback is only to satisfy its
+    -- optional type. Errors become notifications, not stack traces.
+    local ok, err = pcall(run, cmd_opts.name, cmd_opts.fargs or {}, cmd_opts)
+    if not ok then
+      vim.notify(
+        "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
+        vim.log.levels.ERROR
+      )
+    end
   end, {
     nargs = "*",
     bang = true,
@@ -611,7 +619,14 @@ end
 local function _register_hidden(name, wipe, desc)
   local run = _make_hidden_command(wipe)
   vim.api.nvim_create_user_command(name, function(cmd_opts)
-    require("keystone.util.usercmd").handle(cmd_opts, run)
+    -- `nargs = 0`, so fargs is empty; the fallback only satisfies its type.
+    local ok, err = pcall(run, cmd_opts.name, cmd_opts.fargs or {}, cmd_opts)
+    if not ok then
+      vim.notify(
+        "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
+        vim.log.levels.ERROR
+      )
+    end
   end, {
     nargs = 0,
     bang = true,

@@ -331,8 +331,9 @@ describe("scope fading", function()
 
   it("fades the defaults into the background", function()
     scope.setup({})
-    assert.equals(0x606060, fg("KeystoneScopeDefault"))
-    assert.equals(0x404040, fg("KeystoneIndentGuideDefault"))
+    -- NonText's 0x808080 mixed into a black background, 40% and 60% of the way.
+    assert.equals(0x4d4d4d, fg("KeystoneScopeDefault"))
+    assert.equals(0x333333, fg("KeystoneIndentGuideDefault"))
   end)
 
   it("draws the guides with groups linked to the defaults", function()
@@ -351,11 +352,11 @@ describe("scope fading", function()
 
   it("recomputes from NonText on a colorscheme change", function()
     scope.setup({})
-    assert.equals(0x404040, fg("KeystoneIndentGuideDefault"))
+    assert.equals(0x333333, fg("KeystoneIndentGuideDefault"))
     vim.api.nvim_set_hl(0, "Normal", { bg = 0xffffff })
     vim.api.nvim_exec_autocmds("ColorScheme", {})
     -- Mixed from the source again, not from the previous fade.
-    assert.equals(0xc0c0c0, fg("KeystoneIndentGuideDefault"))
+    assert.equals(0xcccccc, fg("KeystoneIndentGuideDefault"))
   end)
 
   it("takes no background from NonText", function()

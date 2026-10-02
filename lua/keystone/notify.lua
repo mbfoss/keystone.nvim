@@ -591,7 +591,15 @@ function M.setup(opts)
   end
 
   vim.api.nvim_create_user_command("Notifications", function(cmd_opts)
-    require("keystone.util.usercmd").handle(cmd_opts, _run_command)
+    -- nargs="*" always yields fargs; the fallback is only to satisfy its
+    -- optional type. Errors become notifications, not stack traces.
+    local ok, err = pcall(_run_command, cmd_opts.name, cmd_opts.fargs or {}, cmd_opts)
+    if not ok then
+      vim.notify(
+        "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
+        vim.log.levels.ERROR
+      )
+    end
   end, {
     nargs = "*",
     desc = "Manage notifications",

@@ -20,7 +20,14 @@ end
 function M.setup()
     _setup = true
     vim.api.nvim_create_user_command("DiffUnsaved", function(cmd_opts)
-        require("keystone.util.usercmd").handle(cmd_opts, function() M.open() end)
+        -- Errors become notifications, not stack traces.
+        local ok, err = pcall(M.open)
+        if not ok then
+            vim.notify(
+                "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
+                vim.log.levels.ERROR
+            )
+        end
     end, {
         nargs = "*",
         desc = "Diff unsaved vs saved state of all modified buffers",
