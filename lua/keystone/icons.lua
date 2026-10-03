@@ -1,6 +1,7 @@
 ---@class keystone.icon.Data
 ---@field icon string
----@field color string
+---@field color1 string dark-mode (Catppuccin Mocha inspired) hex color
+---@field color2 string light-mode (Catppuccin Latte inspired) hex color
 ---@field name string
 
 ---@class keystone.icon.Module
@@ -29,12 +30,14 @@ end
 
 ---Colors are hardcoded, so the groups only need reinstating, not recomputing:
 ---`:colorscheme` clears every global group, which would otherwise leave the
----icons unhighlighted for the rest of the session.
+---icons unhighlighted for the rest of the session. `color1` is the dark
+---palette, `color2` the light one, picked from `background`.
 ---@return nil
 local function _apply_hl()
     assert(_types)
+    local light = vim.o.background == "light"
     for n, t in pairs(_types) do
-        _set_hl("KeystoneIcons" .. n, t.color)
+        _set_hl("KeystoneIcons" .. n, light and t.color2 or t.color1)
     end
 end
 
@@ -54,6 +57,11 @@ local function _init()
 
     vim.api.nvim_create_autocmd("ColorScheme", {
         group = vim.api.nvim_create_augroup(_AUGROUP, { clear = true }),
+        callback = _apply_hl,
+    })
+    vim.api.nvim_create_autocmd("OptionSet", {
+        group = _AUGROUP,
+        pattern = "background",
         callback = _apply_hl,
     })
 

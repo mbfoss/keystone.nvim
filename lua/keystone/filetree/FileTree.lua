@@ -606,7 +606,7 @@ function FileTree:_get_icon_for_node(name, is_dir, is_link)
     local icon, icon_hl
     if is_dir then
         icon, icon_hl = "", "Directory"
-    elseif not is_link then
+    else
         local ext = name:match("%.([^.]+)$") or ""
         icon, icon_hl = icons.get_icon(name, ext, { default = false })
     end
