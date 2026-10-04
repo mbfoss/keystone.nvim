@@ -11,7 +11,7 @@ end
 function M.get_subcommands(cmd, rest, arg_lead)
     if cmd == "FileTree" then
         if #rest == 0 then
-            return vim.fn.getcompletion(arg_lead, "dir")
+            return require("keystone.util.usercmd").complete_filename(arg_lead, "dir")
         end
     end
     return {}
