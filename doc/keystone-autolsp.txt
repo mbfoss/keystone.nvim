@@ -39,8 +39,8 @@ a replacement for it. It runs one step later in the chain:
 WHAT IT DOES                                           *keystone-autolsp-does*
 
 - **Enables servers.** Neovim will not start a server until something calls
-    `vim.lsp.enable()`. With `servers = "all"` this module scans the runtimepath
-    for `lsp/*.lua` and enables every config it finds; with a list, only those.
+    `vim.lsp.enable()`. Name the servers you want in `servers`; this module calls
+    it for each of them on setup, so the call is not repeated per config.
 - **Applies cross-cutting settings** that would otherwise be per-server
     boilerplate: `capabilities` merged into every server, `on_attach`, and
     `vim.diagnostic.config`.
@@ -74,31 +74,20 @@ and `:LspStop`, and never calls `vim.lsp.enable()`. Activation is left to you,
 or to this module. Enabling the same server twice is harmless, since
 `vim.lsp.enable()` is idempotent.
 
-What does change is the meaning of `servers = "all"`: nvim-lspconfig ships
-**407** `lsp/*.lua` configs, one per server it supports, not one per server you
-have installed. Configs whose `cmd` is not executable are skipped (the error
-goes to `lsp.log`), but with nvim-lspconfig on the runtimepath, name the
-servers explicitly:
-
->lua
-    require("keystone").setup({
-      autolsp = { servers = { "lua_ls", "pyright", "clangd" } },
-    })
-<
-
-`servers = "all"` is aimed at the case where the only `lsp/` directory is your
-own. A working setup is usually three things, only the last of which is
-keystone:
+Because `servers` names each server, nvim-lspconfig’s **407** `lsp/*.lua`
+configs cost nothing here — only the ones you list are enabled. A working
+setup is usually three things, only the last of which is keystone:
 
 >lua
     -- 1. the binary            $ brew install lua-language-server
     -- 2. a config for it       nvim-lspconfig, or ~/.config/nvim/lsp/lua_ls.lua
     -- 3. enable it + settings
-    require("keystone").setup({ autolsp = true })
+    require("keystone").setup({ autolsp = { servers = { "lua_ls" } } })
 <
 
-If you already call `vim.lsp.enable()` and want nothing else here, you do not
-need this module.
+`require("keystone.autolsp").info()` lists the configs found on your
+runtimepath, which is the list to pick those names from. If you already call
+`vim.lsp.enable()` and want nothing else here, you do not need this module.
 
 
 ==============================================================================
@@ -107,8 +96,8 @@ need this module.
 >lua
     require("keystone").setup({
       autolsp = {
-        servers     = "all",  -- every config found in lsp/ dirs, or a list of names.
-                              -- See the note above before using "all" with nvim-lspconfig.
+        servers     = {},  -- names of the servers to enable, e.g. { "lua_ls", "pyright" }.
+                           -- Nothing is enabled unless named.
         auto_enable = true,
         format = { on_save = false, async = false, timeout_ms = 2000 },
         inlay_hints        = true,

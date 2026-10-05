@@ -89,7 +89,7 @@ end
 
 ---@class keystone.autolsp.Config
 ---@field enabled boolean
----@field servers string[]|"all" server names to enable; "all" discovers every config found in `lsp/` runtime dirs
+---@field servers string[] names of the servers to enable; each needs an `lsp/<name>.lua` config on the runtimepath
 ---@field auto_enable boolean enable `servers` automatically on setup (the main thing vanilla Neovim does not do)
 ---@field format keystone.autolsp.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
@@ -105,7 +105,7 @@ end
 ---@type keystone.autolsp.Config
 local _default_config = {
   enabled            = true,
-  servers            = "all",
+  servers            = {},
   auto_enable        = true,
   format             = {
     on_save    = false,
@@ -184,6 +184,8 @@ end
 
 -- Discover every server that has an `lsp/<name>.lua` config on the runtimepath.
 -- These come from nvim-lspconfig, the user's own config dir, or other plugins.
+-- Reported by `M.info`, so the names to list in `servers` are discoverable;
+-- enabling is always driven by the configured `servers`.
 ---@return string[]
 local function _discover_servers()
   local seen, out = {}, {}
@@ -196,14 +198,6 @@ local function _discover_servers()
   end
   table.sort(out)
   return out
-end
-
----@return string[]
-local function _resolve_servers()
-  if M.config.servers == "all" then
-    return _discover_servers()
-  end
-  return M.config.servers --[[@as string[] ]]
 end
 
 ---@param client vim.lsp.Client
@@ -399,19 +393,10 @@ end
 -- Public API
 -- ---------------------------------------------------------------------------
 
--- Enable LSP servers. With no argument, enables the configured `servers`
--- (resolving "all" to whatever is on the runtimepath).
----@param servers? string[]|"all"
+-- Enable LSP servers. With no argument, enables the configured `servers`.
+---@param servers? string[] defaults to the configured `servers`
 function M.enable_servers(servers)
-  local names
-  if servers == nil then
-    names = _resolve_servers()
-  elseif servers == "all" then
-    names = _discover_servers()
-  else
-    names = servers
-  end
-
+  local names = servers or M.config.servers
   if #names > 0 then
     vim.lsp.enable(names)
   end
