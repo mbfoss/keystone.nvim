@@ -1,5 +1,10 @@
 # keystone.nvim
 
+> [!NOTE]
+> **Work in progress.** Stable and usable as it stands, but still evolving:
+> changes, including breaking ones, can land at any time. Pin a commit if you
+> need a fixed target.
+
 Quality-of-life editor modules for Neovim: file, symbol and call trees, a key-hint
 popup, completion, a statusline, LSP and Treesitter setup, and editor behaviour
 flags. Each module is independent, and none is active unless you name it in
