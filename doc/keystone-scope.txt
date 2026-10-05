@@ -34,15 +34,15 @@ shows a scope.
     })
 <
 
-Guides are drawn only in ordinary file buffers. A fixed list -- `help`,
-`markdown`, `text`, `gitcommit`, `man`, `checkhealth`, `qf` -- plus buffers
-opened in large-file mode (`bigfile`) are always left alone; `exclude_filetypes`
-adds to them. Indent guides sit at the
-indents of the enclosing lines, not at multiples of `'shiftwidth'`, and the
-scope guide always lands on one of those columns. A blank line takes the larger
-indent of its neighbours. Comments (lines starting with the `'commentstring'`
-leader) do not open or close a level, so one written left of its block does not
-break the guides.
+Guides are drawn only in ordinary file buffers. A fixed list – `help`,
+`markdown`, `text`, `gitcommit`, `man`, `checkhealth`, `qf` – plus buffers
+opened in large-file mode (`bigfile`) are always left alone;
+`exclude_filetypes` adds to them. Indent guides sit at the indents of the
+enclosing lines, not at multiples of `'shiftwidth'`, and the scope guide always
+lands on one of those columns. A blank line takes the larger indent of its
+neighbours. Comments (lines starting with the `'commentstring'` leader) do not
+open or close a level, so one written left of its block does not break the
+guides.
 
 
 ==============================================================================

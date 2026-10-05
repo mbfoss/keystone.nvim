@@ -2,13 +2,6 @@ keystone	keystone.txt	/*keystone*
 keystone-animate	keystone-animate.txt	/*keystone-animate*
 keystone-animate-configuration	keystone-animate.txt	/*keystone-animate-configuration*
 keystone-animate-table-of-contents	keystone-animate.txt	/*keystone-animate-table-of-contents*
-keystone-autolsp	keystone-autolsp.txt	/*keystone-autolsp*
-keystone-autolsp-alongside	keystone-autolsp.txt	/*keystone-autolsp-alongside*
-keystone-autolsp-configuration	keystone-autolsp.txt	/*keystone-autolsp-configuration*
-keystone-autolsp-does	keystone-autolsp.txt	/*keystone-autolsp-does*
-keystone-autolsp-does-not	keystone-autolsp.txt	/*keystone-autolsp-does-not*
-keystone-autolsp-scope	keystone-autolsp.txt	/*keystone-autolsp-scope*
-keystone-autolsp-table-of-contents	keystone-autolsp.txt	/*keystone-autolsp-table-of-contents*
 keystone-bufdelete	keystone-bufdelete.txt	/*keystone-bufdelete*
 keystone-bufdelete-api	keystone-bufdelete.txt	/*keystone-bufdelete-api*
 keystone-bufdelete-commands	keystone-bufdelete.txt	/*keystone-bufdelete-commands*
@@ -53,6 +46,13 @@ keystone-largefile	keystone-largefile.txt	/*keystone-largefile*
 keystone-largefile-configuration	keystone-largefile.txt	/*keystone-largefile-configuration*
 keystone-largefile-table-of-contents	keystone-largefile.txt	/*keystone-largefile-table-of-contents*
 keystone-license	keystone.txt	/*keystone-license*
+keystone-lspsetup	keystone-lspsetup.txt	/*keystone-lspsetup*
+keystone-lspsetup-alongside	keystone-lspsetup.txt	/*keystone-lspsetup-alongside*
+keystone-lspsetup-configuration	keystone-lspsetup.txt	/*keystone-lspsetup-configuration*
+keystone-lspsetup-does	keystone-lspsetup.txt	/*keystone-lspsetup-does*
+keystone-lspsetup-does-not	keystone-lspsetup.txt	/*keystone-lspsetup-does-not*
+keystone-lspsetup-scope	keystone-lspsetup.txt	/*keystone-lspsetup-scope*
+keystone-lspsetup-table-of-contents	keystone-lspsetup.txt	/*keystone-lspsetup-table-of-contents*
 keystone-marksigns	keystone-marksigns.txt	/*keystone-marksigns*
 keystone-marksigns-api	keystone-marksigns.txt	/*keystone-marksigns-api*
 keystone-marksigns-configuration	keystone-marksigns.txt	/*keystone-marksigns-configuration*

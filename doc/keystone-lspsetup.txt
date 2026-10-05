@@ -1,13 +1,13 @@
-*keystone-autolsp*           Enables configured LSP servers, with log rotation
+*keystone-lspsetup*          Enables configured LSP servers, with log rotation
 
 ==============================================================================
-Table of Contents                         *keystone-autolsp-table-of-contents*
+Table of Contents                        *keystone-lspsetup-table-of-contents*
 
-1. Scope                                              |keystone-autolsp-scope|
-  - What it does                                       |keystone-autolsp-does|
-  - What it does not do                            |keystone-autolsp-does-not|
-  - Using it alongside nvim-lspconfig             |keystone-autolsp-alongside|
-2. Configuration                              |keystone-autolsp-configuration|
+1. Scope                                             |keystone-lspsetup-scope|
+  - What it does                                      |keystone-lspsetup-does|
+  - What it does not do                           |keystone-lspsetup-does-not|
+  - Using it alongside nvim-lspconfig            |keystone-lspsetup-alongside|
+2. Configuration                             |keystone-lspsetup-configuration|
 Defaults and per-server configuration on top of Neovim’s built-in `vim.lsp`.
 Neovim requires an explicit `vim.lsp.enable()` call for each server; this
 module enables the configs it finds in `lsp/` directories on the runtimepath,
@@ -16,7 +16,7 @@ settings below.
 
 
 ==============================================================================
-1. Scope                                              *keystone-autolsp-scope*
+1. Scope                                             *keystone-lspsetup-scope*
 
 This is **not** nvim-lspconfig <https://github.com/neovim/nvim-lspconfig>, nor
 a replacement for it. It runs one step later in the chain:
@@ -36,7 +36,7 @@ a replacement for it. It runs one step later in the chain:
   settings around them                
   -----------------------------------------------------------------------
 
-WHAT IT DOES                                           *keystone-autolsp-does*
+WHAT IT DOES                                          *keystone-lspsetup-does*
 
 - **Enables servers.** Neovim will not start a server until something calls
     `vim.lsp.enable()`. Name the servers you want in `servers`; this module calls
@@ -53,7 +53,7 @@ WHAT IT DOES                                           *keystone-autolsp-does*
     rotates it at `max_bytes` and keeps a limited number of rotated files.
 
 
-WHAT IT DOES NOT DO                                *keystone-autolsp-does-not*
+WHAT IT DOES NOT DO                               *keystone-lspsetup-does-not*
 
 - **It does not install language servers.** The binary must already be on
     `PATH`. If a config’s `cmd` cannot run from a shell, enabling it changes
@@ -66,7 +66,7 @@ WHAT IT DOES NOT DO                                *keystone-autolsp-does-not*
     `:help lsp-defaults`).
 
 
-USING IT ALONGSIDE NVIM-LSPCONFIG                 *keystone-autolsp-alongside*
+USING IT ALONGSIDE NVIM-LSPCONFIG                *keystone-lspsetup-alongside*
 
 The two do not fight over starting servers. nvim-lspconfig enables nothing on
 its own: loading it registers `:LspInfo`, `:LspLog`, `:LspStart`, `:LspRestart`
@@ -82,20 +82,20 @@ setup is usually three things, only the last of which is keystone:
     -- 1. the binary            $ brew install lua-language-server
     -- 2. a config for it       nvim-lspconfig, or ~/.config/nvim/lsp/lua_ls.lua
     -- 3. enable it + settings
-    require("keystone").setup({ autolsp = { servers = { "lua_ls" } } })
+    require("keystone").setup({ lspsetup = { servers = { "lua_ls" } } })
 <
 
-`require("keystone.autolsp").info()` lists the configs found on your
+`require("keystone.lspsetup").info()` lists the configs found on your
 runtimepath, which is the list to pick those names from. If you already call
 `vim.lsp.enable()` and want nothing else here, you do not need this module.
 
 
 ==============================================================================
-2. Configuration                              *keystone-autolsp-configuration*
+2. Configuration                             *keystone-lspsetup-configuration*
 
 >lua
     require("keystone").setup({
-      autolsp = {
+      lspsetup = {
         servers     = {},  -- names of the servers to enable, e.g. { "lua_ls", "pyright" }.
                            -- Nothing is enabled unless named.
         auto_enable = true,

@@ -13,10 +13,10 @@ local _uv = vim.uv or vim.loop
 -- it: copy the live log to `lsp.log.1` (shifting older `.N` up to `keep`), then truncate
 -- in place -- not rename, since Neovim's cached O_APPEND handle would write to the old copy.
 
----@type keystone.autolsp.RollingLogConfig
+---@type keystone.lspsetup.RollingLogConfig
 local _ROLL_DEFAULTS = { max_bytes = 5 * 1024 * 1024, keep = 3 }
 
----@return keystone.autolsp.RollingLogConfig? nil when rolling is disabled
+---@return keystone.lspsetup.RollingLogConfig? nil when rolling is disabled
 local function _rolling_opts()
   local roll = M.config.lsp_rolling_log
   if not roll then return nil end
@@ -77,32 +77,32 @@ end
 -- ---------------------------------------------------------------------------
 
 
----@class keystone.autolsp.FormatConfig
+---@class keystone.lspsetup.FormatConfig
 ---@field on_save boolean format the buffer on `BufWritePre`
 ---@field async boolean
 ---@field timeout_ms integer
 ---@field filter? fun(client: vim.lsp.Client): boolean only format with clients for which this returns true
 
----@class keystone.autolsp.RollingLogConfig
+---@class keystone.lspsetup.RollingLogConfig
 ---@field max_bytes integer rotate the live LSP log once it grows past this many bytes
 ---@field keep integer number of rotated files to retain (lsp.log.1 .. lsp.log.<keep>)
 
----@class keystone.autolsp.Config
+---@class keystone.lspsetup.Config
 ---@field enabled boolean
 ---@field servers string[] names of the servers to enable; each needs an `lsp/<name>.lua` config on the runtimepath
 ---@field auto_enable boolean enable `servers` automatically on setup (the main thing vanilla Neovim does not do)
----@field format keystone.autolsp.FormatConfig
+---@field format keystone.lspsetup.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
 ---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
 ---@field signature_help boolean show signature help in a float while typing (CursorMovedI)
 ---@field log_level string?|integer LSP client log level for `vim.lsp.set_log_level`
----@field lsp_rolling_log boolean|keystone.autolsp.RollingLogConfig cap the LSP log file size; `true` uses defaults, a table overrides them, `false` disables
+---@field lsp_rolling_log boolean|keystone.lspsetup.RollingLogConfig cap the LSP log file size; `true` uses defaults, a table overrides them, `false` disables
 ---@field diagnostics vim.diagnostic.Opts|false passed to `vim.diagnostic.config`; false leaves diagnostics untouched
 ---@field capabilities? lsp.ClientCapabilities|fun():lsp.ClientCapabilities merged into every server's capabilities
 ---@field settings? table<string, vim.lsp.Config> per-server config overrides, e.g. { lua_ls = { settings = {...} } }
 ---@field on_attach? fun(client: vim.lsp.Client, bufnr: integer) extra per-buffer setup hook
 
----@type keystone.autolsp.Config
+---@type keystone.lspsetup.Config
 local _default_config = {
   enabled            = true,
   servers            = {},
@@ -132,7 +132,7 @@ local _default_config = {
   on_attach          = nil,
 }
 
----@type keystone.autolsp.Config
+---@type keystone.lspsetup.Config
 M.config = vim.deepcopy(_default_config)
 
 -- ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ M.config = vim.deepcopy(_default_config)
 -- ---------------------------------------------------------------------------
 
 local _enabled = false
-local _group = "keystone_autolsp"
+local _group = "keystone_lspsetup"
 
 -- Per-buffer features already installed, so a second client attaching to the
 -- same buffer does not register duplicate autocmds.
@@ -493,7 +493,7 @@ function M.info()
     vim.lsp.get_clients({ bufnr = vim.api.nvim_get_current_buf() })
   )
   local lines = {
-    "keystone.autolsp",
+    "keystone.lspsetup",
     "  attached (this buffer): " .. (next(attached) and table.concat(attached, ", ") or "none"),
     "  available configs (" .. #available .. "): " .. (next(available) and table.concat(available, ", ") or "none"),
   }
@@ -524,7 +524,7 @@ function M.is_setup()
   return _setup
 end
 
----@param opts keystone.autolsp.Config?
+---@param opts keystone.lspsetup.Config?
 function M.setup(opts)
   _setup = true
   cfgutil.apply(M.config, _default_config, opts)

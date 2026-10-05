@@ -1,4 +1,4 @@
-# autolsp
+# lspsetup
 
 Defaults and per-server configuration on top of Neovim's built-in `vim.lsp`.
 Neovim requires an explicit `vim.lsp.enable()` call for each server; this module
@@ -70,10 +70,10 @@ usually three things, only the last of which is keystone:
 -- 1. the binary            $ brew install lua-language-server
 -- 2. a config for it       nvim-lspconfig, or ~/.config/nvim/lsp/lua_ls.lua
 -- 3. enable it + settings
-require("keystone").setup({ autolsp = { servers = { "lua_ls" } } })
+require("keystone").setup({ lspsetup = { servers = { "lua_ls" } } })
 ```
 
-`require("keystone.autolsp").info()` lists the configs found on your
+`require("keystone.lspsetup").info()` lists the configs found on your
 runtimepath, which is the list to pick those names from. If you already call
 `vim.lsp.enable()` and want nothing else here, you do not need this module.
 
@@ -81,7 +81,7 @@ runtimepath, which is the list to pick those names from. If you already call
 
 ```lua
 require("keystone").setup({
-  autolsp = {
+  lspsetup = {
     servers     = {},  -- names of the servers to enable, e.g. { "lua_ls", "pyright" }.
                        -- Nothing is enabled unless named.
     auto_enable = true,
