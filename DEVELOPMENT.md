@@ -111,7 +111,7 @@ Callers today: `keystone.unsaved.session.open`,
   be
   torn down after the load. A `FileType <sentinel>` autocmd applies buffer-local
   tweaks and optionally restores regex syntax.
-- **lspconfig**: Neovim never rotates `lsp.log`. With `lsp_rolling_log`, keystone
+- **autolsp**: Neovim never rotates `lsp.log`. With `lsp_rolling_log`, keystone
   copies the live log to `.1` (shifting older `.N` up) and **truncates in
   place**. Truncation rather than rename is deliberate: Neovim caches an
   append-mode handle, so an `O_APPEND` write after truncation lands at offset 0.

@@ -22,7 +22,7 @@ vim.pack.add({ "https://github.com/mbfoss/keystone.nvim" })
 -- Every module, with a starting point for which to enable. Flip any of these.
 require("keystone").setup({
   -- Language support
-  lspconfig  = true,  -- enables the LSP servers configured in lsp/
+  autolsp    = true,  -- enables the LSP servers configured in lsp/
   tsconfig   = true,  -- treesitter highlighting and folding
   completion = true,  -- drives insert-mode completion
 
@@ -107,7 +107,7 @@ Each module has its own page in [docs/](docs/):
 | [clue](docs/clue.md) | A popup listing the keys that can follow a trigger |
 | [completion](docs/completion.md) | LSP-driven autocompletion with `<Tab>`/`<CR>` |
 | [statusline](docs/statusline.md) | A statusline assembled from configurable sections |
-| [lspconfig](docs/lspconfig.md) | Enables configured LSP servers, with log rotation |
+| [autolsp](docs/autolsp.md) | Enables configured LSP servers, with log rotation |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
 | [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
 | [scope](docs/scope.md) | Guides along the current scope and indent levels |
@@ -131,7 +131,7 @@ Each module has its own help page:
 - |keystone-clue| A popup listing the keys that can follow a trigger
 - |keystone-completion| LSP-driven autocompletion with `<Tab>`/`<CR>`
 - |keystone-statusline| A statusline assembled from configurable sections
-- |keystone-lspconfig| Enables configured LSP servers, with log rotation
+- |keystone-autolsp| Enables configured LSP servers, with log rotation
 - |keystone-tsconfig| Treesitter highlighting and folding, per buffer
 - |keystone-marksigns| Shows the marks that are set in the sign column
 - |keystone-scope| Guides along the current scope and indent levels

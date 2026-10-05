@@ -32,7 +32,7 @@ local _MODULES = {
   "completion",
   "explore",
   "filetree",
-  "lspconfig",
+  "autolsp",
   "marksigns",
   "scope",
   "select",
