@@ -41,16 +41,16 @@ local _GUIDE_FADE_PCT = 60
 ---@field guides boolean? draw a guide on every indent level
 ---@field scope_char string? character of the scope guide (one cell wide)
 ---@field guide_char string? character of the indent guides (one cell wide)
----@field exclude_filetypes string[]? filetypes left alone
+---@field exclude_filetypes string[]? extra filetypes left alone, on top of the built-in list
 
 ---@type keystone.scope.Config
 local _default_config = {
   enabled           = true,
   scope             = true,
   guides            = true,
-  scope_char        = "┃",
+  scope_char        = "│",
   guide_char        = "│",
-  exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
+  exclude_filetypes = {},
 }
 
 ---@type keystone.scope.Config
@@ -72,8 +72,24 @@ local _CHUNK = 32
 
 local _enabled = false
 
+-- User filetypes to leave alone, from `config.exclude_filetypes`; rebuilt in
+-- `enable`. Kept separate from `_NO_SCOPE_FT`, which is not configurable.
 ---@type table<string, true>
 local _excluded = {}
+
+-- Filetypes that never get guides: markup and unindented buffers, plus the
+-- sentinel filetype `keystone.largefile` gives large buffers.
+---@type table<string, true>
+local _NO_SCOPE_FT = {
+  help        = true,
+  markdown    = true,
+  text        = true,
+  gitcommit   = true,
+  man         = true,
+  checkhealth = true,
+  qf          = true,
+  bigfile     = true,
+}
 
 ---@class keystone.scope.Scope
 ---@field buf integer
@@ -377,8 +393,9 @@ end
 ---@return boolean
 local function _is_eligible(buf)
   -- Called on every redraw: `vim.bo[buf]` allocates on each access.
-  return vim.api.nvim_get_option_value("buftype", { buf = buf }) == ""
-      and not _excluded[vim.api.nvim_get_option_value("filetype", { buf = buf })]
+  if vim.api.nvim_get_option_value("buftype", { buf = buf }) ~= "" then return false end
+  local ft = vim.api.nvim_get_option_value("filetype", { buf = buf })
+  return not _NO_SCOPE_FT[ft] and not _excluded[ft]
 end
 
 --- Parser of the Treesitter highlighter of `buf`, if any.

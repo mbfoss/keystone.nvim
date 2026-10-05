@@ -24,14 +24,17 @@ require("keystone").setup({
   scope = {
     scope             = true,  -- guide along the scope under the cursor
     guides            = true,  -- guide on every indent level
-    scope_char        = "┃",   -- one cell wide
+    scope_char        = "│",   -- one cell wide
     guide_char        = "│",   -- one cell wide
-    exclude_filetypes = { "help", "markdown", "text", "gitcommit", "man", "checkhealth", "qf" },
+    exclude_filetypes = {},    -- extra filetypes left alone
   },
 })
 ```
 
-Guides are drawn only in ordinary file buffers. Indent guides sit at the indents
+Guides are drawn only in ordinary file buffers. A fixed list -- `help`,
+`markdown`, `text`, `gitcommit`, `man`, `checkhealth`, `qf` -- plus buffers
+opened in large-file mode (`bigfile`) are always left alone; `exclude_filetypes`
+adds to them. Indent guides sit at the indents
 of the enclosing lines, not at multiples of `'shiftwidth'`, and the scope guide
 always lands on one of those columns. A blank line takes the larger indent of its
 neighbours. Comments (lines starting with the `'commentstring'` leader) do not
