@@ -190,7 +190,10 @@ end
 ---@param last_new integer
 local function _on_lines(_, buf, _, first, last, last_new)
   if not _enabled then
+    -- Detach, and drop the cache: `_indent` would otherwise serve it as fresh
+    -- once the module is enabled again, having missed this edit.
     _attached[buf] = nil
+    _indents[buf] = nil
     return true
   end
   local cached = _indents[buf]

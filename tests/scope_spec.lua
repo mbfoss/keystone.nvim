@@ -112,6 +112,26 @@ describe("scope by treesitter", function()
     cursor(5)
     assert.is_nil(scope.get())
   end)
+
+  it("drops the indent cache on an edit made while disabled", function()
+    cursor(5)
+    assert.same({ col = 2, first = 5, last = 7 }, scope.get())
+
+    -- `M.get` reads indents whatever `_enabled` says, so disable and read
+    -- again: the cache is rebuilt, and the buffer stays attached.
+    scope.disable()
+    assert.same({ col = 2, first = 5, last = 7 }, scope.get())
+
+    -- Flatten the body, so nothing is indented deeper than its header and
+    -- every scope is gone. The edit is made while the module is off.
+    vim.api.nvim_buf_set_lines(0, 3, 8, false,
+      { "if a then", "local x = 1", "", "return x", "end" })
+    vim.treesitter.get_parser(0):parse()
+
+    scope.enable()
+    cursor(5)
+    assert.is_nil(scope.get())
+  end)
 end)
 
 describe("scope by treesitter as it reparses", function()
