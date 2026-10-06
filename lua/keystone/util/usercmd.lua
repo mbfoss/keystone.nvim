@@ -63,10 +63,9 @@ function M.complete(arg_lead, cmd_line, subcommand)
     local ok, parsed = pcall(vim.api.nvim_parse_cmd, cmd_line, {})
     if not ok then return {} end
 
-    -- A non-empty `arg_lead` is the argument currently being completed, so the
-    -- last parsed argument is that same word, not context for it. An empty
-    -- `arg_lead` means a new argument has begun (or none was typed), leaving
-    -- every parsed argument as context.
+    -- A non-empty `arg_lead` is the argument being completed, so the last parsed
+    -- argument is that same word, not context for it. An empty `arg_lead` means a
+    -- new argument has begun (or none was typed), leaving every arg as context.
     local rest = parsed.args or {}
     if arg_lead ~= "" then
         rest[#rest] = nil

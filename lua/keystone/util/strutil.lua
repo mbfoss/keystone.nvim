@@ -39,9 +39,7 @@ function M.fit_to_width(str, width, right)
 
 	-- Binary search the grapheme count that fits, measuring each candidate whole:
 	-- summing per-character widths would miscount composing sequences. Every
-	-- grapheme costs at least one cell, so `width` of them is an upper bound --
-	-- for a long string cropped to a small window that is most of the search.
-	-- `strcharpart` clamps a too-long count, so a left cut never needs the total
+	-- grapheme costs at least one cell, so `width` is an upper bound on the count.
 	local total = right and vim.fn.strchars(str, 1) or 0
 	local lo, hi = 0, right and (total < width and total or width) or width
 	local best = "" -- the last candidate that fit, so the search need not redo it

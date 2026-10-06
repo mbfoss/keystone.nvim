@@ -141,11 +141,9 @@ function SymbolTree:init(opts)
     self._excluded = _kind_code_set(self._opts.exclude_kinds)
     self._collapsed = _kind_code_set(self._opts.collapse_kinds)
 
-    -- Folding a symbol should survive a refresh, a jump to another buffer and
-    -- back, and the tree buffer being closed and reopened, so the state is kept
-    -- outside the tree itself. One entry per fold rather than one per buffer:
-    -- the cost is then bounded by how much folding was done, whether that was
-    -- spread over two files or two hundred.
+    -- Folding survives a refresh, a buffer jump and the tree being reopened, so
+    -- the state lives outside the tree: one entry per fold, bounding the cost by
+    -- how much folding was done rather than by buffer count.
     self._expand_cache = LRU:new(self._opts.max_cached_folds or 2048)
     self._expand_prefix = nil
 
@@ -359,10 +357,9 @@ function SymbolTree:_request_symbols()
     if self._treebuf:get_bufnr() == -1 then return end
     local bufnr = self._source_buf
 
-    -- Guards a reply against the tree having moved on: navigated to a different
-    -- source buffer, or the tree buffer torn down while the request was in
-    -- flight. (Superseded requests for the same buffer are dropped inside the
-    -- provider.)
+    -- Guards a reply against the tree having moved on: a different source buffer,
+    -- or the tree buffer torn down mid-flight. (Superseded requests for the same
+    -- buffer are dropped inside the provider.)
     local function stale()
         return self._source_buf ~= bufnr or self._treebuf:get_bufnr() == -1
     end

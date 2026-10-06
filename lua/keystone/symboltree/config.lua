@@ -28,10 +28,9 @@ local _defaults = {
     max_cached_folds = 2048,
 }
 
---- List-valued options a user supplies replace the default outright.
---- `vim.tbl_deep_extend` would otherwise merge them index by index, leaving
---- trailing defaults behind, e.g. { "Class" } over the default becoming
---- { "Class", "Method" }.
+--- List-valued options a user supplies replace the default outright, rather than
+--- being merged index by index by `vim.tbl_deep_extend` (e.g. { "Class" } over
+--- the default becoming { "Class", "Method" }).
 local _LIST_KEYS = { "exclude_kinds", "collapse_kinds" }
 
 ---The live options. Always this same table, so it is safe to capture at a

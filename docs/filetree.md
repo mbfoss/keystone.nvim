@@ -39,7 +39,7 @@ The root the tree opens at depends on what the command is given:
 | --- | --- | --- |
 | `:FileTree` | Opens at the cwd | Keeps its current root |
 | `:FileTree dir` | Opens at `dir` | Root becomes `dir` |
-| `:cd` changes the cwd | — | Root unaffected |
+| `:cd` changes the cwd | n/a | Root unaffected |
 
 Without `dir` the first open always uses the cwd, whatever the current buffer
 points at; later runs leave the root where it is. Setting a new root re-reads

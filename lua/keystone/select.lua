@@ -38,10 +38,9 @@ local _PREFIX     = "  "
 -- Columns left between the list and the preview beside it.
 local _GAP        = 2
 
--- Helix-style framing. The rule between the prompt and the list is drawn by
--- neither border: it is the list's winbar, filled with `_RULE` and carrying the
--- count at its right end. A winbar is a window-local option, so a changing count
--- neither re-configures a window nor touches the focused prompt.
+-- Helix-style framing. The rule between the prompt and the list is the list's
+-- winbar, filled with `_RULE` and carrying the count at its right end; a winbar
+-- is window-local, so a changing count touches neither window config nor prompt.
 local _BORDER_TOP    = { "╭", "─", "╮", "│", "", "", "", "│" }
 local _BORDER_BOTTOM = { "", "", "", "│", "╯", "─", "╰", "│" }
 local _BORDER_FULL   = "rounded"
@@ -177,9 +176,8 @@ local function _centre(list_width, list_height, preview_width)
     -- the list, and the single bottom border closing the shared frame.
     local total_height = _PROMPT_ROWS + list_height + 1
     -- Columns consumed: the floats side by side, plus the border either side of
-    -- the block -- `nvim_open_win` draws a border on the column it is handed, so
-    -- each float reaches one past its width. `_GAP` pays for the two that meet
-    -- in the middle, leaving the outer pair to count here.
+    -- the block, since `nvim_open_win` draws a border on the column it is handed.
+    -- `_GAP` pays for the two borders that meet in the middle.
     local total_width  = list_width + gap + preview_width + 2
 
     -- Whatever an odd remainder leaves over goes to the picker; see `_spare`.
@@ -518,10 +516,9 @@ function Picker:_filter()
     local result = vim.fn.matchfuzzypos(self._pool, self._query, { key = "label" })
     local hits   = result[1]
 
-    -- matchfuzzypos hands its hits back best-score-first. Unless sorting is
-    -- asked for, put them back in the caller's order: a `vim.ui.select` list is
-    -- usually already ordered meaningfully, and rows jumping around as the query
-    -- grows makes the list hard to follow.
+    -- matchfuzzypos returns hits best-score-first. Unless sorting is asked for,
+    -- put them back in the caller's order: a `vim.ui.select` list is usually
+    -- already ordered, and rows jumping around as the query grows is hard to read.
     local order = {}
     for row = 1, #hits do
         order[row] = row

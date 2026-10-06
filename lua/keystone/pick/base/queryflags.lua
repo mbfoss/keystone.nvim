@@ -29,34 +29,9 @@ local function _build_map(schema)
     return m
 end
 
--- Syntax:
---
---   <token> <token> ...
---
--- The input is a flat list of whitespace-separated tokens with no separator;
--- flags and query text may appear in any order. Each token is classified:
---   boolean flag:  "is:flagname" → flags.flagname = true  (matching a boolean def)
---   value flag:    "key:value"   → flags.key = value      (or string[] if multi)
---   anything else: query text
--- The query is every non-flag token joined back together with single spaces.
--- Boolean flags have no standalone form: "flagname" alone is always query
--- text; the "is:" prefix is what distinguishes a flag from a query word.
---
--- Quoting (via ") is only meaningful right after a flag's colon, to let its
--- value contain spaces:
---   'path:"foo bar"' → value flag whose value contains a space
--- Anywhere else a " is just a literal character -- it does not group text
--- and never needs closing.
---
--- To keep a flag-looking word as plain query text (its key happens to match
--- a real flag name), escape the colon with a backslash so it never acts as
--- the key/value delimiter:
---   'is\:fixed'  → query text "is:fixed"
---   'path\:foo'  → query text "path:foo"
--- \: works the same way \" does: a backslash makes the next character
--- literal instead of special. A literal double quote is written as \" --
--- inside a value's quoted span it does not close the span. An unterminated
--- value quote runs to the end of the token and is reported as an error.
+-- Flags are whitespace-separated tokens in the query: "is:name" sets a boolean,
+-- "key:value" a value flag, anything else is query text. A colon is escaped with
+-- a backslash ("is\:fixed") to keep a flag-looking word as plain query text.
 
 ---@class keystone.queryflags.Token
 ---@field text          string                           -- verbatim token text
@@ -267,10 +242,9 @@ function M.highlight(schema, raw)
             table.insert(hls, { start = s0, finish = e0, hl = "Keyword" })
         end
 
-        -- Quote chars are highlighted wherever they appear: around a value flag's value
-        -- (path:"foo bar") and in query text where a quote escapes a flag-looking token
-        -- ("is:fixed"). An unterminated quote still highlights its opening char so the
-        -- open span is visible. Inserted last so they win over the String/Keyword highlight.
+        -- Quote chars are highlighted wherever they appear: around a value flag's
+        -- value (path:"foo bar") and in query text where a quote escapes a
+        -- flag-looking token ("is:fixed"). Inserted last to win over String/Keyword.
         if token.quotes then
             for _, q in ipairs(token.quotes) do
                 table.insert(hls, { start = s0 + q.open - 1, finish = s0 + q.open, hl = "Delimiter" })
@@ -336,12 +310,9 @@ function M.get_completions(schema, line, cursor_byte, auto)
             return #items > 0 and { startcol = word_start_1, items = items } or nil
         end
 
-        -- Case 2: Inside a "value_flag:<partial_value>" block. Candidates come
-        -- from the flag's static `values` and/or its dynamic `complete` source
-        -- (e.g. file/dir completion). A value is quoted when it contains a space,
-        -- or when the cursor already sits inside an open quote -- otherwise the
-        -- unquoted candidates would not share the typed `"` prefix and Vim's live
-        -- pum filter would drop them all as more of the value is typed.
+        -- Case 2: inside a "value_flag:<partial_value>" block. Candidates come from
+        -- the flag's `values`/`complete` source; a value is quoted when it contains
+        -- a space or the cursor is inside a quote, to share the typed `"` prefix.
         local def = defs[prefix]
         if def and def.type == "value" and (def.values or def.complete) then
             local items = {}

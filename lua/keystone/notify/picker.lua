@@ -44,10 +44,9 @@ function M.open()
         entries[#entries + 1] = history[i]
     end
 
-    -- One buffer for every preview: the picker only ever displays one at a
-    -- time, and it is wiped once the picker is done with it. 'hide', not the
-    -- scratch default 'wipe' -- the picker takes it out of its window on every
-    -- move, which would wipe it away mid-picker.
+    -- One buffer for every preview: the picker shows one at a time and it is
+    -- wiped once done. 'hide', not the scratch default 'wipe', since the picker
+    -- takes it out of its window on every move and would wipe it mid-picker.
     local preview_buf = ui.create_scratch_buffer(false, { modifiable = false, bufhidden = "hide" })
 
     vim.ui.select(entries, {

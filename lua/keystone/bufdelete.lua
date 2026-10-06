@@ -243,11 +243,9 @@ end
 local function _detach_windows(bufnr, doomed, cache)
   for _, win in ipairs(_windows_showing(bufnr)) do
     local is_float = vim.api.nvim_win_get_config(win).relative ~= ""
-    -- A float is not part of the layout there is anything to preserve, so when
-    -- its buffer is deleted anyway -- an explicit `:BDelete`, or `ignore_floats`
-    -- turned off -- closing it is the honest outcome. Unless it is all that is
-    -- left: closing the last window would end the tabpage, so it takes a
-    -- replacement buffer like any other window.
+    -- A float is not part of the layout, so closing it when its buffer goes is
+    -- the honest outcome, unless it is the last window: that would end the
+    -- tabpage, so it takes a replacement buffer like any other window.
     local only_win = #vim.api.nvim_tabpage_list_wins(vim.api.nvim_win_get_tabpage(win)) == 1
     if is_float and not only_win then
       vim.api.nvim_win_close(win, false)
@@ -454,21 +452,6 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Commands
---
--- `:BDelete` and `:BWipeout` mirror the built-ins they are named after and take
--- the same argument. They differ only in the `wipe` flag they pass; the
--- unsaved-changes guard lives below that split, in `M.delete`/`M.delete_many`,
--- so neither command can discard an edit the other would have refused.
---
--- `:BDeleteHidden` and `:BWipeoutHidden` are the same pair over a fixed
--- selection: the buffers no window is showing. "No window" spans every tabpage,
--- not just the current one, so neither can pull a buffer out from under a window
--- you cannot see.
---
--- No command has an argument slot for keywords. What follows `:BDelete` is
--- always a buffer name or a glob over buffer names; the `*hidden` pair takes
--- nothing at all. So a buffer called `all`, `hidden` or `-x` is nothing special
--- anywhere.
 -- ---------------------------------------------------------------------------
 
 --- Match `glob` against a buffer the way a user reading the command line would

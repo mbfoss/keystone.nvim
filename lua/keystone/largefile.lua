@@ -138,10 +138,9 @@ local function _apply(bufnr)
     vim.cmd("NoMatchParen")
   end
 
-  -- Syntax: off unless `disable_syntax` is cleared, in which case cheap regex highlighting
-  -- for the real filetype is restored (clamped by synmaxcol). Deferred so it runs after the
-  -- read settles, when `vim.filetype.match` re-resolves the real ft (the sentinel_ft guard
-  -- lets it fall through).
+  -- Syntax: off unless `disable_syntax` is cleared, in which case cheap regex
+  -- highlighting for the real filetype is restored (clamped by synmaxcol). Deferred
+  -- so `vim.filetype.match` can re-resolve the real ft after the read settles.
   vim.schedule(function()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
     if cfg.disable_syntax then

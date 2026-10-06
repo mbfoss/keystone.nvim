@@ -51,9 +51,8 @@ local function _open_win()
     end
 
     -- A split pinned to a ratio of the editor size: width for left/right, height
-    -- for top/bottom. fixedwin tracks the ratio as the user resizes and re-pins it
-    -- across layout/editor changes; persist the last-known ratio so reopening the
-    -- tree keeps the user's chosen size.
+    -- for top/bottom. fixedwin re-pins the ratio across layout/editor changes;
+    -- persisting it keeps the user's chosen size across reopenings.
     local position = config.position or "bottom"
     local vertical = position == "left" or position == "right"
     local pos = (position == "left" or position == "top") and "topleft" or "botright"

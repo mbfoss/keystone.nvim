@@ -157,10 +157,7 @@ function M.enclosing_callable(symbols, position)
 end
 
 -- ---------------------------------------------------------------------------
--- Provider: resolves the symbol under the cursor to a call hierarchy root and
--- fetches a node's calls over LSP. Hides the request/reply plumbing from
--- CallTree: client lookup, position encoding and request-counter staleness live
--- here.
+-- Provider: call hierarchy root and node calls over LSP
 -- ---------------------------------------------------------------------------
 
 local _METHOD_PREPARE  = "textDocument/prepareCallHierarchy"

@@ -75,7 +75,7 @@ or to this module. Enabling the same server twice is harmless, since
 `vim.lsp.enable()` is idempotent.
 
 Because `servers` names each server, nvim-lspconfig’s `lsp/*.lua` configs
-cost nothing here — only the ones you list are enabled. A working setup is
+cost nothing here: only the ones you list are enabled. A working setup is
 usually three things, only the last of which is keystone:
 
 >lua

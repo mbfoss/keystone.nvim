@@ -34,10 +34,9 @@ M.config = vim.deepcopy(_default_config)
 
 -- State ----------------------------------------------------------------------
 
---- The two option-backed sources, named because they carry an availability
---- check. Every other ins-completion submode is written as raw keys in
---- `source_order`, e.g. "<C-x><C-n>" buffer, "<C-x><C-f>" files. Values are the
---- raw keys; termcodes are replaced when fed.
+--- The two option-backed sources, named because they carry an availability check.
+--- Every other ins-completion submode is raw keys in `source_order`, e.g.
+--- "<C-x><C-n>" buffer; termcodes are replaced when fed.
 local _slot_keys = {
   completefunc = "<C-x><C-u>",
   omnifunc     = "<C-x><C-o>",
@@ -269,11 +268,9 @@ M.confirm = function(fallback_keys, direction)
   vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(fallback_keys, true, false, true), "n", false)
 end
 
---- Confirm the current completion candidate with `<CR>`. With the popup menu
---- open and an entry selected, sends `<C-y>` to accept it -- letting the source
---- expand a snippet or apply additionalTextEdits on CompleteDone. With the menu
---- open but nothing selected, dismisses it and inserts a newline; with no menu,
---- sends a plain `<CR>`. Wired to `<CR>` by the `cr_confirm` config.
+--- Confirm the current candidate with `<CR>`. With a menu entry selected, sends
+--- `<C-y>` so the source can expand a snippet or apply additionalTextEdits; with
+--- the menu open and nothing selected, dismisses it and inserts a newline.
 M.accept = function()
   if pumvisible() then
     if vim.fn.complete_info({ "selected" }).selected ~= -1 then

@@ -115,11 +115,8 @@ local function _run()
 end
 
 --- Runs the queue, or waits for |SafeState| if the editor is busy. `vim.wait()`
---- -- as used by `vim.lsp.buf_request_sync()` -- drains scheduled callbacks and
---- timers from inside textlocked contexts, so being reached through
---- `vim.schedule()` is no guarantee the editor is ready. |SafeState| fires only
---- when it is, and is exempt from the check: it reports `x` itself, being an
---- autocommand.
+--- drains scheduled callbacks from inside textlocked contexts, so `vim.schedule()`
+--- is no guarantee the editor is ready; |SafeState| is exempt, reporting `x` itself.
 function _drain()
   if vim.fn.state(_BUSY) == "" then
     _run()

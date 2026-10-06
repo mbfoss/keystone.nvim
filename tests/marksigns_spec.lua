@@ -156,9 +156,8 @@ describe("marksigns signs", function()
     vim.api.nvim_win_set_cursor(0, { 2, 0 })
     vim.cmd("normal! dd")
     -- Deleting the line drops the mark without a MarkSet, so the debounced
-    -- TextChanged recompute is what clears the sign. Neovim only fires
-    -- TextChanged from the normal-mode input loop, which a headless script
-    -- never reaches, so the event is dispatched here by hand.
+    -- TextChanged recompute clears the sign. Neovim only fires TextChanged from
+    -- the normal-mode input loop, so the event is dispatched here by hand.
     edited(bufnr)
     wait_for(function() return next(signs()) == nil end)
 

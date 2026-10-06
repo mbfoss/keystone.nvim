@@ -168,11 +168,9 @@ function M.register_triggers(triggers)
     _apply_buf_triggers(vim.api.nvim_get_current_buf())
 end
 
---- Temporarily remove the triggers, then restore them on the next tick. This
---- prevents the about-to-be-fed key sequence from re-entering the engine: the
---- fed typeahead is drained (running the real mapping) before the restore runs.
---- Both the global triggers and the current buffer's shadows are dropped, since
---- either could otherwise catch the re-fed prefix.
+--- Temporarily remove the triggers, then restore them on the next tick, so the
+--- about-to-be-fed key sequence cannot re-enter the engine: the fed typeahead is
+--- drained (running the real mapping) first.
 local function _suspend()
     local bufnr = vim.api.nvim_get_current_buf()
     local saved = M._registered

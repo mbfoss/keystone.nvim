@@ -63,7 +63,7 @@ is
 idempotent.
 
 Because `servers` names each server, nvim-lspconfig's `lsp/*.lua` configs cost
-nothing here — only the ones you list are enabled. A working setup is usually
+nothing here: only the ones you list are enabled. A working setup is usually
 three things, only the last of which is keystone:
 
 ```lua

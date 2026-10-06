@@ -19,9 +19,8 @@ local function _normalize(sym)
     if type(sym) ~= "table" then return nil end
 
     -- DocumentSymbol carries `range`/`selectionRange` directly; SymbolInformation
-    -- nests a single range under `location`. `selectionRange` points at the name
-    -- itself, which is where we want the cursor to land; `range` spans the whole
-    -- construct, which is what decides enclosure.
+    -- nests one under `location`. `selectionRange` is where the cursor lands;
+    -- `range` spans the construct and decides enclosure.
     local location_range = sym.location and sym.location.range
     local full_range = sym.range or location_range
     local start_range = sym.selectionRange or full_range
@@ -146,9 +145,7 @@ function M.path_at_line(symbols, line)
 end
 
 -- ---------------------------------------------------------------------------
--- Provider: fetches document symbols for a buffer over LSP and normalizes the
--- reply with `M.normalize` above. Hides the request/reply plumbing from
--- SymbolTree: client lookup and request-counter staleness live here.
+-- Provider: document symbols for a buffer over LSP
 -- ---------------------------------------------------------------------------
 
 ---@param bufnr integer

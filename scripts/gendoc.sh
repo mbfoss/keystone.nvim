@@ -72,9 +72,8 @@ else
 fi
 
 # A module page's one-line description, for its help file header. The README's
-# module table is the source: those summaries are already written to fit on one
-# line, and keeping them there is what stops the two drifting apart. A page with
-# no row falls back to its own first sentence.
+# module table is the source, so the two cannot drift; a page with no row falls
+# back to its own first sentence.
 describe() {
     module=$1
     awk -v module="$module" '
@@ -102,17 +101,9 @@ first_line() {
     ' "$1"
 }
 
-# Render one markdown file to $work/out/<name>.txt.
-#
-# Help tags come from a hidden comment at the end of a section heading. The
-# project name is prefixed automatically, so in docs/filetree.md this yields
-# *keystone-filetree-keys*:
-#
-#   ## Keymaps <!-- tag: keys -->
-#
-# Without one, panvimdoc derives the tag from the heading text. Collect
-# "derived-tag<TAB>wanted-tag" pairs and strip the comments from the copy
-# panvimdoc reads; the derived tags are rewritten in the output below.
+# Render one markdown file to $work/out/<name>.txt. Help tags come from an
+# inline `<!-- tag: name -->` on a heading, else panvimdoc derives one; collect
+# "derived<TAB>wanted" pairs and rewrite them in the output below.
 generate() {
     md=$1
     name=$2

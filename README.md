@@ -229,7 +229,7 @@ require("keystone").setup({
 ```
 
 These are the values the module pages use in their own examples, so treat them as
-a starting point to edit rather than as the defaults — `true` is what gives you
+a starting point to edit rather than as the defaults; `true` is what gives you
 the defaults. Each module's options are documented on its own page under
 [Modules](#modules) below.
 

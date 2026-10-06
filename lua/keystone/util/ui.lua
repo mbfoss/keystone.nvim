@@ -158,10 +158,9 @@ function M.smart_open_file(filepath, line, col, activate)
         vim.api.nvim_set_current_win(winid)
     end
 
-    -- pcall is required here: the load can abort for reasons the caller cannot
-    -- check for up front -- an existing swap file the user answers "quit" to, an
-    -- unreadable file, E37 on a modified buffer under 'nohidden' -- and an
-    -- uncaught Vim error unwinds into the picker callback as a stack traceback.
+    -- pcall is required: the load can abort for reasons the caller cannot check
+    -- up front (an existing swap file, an unreadable file, E37 under 'nohidden'),
+    -- and an uncaught Vim error unwinds into the picker callback as a traceback.
     local ok, err = pcall(vim.fn.win_execute, winid, "buffer " .. bufnr)
     if not ok or not vim.api.nvim_win_is_valid(winid)
         or vim.api.nvim_win_get_buf(winid) ~= bufnr then
