@@ -39,7 +39,7 @@ local _MODULES = {
   "statusline",
   "symboltree",
   "tsconfig",
-  "unsaved",
+  "diffunsaved",
 }
 
 --- The configurable module names, in setup order. Used by `keystone.health`.

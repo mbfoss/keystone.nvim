@@ -64,7 +64,7 @@ Modules keep `setup` cheap and defer heavy work until first use. Common
 patterns:
 
 - Interactive command implementations live in a submodule that is only
-  `require`d the first time the command runs (e.g. `keystone.unsaved.session`,
+  `require`d the first time the command runs (e.g. `keystone.diffunsaved.session`,
   `keystone.explore.explorer`).
 - User commands are created with `nvim_create_user_command` directly. The
   command body runs its implementation through `pcall`, reporting a raised
@@ -94,14 +94,14 @@ preview_item = function(item) return { buf = <bufnr>, pos = { lnum, col } } end
 ```
 
 The caller hands back a **buffer**, so a modified buffer previews as it stands.
-To preview a file, read it into a scratch buffer (see `keystone.unsaved.session`)
+To preview a file, read it into a scratch buffer (see `keystone.diffunsaved.session`)
 rather than loading it: loading fires the whole autocmd chain and prompts on a
 stale swap file. Implementations that do not know the option ignore it, so it is
 safe to pass unconditionally; annotate the opts table
 `---@type keystone.select.Opts` so the language server resolves it without
 requiring the module.
 
-Callers today: `keystone.unsaved.session.open`,
+Callers today: `keystone.diffunsaved.session.open`,
 [`keystone.notify.picker`](lua/keystone/notify/picker.lua) (`:Notifications`).
 
 ### Notable module internals

@@ -1,23 +1,23 @@
-*keystone-unsaved*                          Diff modified buffers against disk
+*keystone-diffunsaved*                      Diff modified buffers against disk
 
 ==============================================================================
-Table of Contents                         *keystone-unsaved-table-of-contents*
+Table of Contents                     *keystone-diffunsaved-table-of-contents*
 
-1. Configuration                              |keystone-unsaved-configuration|
-2. Commands                                        |keystone-unsaved-commands|
+1. Configuration                          |keystone-diffunsaved-configuration|
+2. Commands                                    |keystone-diffunsaved-commands|
 Diff every modified buffer against its saved state on disk.
 
 
 ==============================================================================
-1. Configuration                              *keystone-unsaved-configuration*
+1. Configuration                          *keystone-diffunsaved-configuration*
 
 >lua
-    require("keystone").setup({ unsaved = true })
+    require("keystone").setup({ diffunsaved = true })
 <
 
 
 ==============================================================================
-2. Commands                                        *keystone-unsaved-commands*
+2. Commands                                    *keystone-diffunsaved-commands*
 
   Command        What it does
   -------------- -----------------------------------

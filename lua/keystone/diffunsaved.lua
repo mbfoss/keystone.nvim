@@ -1,12 +1,12 @@
 local M = {}
 
 -- The diff session machinery (and its `fsutil` dependency) lives in
--- `keystone.unsaved.session`, which is only required the first time the user
+-- `keystone.diffunsaved.session`, which is only required the first time the user
 -- runs `:DiffUnsaved` -- keeping `setup` to a single lightweight require.
 
 --- Open the diff of unsaved vs saved state for all modified buffers.
 function M.open()
-    require("keystone.unsaved.session").open()
+    require("keystone.diffunsaved.session").open()
 end
 
 local _setup = false

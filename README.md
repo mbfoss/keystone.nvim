@@ -22,31 +22,31 @@ vim.pack.add({ "https://github.com/mbfoss/keystone.nvim" })
 -- Every module, with a starting point for which to enable. Flip any of these.
 require("keystone").setup({
   -- Language support
-  lspsetup   = true,  -- LSP defaults; nothing starts until named, e.g.
-                      -- lspsetup = { servers = { "lua_ls" } }
-  tsconfig   = true,  -- treesitter highlighting and folding
-  completion = true,  -- drives insert-mode completion
+  lspsetup    = true,  -- LSP defaults; nothing starts until named, e.g.
+                       -- lspsetup = { servers = { "lua_ls" } }
+  tsconfig    = true,  -- treesitter highlighting and folding
+  completion  = true,  -- drives insert-mode completion
 
   -- Editor behaviour
-  tweaks     = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
-  largefile  = true,  -- skips treesitter/LSP/ftplugins on large files
-  marksigns  = true,  -- shows the marks that are set in the sign column (0.12+)
-  scope      = true,  -- guides along the current scope and indent levels
-  animate    = false, -- interpolated scrolling
+  tweaks      = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
+  largefile   = true,  -- skips treesitter/LSP/ftplugins on large files
+  marksigns   = true,  -- shows the marks that are set in the sign column (0.12+)
+  scope       = true,  -- guides along the current scope and indent levels
+  animate     = false, -- interpolated scrolling
 
   -- Replaces something built in
-  statusline = true,  -- sets 'statusline'
-  select     = true,  -- replaces vim.ui.select
-  notify     = true,  -- replaces vim.notify, adds :Notifications
-  clue       = true,  -- popup of the keys that can follow a trigger
+  statusline  = true,  -- sets 'statusline'
+  select      = true,  -- replaces vim.ui.select
+  notify      = true,  -- replaces vim.notify, adds :Notifications
+  clue        = true,  -- popup of the keys that can follow a trigger
 
   -- Adds a command, does nothing until you run it
-  filetree   = true,  -- :FileTree
-  explore    = true,  -- :FileSelector
-  symboltree = false, -- :SymbolTree
-  calltree   = false, -- :CallTree
-  unsaved    = false, -- :DiffUnsaved
-  bufdelete  = false, -- :BDelete, :BWipeout, :BDeleteHidden, :BWipeoutHidden
+  filetree    = true,  -- :FileTree
+  explore     = true,  -- :FileSelector
+  symboltree  = false, -- :SymbolTree
+  calltree    = false, -- :CallTree
+  diffunsaved = false, -- :DiffUnsaved
+  bufdelete   = false, -- :BDelete, :BWipeout, :BDeleteHidden, :BWipeoutHidden
 })
 ```
 
@@ -217,7 +217,7 @@ require("keystone").setup({
     show_detail      = true,       -- show the server-provided detail text
     auto_expand_root = true,       -- expand the root as soon as it resolves
   },
-  unsaved = true,
+  diffunsaved = {},
   bufdelete = {
     ignore_floats            = true,  -- keep buffers shown in a floating window
     ignore_file_types        = {},    -- keep these filetypes
@@ -264,7 +264,7 @@ Each module has its own page in [docs/](docs/):
 | [largefile](docs/largefile.md) | Opens large files without Treesitter, LSP or ftplugins |
 | [notify](docs/notify.md) | A floating notification UI |
 | [select](docs/select.md) | A floating `vim.ui.select` prompt with fuzzy filtering |
-| [unsaved](docs/unsaved.md) | Diff modified buffers against disk |
+| [diffunsaved](docs/diffunsaved.md) | Diff modified buffers against disk |
 | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 | [animate](docs/animate.md) | Interpolated scrolling |
 | [tweaks](docs/tweaks.md) | Editor behaviour flags |
@@ -288,7 +288,7 @@ Each module has its own help page:
 - |keystone-largefile| Opens large files without Treesitter, LSP or ftplugins
 - |keystone-notify| A floating notification UI
 - |keystone-select| A floating `vim.ui.select` prompt with fuzzy filtering
-- |keystone-unsaved| Diff modified buffers against disk
+- |keystone-diffunsaved| Diff modified buffers against disk
 - |keystone-bufdelete| Delete or wipe buffers, keeping the window layout
 - |keystone-animate| Interpolated scrolling
 - |keystone-tweaks| Editor behaviour flags
@@ -307,7 +307,7 @@ Enabling the relevant module registers its command:
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Notifications` | [notify](docs/notify.md) | List or clear the notification history |
-| `:DiffUnsaved` | [unsaved](docs/unsaved.md) | Diff unsaved buffers against disk |
+| `:DiffUnsaved` | [diffunsaved](docs/diffunsaved.md) | Diff unsaved buffers against disk |
 | `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 
 <!-- panvimdoc-ignore-end -->
@@ -319,7 +319,7 @@ Enabling the relevant module registers its command:
   the cursor
 - `:SymbolTree` |keystone-symboltree| Toggle the document-symbol side window
 - `:Notifications` |keystone-notify| List or clear the notification history
-- `:DiffUnsaved` |keystone-unsaved| Diff unsaved buffers against disk
+- `:DiffUnsaved` |keystone-diffunsaved| Diff unsaved buffers against disk
 - `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` |keystone-bufdelete|
   Delete or wipe buffers, keeping the window layout
 -->

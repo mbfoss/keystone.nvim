@@ -1,4 +1,4 @@
-# unsaved
+# diffunsaved
 
 Diff every modified buffer against its saved state on disk.
 
@@ -11,7 +11,7 @@ Diff every modified buffer against its saved state on disk.
 ## Configuration <!-- tag: configuration -->
 
 ```lua
-require("keystone").setup({ unsaved = true })
+require("keystone").setup({ diffunsaved = true })
 ```
 
 ## Commands <!-- tag: commands -->

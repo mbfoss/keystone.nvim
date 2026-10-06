@@ -25,6 +25,10 @@ keystone-completion	keystone-completion.txt	/*keystone-completion*
 keystone-completion-configuration	keystone-completion.txt	/*keystone-completion-configuration*
 keystone-completion-table-of-contents	keystone-completion.txt	/*keystone-completion-table-of-contents*
 keystone-configuration	keystone.txt	/*keystone-configuration*
+keystone-diffunsaved	keystone-diffunsaved.txt	/*keystone-diffunsaved*
+keystone-diffunsaved-commands	keystone-diffunsaved.txt	/*keystone-diffunsaved-commands*
+keystone-diffunsaved-configuration	keystone-diffunsaved.txt	/*keystone-diffunsaved-configuration*
+keystone-diffunsaved-table-of-contents	keystone-diffunsaved.txt	/*keystone-diffunsaved-table-of-contents*
 keystone-explore	keystone-explore.txt	/*keystone-explore*
 keystone-explore-commands	keystone-explore.txt	/*keystone-explore-commands*
 keystone-explore-configuration	keystone-explore.txt	/*keystone-explore-configuration*
@@ -98,7 +102,3 @@ keystone-tsconfig-upstream	keystone-tsconfig.txt	/*keystone-tsconfig-upstream*
 keystone-tweaks	keystone-tweaks.txt	/*keystone-tweaks*
 keystone-tweaks-configuration	keystone-tweaks.txt	/*keystone-tweaks-configuration*
 keystone-tweaks-table-of-contents	keystone-tweaks.txt	/*keystone-tweaks-table-of-contents*
-keystone-unsaved	keystone-unsaved.txt	/*keystone-unsaved*
-keystone-unsaved-commands	keystone-unsaved.txt	/*keystone-unsaved-commands*
-keystone-unsaved-configuration	keystone-unsaved.txt	/*keystone-unsaved-configuration*
-keystone-unsaved-table-of-contents	keystone-unsaved.txt	/*keystone-unsaved-table-of-contents*

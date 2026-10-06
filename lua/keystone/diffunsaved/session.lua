@@ -10,7 +10,7 @@ local fsutil = require("keystone.util.fsutil")
 --- difftool-style list, the quickfix and location lists are never touched.
 
 --- Active session state. Only one session exists at a time.
----@class keystone.unsaved.Layout
+---@class keystone.diffunsaved.Layout
 ---@field group     integer?  augroup id, nil when no session is active
 ---@field tab       integer?  tabpage handle the diff lives in
 ---@field left_win  integer?  window for the saved (on-disk) side
@@ -18,7 +18,7 @@ local fsutil = require("keystone.util.fsutil")
 local _layout     = { group = nil, tab = nil, left_win = nil, right_win = nil }
 
 --- One modified buffer, as offered in the picker and diffed on selection.
----@class keystone.unsaved.Entry
+---@class keystone.diffunsaved.Entry
 ---@field bufnr  integer
 ---@field path   string
 ---@field rel    string
@@ -57,7 +57,7 @@ local function _cleanup()
 end
 
 --- Collect every loaded, file-backed, modified buffer, sorted by display path.
----@return keystone.unsaved.Entry[] entries
+---@return keystone.diffunsaved.Entry[] entries
 local function _collect_entries()
     local cwd     = vim.fn.getcwd()
     local entries = {}
@@ -81,7 +81,7 @@ end
 
 --- Scratch buffer holding the on-disk contents for the saved side of the diff.
 --- Read-only and wiped when it leaves its window.
----@param entry keystone.unsaved.Entry
+---@param entry keystone.diffunsaved.Entry
 ---@return integer bufnr
 local function _make_saved_buf(entry)
     local buf   = vim.api.nvim_create_buf(false, true)
@@ -100,7 +100,7 @@ local function _make_saved_buf(entry)
     vim.bo[buf].modifiable = false
     -- The buffer id keeps the name unique, so the saved scratch for a file can
     -- never clash with a not-yet-wiped predecessor (rapid re-selection).
-    vim.api.nvim_buf_set_name(buf, ("unsaved://saved/%d/%s"):format(buf, entry.rel))
+    vim.api.nvim_buf_set_name(buf, ("diffunsaved://saved/%d/%s"):format(buf, entry.rel))
     return buf
 end
 
@@ -127,13 +127,13 @@ end
 --- Open the side-by-side diff for a single chosen entry in a fresh tab: the
 --- read-only on-disk scratch on the left, the live (unsaved) buffer on the
 --- right, in native diff mode.
----@param entry keystone.unsaved.Entry
+---@param entry keystone.diffunsaved.Entry
 local function _open_diff(entry)
     -- Selecting again replaces any session still open.
     if _layout.group then _cleanup() end
     if not vim.api.nvim_buf_is_valid(entry.bufnr) then return end
 
-    _layout.group = vim.api.nvim_create_augroup("keystone.unsaved", { clear = true })
+    _layout.group = vim.api.nvim_create_augroup("keystone.diffunsaved", { clear = true })
 
     vim.cmd.tabnew()
     _layout.tab      = vim.api.nvim_get_current_tabpage()
@@ -169,9 +169,9 @@ function M.open()
     ---@type keystone.select.Opts
     local opts = {
         prompt       = "Diff unsaved",
-        ---@param entry keystone.unsaved.Entry
+        ---@param entry keystone.diffunsaved.Entry
         format_item  = function(entry) return entry.status .. "  " .. entry.rel end,
-        ---@param entry keystone.unsaved.Entry
+        ---@param entry keystone.diffunsaved.Entry
         preview_item = function(entry)
             if vim.api.nvim_buf_is_valid(entry.bufnr) then
                 return { buf = entry.bufnr }
