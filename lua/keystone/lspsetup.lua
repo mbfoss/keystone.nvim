@@ -90,7 +90,7 @@ end
 ---@class keystone.lspsetup.Config
 ---@field enabled boolean
 ---@field servers string[] names of the servers to enable; each needs an `lsp/<name>.lua` config on the runtimepath
----@field auto_enable boolean enable `servers` automatically on setup (the main thing vanilla Neovim does not do)
+---@field auto_enable boolean call `vim.lsp.enable()` for `servers` during `setup()`; false leaves it to `M.enable_servers()`
 ---@field format keystone.lspsetup.FormatConfig
 ---@field inlay_hints boolean turn on inlay hints for clients that support them
 ---@field document_highlight boolean highlight references of the symbol under the cursor (CursorMoved)
