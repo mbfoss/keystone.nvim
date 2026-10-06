@@ -31,7 +31,7 @@ local cfgutil = require("keystone.util.config")
 ---@field enabled boolean? master switch; when false detection is inert
 ---@field size_threshold integer? byte size above which a file is treated as large
 ---@field filetype string? sentinel_ft filetype used to suppress treesitter/LSP/ftplugins
----@field keep_syntax boolean? restore regex syntax for the detected real filetype
+---@field disable_syntax boolean? leave syntax highlighting off for the buffer
 ---@field disable_folding boolean? set `foldmethod=manual` and open all folds
 ---@field disable_swapfile boolean? clear `swapfile` for the buffer
 ---@field disable_undofile boolean? clear `undofile` (and shorten undolevels)
@@ -45,7 +45,7 @@ local _default_config = {
   enabled            = true,
   size_threshold     = 1.5 * 1024 * 1024,  -- 1.5 MiB
   filetype           = "bigfile",
-  keep_syntax        = false,
+  disable_syntax     = true,
   disable_folding    = true,
   disable_swapfile   = true,
   disable_undofile   = false,
@@ -138,15 +138,16 @@ local function _apply(bufnr)
     vim.cmd("NoMatchParen")
   end
 
-  -- Syntax: either restore cheap regex highlighting for the real filetype (clamped by
-  -- synmaxcol) or leave it off. Deferred so it runs after the read settles, when
-  -- `vim.filetype.match` re-resolves the real ft (the sentinel_ft guard lets it fall through).
+  -- Syntax: off unless `disable_syntax` is cleared, in which case cheap regex highlighting
+  -- for the real filetype is restored (clamped by synmaxcol). Deferred so it runs after the
+  -- read settles, when `vim.filetype.match` re-resolves the real ft (the sentinel_ft guard
+  -- lets it fall through).
   vim.schedule(function()
     if not vim.api.nvim_buf_is_valid(bufnr) then return end
-    if cfg.keep_syntax then
-      vim.bo[bufnr].syntax = vim.filetype.match({ buf = bufnr }) or ""
-    else
+    if cfg.disable_syntax then
       vim.bo[bufnr].syntax = "off"
+    else
+      vim.bo[bufnr].syntax = vim.filetype.match({ buf = bufnr }) or ""
     end
   end)
 

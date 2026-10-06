@@ -2,9 +2,9 @@
 
 Defaults and per-server configuration on top of Neovim's built-in `vim.lsp`.
 Neovim requires an explicit `vim.lsp.enable()` call for each server; this module
-enables the configs it finds in `lsp/` directories on the runtimepath, and
-applies the formatting, inlay hint, document highlight and signature help
-settings below.
+makes that call for the servers you name in `servers`, chosen from the configs
+it finds in `lsp/` directories on the runtimepath, and applies the formatting,
+inlay hint, document highlight and signature help settings below.
 
 <!-- panvimdoc-ignore-start -->
 
@@ -62,9 +62,9 @@ this module. Enabling the same server twice is harmless, since `vim.lsp.enable()
 is
 idempotent.
 
-Because `servers` names each server, nvim-lspconfig's **407** `lsp/*.lua` configs
-cost nothing here — only the ones you list are enabled. A working setup is
-usually three things, only the last of which is keystone:
+Because `servers` names each server, nvim-lspconfig's `lsp/*.lua` configs cost
+nothing here — only the ones you list are enabled. A working setup is usually
+three things, only the last of which is keystone:
 
 ```lua
 -- 1. the binary            $ brew install lua-language-server

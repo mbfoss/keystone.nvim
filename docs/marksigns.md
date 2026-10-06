@@ -14,7 +14,8 @@ marks on one line share the sign; the sign column is two cells wide.
 ```lua
 require("keystone").setup({
   marksigns = {
-    marks         = "abcdefghijklmnopqrstuvwxyz", -- which marks to sign, most significant first
+    -- which marks to sign, most significant first
+    marks         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     combine       = true,                         -- pack two names into one sign
     hl_local      = "KeystoneMarkSignsLocal",     -- highlight for a-z marks
     hl_global     = "KeystoneMarkSignsGlobal",    -- highlight for A-Z marks
