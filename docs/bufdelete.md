@@ -44,8 +44,8 @@ require("keystone").setup({
 })
 ```
 
-They apply whenever a **set** is selected: a glob, `:BDeleteHidden`, or
-`delete_many`. They do **not** block a buffer you name (`:BDelete`,
+They apply whenever a **set** is selected: a glob or `delete_many`. They do
+**not** block a buffer you name (`:BDelete`,
 `:BDelete foo.lua`, `:3BDelete`). Pass `{ ignore = true }` to `delete()` to opt a
 single delete into the rules, or `{ ignore = false }` to a bulk call to sweep
 past them.
@@ -57,7 +57,7 @@ unsaved changes; only the second is a warning.
 
 ## Commands <!-- tag: commands -->
 
-Four commands, named after the built-ins whose semantics they keep.
+Two commands, named after the built-ins whose semantics they keep.
 
 ```vim
 :BDelete            " current buffer
@@ -66,18 +66,13 @@ Four commands, named after the built-ins whose semantics they keep.
 :BDelete foo.lua    " one named buffer
 :3BDelete           " buffer 3
 :BWipeout *         " the same sets, with :bwipeout semantics
-:BDeleteHidden      " every buffer no window is showing
-:BWipeoutHidden     " the same set, with :bwipeout semantics
 ```
 
 Add `!` to any of them to force past unsaved changes.
 
 The argument to `:BDelete`/`:BWipeout` is always a buffer name or a glob over
 buffer names; there are no keywords, so `:BDelete all` deletes a buffer called
-`all`. `:BDeleteHidden`/`:BWipeoutHidden` take no argument.
-
-Hidden means *no* window in *any* tabpage shows the buffer, so a buffer in a
-split two tabs over survives.
+`all`.
 
 Globs are matched against the full path, the path relative to the cwd, and the
 final component, so `*.log`, `src/*.lua` and `init.lua` all do the expected
@@ -88,7 +83,7 @@ thing. Completion offers `*` and the names of listed buffers.
 No command discards an edit. A modified buffer, or a terminal, is left alone and
 reported: `:BWipeout *` with one dirty buffer among ten wipes nine.
 
-`!` (`:BDelete! *`, `:BWipeout! *`, `:BDeleteHidden!`) throws the changes away,
+`!` (`:BDelete! *`, `:BWipeout! *`) throws the changes away,
 exactly as `:bdelete!` does.
 
 If a delete is refused for some other reason after the buffer has been swapped
@@ -129,8 +124,6 @@ bufdelete.delete_many({ 3, 7 })             -- one operation, so neither replace
 bufdelete.delete_matching("*.log")          -- the glob behind `:BDelete *.log`
 bufdelete.delete_all({ ignore = false })    -- sweep past the ignore rules
 bufdelete.delete_others()                   -- returns how many were deleted
-bufdelete.delete_hidden()                   -- the sweep behind `:BDeleteHidden`
-bufdelete.delete_hidden({ wipe = true })    -- ...and behind `:BWipeoutHidden`
 bufdelete.delete_all()
 
 bufdelete.listed()                          -- listed buffers, most recently used first
@@ -144,7 +137,6 @@ Mappings, if you want them:
 
 ```lua
 vim.keymap.set("n", "<leader>bd", "<Cmd>BDelete<CR>")
-vim.keymap.set("n", "<leader>bh", "<Cmd>BDeleteHidden<CR>")
 vim.keymap.set("n", "<leader>bo", function() require("keystone.bufdelete").delete_others() end)
 ```
 

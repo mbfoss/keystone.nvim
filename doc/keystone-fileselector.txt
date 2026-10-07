@@ -1,10 +1,10 @@
-*keystone-explore*               A file selector for navigating the filesystem
+*keystone-fileselector*          A file selector for navigating the filesystem
 
 ==============================================================================
-Table of Contents                         *keystone-explore-table-of-contents*
+Table of Contents                    *keystone-fileselector-table-of-contents*
 
-1. Configuration                              |keystone-explore-configuration|
-2. Commands                                        |keystone-explore-commands|
+1. Configuration                         |keystone-fileselector-configuration|
+2. Commands                                   |keystone-fileselector-commands|
 A file selector for navigating the filesystem.
 
 Each entry carries its size and modification time in a right-hand column, laid
@@ -22,17 +22,17 @@ older ones the year, as `ls -l` does.
 
 
 ==============================================================================
-1. Configuration                              *keystone-explore-configuration*
+1. Configuration                         *keystone-fileselector-configuration*
 
 >lua
-    require("keystone").setup({ explore = true })
+    require("keystone").setup({ fileselector = true })
 <
 
 Or, to change what the detail column shows:
 
 >lua
     require("keystone").setup({
-      explore = {
+      fileselector = {
         detail_fields = { "size", "mtime" }, -- per-entry details, in the order given
       },
     })
@@ -50,7 +50,7 @@ both, names win and the details are dropped.
 
 
 ==============================================================================
-2. Commands                                        *keystone-explore-commands*
+2. Commands                                   *keystone-fileselector-commands*
 
   Command         What it does
   --------------- ------------------------

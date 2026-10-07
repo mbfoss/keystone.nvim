@@ -65,7 +65,7 @@ patterns:
 
 - Interactive command implementations live in a submodule that is only
   `require`d the first time the command runs (e.g. `keystone.diffunsaved.session`,
-  `keystone.explore.explorer`).
+  `keystone.fileselector.explorer`).
 - User commands are created with `nvim_create_user_command` directly. The
   command body runs its implementation through `pcall`, reporting a raised
   error with `vim.notify` instead of a stack trace, and hands it `opts.fargs`;

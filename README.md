@@ -22,31 +22,31 @@ vim.pack.add({ "https://github.com/mbfoss/keystone.nvim" })
 -- Every module, with a starting point for which to enable. Flip any of these.
 require("keystone").setup({
   -- Language support
-  lspsetup    = true,  -- LSP defaults; nothing starts until named, e.g.
+  lspsetup     = true,  -- LSP defaults; nothing starts until named, e.g.
                        -- lspsetup = { servers = { "lua_ls" } }
-  tsconfig    = true,  -- treesitter highlighting and folding
-  completion  = true,  -- drives insert-mode completion
+  tsconfig     = true,  -- treesitter highlighting and folding
+  completion   = true,  -- drives insert-mode completion
 
   -- Editor behaviour
-  tweaks      = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
-  largefile   = true,  -- skips treesitter/LSP/ftplugins on large files
-  marksigns   = true,  -- shows the marks that are set in the sign column (0.12+)
-  scope       = true,  -- guides along the current scope and indent levels
-  animate     = false, -- interpolated scrolling
+  tweaks       = true,  -- Behaviour tweaks (yank highlight, cursor restore, ...)
+  largefile    = true,  -- skips treesitter/LSP/ftplugins on large files
+  marksigns    = true,  -- shows the marks that are set in the sign column (0.12+)
+  scope        = true,  -- guides along the current scope and indent levels
+  animate      = false, -- interpolated scrolling
 
   -- Replaces something built in
-  statusline  = true,  -- sets 'statusline'
-  select      = true,  -- replaces vim.ui.select
-  notify      = true,  -- replaces vim.notify, adds :Notifications
-  clue        = true,  -- popup of the keys that can follow a trigger
+  statusline   = true,  -- sets 'statusline'
+  select       = true,  -- replaces vim.ui.select
+  notify       = true,  -- replaces vim.notify, adds :Notifications
+  clue         = true,  -- popup of the keys that can follow a trigger
 
   -- Adds a command, does nothing until you run it
-  filetree    = true,  -- :FileTree
-  explore     = true,  -- :FileSelector
-  symboltree  = false, -- :SymbolTree
-  calltree    = false, -- :CallTree
-  diffunsaved = false, -- :DiffUnsaved
-  bufdelete   = false, -- :BDelete, :BWipeout, :BDeleteHidden, :BWipeoutHidden
+  filetree     = true,  -- :FileTree
+  fileselector = true,  -- :FileSelector
+  symboltree   = false, -- :SymbolTree
+  calltree     = false, -- :CallTree
+  diffunsaved  = false, -- :DiffUnsaved
+  bufdelete    = false, -- :BDelete, :BWipeout
 })
 ```
 
@@ -194,7 +194,7 @@ require("keystone").setup({
                                    -- ("top"|"bottom"|"left"|"right")
     follow_current_buffer = false, -- reveal the current file as you switch buffers
   },
-  explore = {
+  fileselector = {
     detail_fields = { "size", "mtime" }, -- per-entry details, in the order given
   },
   symboltree = {
@@ -250,7 +250,7 @@ Each module has its own page in [docs/](docs/):
 | Module | What it does |
 | --- | --- |
 | [filetree](docs/filetree.md) | A file explorer in a side window |
-| [explore](docs/explore.md) | A file selector for navigating the filesystem |
+| [fileselector](docs/fileselector.md) | A file selector for navigating the filesystem |
 | [calltree](docs/calltree.md) | The LSP call hierarchy of the symbol under the cursor |
 | [symboltree](docs/symboltree.md) | The LSP document symbols of the current buffer |
 | [clue](docs/clue.md) | A popup listing the keys that can follow a trigger |
@@ -274,7 +274,7 @@ Each module has its own page in [docs/](docs/):
 Each module has its own help page:
 
 - |keystone-filetree| A file explorer in a side window
-- |keystone-explore| A file selector for navigating the filesystem
+- |keystone-fileselector| A file selector for navigating the filesystem
 - |keystone-calltree| The LSP call hierarchy of the symbol under the cursor
 - |keystone-symboltree| The LSP document symbols of the current buffer
 - |keystone-clue| A popup listing the keys that can follow a trigger
@@ -302,24 +302,24 @@ Enabling the relevant module registers its command:
 | Command | Module | Purpose |
 | --- | --- | --- |
 | `:FileTree` | [filetree](docs/filetree.md) | Open the file-tree side window |
-| `:FileSelector` | [explore](docs/explore.md) | Open the file selector |
+| `:FileSelector` | [fileselector](docs/fileselector.md) | Open the file selector |
 | `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
 | `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Notifications` | [notify](docs/notify.md) | List or clear the notification history |
 | `:DiffUnsaved` | [diffunsaved](docs/diffunsaved.md) | Diff unsaved buffers against disk |
-| `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
+| `:BDelete` `:BWipeout` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
 
 <!-- panvimdoc-ignore-end -->
 
 <!-- vimdoc-only
 - `:FileTree` |keystone-filetree| Open the file-tree side window
-- `:FileSelector` |keystone-explore| Open the file selector
+- `:FileSelector` |keystone-fileselector| Open the file selector
 - `:CallTree` |keystone-calltree| Show the call hierarchy of the symbol under
   the cursor
 - `:SymbolTree` |keystone-symboltree| Toggle the document-symbol side window
 - `:Notifications` |keystone-notify| List or clear the notification history
 - `:DiffUnsaved` |keystone-diffunsaved| Diff unsaved buffers against disk
-- `:BDelete` `:BWipeout` `:BDeleteHidden` `:BWipeoutHidden` |keystone-bufdelete|
+- `:BDelete` `:BWipeout` |keystone-bufdelete|
   Delete or wipe buffers, keeping the window layout
 -->
 

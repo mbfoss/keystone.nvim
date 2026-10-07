@@ -30,7 +30,7 @@ local _MODULES = {
   "calltree",
   "clue",
   "completion",
-  "explore",
+  "fileselector",
   "filetree",
   "lspsetup",
   "marksigns",

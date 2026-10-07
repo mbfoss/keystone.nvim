@@ -15,10 +15,10 @@ local cfgutil = require("keystone.util.config")
 -- listed buffer, else one shared empty scratch buffer). Only then is the buffer
 -- deleted, at which point no window depends on it and nothing collapses.
 --
--- Everything else here builds on that single primitive: `delete_others`,
--- `delete_hidden` and `delete_all` are just buffer selections handed to it,
--- filtered by the `ignore_*` rules so a sweep does not take the terminal, the
--- floating preview or the `.env` file with it.
+-- Everything else here builds on that single primitive: `delete_others` and
+-- `delete_all` are just buffer selections handed to it, filtered by the
+-- `ignore_*` rules so a sweep does not take the terminal, the floating preview
+-- or the `.env` file with it.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ local cfgutil = require("keystone.util.config")
 -- ---------------------------------------------------------------------------
 
 -- The `ignore_*` options describe buffers a *bulk* selection must leave alone
--- (`others`, `hidden`, `all`, `delete_many`). They never block an explicitly
+-- (`others`, `all`, `delete_many`). They never block an explicitly
 -- named buffer: `:BDelete` on the buffer in front of you, or `M.delete(bufnr)`,
 -- deletes what you pointed at -- you already said which one you meant.
 ---@class keystone.bufdelete.Config
@@ -435,13 +435,6 @@ function M.delete_others(opts)
   return M.delete_many(targets, opts)
 end
 
---- Delete every listed buffer no window is showing.
----@param opts keystone.bufdelete.Opts?
----@return integer deleted
-function M.delete_hidden(opts)
-  return M.delete_many(M.hidden(), opts)
-end
-
 --- Delete every listed buffer. The layout survives: its windows end up on one
 --- shared empty buffer.
 ---@param opts keystone.bufdelete.Opts?
@@ -552,16 +545,6 @@ local function _make_delete_command(wipe)
   end
 end
 
---- Body shared by `:BDeleteHidden` and `:BWipeoutHidden`: `wipe` is the only
---- difference, exactly as it is between `:BDelete` and `:BWipeout`.
----@param wipe boolean
----@return fun(cmd:string,args:string[],opts:vim.api.keyset.create_user_command.command_args)
-local function _make_hidden_command(wipe)
-  return function(_, _args, opts)
-    M.delete_hidden({ force = opts.bang, wipe = wipe })
-  end
-end
-
 -- ---------------------------------------------------------------------------
 -- Setup
 -- ---------------------------------------------------------------------------
@@ -594,29 +577,6 @@ local function _register_delete(name, wipe, desc)
   })
 end
 
---- Register `:BDeleteHidden`/`:BWipeoutHidden`: no argument and no count, since
---- the selection is fixed, plus `!` to force.
----@param name string
----@param wipe boolean
----@param desc string
-local function _register_hidden(name, wipe, desc)
-  local run = _make_hidden_command(wipe)
-  vim.api.nvim_create_user_command(name, function(cmd_opts)
-    -- `nargs = 0`, so fargs is empty; the fallback only satisfies its type.
-    local ok, err = pcall(run, cmd_opts.name, cmd_opts.fargs or {}, cmd_opts)
-    if not ok then
-      vim.notify(
-        "[keystone.util.nvim] " .. cmd_opts.name .. " command error\n" .. tostring(err),
-        vim.log.levels.ERROR
-      )
-    end
-  end, {
-    nargs = 0,
-    bang = true,
-    desc = desc,
-  })
-end
-
 local _setup = false
 
 --- A fresh copy of the module defaults, as `setup()` starts from. Safe to mutate.
@@ -639,9 +599,6 @@ function M.setup(opts)
 
   _register_delete("BDelete", false, "Delete buffers, keeping the window layout")
   _register_delete("BWipeout", true, "Wipe out buffers, keeping the window layout")
-
-  _register_hidden("BDeleteHidden", false, "Delete every buffer no window is showing")
-  _register_hidden("BWipeoutHidden", true, "Wipe out every buffer no window is showing")
 end
 
 return M

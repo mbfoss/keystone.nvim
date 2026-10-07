@@ -128,18 +128,13 @@ describe("keystone.bufdelete", function()
     end
   end)
 
-  it("deletes only buffers no window shows", function()
+  it("lists only buffers no window shows", function()
     local a = make_buf("/tmp/keystone-a.txt")
     local b = make_buf("/tmp/keystone-b.txt")
     vim.api.nvim_set_current_buf(a)
 
     assert.is_true(vim.tbl_contains(bufdelete.hidden(), b))
     assert.is_false(vim.tbl_contains(bufdelete.hidden(), a))
-    bufdelete.delete_hidden()
-
-    assert.equal(a, vim.api.nvim_get_current_buf())
-    assert.is_false(vim.fn.buflisted(b) == 1)
-    assert.same({ a }, bufdelete.listed())
   end)
 
   it("leaves the layout on an empty buffer when everything is deleted", function()
@@ -274,11 +269,9 @@ describe("keystone.bufdelete", function()
     end)
   end)
 
-  it("registers the four commands", function()
+  it("registers the commands", function()
     assert.is_true(vim.fn.exists(":BDelete") == 2)
     assert.is_true(vim.fn.exists(":BWipeout") == 2)
-    assert.is_true(vim.fn.exists(":BDeleteHidden") == 2)
-    assert.is_true(vim.fn.exists(":BWipeoutHidden") == 2)
   end)
 
   describe("globs", function()
@@ -351,83 +344,6 @@ describe("keystone.bufdelete", function()
 
     assert.is_false(vim.fn.buflisted(named_all) == 1)
     assert.is_true(vim.fn.buflisted(other) == 1)
-  end)
-
-  describe(":BDeleteHidden / :BWipeoutHidden", function()
-    it("deletes every buffer no window is showing", function()
-      local keep = make_buf("/tmp/keystone-keep.txt")
-      local gone = make_buf("/tmp/keystone-gone.txt")
-      vim.api.nvim_set_current_buf(keep)
-
-      vim.cmd("BDeleteHidden")
-
-      assert.is_true(vim.fn.buflisted(keep) == 1)
-      assert.is_false(vim.fn.buflisted(gone) == 1)
-    end)
-
-    it("keeps a buffer visible in a split of the current tabpage", function()
-      local keep = make_buf("/tmp/keystone-keep.txt")
-      local split = make_buf("/tmp/keystone-split.txt")
-      local gone = make_buf("/tmp/keystone-gone.txt")
-      vim.api.nvim_set_current_buf(keep)
-      vim.cmd("vsplit")
-      vim.api.nvim_set_current_buf(split)
-
-      vim.cmd("BDeleteHidden")
-
-      assert.is_true(vim.fn.buflisted(keep) == 1)
-      assert.is_true(vim.fn.buflisted(split) == 1)
-      assert.is_false(vim.fn.buflisted(gone) == 1)
-    end)
-
-    it("keeps a buffer visible in another tabpage", function()
-      local other_tab = make_buf("/tmp/keystone-other-tab.txt")
-      local gone = make_buf("/tmp/keystone-gone.txt")
-
-      vim.cmd("tabnew")
-      vim.api.nvim_set_current_buf(other_tab)
-      vim.cmd("tabprevious")
-      local keep = make_buf("/tmp/keystone-keep.txt")
-      vim.api.nvim_set_current_buf(keep)
-
-      vim.cmd("BDeleteHidden")
-
-      assert.is_true(vim.fn.buflisted(other_tab) == 1)
-      assert.is_true(vim.fn.buflisted(keep) == 1)
-      assert.is_false(vim.fn.buflisted(gone) == 1)
-    end)
-
-    it("keeps unsaved changes until banged", function()
-      local keep = make_buf("/tmp/keystone-keep.txt")
-      local dirty = make_buf("/tmp/keystone-dirty.txt")
-      vim.api.nvim_buf_set_lines(dirty, 0, -1, false, { "dirty" })
-      vim.api.nvim_set_current_buf(keep)
-
-      vim.cmd("BDeleteHidden")
-      assert.is_true(vim.fn.buflisted(dirty) == 1)
-
-      vim.cmd("BDeleteHidden!")
-      assert.is_false(vim.fn.buflisted(dirty) == 1)
-    end)
-
-    it(":BWipeoutHidden wipes where :BDeleteHidden only unlists", function()
-      local a = make_buf("/tmp/keystone-a.txt")
-      local b = make_buf("/tmp/keystone-b.txt")
-      vim.api.nvim_set_current_buf(make_buf("/tmp/keystone-current.txt"))
-
-      vim.cmd("BDeleteHidden")
-      assert.is_true(vim.api.nvim_buf_is_valid(a))
-      assert.is_true(vim.api.nvim_buf_is_valid(b))
-
-      local c = make_buf("/tmp/keystone-c.txt")
-      vim.cmd("BWipeoutHidden")
-      assert.is_false(vim.api.nvim_buf_is_valid(c))
-    end)
-
-    it("takes no argument", function()
-      assert.is_false(pcall(vim.cmd, "BDeleteHidden current"))
-      assert.is_false(pcall(vim.cmd, "BWipeoutHidden current"))
-    end)
   end)
 
   it(":BWipeout wipes where :BDelete only unlists", function()

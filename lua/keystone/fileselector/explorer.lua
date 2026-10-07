@@ -2,7 +2,7 @@ local Spinner     = require("keystone.util.Spinner")
 local common      = require("keystone.util.timer")
 local fsutil      = require("keystone.util.fsutil")
 local ui          = require("keystone.util.ui")
-local layouts     = require("keystone.explore.layouts")
+local layouts     = require("keystone.fileselector.layouts")
 local hover       = require("keystone.util.hover")
 local strutil     = require("keystone.util.strutil")
 

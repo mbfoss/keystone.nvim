@@ -1,4 +1,4 @@
-# explore
+# fileselector
 
 A file selector for navigating the filesystem.
 
@@ -24,14 +24,14 @@ older ones the year, as `ls -l` does.
 ## Configuration <!-- tag: configuration -->
 
 ```lua
-require("keystone").setup({ explore = true })
+require("keystone").setup({ fileselector = true })
 ```
 
 Or, to change what the detail column shows:
 
 ```lua
 require("keystone").setup({
-  explore = {
+  fileselector = {
     detail_fields = { "size", "mtime" }, -- per-entry details, in the order given
   },
 })

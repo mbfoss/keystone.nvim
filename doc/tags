@@ -29,10 +29,10 @@ keystone-diffunsaved	keystone-diffunsaved.txt	/*keystone-diffunsaved*
 keystone-diffunsaved-commands	keystone-diffunsaved.txt	/*keystone-diffunsaved-commands*
 keystone-diffunsaved-configuration	keystone-diffunsaved.txt	/*keystone-diffunsaved-configuration*
 keystone-diffunsaved-table-of-contents	keystone-diffunsaved.txt	/*keystone-diffunsaved-table-of-contents*
-keystone-explore	keystone-explore.txt	/*keystone-explore*
-keystone-explore-commands	keystone-explore.txt	/*keystone-explore-commands*
-keystone-explore-configuration	keystone-explore.txt	/*keystone-explore-configuration*
-keystone-explore-table-of-contents	keystone-explore.txt	/*keystone-explore-table-of-contents*
+keystone-fileselector	keystone-fileselector.txt	/*keystone-fileselector*
+keystone-fileselector-commands	keystone-fileselector.txt	/*keystone-fileselector-commands*
+keystone-fileselector-configuration	keystone-fileselector.txt	/*keystone-fileselector-configuration*
+keystone-fileselector-table-of-contents	keystone-fileselector.txt	/*keystone-fileselector-table-of-contents*
 keystone-filetree	keystone-filetree.txt	/*keystone-filetree*
 keystone-filetree-commands	keystone-filetree.txt	/*keystone-filetree-commands*
 keystone-filetree-configuration	keystone-filetree.txt	/*keystone-filetree-configuration*

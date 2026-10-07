@@ -1,18 +1,18 @@
 local M        = {}
 
 local _uv      = vim.uv
-local explorer = require("keystone.explore.explorer")
+local explorer = require("keystone.fileselector.explorer")
 local fsutil   = require("keystone.util.fsutil")
 local ui       = require("keystone.util.ui")
 local icons    = require("keystone.icons")
 
----@alias keystone.explore.DetailField "size"|"mtime"
+---@alias keystone.fileselector.DetailField "size"|"mtime"
 
 -- Fields shown in the right-aligned detail column, in order. Configurable via M.configure.
----@type keystone.explore.DetailField[]
+---@type keystone.fileselector.DetailField[]
 local _detail_fields = { "size", "mtime" }
 
----@param opts {detail_fields:keystone.explore.DetailField[]?}?
+---@param opts {detail_fields:keystone.fileselector.DetailField[]?}?
 function M.configure(opts)
     if opts and opts.detail_fields then
         _detail_fields = opts.detail_fields
@@ -87,7 +87,7 @@ end
 
 -- Each field keeps a fixed slot even when it has no value, so a directory's blank
 -- size does not slide its mtime into the size column.
----@type table<keystone.explore.DetailField, fun():integer>
+---@type table<keystone.fileselector.DetailField, fun():integer>
 local _field_widths = {
     size = function() return 9 end,
     -- month, space, 2-cell day, space, then "15:58" or " 2024".
