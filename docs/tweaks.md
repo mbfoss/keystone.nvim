@@ -17,7 +17,6 @@ require("keystone").setup({
     restore_cursor       = true,  -- jump to last cursor position when reopening a file
     auto_create_dir      = true,  -- create missing parent directories on save
     auto_reload          = true,  -- reload files changed outside Neovim
-    quick_close          = false, -- close help/qf/man/... buffers with q
     disable_auto_comment = false, -- stop auto-continuing comment leaders
     trim_whitespace      = false, -- strip trailing whitespace on save
     auto_nohlsearch      = false, -- clear search highlighting on the triggers below

@@ -15,8 +15,6 @@ local cfgutil = require("keystone.util.config")
 ---@field restore_cursor boolean? jump to the last cursor position when reopening a file
 ---@field auto_create_dir boolean? create missing parent directories when saving
 ---@field auto_reload boolean? reload files changed outside Neovim (`autoread` + `checktime`)
----@field quick_close boolean? close utility buffers (help, qf, ...) with `q`
----@field quick_close_filetypes string[]? filetypes affected by `quick_close`
 ---@field disable_auto_comment boolean? stop auto-continuing comment leaders on new lines
 ---@field trim_whitespace boolean? strip trailing whitespace on save (off by default)
 ---@field auto_nohlsearch boolean? clear search highlighting on `auto_nohlsearch_triggers`
@@ -35,11 +33,6 @@ local _default_config = {
   restore_cursor       = true,
   auto_create_dir      = true,
   auto_reload          = true,
-  quick_close          = false,
-  quick_close_filetypes = {
-    "help", "qf", "man", "lspinfo", "checkhealth",
-    "startuptime", "query", "notify", "git",
-  },
   disable_auto_comment = false,
   trim_whitespace      = false,
   auto_nohlsearch      = false,
@@ -63,7 +56,6 @@ local _feature_names = {
   "restore_cursor",
   "auto_create_dir",
   "auto_reload",
-  "quick_close",
   "disable_auto_comment",
   "trim_whitespace",
   "auto_nohlsearch",

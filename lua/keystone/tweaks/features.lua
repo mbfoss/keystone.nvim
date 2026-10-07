@@ -97,29 +97,6 @@ M.auto_reload = {
   end,
 }
 
--- Let `q` close throwaway/utility buffers (help, quickfix, man, ...) the way
--- you'd expect, instead of having to `:q`.
----@type keystone.tweaks.Feature
-M.quick_close = {
-  augroup = "keystone_tweaks_quick_close",
-  setup = function(config)
-    local group = vim.api.nvim_create_augroup("keystone_tweaks_quick_close", { clear = true })
-    vim.api.nvim_create_autocmd("FileType", {
-      group = group,
-      pattern = config.quick_close_filetypes,
-      desc = "Close utility buffers with q",
-      callback = function(args)
-        vim.keymap.set("n", "q", "<cmd>close<cr>", {
-          buffer = args.buf,
-          silent = true,
-          nowait = true,
-          desc = "Close window",
-        })
-      end,
-    })
-  end,
-}
-
 -- Stop Neovim from continuing comment leaders onto the next line (when pressing
 -- `o`/`O` or hitting <CR> in insert). Runs on FileType so it wins against the
 -- ftplugins that set `formatoptions`.

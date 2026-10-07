@@ -83,7 +83,7 @@ end
 ---@return keystone.util.TreeBuffer
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
-    local expand_symbol = opts.expand_symbol or "›"
+    local expand_symbol = opts.expand_symbol or "\u{F0142}"
     local indent_guide_char = opts.indent_guide_char or "│"
     _setup_guide_hl()
     local guide_pad_width = math.max(0, vim.fn.strdisplaywidth(indent_str) - vim.fn.strdisplaywidth(indent_guide_char))
@@ -92,7 +92,7 @@ function TreeBuffer.new(opts)
         _filetype           = opts.filetype,
         _formatter          = opts.formatter,
         _expand_symbol      = expand_symbol,
-        _collapse_symbol    = opts.collapse_symbol or "⌄",
+        _collapse_symbol    = opts.collapse_symbol or "\u{F0140}",
         _expand_symbol_hl   = opts.expand_symbol_hl,
         _collapse_symbol_hl = opts.collapse_symbol_hl,
         _indent_string      = indent_str,
