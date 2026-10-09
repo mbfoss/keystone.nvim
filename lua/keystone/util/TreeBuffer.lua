@@ -121,7 +121,8 @@ function TreeBuffer.new(opts)
         _flat_ids           = {}, ---@type any[]
         _id_to_idx          = {}, ---@type table<any, integer>
         _collapsible        = opts.collapsible ~= false,
-        _show_expand_symbols = opts.show_expand_symbols ~= false,
+        -- An empty symbol pair draws no column, so there is nothing to show.
+        _show_expand_symbols = opts.show_expand_symbols ~= false and expand_symbol ~= "",
     }, TreeBuffer)
 end
 
