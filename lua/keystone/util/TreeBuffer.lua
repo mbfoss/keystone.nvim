@@ -45,6 +45,8 @@ local color = require("keystone.util.color")
 ---@field private _formatter keystone.util.TreeBuffer.FormatterFn
 ---@field private _expand_symbol string
 ---@field private _collapse_symbol string
+---@field private _expand_symbol_width number
+---@field private _icon_pad string
 ---@field private _expand_symbol_hl string?
 ---@field private _collapse_symbol_hl string?
 ---@field private _indent_string string
@@ -84,6 +86,12 @@ end
 function TreeBuffer.new(opts)
     local indent_str = opts.indent_string or "  "
     local expand_symbol = opts.expand_symbol or "\u{F0142}"
+    local collapse_symbol = opts.collapse_symbol or "\u{F0140}"
+    local expand_symbol_width = vim.fn.strdisplaywidth(expand_symbol)
+        assert(
+            expand_symbol_width == vim.fn.strdisplaywidth(collapse_symbol),
+            "expand_symbol and collapse_symbol must have the same display width"
+        )
     local indent_guide_char = opts.indent_guide_char or "│"
     _setup_guide_hl()
     local guide_pad_width = math.max(0, vim.fn.strdisplaywidth(indent_str) - vim.fn.strdisplaywidth(indent_guide_char))
@@ -92,7 +100,9 @@ function TreeBuffer.new(opts)
         _filetype           = opts.filetype,
         _formatter          = opts.formatter,
         _expand_symbol      = expand_symbol,
-        _collapse_symbol    = opts.collapse_symbol or "\u{F0140}",
+        _collapse_symbol    = collapse_symbol,
+        _expand_symbol_width = expand_symbol_width,
+        _icon_pad           = string.rep(" ", expand_symbol_width),
         _expand_symbol_hl   = opts.expand_symbol_hl,
         _collapse_symbol_hl = opts.collapse_symbol_hl,
         _indent_string      = indent_str,
@@ -291,9 +301,11 @@ function TreeBuffer:_render_node(flatnode, row)
         if icon ~= "" then
             local icon_hl = data.expanded and self._collapse_symbol_hl or self._expand_symbol_hl
             chunks[#chunks + 1] = { icon, icon_hl }
-            chunks[#chunks + 1] = { " " }
-            prefix_width = prefix_width + vim.fn.strdisplaywidth(icon) + 1
+        else
+            chunks[#chunks + 1] = { self._icon_pad }
         end
+        chunks[#chunks + 1] = { " " }
+        prefix_width = prefix_width + self._expand_symbol_width + 1
     end
 
     local text_chunks, virt, line_hl = self._formatter(id, data.userdata, data.expanded, prefix_width)
