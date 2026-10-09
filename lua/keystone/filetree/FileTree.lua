@@ -63,10 +63,16 @@ local function _show_help()
     })
 end
 
+-- Folder glyphs for directories, drawn here because the tree renders no
+-- expand/collapse symbols of its own.
+local _DIR_ICON_CLOSED = "\u{F07B}" -- closed folder
+local _DIR_ICON_OPEN   = "\u{F07C}" -- open folder
+
 ---@param id string
 ---@param data keystone.FileTree.ItemData
+---@param expanded boolean
 ---@param selected boolean?
-local function _file_formatter(id, data, selected)
+local function _file_formatter(id, data, expanded, selected)
     if not data then return {}, {} end
     local virt_chunks = {}
     if data.is_link then
@@ -77,10 +83,12 @@ local function _file_formatter(id, data, selected)
     end
     -- Always emitted, so selecting an item does not shift its name sideways.
     local chunks = {}
-    if not data.is_dir then
-        table.insert(chunks, { data.icon, data.icon_hl })
-        table.insert(chunks, { " " })
+    local icon, icon_hl = data.icon, data.icon_hl
+    if data.is_dir then
+        icon, icon_hl = expanded and _DIR_ICON_OPEN or _DIR_ICON_CLOSED, "Directory"
     end
+    table.insert(chunks, { icon or "", icon_hl })
+    table.insert(chunks, { " " })
     if selected then
         table.insert(chunks, { _SELECT_MARKER, _HL_SELECTED })
     end
@@ -154,13 +162,10 @@ function FileTree:_setup_tree()
     assert(not self._treebuf)
 
     self._treebuf = TreeBuffer.new({
-        formatter = function(id, data)
-            return _file_formatter(id, data, self._selected[data.path] == true)
+        formatter = function(id, data, expanded)
+            return _file_formatter(id, data, expanded, self._selected[data.path] == true)
         end,
-        expand_symbol = "", -- closed folder
-        collapse_symbol = "", -- open folder
-        expand_symbol_hl = "Directory",
-        collapse_symbol_hl = "Directory",
+        show_expand_symbols = false,
     })
 
     self._treebuf:subscribe({

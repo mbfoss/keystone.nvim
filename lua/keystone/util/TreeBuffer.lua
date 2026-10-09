@@ -31,6 +31,7 @@ local color = require("keystone.util.color")
 ---@field collapse_symbol_hl string?
 ---@field indent_string string?
 ---@field collapsible boolean?  -- whether nodes can be expanded/collapsed (default true)
+---@field show_expand_symbols boolean?  -- render the expand/collapse symbol column (default true)
 ---@field indent_guides boolean?  -- draw vertical indent guides (default true)
 ---@field indent_guide_char string?
 ---@field indent_guide_hl string?  -- group the guides are drawn with (default KeystoneTreeIndentGuide)
@@ -63,6 +64,7 @@ local color = require("keystone.util.color")
 ---@field private _flat_ids any[]
 ---@field private _id_to_idx table<any, integer>
 ---@field private _collapsible boolean
+---@field private _show_expand_symbols boolean
 local TreeBuffer = {}
 TreeBuffer.__index = TreeBuffer
 
@@ -119,6 +121,7 @@ function TreeBuffer.new(opts)
         _flat_ids           = {}, ---@type any[]
         _id_to_idx          = {}, ---@type table<any, integer>
         _collapsible        = opts.collapsible ~= false,
+        _show_expand_symbols = opts.show_expand_symbols ~= false,
     }, TreeBuffer)
 end
 
@@ -295,7 +298,7 @@ function TreeBuffer:_render_node(flatnode, row)
     local indent = self:_get_indent(depth)
     local chunks, prefix_width = {}, indent.width
 
-    if self._collapsible then
+    if self._collapsible and self._show_expand_symbols then
         local expandable = data.expandable or self._tree:have_children(id)
         local icon = expandable and (data.expanded and self._collapse_symbol or self._expand_symbol) or ""
         if icon ~= "" then
