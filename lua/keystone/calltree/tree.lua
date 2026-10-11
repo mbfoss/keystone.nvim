@@ -33,6 +33,7 @@ local function _get_tree()
             direction        = config.direction,
             show_detail      = config.show_detail,
             auto_expand_root = config.auto_expand_root,
+            indent_guides    = config.indent_guides,
         })
     end
     return _tree

@@ -14,6 +14,7 @@ keystone-bufdelete-wipe	keystone-bufdelete.txt	/*keystone-bufdelete-wipe*
 keystone-calltree	keystone-calltree.txt	/*keystone-calltree*
 keystone-calltree-commands	keystone-calltree.txt	/*keystone-calltree-commands*
 keystone-calltree-configuration	keystone-calltree.txt	/*keystone-calltree-configuration*
+keystone-calltree-highlights	keystone-calltree.txt	/*keystone-calltree-highlights*
 keystone-calltree-keys	keystone-calltree.txt	/*keystone-calltree-keys*
 keystone-calltree-table-of-contents	keystone-calltree.txt	/*keystone-calltree-table-of-contents*
 keystone-clue	keystone-clue.txt	/*keystone-clue*
@@ -40,6 +41,7 @@ keystone-filetree-creating	keystone-filetree.txt	/*keystone-filetree-creating*
 keystone-filetree-deleting	keystone-filetree.txt	/*keystone-filetree-deleting*
 keystone-filetree-external	keystone-filetree.txt	/*keystone-filetree-external*
 keystone-filetree-files	keystone-filetree.txt	/*keystone-filetree-files*
+keystone-filetree-highlights	keystone-filetree.txt	/*keystone-filetree-highlights*
 keystone-filetree-keymaps	keystone-filetree.txt	/*keystone-filetree-keymaps*
 keystone-filetree-move-copy	keystone-filetree.txt	/*keystone-filetree-move-copy*
 keystone-filetree-renaming	keystone-filetree.txt	/*keystone-filetree-renaming*
@@ -88,6 +90,7 @@ keystone-statusline-table-of-contents	keystone-statusline.txt	/*keystone-statusl
 keystone-symboltree	keystone-symboltree.txt	/*keystone-symboltree*
 keystone-symboltree-commands	keystone-symboltree.txt	/*keystone-symboltree-commands*
 keystone-symboltree-configuration	keystone-symboltree.txt	/*keystone-symboltree-configuration*
+keystone-symboltree-highlights	keystone-symboltree.txt	/*keystone-symboltree-highlights*
 keystone-symboltree-keys	keystone-symboltree.txt	/*keystone-symboltree-keys*
 keystone-symboltree-table-of-contents	keystone-symboltree.txt	/*keystone-symboltree-table-of-contents*
 keystone-table-of-contents	keystone.txt	/*keystone-table-of-contents*

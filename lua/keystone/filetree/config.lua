@@ -10,6 +10,7 @@ local M = {}
 ---@field height_ratio number?  fraction of the editor height the window takes (top/bottom)
 ---@field position "top"|"bottom"|"left"|"right"?  side the window opens on
 ---@field follow_current_buffer boolean?
+---@field indent_guides boolean?  draw vertical indent guides
 
 ---@type keystone.filetree.Config
 local _defaults = {
@@ -17,6 +18,7 @@ local _defaults = {
     height_ratio = 0.2,
     position = "left",
     follow_current_buffer = false,
+    indent_guides = true,
 }
 
 ---The live options. Always this same table, so it is safe to capture at a

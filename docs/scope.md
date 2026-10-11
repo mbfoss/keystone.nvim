@@ -54,8 +54,8 @@ subtle group, so a colorscheme or an `nvim_set_hl` call on it takes precedence.
 `KeystoneSubtle` and `KeystoneSubtleFaint` are the shared groups defined by
 `keystone.util.subtle` and rebuilt on every colorscheme change. Scope
 `default`-links its two groups onto them, so overriding `KeystoneScope` or
-`KeystoneIndentGuide` restyles the scope alone; the tree windows draw with the
-shared groups directly and have no override of their own.
+`KeystoneIndentGuide` restyles the scope alone; each tree window gives its
+indent guides a group of its own the same way.
 
 | Group | Is |
 | --- | --- |

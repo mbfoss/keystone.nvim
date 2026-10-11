@@ -26,6 +26,16 @@ local _placeholder_id = {}
 local _current_hl     = "KeystoneSymbolTreeCurrent"
 vim.api.nvim_set_hl(0, _current_hl, { default = true, link = "Visual" })
 
+--- Highlight for the indent guides. A `default` link, so a colorscheme or a user
+--- `nvim_set_hl` call wins over it.
+local _indent_guide_hl = "KeystoneSymbolTreeIndentGuide"
+
+---Link the indent guide group onto the shared subtle fade; the accessor defines
+---that group on first call.
+local function _setup_highlights()
+    vim.api.nvim_set_hl(0, _indent_guide_hl, { link = subtle.faint(), default = true })
+end
+
 local function _show_help()
     local help_text = { [[
 NAVIGATION
@@ -104,6 +114,7 @@ end
 ---@field debounce_ms integer? edit-to-refresh delay (default 500)
 ---@field max_cached_folds integer? folds remembered across all buffers
 ---                                (default 2048, roughly 0.5 MB)
+---@field indent_guides boolean? draw vertical indent guides (default true)
 
 ---@class keystone.SymbolTree
 ---@field new fun(self:keystone.SymbolTree, opts:keystone.SymbolTree.Opts?):keystone.SymbolTree
@@ -158,11 +169,12 @@ end
 function SymbolTree:_setup_tree()
     assert(not self._treebuf)
 
+    _setup_highlights()
     self._treebuf = TreeBuffer.new({
         filetype = "keystone-symboltree",
         formatter = _symbol_formatter,
-        indent_guides = true,
-        indent_guide_hl = subtle.faint(),
+        indent_guides = self._opts.indent_guides ~= false,
+        indent_guide_hl = _indent_guide_hl,
     })
 
     self._treebuf:subscribe({

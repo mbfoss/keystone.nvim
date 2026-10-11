@@ -4,8 +4,9 @@
 Table of Contents                      *keystone-symboltree-table-of-contents*
 
 1. Configuration                           |keystone-symboltree-configuration|
-2. Commands                                     |keystone-symboltree-commands|
-3. Keys                                             |keystone-symboltree-keys|
+2. Highlights                                 |keystone-symboltree-highlights|
+3. Commands                                     |keystone-symboltree-commands|
+4. Keys                                             |keystone-symboltree-keys|
 A side window showing the LSP document symbols of the current buffer, refreshed
 as you edit and able to follow the cursor.
 
@@ -24,6 +25,7 @@ as you edit and able to follow the cursor.
         collapse_kinds = { "Function", "Method", "Object" },
                                 -- kinds left collapsed on load even when auto_expand is set
         debounce_ms    = 500,   -- edit-to-refresh delay
+        indent_guides  = true,  -- draw vertical indent guides
       },
     })
 <
@@ -33,7 +35,16 @@ they are not merged with the defaults.
 
 
 ==============================================================================
-2. Commands                                     *keystone-symboltree-commands*
+2. Highlights                                 *keystone-symboltree-highlights*
+
+The indent guides are drawn with `KeystoneSymbolTreeIndentGuide`, a `default`
+link onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint
+colour the scope and the other tree windows also use. Overriding the group, or
+the shared `KeystoneSubtleFaint`, recolours them.
+
+
+==============================================================================
+3. Commands                                     *keystone-symboltree-commands*
 
   Command              What it does
   -------------------- ------------------------
@@ -43,7 +54,7 @@ they are not merged with the defaults.
   :SymbolTree toggle   Same as no argument
 
 ==============================================================================
-3. Keys                                             *keystone-symboltree-keys*
+4. Keys                                             *keystone-symboltree-keys*
 
 Inside the window, `g?` lists the keys.
 

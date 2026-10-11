@@ -23,9 +23,17 @@ require("keystone").setup({
     direction        = "incoming", -- which way to walk ("incoming"|"outgoing")
     show_detail      = true,       -- show the server-provided detail text
     auto_expand_root = true,       -- expand the root as soon as it resolves
+    indent_guides    = true,       -- draw vertical indent guides
   },
 })
 ```
+
+## Highlights <!-- tag: highlights -->
+
+The indent guides are drawn with `KeystoneCallTreeIndentGuide`, a `default` link
+onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint colour
+the scope and the other tree windows also use. Overriding the group, or the
+shared `KeystoneSubtleFaint`, recolours them.
 
 ## Commands <!-- tag: commands -->
 

@@ -18,6 +18,7 @@ require("keystone").setup({
     position = "left",             -- side the window opens on
                                    -- ("top"|"bottom"|"left"|"right")
     follow_current_buffer = false, -- reveal the current file as you switch buffers
+    indent_guides = true,          -- draw vertical indent guides
   },
 })
 ```
@@ -27,6 +28,13 @@ Or standalone:
 ```lua
 require("keystone.filetree").setup({ width_ratio = 0.2 })
 ```
+
+## Highlights <!-- tag: highlights -->
+
+The indent guides are drawn with `KeystoneFileTreeIndentGuide`, a `default` link
+onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint colour
+the scope and the other tree windows also use. Overriding the group, or the
+shared `KeystoneSubtleFaint`, recolours them.
 
 ## Commands <!-- tag: commands -->
 

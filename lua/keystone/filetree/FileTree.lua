@@ -39,6 +39,16 @@ local _HL_SELECTED   = "KeystoneFileTreeSelected"
 local _SELECT_MARKER = "▌"
 vim.api.nvim_set_hl(0, _HL_SELECTED, { default = true, link = "Special" })
 
+--- Highlight for the indent guides. A `default` link, so a colorscheme or a user
+--- `nvim_set_hl` call wins over it.
+local _HL_INDENT_GUIDE = "KeystoneFileTreeIndentGuide"
+
+---Link the indent guide group onto the shared subtle fade; the accessor defines
+---that group on first call.
+local function _setup_highlights()
+    vim.api.nvim_set_hl(0, _HL_INDENT_GUIDE, { link = subtle.faint(), default = true })
+end
+
 local function _show_help()
     local help_text = { [[
 `<CR> / o`     Open - Toggle dir / Open (keep focus)
@@ -124,6 +134,7 @@ end
 ---@field track_current_file {enabled:boolean?,auto_collapse_others:boolean?}?
 ---@field monitor_file_system boolean?
 ---@field max_monitored_folders number?
+---@field indent_guides boolean?  draw vertical indent guides (default true)
 
 ---@class keystone.FileTree
 ---@field new fun(self:keystone.FileTree, opts:keystone.FileTree.Opts?):keystone.FileTree
@@ -162,13 +173,14 @@ end
 function FileTree:_setup_tree()
     assert(not self._treebuf)
 
+    _setup_highlights()
     self._treebuf = TreeBuffer.new({
         formatter = function(id, data, expanded)
             return _file_formatter(id, data, expanded, self._selected[data.path] == true)
         end,
         show_expand_symbols = false,
-        indent_guides = true,
-        indent_guide_hl = subtle.faint(),
+        indent_guides = self._opts.indent_guides ~= false,
+        indent_guide_hl = _HL_INDENT_GUIDE,
     })
 
     self._treebuf:subscribe({

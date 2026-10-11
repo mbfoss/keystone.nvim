@@ -22,12 +22,20 @@ require("keystone").setup({
     collapse_kinds = { "Function", "Method", "Object" },
                             -- kinds left collapsed on load even when auto_expand is set
     debounce_ms    = 500,   -- edit-to-refresh delay
+    indent_guides  = true,  -- draw vertical indent guides
   },
 })
 ```
 
 `exclude_kinds` and `collapse_kinds` are replaced outright when you set them;
 they are not merged with the defaults.
+
+## Highlights <!-- tag: highlights -->
+
+The indent guides are drawn with `KeystoneSymbolTreeIndentGuide`, a `default`
+link onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint
+colour the scope and the other tree windows also use. Overriding the group, or
+the shared `KeystoneSubtleFaint`, recolours them.
 
 ## Commands <!-- tag: commands -->
 

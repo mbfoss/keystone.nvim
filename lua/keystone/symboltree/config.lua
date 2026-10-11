@@ -15,6 +15,7 @@ local M = {}
 ---                                even when `auto_expand` is set
 ---@field debounce_ms integer?   edit-to-refresh delay
 ---@field max_cached_folds integer? folds remembered across all buffers
+---@field indent_guides boolean? draw vertical indent guides
 
 ---@type keystone.symboltree.Config
 local _defaults = {
@@ -26,6 +27,7 @@ local _defaults = {
     collapse_kinds = { "Function", "Method", "Object" },
     debounce_ms = 500,
     max_cached_folds = 2048,
+    indent_guides = true,
 }
 
 --- List-valued options a user supplies replace the default outright, rather than

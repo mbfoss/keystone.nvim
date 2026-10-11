@@ -34,6 +34,7 @@ local function _get_tree()
                 enabled = config.follow_current_buffer == true,
                 auto_collapse_others = true,
             },
+            indent_guides = config.indent_guides,
         })
     end
     return _tree

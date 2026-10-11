@@ -12,6 +12,7 @@ local M = {}
 ---@field direction keystone.calltree.Direction?  which way to walk by default
 ---@field show_detail boolean?  show the server-provided detail text
 ---@field auto_expand_root boolean?  expand the root as soon as it resolves
+---@field indent_guides boolean?  draw vertical indent guides
 
 ---@type keystone.calltree.Config
 local _defaults = {
@@ -21,6 +22,7 @@ local _defaults = {
     direction        = "incoming",
     show_detail      = true,
     auto_expand_root = true,
+    indent_guides    = true,
 }
 
 ---The live options. Always this same table, so it is safe to capture at a

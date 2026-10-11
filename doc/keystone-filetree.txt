@@ -4,9 +4,10 @@
 Table of Contents                        *keystone-filetree-table-of-contents*
 
 1. Configuration                             |keystone-filetree-configuration|
-2. Commands                                       |keystone-filetree-commands|
-3. Keymaps                                         |keystone-filetree-keymaps|
-4. File manipulation                                 |keystone-filetree-files|
+2. Highlights                                   |keystone-filetree-highlights|
+3. Commands                                       |keystone-filetree-commands|
+4. Keymaps                                         |keystone-filetree-keymaps|
+5. File manipulation                                 |keystone-filetree-files|
   - Creating                                      |keystone-filetree-creating|
   - Renaming                                      |keystone-filetree-renaming|
   - Moving and copying                           |keystone-filetree-move-copy|
@@ -26,6 +27,7 @@ A file explorer in a side window.
         position = "left",             -- side the window opens on
                                        -- ("top"|"bottom"|"left"|"right")
         follow_current_buffer = false, -- reveal the current file as you switch buffers
+        indent_guides = true,          -- draw vertical indent guides
       },
     })
 <
@@ -38,7 +40,16 @@ Or standalone:
 
 
 ==============================================================================
-2. Commands                                       *keystone-filetree-commands*
+2. Highlights                                   *keystone-filetree-highlights*
+
+The indent guides are drawn with `KeystoneFileTreeIndentGuide`, a `default`
+link onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint
+colour the scope and the other tree windows also use. Overriding the group, or
+the shared `KeystoneSubtleFaint`, recolours them.
+
+
+==============================================================================
+3. Commands                                       *keystone-filetree-commands*
 
 `:FileTree` opens the side window and moves focus into it, ready to navigate.
 Run it again and it syncs the tree to the current file instead.
@@ -56,7 +67,7 @@ the tree from that directory.
 
 
 ==============================================================================
-3. Keymaps                                         *keystone-filetree-keymaps*
+4. Keymaps                                         *keystone-filetree-keymaps*
 
 Buffer-local, inside the tree window. `g?` shows the same list in a float.
 
@@ -107,7 +118,7 @@ Buffer-local, inside the tree window. `g?` shows the same list in a float.
   -----------------------------------------------------------------------
 
 ==============================================================================
-4. File manipulation                                 *keystone-filetree-files*
+5. File manipulation                                 *keystone-filetree-files*
 
 Everything below acts on real files on disk. The tree refreshes the affected
 directories and reveals the result.

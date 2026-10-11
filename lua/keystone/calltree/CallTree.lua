@@ -24,6 +24,16 @@ local _PLACEHOLDER_KIND = { name = "Placeholder", icon = "󰋗", hl = "Comment" 
 local _direction_hl = "KeystoneCallTreeDirection"
 vim.api.nvim_set_hl(0, _direction_hl, { default = true, link = "Special" })
 
+--- Highlight for the indent guides. A `default` link, so a colorscheme or a user
+--- `nvim_set_hl` call wins over it.
+local _indent_guide_hl = "KeystoneCallTreeIndentGuide"
+
+---Link the indent guide group onto the shared subtle fade; the accessor defines
+---that group on first call.
+local function _setup_highlights()
+    vim.api.nvim_set_hl(0, _indent_guide_hl, { link = subtle.faint(), default = true })
+end
+
 --- How each direction announces itself, named after what the rows under the root
 --- actually are rather than after the LSP method.
 local _DIRECTIONS = {
@@ -106,6 +116,7 @@ end
 ---@field direction keystone.calltree.Direction? which way to walk (default "incoming")
 ---@field show_detail boolean? show the server-provided detail text (default true)
 ---@field auto_expand_root boolean? expand the root once resolved (default true)
+---@field indent_guides boolean? draw vertical indent guides (default true)
 
 ---@class keystone.CallTree
 ---@field new fun(self:keystone.CallTree, opts:keystone.CallTree.Opts?):keystone.CallTree
@@ -145,13 +156,14 @@ end
 function CallTree:_setup_tree()
     assert(not self._treebuf)
 
+    _setup_highlights()
     self._treebuf = TreeBuffer.new({
         filetype  = "keystone-calltree",
         formatter = function(_, data)
             return _call_formatter(data, self._opts.show_detail ~= false, self._direction)
         end,
-        indent_guides = true,
-        indent_guide_hl = subtle.faint(),
+        indent_guides = self._opts.indent_guides ~= false,
+        indent_guide_hl = _indent_guide_hl,
     })
 
     self._treebuf:subscribe({
