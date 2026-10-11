@@ -328,6 +328,13 @@ describe("scope fading", function()
     return vim.api.nvim_get_hl(0, { name = name, link = false }).fg
   end
 
+  -- The shared groups are built once, on first use, and rebuilt only on
+  -- `ColorScheme`; the tests drive that explicitly to pick up their sources.
+  local function rebuild()
+    scope.setup({})
+    vim.api.nvim_exec_autocmds("ColorScheme", {})
+  end
+
   before_each(function()
     saved = {
       termguicolors = vim.o.termguicolors,
@@ -335,10 +342,13 @@ describe("scope fading", function()
       NonText = vim.api.nvim_get_hl(0, { name = "NonText" }),
       KeystoneScope = vim.api.nvim_get_hl(0, { name = "KeystoneScope" }),
       KeystoneIndentGuide = vim.api.nvim_get_hl(0, { name = "KeystoneIndentGuide" }),
+      KeystoneSubtle = vim.api.nvim_get_hl(0, { name = "KeystoneSubtle" }),
+      KeystoneSubtleFaint = vim.api.nvim_get_hl(0, { name = "KeystoneSubtleFaint" }),
     }
     vim.o.termguicolors = true
     vim.api.nvim_set_hl(0, "Normal", { bg = 0x000000 })
     vim.api.nvim_set_hl(0, "NonText", { fg = 0x808080 })
+    rebuild()
   end)
 
   after_each(function()
@@ -349,47 +359,43 @@ describe("scope fading", function()
     end
   end)
 
-  it("fades the defaults into the background", function()
-    scope.setup({})
+  it("fades the shared groups into the background", function()
     -- NonText's 0x808080 mixed into a black background, 40% and 60% of the way.
-    assert.equals(0x4d4d4d, fg("KeystoneScopeDefault"))
-    assert.equals(0x333333, fg("KeystoneIndentGuideDefault"))
+    assert.equals(0x4d4d4d, fg("KeystoneSubtle"))
+    assert.equals(0x333333, fg("KeystoneSubtleFaint"))
   end)
 
-  it("draws the guides with groups linked to the defaults", function()
-    scope.setup({})
-    assert.equals("KeystoneScopeDefault", vim.api.nvim_get_hl(0, { name = "KeystoneScope" }).link)
-    assert.equals("KeystoneIndentGuideDefault",
+  it("draws the guides with groups linked to the shared subtle groups", function()
+    assert.equals("KeystoneSubtle", vim.api.nvim_get_hl(0, { name = "KeystoneScope" }).link)
+    assert.equals("KeystoneSubtleFaint",
       vim.api.nvim_get_hl(0, { name = "KeystoneIndentGuide" }).link)
   end)
 
   it("keeps a group the user defined", function()
-    scope.setup({})
     vim.api.nvim_set_hl(0, "KeystoneScope", { fg = 0xff0000 })
-    scope.setup({})
+    rebuild()
     assert.equals(0xff0000, fg("KeystoneScope"))
   end)
 
   it("recomputes from NonText on a colorscheme change", function()
-    scope.setup({})
-    assert.equals(0x333333, fg("KeystoneIndentGuideDefault"))
+    assert.equals(0x333333, fg("KeystoneSubtleFaint"))
     vim.api.nvim_set_hl(0, "Normal", { bg = 0xffffff })
     vim.api.nvim_exec_autocmds("ColorScheme", {})
     -- Mixed from the source again, not from the previous fade.
-    assert.equals(0xcccccc, fg("KeystoneIndentGuideDefault"))
+    assert.equals(0xcccccc, fg("KeystoneSubtleFaint"))
   end)
 
   it("takes no background from NonText", function()
     -- As `NonText` has under `desert`: it would paint a block behind every
     -- guide, the guides being one cell of virtual text each.
     vim.api.nvim_set_hl(0, "NonText", { fg = 0x808080, bg = 0x4d4d4d })
-    scope.setup({})
-    assert.is_nil(vim.api.nvim_get_hl(0, { name = "KeystoneScopeDefault" }).bg)
+    rebuild()
+    assert.is_nil(vim.api.nvim_get_hl(0, { name = "KeystoneSubtle" }).bg)
   end)
 
   it("leaves no faded colour when NonText has no foreground", function()
     vim.api.nvim_set_hl(0, "NonText", {})
-    scope.setup({})
-    assert.is_nil(fg("KeystoneScopeDefault"))
+    rebuild()
+    assert.is_nil(fg("KeystoneSubtle"))
   end)
 end)

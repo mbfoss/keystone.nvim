@@ -1,7 +1,7 @@
 local M = {}
 
 local cfgutil = require("keystone.util.config")
-local color = require("keystone.util.color")
+local subtle = require("keystone.util.subtle")
 
 -- ---------------------------------------------------------------------------
 -- Scope
@@ -28,12 +28,8 @@ local color = require("keystone.util.color")
 local _HL_SCOPE = "KeystoneScope"
 local _HL_GUIDE = "KeystoneIndentGuide"
 
--- Defaults of the groups above: `NonText` faded into the background, the scope
--- guide less far than the indent guides; see `_setup_highlights`.
-local _HL_SCOPE_DEFAULT = "KeystoneScopeDefault"
-local _HL_GUIDE_DEFAULT = "KeystoneIndentGuideDefault"
-local _SCOPE_FADE_PCT = 40
-local _GUIDE_FADE_PCT = 60
+-- The groups above are `default` links onto the shared subtle groups, the scope
+-- guide less faded than the indent guides; see `_setup_highlights`.
 
 ---@class keystone.scope.Config
 ---@field enabled boolean? master switch; when false nothing is drawn
@@ -502,20 +498,12 @@ end
 -- Highlights
 -- ---------------------------------------------------------------------------
 
---- Define the faded default groups, kept in step with the colorscheme, and
---- link the groups the guides are drawn with to them. The links are `default`
---- ones, so a colorscheme or a user `nvim_set_hl` call wins over them.
+--- Link the groups the guides are drawn with onto the shared subtle ones; the
+--- accessors define those on first call. The links are `default` ones, so a
+--- colorscheme or a user `nvim_set_hl` call wins over them.
 local function _setup_highlights()
-  color.create_themed_hl({
-    name = _HL_SCOPE_DEFAULT,
-    spec = function() return color.faded_hl_info("NonText", _SCOPE_FADE_PCT) end,
-  })
-  color.create_themed_hl({
-    name = _HL_GUIDE_DEFAULT,
-    spec = function() return color.faded_hl_info("NonText", _GUIDE_FADE_PCT) end,
-  })
-  vim.api.nvim_set_hl(0, _HL_SCOPE, { link = _HL_SCOPE_DEFAULT, default = true })
-  vim.api.nvim_set_hl(0, _HL_GUIDE, { link = _HL_GUIDE_DEFAULT, default = true })
+  vim.api.nvim_set_hl(0, _HL_SCOPE, { link = subtle.subtle(), default = true })
+  vim.api.nvim_set_hl(0, _HL_GUIDE, { link = subtle.faint(), default = true })
 end
 
 -- ---------------------------------------------------------------------------

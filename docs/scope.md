@@ -43,22 +43,24 @@ guides.
 
 ## Highlights <!-- tag: highlights -->
 
-The guides are drawn with the groups below. Each `default`-links to its
-`…Default` group, so a colorscheme or an `nvim_set_hl` call on it takes
-precedence.
+The guides are drawn with the groups below. Each `default`-links to a shared
+subtle group, so a colorscheme or an `nvim_set_hl` call on it takes precedence.
 
-| Group | Used for | Defaults to |
+| Group | Used for | Links to |
 | --- | --- | --- |
-| `KeystoneScope` | The scope guide | `KeystoneScopeDefault` |
-| `KeystoneIndentGuide` | Indent guides | `KeystoneIndentGuideDefault` |
+| `KeystoneScope` | The scope guide | `KeystoneSubtle` |
+| `KeystoneIndentGuide` | Indent guides | `KeystoneSubtleFaint` |
 
-The `…Default` groups are rebuilt on every colorscheme change; override the two
-groups above instead.
+`KeystoneSubtle` and `KeystoneSubtleFaint` are the shared groups defined by
+`keystone.util.subtle` and rebuilt on every colorscheme change. Scope
+`default`-links its two groups onto them, so overriding `KeystoneScope` or
+`KeystoneIndentGuide` restyles the scope alone; the tree windows draw with the
+shared groups directly and have no override of their own.
 
 | Group | Is |
 | --- | --- |
-| `KeystoneScopeDefault` | `NonText` faded 40% into the background |
-| `KeystoneIndentGuideDefault` | `NonText` faded 60% into the background |
+| `KeystoneSubtle` | `NonText` faded 40% into the background |
+| `KeystoneSubtleFaint` | `NonText` faded 60% into the background |
 
 ## API <!-- tag: api -->
 

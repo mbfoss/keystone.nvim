@@ -5,6 +5,7 @@ local hover           = require("keystone.util.hover")
 local throttle        = require("keystone.util.throttle")
 local kinds           = require("keystone.symboltree.kinds")
 local symbols         = require("keystone.symboltree.symbols")
+local subtle          = require("keystone.util.subtle")
 
 ---@class keystone.symboltree.ItemData
 ---@field name string
@@ -160,6 +161,8 @@ function SymbolTree:_setup_tree()
     self._treebuf = TreeBuffer.new({
         filetype = "keystone-symboltree",
         formatter = _symbol_formatter,
+        indent_guides = true,
+        indent_guide_hl = subtle.faint(),
     })
 
     self._treebuf:subscribe({

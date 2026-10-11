@@ -94,8 +94,9 @@ local _separatorNC_hl = "KeystoneSLSepNC"
 ---@param name string  the group to define
 ---@param base string  the statusline group it is drawn over
 local function _def_separator(name, base)
+  local def_name = name .. "Default"
   color.create_themed_hl({
-    name = name .. "Default",
+    name = def_name,
     spec = function()
       local src = vim.api.nvim_get_hl(0, { name = "NonText", link = false })
       local base_hl = vim.api.nvim_get_hl(0, { name = base, link = false })
@@ -106,7 +107,7 @@ local function _def_separator(name, base)
       return hl
     end,
   })
-  vim.api.nvim_set_hl(0, name, { default = true, link = name .. "Default" })
+  vim.api.nvim_set_hl(0, name, { default = true, link = def_name })
 end
 
 local function _setup_separator_hl()

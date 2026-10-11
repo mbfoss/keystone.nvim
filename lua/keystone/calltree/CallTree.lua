@@ -3,6 +3,7 @@ local ui                = require("keystone.util.ui")
 local hover             = require("keystone.util.hover")
 local kinds             = require("keystone.symboltree.kinds")
 local calls             = require("keystone.calltree.calls")
+local subtle            = require("keystone.util.subtle")
 
 --- What one line of the tree holds. `call` is nil for the placeholder rows
 --- ("Loading…", "No callers", an error message) which are inert: they never
@@ -149,6 +150,8 @@ function CallTree:_setup_tree()
         formatter = function(_, data)
             return _call_formatter(data, self._opts.show_detail ~= false, self._direction)
         end,
+        indent_guides = true,
+        indent_guide_hl = subtle.faint(),
     })
 
     self._treebuf:subscribe({

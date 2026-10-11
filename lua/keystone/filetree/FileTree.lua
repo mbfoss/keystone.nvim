@@ -6,6 +6,7 @@ local LRU            = require("keystone.util.LRU")
 local hover          = require("keystone.util.hover")
 local inputwin       = require("keystone.util.inputwin")
 local icons          = require("keystone.icons")
+local subtle         = require("keystone.util.subtle")
 
 ---@class keystone.FileTree.ItemData
 ---@field path string
@@ -166,6 +167,8 @@ function FileTree:_setup_tree()
             return _file_formatter(id, data, expanded, self._selected[data.path] == true)
         end,
         show_expand_symbols = false,
+        indent_guides = true,
+        indent_guide_hl = subtle.faint(),
     })
 
     self._treebuf:subscribe({
