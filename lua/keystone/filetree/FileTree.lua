@@ -46,7 +46,7 @@ local _HL_INDENT_GUIDE = "KeystoneFileTreeIndentGuide"
 ---Link the indent guide group onto the shared subtle fade; the accessor defines
 ---that group on first call.
 local function _setup_highlights()
-    vim.api.nvim_set_hl(0, _HL_INDENT_GUIDE, { link = subtle.faint(), default = true })
+    vim.api.nvim_set_hl(0, _HL_INDENT_GUIDE, { link = subtle.subtle(), default = true })
 end
 
 local function _show_help()

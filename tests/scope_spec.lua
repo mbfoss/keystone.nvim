@@ -343,7 +343,6 @@ describe("scope fading", function()
       KeystoneScope = vim.api.nvim_get_hl(0, { name = "KeystoneScope" }),
       KeystoneIndentGuide = vim.api.nvim_get_hl(0, { name = "KeystoneIndentGuide" }),
       KeystoneSubtle = vim.api.nvim_get_hl(0, { name = "KeystoneSubtle" }),
-      KeystoneSubtleFaint = vim.api.nvim_get_hl(0, { name = "KeystoneSubtleFaint" }),
     }
     vim.o.termguicolors = true
     vim.api.nvim_set_hl(0, "Normal", { bg = 0x000000 })
@@ -359,15 +358,14 @@ describe("scope fading", function()
     end
   end)
 
-  it("fades the shared groups into the background", function()
-    -- NonText's 0x808080 mixed into a black background, 40% and 60% of the way.
-    assert.equals(0x4d4d4d, fg("KeystoneSubtle"))
-    assert.equals(0x333333, fg("KeystoneSubtleFaint"))
+  it("fades the shared group into the background", function()
+    -- NonText's 0x808080 mixed into a black background, 60% of the way.
+    assert.equals(0x333333, fg("KeystoneSubtle"))
   end)
 
-  it("draws the guides with groups linked to the shared subtle groups", function()
+  it("draws the guides with groups linked to the shared subtle group", function()
     assert.equals("KeystoneSubtle", vim.api.nvim_get_hl(0, { name = "KeystoneScope" }).link)
-    assert.equals("KeystoneSubtleFaint",
+    assert.equals("KeystoneSubtle",
       vim.api.nvim_get_hl(0, { name = "KeystoneIndentGuide" }).link)
   end)
 
@@ -378,11 +376,11 @@ describe("scope fading", function()
   end)
 
   it("recomputes from NonText on a colorscheme change", function()
-    assert.equals(0x333333, fg("KeystoneSubtleFaint"))
+    assert.equals(0x333333, fg("KeystoneSubtle"))
     vim.api.nvim_set_hl(0, "Normal", { bg = 0xffffff })
     vim.api.nvim_exec_autocmds("ColorScheme", {})
     -- Mixed from the source again, not from the previous fade.
-    assert.equals(0xcccccc, fg("KeystoneSubtleFaint"))
+    assert.equals(0xcccccc, fg("KeystoneSubtle"))
   end)
 
   it("takes no background from NonText", function()

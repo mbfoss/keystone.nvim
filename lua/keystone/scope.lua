@@ -44,7 +44,7 @@ local _default_config = {
   enabled           = true,
   scope             = true,
   guides            = true,
-  scope_char        = "│",
+  scope_char        = "┃",
   guide_char        = "│",
   exclude_filetypes = {},
 }
@@ -503,7 +503,7 @@ end
 --- colorscheme or a user `nvim_set_hl` call wins over them.
 local function _setup_highlights()
   vim.api.nvim_set_hl(0, _HL_SCOPE, { link = subtle.subtle(), default = true })
-  vim.api.nvim_set_hl(0, _HL_GUIDE, { link = subtle.faint(), default = true })
+  vim.api.nvim_set_hl(0, _HL_GUIDE, { link = subtle.subtle(), default = true })
 end
 
 -- ---------------------------------------------------------------------------

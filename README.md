@@ -137,7 +137,7 @@ require("keystone").setup({
   scope = {
     scope             = true,  -- guide along the scope under the cursor
     guides            = true,  -- guide on every indent level
-    scope_char        = "│",   -- one cell wide
+    scope_char        = "┃",   -- one cell wide
     guide_char        = "│",   -- one cell wide
     exclude_filetypes = {},    -- extra filetypes left alone
   },

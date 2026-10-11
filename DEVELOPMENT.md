@@ -127,8 +127,8 @@ Callers today: `keystone.diffunsaved.session.open`,
   rows it covered and the rows it now covers are redrawn. `blend=` applies only
   to floats and the popup menu, so the fade is baked into a colour instead: the
   foreground of `NonText` mixed into the background of `Normal`, defined once in
-  `keystone.util.subtle` (`KeystoneSubtle` / `KeystoneSubtleFaint`, which the
-  tree indent guides draw with too) and rebuilt on every `ColorScheme`. Only the
+  `keystone.util.subtle` (`KeystoneSubtle`, which the tree indent guides draw
+  with too) and rebuilt on every `ColorScheme`. Only the
   foreground is carried over, since a background would paint a block behind each
   one-cell guide. The mix is 24-bit, so without `'termguicolors'` the groups
   render from their unfaded `cterm` attributes and only `scope_char` /

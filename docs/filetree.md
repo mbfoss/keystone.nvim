@@ -32,9 +32,9 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 ## Highlights <!-- tag: highlights -->
 
 The indent guides are drawn with `KeystoneFileTreeIndentGuide`, a `default` link
-onto `KeystoneSubtleFaint` from `keystone.util.subtle`, the shared faint colour
-the scope and the other tree windows also use. Overriding the group, or the
-shared `KeystoneSubtleFaint`, recolours them.
+onto the shared `KeystoneSubtle`, which the scope and the other tree windows
+also use. Overriding the group recolours them; overriding `KeystoneSubtle` has
+no effect, as it is rewritten on every colorscheme change.
 
 ## Commands <!-- tag: commands -->
 

@@ -24,7 +24,7 @@ require("keystone").setup({
   scope = {
     scope             = true,  -- guide along the scope under the cursor
     guides            = true,  -- guide on every indent level
-    scope_char        = "│",   -- one cell wide
+    scope_char        = "┃",   -- one cell wide
     guide_char        = "│",   -- one cell wide
     exclude_filetypes = {},    -- extra filetypes left alone
   },
@@ -44,23 +44,22 @@ guides.
 ## Highlights <!-- tag: highlights -->
 
 The guides are drawn with the groups below. Each `default`-links to a shared
-subtle group, so a colorscheme or an `nvim_set_hl` call on it takes precedence.
+subtle group, so a colorscheme or an `nvim_set_hl` call on the group itself
+takes precedence.
 
 | Group | Used for | Links to |
 | --- | --- | --- |
 | `KeystoneScope` | The scope guide | `KeystoneSubtle` |
-| `KeystoneIndentGuide` | Indent guides | `KeystoneSubtleFaint` |
+| `KeystoneIndentGuide` | Indent guides | `KeystoneSubtle` |
 
-`KeystoneSubtle` and `KeystoneSubtleFaint` are the shared groups defined by
-`keystone.util.subtle` and rebuilt on every colorscheme change. Scope
-`default`-links its two groups onto them, so overriding `KeystoneScope` or
-`KeystoneIndentGuide` restyles the scope alone; each tree window gives its
-indent guides a group of its own the same way.
+`KeystoneSubtle` is derived: `keystone.util.subtle` fades `NonText` into
+`Normal` and rewrites it on every colorscheme change. Overriding it has no
+effect; restyle `KeystoneScope` and `KeystoneIndentGuide` (each tree window has
+its own indent guide group), or set `NonText` to change the source.
 
 | Group | Is |
 | --- | --- |
-| `KeystoneSubtle` | `NonText` faded 40% into the background |
-| `KeystoneSubtleFaint` | `NonText` faded 60% into the background |
+| `KeystoneSubtle` | `NonText` faded into the background |
 
 ## API <!-- tag: api -->
 
