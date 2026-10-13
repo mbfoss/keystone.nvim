@@ -98,8 +98,7 @@ local function _file_formatter(id, data, expanded, selected)
     if data.is_dir then
         icon, icon_hl = expanded and _DIR_ICON_OPEN or _DIR_ICON_CLOSED, "Directory"
     end
-    table.insert(chunks, { icon or "", icon_hl })
-    table.insert(chunks, { " " })
+    table.insert(chunks, { (icon or "") .. " ", icon_hl })
     if selected then
         table.insert(chunks, { _SELECT_MARKER, _HL_SELECTED })
     end
