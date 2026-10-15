@@ -64,6 +64,17 @@ With Neovim >= 0.12
 Any other plugin manager works too; point it at `mbfoss/keystone.nvim` and call
 `setup()` yourself.
 
+lazy.nvim <https://github.com/folke/lazy.nvim>: the same table goes in `opts`.
+It has to load at startup, since nothing is switched on until `setup()` runs.
+
+>lua
+    {
+      "mbfoss/keystone.nvim",
+      lazy = false,
+      opts = {}, -- the module table from above
+    }
+<
+
 The groups differ in how intrusive they are: the last only registers a command,
 while "replaces something built in" takes over a global: turn those off if you
 already have a statusline, `vim.notify` or key-hint plugin.
