@@ -201,9 +201,13 @@ local _MODE_MAP = {
   t       = { label = "TERMINAL", short = "T", hl = "KeystoneSLModeInsert" },
 }
 
+--- Mode is global, so an inactive window has none of its own: a redraw there
+--- would only repeat the current window's. It renders nothing instead.
 --- Full mode is the word label; the short form is the single-character label.
+---@param opts keystone.statusline.RenderOpts
 ---@return string full, string short
-local function _section_mode(_)
+local function _section_mode(opts)
+  if not opts.is_current then return "", "" end
   local info = _MODE_MAP[vim.fn.mode()] or { label = "?", short = "?", hl = "KeystoneSLModeNormal" }
   return string.format("%%#%s#%s%%*", info.hl, info.label),
       string.format("%%#%s#%s%%*", info.hl, info.short)
