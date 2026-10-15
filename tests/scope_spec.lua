@@ -268,9 +268,9 @@ describe("scope rendering", function()
       vim.list_extend(src, { "  def g():", "    b()", "  c()" })
       open_file(src, ".txt")
       vim.bo.filetype = "conf"
-      vim.wo.foldmethod = "manual"
-      vim.wo.foldenable = true
-      vim.wo.foldlevel = 0
+      vim.wo[0][0].foldmethod = "manual"
+      vim.wo[0][0].foldenable = true
+      vim.wo[0][0].foldlevel = 0
       scope.setup({ scope = false, guides = true })
       vim.cmd(("2,%dfold"):format(size + 2))
       vim.cmd("1")

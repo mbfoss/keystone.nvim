@@ -326,8 +326,9 @@ function Explorer:relayout(action)
                     vim.schedule(function() self:close() end)
                 end
             end)
-        vim.wo[self.lwin].winhighlight = winhl
-        vim.wo[self.lwin].wrap = self.opts.list_wrap ~= false
+        local lwo = vim.wo[self.lwin][0]
+        lwo.winhighlight = winhl
+        lwo.wrap = self.opts.list_wrap ~= false
 
         assert(type(pwin_augroup) == "number")
         vim.api.nvim_create_autocmd("WinEnter", {
@@ -388,8 +389,9 @@ function Explorer:relayout(action)
                         self.vbuf = nil
                     end
                 end)
-            vim.wo[self.vwin].wrap = true
-            vim.wo[self.vwin].winhighlight = winhl
+            local lwo = vim.wo[self.vwin][0]
+            lwo.wrap = true
+            lwo.winhighlight = winhl
         else
             vim.api.nvim_win_set_config(self.vwin, vim.tbl_extend("force", base_cfg, {
                 row = self.layout.preview_row,
@@ -639,7 +641,7 @@ function Explorer:clear_list()
 
     vim.api.nvim_buf_clear_namespace(self.lbuf, _NS_CONTENT, 0, -1)
     self:request_clear_preview()
-    vim.wo[self.lwin].cursorline = false
+    vim.wo[self.lwin][0].cursorline = false
     self._list_fresh = true
 end
 
@@ -739,7 +741,7 @@ function Explorer:add_new_lines(items)
         end
     end
     vim.bo[self.lbuf].modifiable = false
-    vim.wo[self.lwin].cursorline = #self.list_items > 0
+    vim.wo[self.lwin][0].cursorline = #self.list_items > 0
 end
 
 ---@param direction "in"|"out"|nil

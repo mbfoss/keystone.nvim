@@ -317,18 +317,20 @@ function Picker:_create_windows()
     self._pwin, augroup = ui.create_window(self._pbuf, true,
         vim.tbl_extend("force", base, self:_prompt_config()),
         function() self:_finish(nil) end)
-    vim.wo[self._pwin].winhighlight = _WINHL
-    vim.wo[self._pwin].wrap = false
+    local pwo = vim.wo[self._pwin][0]
+    pwo.winhighlight = _WINHL
+    pwo.wrap = false
 
     self._lwin = ui.create_window(self._lbuf, false,
         vim.tbl_extend("force", base, self:_list_config()),
         function() self:_finish(nil) end)
-    vim.wo[self._lwin].winhighlight = _WINHL
-    vim.wo[self._lwin].wrap = false
+    local lwo = vim.wo[self._lwin][0]
+    lwo.winhighlight = _WINHL
+    lwo.wrap = false
     -- `wbr` is what `%=` stretches across the winbar; `eob` comes with the
     -- window's `style = "minimal"`, and setting 'fillchars' here would drop it.
-    vim.wo[self._lwin].fillchars = "eob: ,wbr:" .. _RULE
-    vim.wo[self._lwin].winbar = self:_winbar()
+    lwo.fillchars = "eob: ,wbr:" .. _RULE
+    lwo.winbar = self:_winbar()
 
     if self._preview_item then
         -- 'hide', not the scratch default 'wipe': the placeholder goes hidden
@@ -338,9 +340,10 @@ function Picker:_create_windows()
         self._vwin = ui.create_window(self._vbuf, false,
             vim.tbl_extend("force", base, self:_preview_config()),
             function() self:_finish(nil) end)
-        vim.wo[self._vwin].winhighlight = _WINHL
-        vim.wo[self._vwin].wrap = true
-        vim.wo[self._vwin].linebreak = true
+        local vwo = vim.wo[self._vwin][0]
+        vwo.winhighlight = _WINHL
+        vwo.wrap = true
+        vwo.linebreak = true
     end
 
     return augroup
@@ -565,7 +568,7 @@ function Picker:_render()
         end
     end
 
-    vim.wo[self._lwin].cursorline = #lines > 0
+    vim.wo[self._lwin][0].cursorline = #lines > 0
     self:_move(1, true)
 end
 
@@ -593,7 +596,7 @@ function Picker:_set_count(count)
     if count == self._count then return end
     self._count = count
     if self._lwin and vim.api.nvim_win_is_valid(self._lwin) then
-        vim.wo[self._lwin].winbar = self:_winbar()
+        vim.wo[self._lwin][0].winbar = self:_winbar()
     end
 end
 
@@ -645,9 +648,10 @@ function Picker:_update_preview()
     if preview and preview.buf and vim.api.nvim_buf_is_valid(preview.buf) then
         self._external_buf = preview.buf
         vim.api.nvim_win_set_buf(vwin, preview.buf)
-        vim.wo[vwin].winhighlight = _WINHL
-        vim.wo[vwin].wrap = true
-        vim.wo[vwin].linebreak = true
+        local lwo = vim.wo[vwin][0]
+        lwo.winhighlight = _WINHL
+        lwo.wrap = true
+        lwo.linebreak = true
         self:_reveal(vwin, preview.buf, preview.pos, preview.pos_end)
         return
     end
@@ -669,9 +673,10 @@ function Picker:_release_preview()
     end
     if self._vwin and vim.api.nvim_win_is_valid(self._vwin) and vim.api.nvim_win_get_buf(self._vwin) == buf then
         vim.api.nvim_win_set_buf(self._vwin, self._vbuf)
-        vim.wo[self._vwin].winhighlight = _WINHL
-        vim.wo[self._vwin].wrap = true
-        vim.wo[self._vwin].linebreak = true
+        local lwo = vim.wo[self._vwin][0]
+        lwo.winhighlight = _WINHL
+        lwo.wrap = true
+        lwo.linebreak = true
     end
 end
 

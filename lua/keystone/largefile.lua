@@ -212,8 +212,9 @@ function M.enable()
     group = group,
     callback = function(ev)
       if M.config.disable_folding and M.is_large(ev.buf) then
-        vim.wo.foldenable = false
-        vim.wo.foldmethod = "manual"
+        local lwo = vim.wo[0][0]
+        lwo.foldenable = false
+        lwo.foldmethod = "manual"
       end
     end,
   })

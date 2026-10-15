@@ -269,8 +269,9 @@ function M.show(node)
         vim.api.nvim_win_set_config(M._win, _win_config(width, height, false, footer))
     else
         M._win = vim.api.nvim_open_win(M._buf, false, _win_config(width, height, true, footer))
-        vim.wo[M._win].wrap = false
-        vim.wo[M._win].winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
+        local lwo = vim.wo[M._win][0]
+        lwo.wrap = false
+        lwo.winhighlight = "NormalFloat:NormalFloat,FloatBorder:FloatBorder"
     end
 
     vim.cmd("redraw")

@@ -172,18 +172,22 @@ end
 --- Save or restore window options
 ---@param opts? vim.wo|{}
 function State:wo(opts)
+    local lwo = vim.wo[self.win][0]
     if not opts then
         if vim.api.nvim_win_is_valid(self.win) then
             for k, v in pairs(self._wo) do
-                vim.wo[self.win][k] = v
+                lwo[k] = v
             end
         end
         self._wo = {}
         return
     else
         for k, v in pairs(opts) do
-            self._wo[k] = self._wo[k] or vim.wo[self.win][k]
-            vim.wo[self.win][k] = v
+            -- `[0]` reads the local value alone, so an option only the global
+            -- set is saved as its unset sentinel (-1, "") and restored that
+            -- way: the window goes back to following the global.
+            self._wo[k] = self._wo[k] or lwo[k]
+            lwo[k] = v
         end
     end
 end
@@ -226,7 +230,7 @@ local function _get_state(win)
         ret.target = vim.deepcopy(view)
         ret.win = win
     end
-    ret.scrolloff = ret._wo.scrolloff or vim.wo[win].scrolloff
+    ret.scrolloff = ret._wo.scrolloff or vim.wo[win][0].scrolloff
     ret.view = view
     _states[win] = ret
     return ret
@@ -356,7 +360,7 @@ function M.check(win)
     end
 
     -- only animate the current window when scrollbind is enabled
-    if vim.wo[state.win].scrollbind and vim.api.nvim_get_current_win() ~= state.win then
+    if vim.wo[state.win][0].scrollbind and vim.api.nvim_get_current_win() ~= state.win then
         state:stop()
         return
     end

@@ -287,8 +287,9 @@ local function _notify(msg, opts)
       zindex = 100,
     })
 
-    vim.wo[win].wrap = false
-    vim.wo[win].list = true
+    local lwo = vim.wo[win][0]
+    lwo.wrap = false
+    lwo.list = true
 
     vim.api.nvim_set_option_value(
       "winhl",

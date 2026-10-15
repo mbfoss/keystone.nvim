@@ -83,10 +83,11 @@ end
 -- buffer-local-window form (`vim.wo[0][0]`) so the options don't leak to other
 -- buffers shown in the same window.
 local function _apply_fold()
-  vim.wo[0][0].foldmethod = "expr"
-  vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
+  local lwo = vim.wo[0][0]
+  lwo.foldmethod = "expr"
+  lwo.foldexpr = "v:lua.vim.treesitter.foldexpr()"
   if M.config.fold_open then
-    vim.wo[0][0].foldlevel = 99
+    lwo.foldlevel = 99
   end
 end
 
