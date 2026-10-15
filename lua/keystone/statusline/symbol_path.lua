@@ -3,11 +3,12 @@
 ---refreshed on edits; the section redraws as the cursor moves.
 local M = {}
 
-local throttle = require("keystone.util.throttle")
+local lspsymbols = require("keystone.util.lspsymbols")
+local throttle   = require("keystone.util.throttle")
 
 local _AUGROUP = "keystone_statusline_symbol_path"
 
--- [bufnr] = DocumentSymbol[] | SymbolInformation[]
+-- [bufnr] = keystone.util.lspsymbols.Symbol[] whichever reply shape the server sent
 local _symbol_cache = {}
 -- bufnrs with a document-symbol-capable client attached
 local _tracked_bufs = {}
@@ -50,43 +51,17 @@ local _PATH_KINDS = {
   [_KIND.Struct]      = true,
 }
 
-local function _in_range(line0, range)
-  return line0 >= range.start.line and line0 <= range["end"].line
-end
-
-local function _collect_enclosing(symbols, line0, chain)
-  for _, sym in ipairs(symbols) do
-    if sym.range and _in_range(line0, sym.range) then
-      if _PATH_KINDS[sym.kind] then
-        table.insert(chain, sym)
-      end
-      if sym.children and #sym.children > 0 then
-        _collect_enclosing(sym.children, line0, chain)
-      end
-      return
-    end
-  end
-end
-
----The enclosing-symbol chain at `line`, outermost first.
----@param symbols table[]?
+---The enclosing-symbol chain at `line`, outermost first. The tree has already
+---been threaded by `lspsymbols.normalize`, so this is the path to the innermost
+---symbol covering the line, minus the kinds that are not worth a link.
+---@param tree keystone.util.lspsymbols.Symbol[]?
 ---@param line integer 1-based cursor line
----@return table[] chain
-local function _build_chain(symbols, line)
+---@return keystone.util.lspsymbols.Symbol[] chain
+local function _build_chain(tree, line)
   local chain = {}
-  if not symbols or #symbols == 0 then return chain end
-  local line0 = line - 1
-
-  if symbols[1] and symbols[1].range then
-    -- DocumentSymbol tree
-    _collect_enclosing(symbols, line0, chain)
-  else
-    -- SymbolInformation flat list
-    for _, sym in ipairs(symbols) do
-      local r = sym.location and sym.location.range
-      if r and _in_range(line0, r) and _PATH_KINDS[sym.kind] then
-        table.insert(chain, sym)
-      end
+  for _, sym in ipairs(lspsymbols.path_at_line(tree, line)) do
+    if _PATH_KINDS[sym.kind] then
+      table.insert(chain, sym)
     end
   end
   return chain
@@ -95,7 +70,7 @@ end
 --- The enclosing-symbol chain for `bufnr` at the cursor of the window being
 --- rendered, or `nil` when the buffer is not the one shown there.
 ---@param bufnr integer
----@return table[]?
+---@return keystone.util.lspsymbols.Symbol[]?
 local function _chain_at_cursor(bufnr)
   local winid = vim.g.statusline_winid
   if not winid or winid == 0 then
@@ -110,7 +85,7 @@ end
 
 --- One trail segment: the symbol's name, kind-icon prefixed when `with_icon`.
 --- `%` is doubled so names never act as statusline items.
----@param sym table
+---@param sym keystone.util.lspsymbols.Symbol
 ---@param with_icon boolean
 ---@return string
 local function _segment(sym, with_icon)
@@ -149,19 +124,22 @@ function M.render(opts)
   return table.concat(parts), string.format("%%#%s#%s%%*", hl, short)
 end
 
+-- One provider for the module: it drops a reply a later refresh has overtaken.
+local _provider = lspsymbols.Provider:new()
+
 ---@param bufnr integer
 local function _request_symbols(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
-  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" })
-  local client = clients[1]
-  if not client then return end
+  _provider:request(bufnr, {
+    on_symbols = function(tree)
+      _symbol_cache[bufnr] = tree
+      if _on_change then _on_change() end
+    end,
 
-  local params = { textDocument = { uri = vim.uri_from_bufnr(bufnr) } }
-  client:request("textDocument/documentSymbol", params, function(err, result)
-    if err or not result then return end
-    _symbol_cache[bufnr] = result
-    if _on_change then _on_change() end
-  end, bufnr)
+    -- No client, or a failed or empty reply: keep the symbols we have. A refresh
+    -- that changes nothing about the trail should not blank it, and LspDetach is
+    -- what clears the buffer.
+    on_unavailable = function() end,
+  })
 end
 
 ---@param bufnr integer
@@ -172,12 +150,6 @@ local function _get_refresh_fn(bufnr)
     end)
   end
   return _refresh_fns[bufnr]
-end
-
----@param bufnr integer
----@return boolean
-local function _buf_has_symbol_client(bufnr)
-  return #vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/documentSymbol" }) > 0
 end
 
 ---@param on_change fun() called whenever the tracked symbol state changes
@@ -191,7 +163,7 @@ function M.enable(on_change)
 
   -- Pick up buffers that already have a symbol-capable client attached.
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(bufnr) and _buf_has_symbol_client(bufnr) then
+    if vim.api.nvim_buf_is_loaded(bufnr) and lspsymbols.has_client(bufnr) then
       _tracked_bufs[bufnr] = true
       _request_symbols(bufnr)
     end
@@ -213,7 +185,7 @@ function M.enable(on_change)
       local bufnr = args.buf
       -- Schedule so the client list reflects the detach before we check.
       vim.schedule(function()
-        if _tracked_bufs[bufnr] and not _buf_has_symbol_client(bufnr) then
+        if _tracked_bufs[bufnr] and not lspsymbols.has_client(bufnr) then
           _tracked_bufs[bufnr] = nil
           _symbol_cache[bufnr] = nil
           if _on_change then _on_change() end

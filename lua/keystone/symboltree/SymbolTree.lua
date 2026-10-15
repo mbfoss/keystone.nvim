@@ -4,7 +4,7 @@ local ui              = require("keystone.util.ui")
 local hover           = require("keystone.util.hover")
 local throttle        = require("keystone.util.throttle")
 local kinds           = require("keystone.symboltree.kinds")
-local symbols         = require("keystone.symboltree.symbols")
+local symbols         = require("keystone.util.lspsymbols")
 local subtle          = require("keystone.util.subtle")
 
 ---@class keystone.symboltree.ItemData
@@ -120,8 +120,8 @@ end
 ---@field new fun(self:keystone.SymbolTree, opts:keystone.SymbolTree.Opts?):keystone.SymbolTree
 ---@field private _treebuf keystone.util.TreeBuffer
 ---@field private _source_buf integer
----@field private _symbols keystone.symboltree.Symbol[]
----@field private _provider keystone.symboltree.symbols.Provider
+---@field private _symbols keystone.util.lspsymbols.Symbol[]
+---@field private _provider keystone.util.lspsymbols.Provider
 ---@field private _excluded table<integer, true>
 ---@field private _collapsed table<integer, true>
 ---@field private _expand_cache keystone.util.LRU fold state, keyed by buffer and item id
@@ -398,13 +398,13 @@ end
 --- expansion state survives a refresh as long as the structure is unchanged.
 ---@param parent_id string?
 ---@param index integer
----@param symbol keystone.symboltree.Symbol
+---@param symbol keystone.util.lspsymbols.Symbol
 ---@return string
 local function _make_id(parent_id, index, symbol)
     return (parent_id or "") .. "/" .. index .. ":" .. symbol.name
 end
 
----@param list keystone.symboltree.Symbol[]
+---@param list keystone.util.lspsymbols.Symbol[]
 ---@param parent_id string?
 ---@return keystone.util.TreeBuffer.ItemDef[]
 function SymbolTree:_build_items(list, parent_id)

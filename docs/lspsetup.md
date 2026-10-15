@@ -49,9 +49,10 @@ it. It runs one step later in the chain:
 - **It does not ship server configurations.** There is no `lsp/` directory here.
   It enables configs already on your runtimepath: nvim-lspconfig's
   `lsp/<name>.lua` files, or your own in `~/.config/nvim/lsp/`.
-- **It does not define keymaps.** Neovim's global defaults are what you get,
-  `gra`, `gri`, `grn`, `grr`, `grt`, `grx`, `gO` and insert-mode `<C-s>` (see
+- **It defines no keymaps.** Neovim's global defaults are what you get, `gra`,
+  `gri`, `grn`, `grr`, `grt`, `grx`, `gO` and insert-mode `<C-s>` (see
   `:help lsp-defaults`).
+
 
 ### Using it alongside nvim-lspconfig <!-- tag: alongside -->
 
@@ -96,6 +97,11 @@ require("keystone").setup({
   },
 })
 ```
+
+## Symbol navigation <!-- tag: navigation -->
+
+Motions between definitions are not part of this module. See
+[lspnav](lspnav.md).
 
 <!-- panvimdoc-ignore-start -->
 

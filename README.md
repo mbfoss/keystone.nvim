@@ -88,6 +88,10 @@ require("keystone").setup({
     -- settings     = { lua_ls = { settings = {...} } }, -- per-server overrides
     -- capabilities = ..., on_attach = function(client, bufnr) ... end,
   },
+  lspnav = {
+    function_kinds = { 6, 9, 12 },             -- SymbolKind codes next_function stops on
+    type_kinds     = { 2, 3, 5, 10, 11, 23 },  -- SymbolKind codes next_type stops on
+  },
   tsconfig = {
     highlight = true,
     fold      = true,   -- foldmethod=expr using the Treesitter foldexpr
@@ -256,7 +260,8 @@ Each module has its own page in [docs/](docs/):
 | [clue](docs/clue.md) | A popup listing the keys that can follow a trigger |
 | [completion](docs/completion.md) | LSP-driven autocompletion with `<Tab>`/`<CR>` |
 | [statusline](docs/statusline.md) | A statusline assembled from configurable sections |
-| [lspsetup](docs/lspsetup.md) | Enables configured LSP servers, with log rotation |
+| [lspsetup](docs/lspsetup.md) | Enables LSP servers, with log rotation |
+| [lspnav](docs/lspnav.md) | Motions to the next and previous function or type |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
 | [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
 | [scope](docs/scope.md) | Guides along the current scope and indent levels |
@@ -280,7 +285,8 @@ Each module has its own help page:
 - |keystone-clue| A popup listing the keys that can follow a trigger
 - |keystone-completion| LSP-driven autocompletion with `<Tab>`/`<CR>`
 - |keystone-statusline| A statusline assembled from configurable sections
-- |keystone-lspsetup| Enables configured LSP servers, with log rotation
+- |keystone-lspsetup| Enables LSP servers, with log rotation
+- |keystone-lspnav| Motions to the next and previous function or type
 - |keystone-tsconfig| Treesitter highlighting and folding, per buffer
 - |keystone-marksigns| Shows the marks that are set in the sign column
 - |keystone-scope| Guides along the current scope and indent levels

@@ -54,9 +54,17 @@ function and adding its name to `_MODULES`.
 
 [`lua/keystone/util/`](lua/keystone/util/) holds the primitives modules build on:
 floating/fixed/input windows, a tree buffer, an LRU cache, throttle/debounce,
-timers, a signal type, string/fs utilities, process spawning, spinners, and
-user-command registration. Extend `util` rather than duplicating low-level
-plumbing in a feature module.
+timers, a signal type, string/fs utilities, process spawning, spinners,
+user-command registration, and the `textDocument/documentSymbol` helpers
+(`keystone.util.lspsymbols`: reply normalization, item placement, the capable
+client for a buffer, a request provider) that `symboltree`, `calltree`, the
+statusline's symbol path and `lspnav` share. Extend `util` rather than
+duplicating low-level plumbing in a feature module.
+
+A `util` module carries no policy of its own: it takes what its caller passes,
+returns a value, and registers nothing. Loading one must not load a feature
+module or a second `util` module on its caller's behalf, so anything two
+features need goes here rather than into whichever feature needs it first.
 
 ### Lazy loading
 

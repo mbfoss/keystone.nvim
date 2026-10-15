@@ -1,5 +1,7 @@
 local M = {}
 
+local lspsymbols = require("keystone.util.lspsymbols")
+
 --- A node of the call hierarchy as we keep it internally, normalized from a
 --- `CallHierarchyItem` plus (for a call, rather than the root) the ranges of the
 --- call sites that produced it.
@@ -20,31 +22,27 @@ local M = {}
 ---@alias keystone.calltree.Direction "incoming"|"outgoing"
 
 --- Normalize a `CallHierarchyItem`. Returns nil for entries missing the range
---- we need to place them.
+--- we need to place them, or the uri we need to fetch them back.
 ---@param item table
 ---@param client_id integer
 ---@return keystone.calltree.Call?
 function M.normalize_item(item, client_id)
-    if type(item) ~= "table" then return nil end
-    if type(item.uri) ~= "string" then return nil end
-
-    -- `range` spans the whole construct; `selectionRange` points at the name
-    -- itself, which is where we want the cursor to land.
-    local full_range = item.range
-    local start_range = item.selectionRange or full_range
-    if not full_range or not full_range["end"] then return nil end
-    if not start_range or not start_range.start then return nil end
+    -- `CallHierarchyItem` says where it sits the way a `DocumentSymbol` does, so
+    -- the position fields come from the shared helper. `range` spans the whole
+    -- construct, `selectionRange` points at the name.
+    local placed = lspsymbols.place(item)
+    if not placed or type(item.uri) ~= "string" then return nil end
 
     return {
-        name       = item.name or "?",
-        detail     = item.detail,
-        kind       = item.kind or 0,
-        uri        = item.uri,
-        lnum       = start_range.start.line + 1,
-        col        = start_range.start.character,
-        end_lnum   = full_range["end"].line + 1,
-        client_id  = client_id,
-        item       = item,
+        name      = placed.name,
+        detail    = placed.detail,
+        kind      = placed.kind,
+        lnum      = placed.lnum,
+        col       = placed.col,
+        end_lnum  = placed.end_lnum,
+        uri       = item.uri,
+        client_id = client_id,
+        item      = item,
     }
 end
 
@@ -141,6 +139,10 @@ end
 --- on a variable, a field or a comment can still name the function it lives in.
 --- Accepts either shape a `textDocument/documentSymbol` reply may take:
 --- hierarchical `DocumentSymbol`s or flat `SymbolInformation`s.
+---
+--- Walks the raw reply rather than `keystone.util.lspsymbols`: this containment
+--- compares columns as well as lines, and it must ask the same client that owns
+--- the position, neither of which the shared normalized tree carries.
 ---@param symbols table[]? raw reply
 ---@param position { line: integer, character: integer } in the offset encoding the symbols came in
 ---@return table? symbol

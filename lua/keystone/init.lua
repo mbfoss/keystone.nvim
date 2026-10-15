@@ -32,6 +32,7 @@ local _MODULES = {
   "completion",
   "fileselector",
   "filetree",
+  "lspnav",
   "lspsetup",
   "marksigns",
   "scope",
