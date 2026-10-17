@@ -5,8 +5,7 @@
 > changes, including breaking ones, can land at any time. Pin a commit if you
 > need a fixed target.
 
-Quality-of-life editor modules for Neovim: a file tree, a key-hint popup,
-completion, a statusline, LSP and Treesitter setup, and editor behaviour flags.
+Quality-of-life editor modules for Neovim.
 Each module is independent, and none is active unless you name it in `setup()`.
 
 > **Requires Neovim >= 0.11.** No other plugins required.
