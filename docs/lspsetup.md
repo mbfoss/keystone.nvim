@@ -98,11 +98,6 @@ require("keystone").setup({
 })
 ```
 
-## Symbol navigation <!-- tag: navigation -->
-
-Motions between definitions are not part of this module. See
-[lspnav](lspnav.md).
-
 <!-- panvimdoc-ignore-start -->
 
 ---

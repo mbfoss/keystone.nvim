@@ -5,10 +5,9 @@
 > changes, including breaking ones, can land at any time. Pin a commit if you
 > need a fixed target.
 
-Quality-of-life editor modules for Neovim: file, symbol and call trees, a key-hint
-popup, completion, a statusline, LSP and Treesitter setup, and editor behaviour
-flags. Each module is independent, and none is active unless you name it in
-`setup()`.
+Quality-of-life editor modules for Neovim: a file tree, a key-hint popup,
+completion, a statusline, LSP and Treesitter setup, and editor behaviour flags.
+Each module is independent, and none is active unless you name it in `setup()`.
 
 > **Requires Neovim >= 0.11.** No other plugins required.
 
@@ -43,8 +42,6 @@ require("keystone").setup({
   -- Adds a command, does nothing until you run it
   filetree     = true,  -- :FileTree
   fileselector = true,  -- :FileSelector
-  symboltree   = false, -- :SymbolTree
-  calltree     = false, -- :CallTree
   diffunsaved  = false, -- :DiffUnsaved
   bufdelete    = false, -- :BDelete, :BWipeout
 })
@@ -98,10 +95,6 @@ require("keystone").setup({
     -- diagnostics  = { ... }, -- passed straight to vim.diagnostic.config
     -- settings     = { lua_ls = { settings = {...} } }, -- per-server overrides
     -- capabilities = ..., on_attach = function(client, bufnr) ... end,
-  },
-  lspnav = {
-    function_kinds = { 6, 9, 12 },             -- SymbolKind codes next_function stops on
-    type_kinds     = { 2, 3, 5, 10, 11, 23 },  -- SymbolKind codes next_type stops on
   },
   tsconfig = {
     highlight = true,
@@ -212,25 +205,6 @@ require("keystone").setup({
   fileselector = {
     detail_fields = { "size", "mtime" }, -- per-entry details, in the order given
   },
-  symboltree = {
-    width_ratio    = 0.2,   -- fraction of the editor width
-    track_cursor   = true,  -- highlight/follow the symbol under the cursor
-    auto_expand    = true,  -- expand every symbol on load
-    show_detail    = true,  -- show the server-provided detail text
-    exclude_kinds  = nil,   -- LSP symbol kind names to hide, e.g. { "Variable" }
-    collapse_kinds = { "Function", "Method", "Object" },
-                            -- kinds left collapsed on load even when auto_expand is set
-    debounce_ms    = 500,   -- edit-to-refresh delay
-  },
-  calltree = {
-    width_ratio      = 0.2,        -- fraction of the editor width (left/right)
-    height_ratio     = 0.2,        -- fraction of the editor height (top/bottom)
-    position         = "bottom",   -- side the window opens on
-                                   -- ("top"|"bottom"|"left"|"right")
-    direction        = "incoming", -- which way to walk ("incoming"|"outgoing")
-    show_detail      = true,       -- show the server-provided detail text
-    auto_expand_root = true,       -- expand the root as soon as it resolves
-  },
   diffunsaved = {},
   bufdelete = {
     ignore_floats            = true,  -- keep buffers shown in a floating window
@@ -258,6 +232,9 @@ require("keystone.filetree").setup({ width_ratio = 0.2 })
 
 ## Modules <!-- tag: modules -->
 
+The symbol tree, call tree, references window and definition motions moved to
+[lspnav.nvim](https://github.com/mbfoss/lspnav.nvim).
+
 <!-- panvimdoc-ignore-start -->
 
 Each module has its own page in [docs/](docs/):
@@ -266,13 +243,10 @@ Each module has its own page in [docs/](docs/):
 | --- | --- |
 | [filetree](docs/filetree.md) | A file explorer in a side window |
 | [fileselector](docs/fileselector.md) | A file selector for navigating the filesystem |
-| [calltree](docs/calltree.md) | The LSP call hierarchy of the symbol under the cursor |
-| [symboltree](docs/symboltree.md) | The LSP document symbols of the current buffer |
 | [clue](docs/clue.md) | A popup listing the keys that can follow a trigger |
 | [completion](docs/completion.md) | LSP-driven autocompletion with `<Tab>`/`<CR>` |
 | [statusline](docs/statusline.md) | A statusline assembled from configurable sections |
 | [lspsetup](docs/lspsetup.md) | Enables LSP servers, with log rotation |
-| [lspnav](docs/lspnav.md) | Motions to the next and previous function or type |
 | [tsconfig](docs/tsconfig.md) | Treesitter highlighting and folding, per buffer |
 | [marksigns](docs/marksigns.md) | Shows the marks that are set in the sign column |
 | [scope](docs/scope.md) | Guides along the current scope and indent levels |
@@ -291,13 +265,10 @@ Each module has its own help page:
 
 - |keystone-filetree| A file explorer in a side window
 - |keystone-fileselector| A file selector for navigating the filesystem
-- |keystone-calltree| The LSP call hierarchy of the symbol under the cursor
-- |keystone-symboltree| The LSP document symbols of the current buffer
 - |keystone-clue| A popup listing the keys that can follow a trigger
 - |keystone-completion| LSP-driven autocompletion with `<Tab>`/`<CR>`
 - |keystone-statusline| A statusline assembled from configurable sections
 - |keystone-lspsetup| Enables LSP servers, with log rotation
-- |keystone-lspnav| Motions to the next and previous function or type
 - |keystone-tsconfig| Treesitter highlighting and folding, per buffer
 - |keystone-marksigns| Shows the marks that are set in the sign column
 - |keystone-scope| Guides along the current scope and indent levels
@@ -320,8 +291,6 @@ Enabling the relevant module registers its command:
 | --- | --- | --- |
 | `:FileTree` | [filetree](docs/filetree.md) | Open the file-tree side window |
 | `:FileSelector` | [fileselector](docs/fileselector.md) | Open the file selector |
-| `:CallTree` | [calltree](docs/calltree.md) | Show the call hierarchy of the symbol under the cursor |
-| `:SymbolTree` | [symboltree](docs/symboltree.md) | Toggle the document-symbol side window |
 | `:Notifications` | [notify](docs/notify.md) | List or clear the notification history |
 | `:DiffUnsaved` | [diffunsaved](docs/diffunsaved.md) | Diff unsaved buffers against disk |
 | `:BDelete` `:BWipeout` | [bufdelete](docs/bufdelete.md) | Delete or wipe buffers, keeping the window layout |
@@ -331,9 +300,6 @@ Enabling the relevant module registers its command:
 <!-- vimdoc-only
 - `:FileTree` |keystone-filetree| Open the file-tree side window
 - `:FileSelector` |keystone-fileselector| Open the file selector
-- `:CallTree` |keystone-calltree| Show the call hierarchy of the symbol under
-  the cursor
-- `:SymbolTree` |keystone-symboltree| Toggle the document-symbol side window
 - `:Notifications` |keystone-notify| List or clear the notification history
 - `:DiffUnsaved` |keystone-diffunsaved| Diff unsaved buffers against disk
 - `:BDelete` `:BWipeout` |keystone-bufdelete|

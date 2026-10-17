@@ -8,7 +8,6 @@ Table of Contents                        *keystone-lspsetup-table-of-contents*
   - What it does not do                           |keystone-lspsetup-does-not|
   - Using it alongside nvim-lspconfig            |keystone-lspsetup-alongside|
 2. Configuration                             |keystone-lspsetup-configuration|
-3. Symbol navigation                            |keystone-lspsetup-navigation|
 Defaults and per-server configuration on top of Neovim’s built-in `vim.lsp`.
 Neovim requires an explicit `vim.lsp.enable()` call for each server; this
 module makes that call for the servers you name in `servers`, chosen from the
@@ -111,13 +110,6 @@ runtimepath, which is the list to pick those names from. If you already call
       },
     })
 <
-
-
-==============================================================================
-3. Symbol navigation                            *keystone-lspsetup-navigation*
-
-Motions between definitions are not part of this module. See lspnav
-<lspnav.md>.
 
 All modules: |keystone-modules|
 

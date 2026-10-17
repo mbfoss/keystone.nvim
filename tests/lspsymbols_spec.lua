@@ -174,9 +174,9 @@ describe("lspsymbols.place", function()
 end)
 
 describe("lspsymbols load", function()
-    -- The module is shared by `keystone.symboltree` and `keystone.lspsetup`, so
-    -- loading it must not choose a side: no feature module may come with it, and
-    -- nothing may be registered behind the caller's back.
+    -- The module backs the statusline's symbol path and is reachable from
+    -- feature modules, so loading it must not choose a side: no feature module
+    -- may come with it, and nothing may be registered behind the caller's back.
     it("pulls in no other module", function()
         package.loaded["keystone.util.lspsymbols"] = nil
         local before = {}

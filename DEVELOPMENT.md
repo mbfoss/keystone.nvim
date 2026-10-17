@@ -20,8 +20,8 @@ Neovim and can use the `vim` API.
 make test
 
 # Pass flags through to busted
-make test BUSTED_ARGS="--filter=symboltree -o gtest"
-make test BUSTED_ARGS=tests/calltree_spec.lua
+make test BUSTED_ARGS="--filter=scope -o gtest"
+make test BUSTED_ARGS=tests/filetree_spec.lua
 ```
 
 busted must already be installed for Lua 5.1, the version Neovim embeds:
@@ -57,9 +57,9 @@ floating/fixed/input windows, a tree buffer, an LRU cache, throttle/debounce,
 timers, a signal type, string/fs utilities, process spawning, spinners,
 user-command registration, and the `textDocument/documentSymbol` helpers
 (`keystone.util.lspsymbols`: reply normalization, item placement, the capable
-client for a buffer, a request provider) that `symboltree`, `calltree`, the
-statusline's symbol path and `lspnav` share. Extend `util` rather than
-duplicating low-level plumbing in a feature module.
+client for a buffer, a request provider) that the statusline's symbol path
+uses. Extend `util` rather than duplicating low-level plumbing in a feature
+module.
 
 A `util` module carries no policy of its own: it takes what its caller passes,
 returns a value, and registers nothing. Loading one must not load a feature

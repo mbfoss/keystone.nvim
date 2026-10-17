@@ -93,18 +93,3 @@ describe("keystone.health", function()
     assert.matches("size_treshold", messages(capture(), "warn"))
   end)
 end)
-
-describe("keystone.health and the lspnav kinds", function()
-  after_each(function()
-    require("keystone.lspnav").setup({})
-  end)
-
-  it("reports a configured kind list without calling it a misspelling", function()
-    -- The lists are replaced wholesale by `cfgutil.apply`, so what health reports
-    -- is the user's list, not a merge of it with the default.
-    keystone.setup({ lspnav = { type_kinds = { 5 } } })
-    local entries = capture()
-    assert.matches("type_kinds = { 5 }", section(entries, "keystone.lspnav: configuration"))
-    assert.is_nil(messages(entries, "warn"):match("type_kinds"))
-  end)
-end)
