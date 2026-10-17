@@ -6,12 +6,13 @@
 > need a fixed target.
 
 Quality-of-life editor modules for Neovim.
-Each module is independent, and none is active unless you name it in `setup()`.
 
-> **Requires Neovim >= 0.11.** No other plugins required.
+Each module is independent, and none is active unless you name it in `setup()`.
 
 ## Installation <!-- tag: installation -->
 
+> **Requires Neovim >= 0.11.**
+ 
 With Neovim >= 0.12
 
 ```lua
