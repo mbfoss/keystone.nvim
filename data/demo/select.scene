@@ -1,7 +1,7 @@
 # README demo: select. A vim.ui.select prompt with fuzzy filtering, a live
 # preview, and expansion to the full screen.
 size 120x40
-cwd ..
+cwd ../..
 init init.lua
 out out/select.gif
 cast out/select.cast

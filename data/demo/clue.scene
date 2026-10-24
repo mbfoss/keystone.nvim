@@ -1,6 +1,6 @@
 # README demo: clue. A trigger key shows the keys that can follow it.
 size 120x40
-cwd ..
+cwd ../..
 init init.lua
 out out/clue.gif
 cast out/clue.cast

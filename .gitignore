@@ -42,7 +42,7 @@ luac.out
 .DS_Store
 
 # Demo recordings; the GIFs are published on the assets branch.
-/demo/out/
+/data/demo/out/
 /.vscode
 /.loop
 tasks.toml

@@ -1,7 +1,7 @@
 # README demo: animate. Half-page and long jumps scroll through the lines
 # between the start and the destination instead of snapping there.
 size 120x40
-cwd ..
+cwd ../..
 init init.lua
 out out/animate.gif
 cast out/animate.cast
