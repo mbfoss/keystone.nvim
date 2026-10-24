@@ -27,7 +27,7 @@ local _NS_PROMPT  = vim.api.nvim_create_namespace("keystone_select_prompt")
 local _NS_PREVIEW = vim.api.nvim_create_namespace("keystone_select_preview")
 
 local _HL_MATCH   = "KeystoneSelectMatch"
-vim.api.nvim_set_hl(0, _HL_MATCH, { default = true, link = "Special" })
+vim.api.nvim_set_hl(0, _HL_MATCH, { default = true, link = "Visual" })
 
 -- The rule's own group, so a `NonText` carrying a background does not paint
 -- the winbar row in it.
